@@ -1956,12 +1956,20 @@ class Component extends DCLogic {
     if (!allOn) occupied.forEach(r => { sel[r.id] = true; });
     this.setState({ broadcastSel: sel, broadcastOwner: !allOn });
   };
-  _lineSend = async (roomId, message) => {
+  _lineSend = async (roomId, message, imageUrl) => {
     const res = await fetch('/api/line/send', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roomId, message }),
+      body: JSON.stringify({ roomId, message, imageUrl }),
     });
     if (!res.ok) throw new Error((await res.json()).error || 'ส่งไม่สำเร็จ');
+  };
+  _uploadImageForLine = async (dataUrl) => {
+    const res = await fetch('/api/uploads/image', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'อัปโหลดรูปไม่สำเร็จ');
+    return (await res.json()).url;
   };
   sendBroadcast = async () => {
     const s = this.state;
@@ -2603,9 +2611,14 @@ class Component extends DCLogic {
     const room = this.state.newsTargetRoom;
     const text = [f.message.trim(), f.link.trim()].filter(Boolean).join('\n');
     try {
-      await this._lineSend(room, text || 'มีข่าวสารใหม่จากผู้ดูแลหอพักครับ');
+      let imageUrl;
+      if (f.image) {
+        this.showAdminToast('กำลังอัปโหลดรูปภาพ...');
+        imageUrl = await this._uploadImageForLine(f.image);
+      }
+      await this._lineSend(room, text, imageUrl);
       this.setState({ showNewsModal: false });
-      this.showAdminToast('ส่งข้อมูลข่าวสารถึงห้อง ' + room + ' แล้ว' + (f.image ? ' (หมายเหตุ: รูปภาพยังไม่รองรับการส่งผ่าน LINE)' : ''));
+      this.showAdminToast('ส่งข้อมูลข่าวสารถึงห้อง ' + room + ' แล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ส่ง LINE ไม่สำเร็จ'); }
   };
 

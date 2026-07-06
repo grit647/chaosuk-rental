@@ -48,16 +48,16 @@ router.post('/webhook', async (req, res) => {
 router.post('/send', async (req, res, next) => {
   try {
     if (!isConfigured()) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า LINE บนเซิร์ฟเวอร์ (server/.env)' });
-    const { roomId, message } = req.body;
-    if (!roomId || !message || !String(message).trim()) {
-      return res.status(400).json({ error: 'กรุณาระบุห้องและข้อความ' });
+    const { roomId, message, imageUrl } = req.body;
+    if (!roomId || (!message || !String(message).trim()) && !imageUrl) {
+      return res.status(400).json({ error: 'กรุณาระบุห้องและข้อความหรือรูปภาพ' });
     }
     const rooms = await readTab('Rooms');
     const room = rooms.find((r) => r.id === roomId);
     if (!room || !room.lineUserId) {
       return res.status(400).json({ error: `ห้อง ${roomId} ยังไม่ได้เชื่อมต่อ LINE` });
     }
-    await pushMessage(room.lineUserId, message);
+    await pushMessage(room.lineUserId, message, imageUrl);
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

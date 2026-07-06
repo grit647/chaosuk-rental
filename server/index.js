@@ -10,7 +10,9 @@ process.on('unhandledRejection', (reason) => {
 
 const ROOT = path.join(__dirname, '..');
 const app = express();
+app.set('trust proxy', 1); // behind Render's proxy — needed so req.protocol reports https, not http
 app.use(express.json({ limit: '5mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/', (req, res) => res.sendFile(path.join(ROOT, 'Rental Management.dc.html')));
 app.get('/support.js', (req, res) => res.sendFile(path.join(ROOT, 'support.js')));
@@ -25,6 +27,7 @@ app.use('/api/expenses', require('./routes/expenses'));
 app.use('/api/calendar', require('./routes/calendar'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/line', require('./routes/line'));
+app.use('/api/uploads', require('./routes/uploads'));
 
 app.use((err, req, res, next) => {
   console.error(err);

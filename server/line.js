@@ -38,8 +38,14 @@ async function replyMessage(replyToken, text) {
   return callLineApi('reply', { replyToken, messages: [{ type: 'text', text }] });
 }
 
-async function pushMessage(to, text) {
-  return callLineApi('push', { to, messages: [{ type: 'text', text }] });
+// imageUrl (optional): a publicly reachable HTTPS URL — LINE fetches the
+// image from it directly, it cannot take inline/base64 image data.
+async function pushMessage(to, text, imageUrl) {
+  const messages = [];
+  if (text) messages.push({ type: 'text', text });
+  if (imageUrl) messages.push({ type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl });
+  if (!messages.length) throw new Error('ไม่มีข้อความหรือรูปภาพให้ส่ง');
+  return callLineApi('push', { to, messages });
 }
 
 module.exports = { isConfigured, verifySignature, replyMessage, pushMessage };

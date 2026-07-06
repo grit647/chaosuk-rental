@@ -1,0 +1,34 @@
+const express = require('express');
+const router = express.Router();
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+// LINE's image message type needs a public HTTPS URL to fetch from (it can't
+// take inline base64 data). This endpoint takes the data URL the browser
+// already produced (see _downscaleImage in Rental Management.dc.html),
+// writes it to disk, and hands back a URL on this same server that LINE can
+// fetch. Note: Render's free tier has an ephemeral disk — files don't survive
+// a restart/redeploy, but that's fine since LINE fetches the image within
+// seconds of the message being sent, not later.
+router.post('/image', (req, res) => {
+  try {
+    const { dataUrl } = req.body;
+    const match = /^data:(image\/\w+);base64,(.+)$/.exec(dataUrl || '');
+    if (!match) return res.status(400).json({ error: 'รูปภาพไม่ถูกต้อง' });
+    const ext = match[1] === 'image/png' ? 'png' : 'jpg';
+    const buffer = Buffer.from(match[2], 'base64');
+    const filename = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+    fs.writeFileSync(path.join(UPLOAD_DIR, filename), buffer);
+
+    const publicUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+    res.json({ url: publicUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'อัปโหลดรูปไม่สำเร็จ' });
+  }
+});
+
+module.exports = router;
