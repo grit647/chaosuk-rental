@@ -2491,6 +2491,9 @@ class Component extends DCLogic {
       const updated = await res.json();
       this.setState(s => ({ invoices: s.invoices.map(i => i.id === id ? updated : i) }));
       this.showAdminToast('ทำเครื่องหมายชำระแล้ว');
+      // Thank-you notification — best-effort, doesn't block/alter the paid status either way.
+      const total = Number(updated.rent || 0) + Number(updated.water || 0) + Number(updated.elec || 0) + Number(updated.trash || 0) + Number(updated.internet || 0);
+      this._lineSend(updated.room, 'ขอบคุณที่ชำระค่าเช่าห้อง ' + updated.room + ' จำนวน ' + this.fmt(total) + ' เรียบร้อยแล้วครับ 🙏').catch(err => console.error(err));
     } catch (err) { this.showAdminToast(err.message || 'อัปเดตไม่สำเร็จ'); }
   };
 
