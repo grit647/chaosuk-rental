@@ -1,6 +1,6 @@
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = 'claude-3-5-haiku-latest'; // fast + cheap, plenty for a short text summary
-const VISION_MODEL = 'claude-3-5-sonnet-latest'; // stronger model for reading meter digits accurately
+const MODEL = 'claude-haiku-4-5'; // fast + cheap, plenty for a short text summary
+const VISION_MODEL = 'claude-sonnet-5'; // stronger model for reading meter digits accurately
 
 function isConfigured() {
   return !!ANTHROPIC_API_KEY;
