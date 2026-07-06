@@ -68,8 +68,10 @@ router.post('/read-meters', async (req, res, next) => {
 });
 
 function buildCommandSystemPrompt() {
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+  // Render's server clock runs in UTC — using toISOString() here showed
+  // yesterday's date for hours overnight in Thailand (UTC+7) before UTC rolls
+  // over. Compute the date as seen in Thailand specifically instead.
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }); // en-CA formats as YYYY-MM-DD
   return `คุณเป็นผู้ช่วยจัดการหอพัก "เช่าสุข" สามารถทำได้เฉพาะงานที่มีเครื่องมือ (tools) ให้เท่านั้น ห้ามสมมติหรือแต่งข้อมูลขึ้นเอง ถ้าต้องการข้อมูลให้เรียกเครื่องมือที่เกี่ยวข้องก่อนเสมอ
 
 วันนี้คือวันที่ ${todayStr} (ค.ศ., รูปแบบ ปี-เดือน-วัน) ใช้ข้อมูลนี้คำนวณคำที่สื่อถึงวันที่แบบสัมพัทธ์เอง (เช่น "วันนี้", "พรุ่งนี้", "เดือนนี้", "เดือนหน้า") อย่าถามผู้ใช้กลับว่าวันนี้คือวันที่เท่าไหร่
