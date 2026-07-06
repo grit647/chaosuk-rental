@@ -1834,6 +1834,7 @@ class Component extends DCLogic {
     this.loadTuyaDevices();
     this.refreshTuyaLive();
     this.loadTuyaHealth();
+    this._tuyaPollTimer = setInterval(() => this.refreshTuyaLive(), 5 * 60 * 1000);
   }
   loadTuyaDevices = async () => {
     try {
@@ -1881,6 +1882,7 @@ class Component extends DCLogic {
     clearTimeout(this._adminToastTimer);
     clearTimeout(this._mobileToastTimer);
     clearTimeout(this._payTimer);
+    clearInterval(this._tuyaPollTimer);
   }
 
   roomStatusMeta(status) {
@@ -2984,14 +2986,23 @@ class Component extends DCLogic {
     let elecTotalCostNum = 0;
     const elecReportView = occupiedRooms.map(r => {
       const dev = s.tuyaDevices[r.id];
-      const base24 = Math.max(0, (Number(r.elecCurr) || 0) - r.elecPrev);
       const hrs = s.elecWindows[r.id] || 24;
-      const usage = Math.round(base24 * hrs / 24);
-      const cost = usage * s.elecRate;
-      elecTotalCostNum += cost;
       const live = r.tuyaElecDeviceId ? s.tuyaLiveReadings[r.id] : null;
       const realDevice = r.tuyaElecDeviceId ? s.tuyaDeviceList.find(d => d.id === r.tuyaElecDeviceId) : null;
       const isReal = !!r.tuyaElecDeviceId;
+
+      let usage, cost;
+      if (isReal) {
+        const dc = this.deviceCharge(r.id, 'elec');
+        usage = dc ? dc.units : 0;
+        cost = dc ? dc.charge : 0;
+      } else {
+        const base24 = Math.max(0, (Number(r.elecCurr) || 0) - r.elecPrev);
+        usage = Math.round(base24 * hrs / 24);
+        cost = usage * s.elecRate;
+      }
+      elecTotalCostNum += cost;
+
       return {
         id: r.id, tenant: r.tenant,
         deviceName: isReal ? (realDevice ? realDevice.name : r.tuyaElecDeviceId) : (dev ? dev.elecName : 'ยังไม่เชื่อมต่ออุปกรณ์'),
@@ -2999,8 +3010,8 @@ class Component extends DCLogic {
         online: isReal ? (live ? live.online : false) : (dev ? dev.elecOnline : false),
         onlineDot: isReal ? ((live && live.online) ? '#3B7A52' : '#B0A08C') : ((dev && dev.elecOnline) ? '#3B7A52' : '#B0A08C'),
         liveLabel: (live && live.voltage != null) ? (live.voltage.toFixed(1) + 'V / ' + live.current.toFixed(2) + 'A') : '',
-        usage, windowLabel: hrs + ' ชม.', costDisplay: this.fmt(cost),
-        windowChips: buildWindowChips(hrs, (h) => this.setElecWindow(r.id, h)),
+        usage, windowLabel: isReal ? 'สะสมตั้งแต่บิลล่าสุด' : (hrs + ' ชม.'), costDisplay: this.fmt(cost),
+        windowChips: isReal ? [] : buildWindowChips(hrs, (h) => this.setElecWindow(r.id, h)),
       };
     });
 

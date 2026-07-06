@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { readTab } = require('../sheets');
+const { readTab, appendRow } = require('../sheets');
 const { isConfigured, listDevices, getElecReading } = require('../tuya');
 
 router.get('/health', async (req, res) => {
@@ -34,6 +34,21 @@ router.get('/status', async (req, res, next) => {
       }
     }));
     res.json(Object.fromEntries(entries));
+
+    // Fire-and-forget historical log for future usage analysis — never let a
+    // logging hiccup affect the response above, which has already been sent.
+    entries.forEach(([roomId, reading]) => {
+      if (reading.voltage == null) return; // device was offline/errored — nothing useful to log
+      appendRow('ElectricityLog', {
+        id: Date.now() + '-' + roomId,
+        timestamp: new Date().toISOString(),
+        room: roomId,
+        voltage: reading.voltage,
+        current: reading.current,
+        power: reading.power,
+        energy: reading.energy,
+      }).catch((err) => console.error('[tuya] ElectricityLog append failed:', err.message));
+    });
   } catch (err) { next(err); }
 });
 
