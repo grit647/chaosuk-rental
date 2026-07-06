@@ -3518,7 +3518,10 @@ class Component extends DCLogic {
       .slice(0, 6)
       .map(x => {
         const m = this.calTypeMeta(x.e.type);
-        const daysDiff = x.val - nowVal;
+        // x.val - nowVal is NOT a day count (it's a base-100-per-field encoding,
+        // e.g. Aug 7 minus Jul 7 comes out to 100 even though it's really ~31
+        // days away) — compute the real calendar day difference instead.
+        const daysDiff = Math.round((new Date(x.e.y, x.e.m, x.e.d) - new Date(todayY, todayM, todayD)) / 86400000);
         return {
           id: x.e.id, title: x.e.title, time: x.e.time, tColor: m.color, tBg: m.bg, type: x.e.type,
           dateLabel: x.e.d + ' ' + thaiMonthsShort[x.e.m],
