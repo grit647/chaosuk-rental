@@ -1765,9 +1765,9 @@ class Component extends DCLogic {
     trashRate: 40,
     internetRate: 200,
     ownerName: 'บริษัท เช่าสุข พร็อพเพอร์ตี้ จำกัด',
-    calYear: 2026,
-    calMonth: 6,
-    calSelectedDay: 4,
+    calYear: new Date().getFullYear(),
+    calMonth: new Date().getMonth(),
+    calSelectedDay: new Date().getDate(),
     calEventForm: { title: '', time: '', type: 'ชำระเงิน' },
     calTypes: ['ชำระเงิน', 'ติดตาม', 'ซ่อมบำรุง', 'จดมิเตอร์', 'สัญญา', 'อื่นๆ'],
     addingCalType: false,
@@ -3446,7 +3446,8 @@ class Component extends DCLogic {
     const calMonthLabel = thaiMonths[s.calMonth] + ' ' + (s.calYear + 543);
     const firstDow = new Date(s.calYear, s.calMonth, 1).getDay();
     const daysInMonth = new Date(s.calYear, s.calMonth + 1, 0).getDate();
-    const todayY = 2026, todayM = 6, todayD = 4;
+    const _now = new Date();
+    const todayY = _now.getFullYear(), todayM = _now.getMonth(), todayD = _now.getDate();
     const calCells = [];
     for (let i = 0; i < firstDow; i++) calCells.push({ blank: true, key: 'b' + i });
     for (let d = 1; d <= daysInMonth; d++) {
