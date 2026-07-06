@@ -607,10 +607,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                   <div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ w.usage }} <span style="font-size:10px;color:#A89A88">kWh</span></div>
                   <div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ w.costDisplay }}</div>
-                  <div style="display:flex;gap:4px">
+                  <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
                     <sc-for list="{{ w.windowChips }}" as="c" hint-placeholder-count="3">
                       <div onclick="{{ c.onClick }}" style="font-size:10.5px;font-weight:600;padding:4px 8px;border-radius:5px;cursor:pointer;background:{{ c.bg }};color:{{ c.color }}">{{ c.label }}</div>
                     </sc-for>
+                    <sc-if value="{{ w.windowLabelOnly }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:11px;color:#7C6E5F">{{ w.windowLabel }}</span>
+                    </sc-if>
                   </div>
                 </div>
               </sc-for>
@@ -2989,6 +2992,7 @@ class Component extends DCLogic {
         onlineDot: isReal ? ((live && live.online) ? '#3B7A52' : '#B0A08C') : ((dev && dev.elecOnline) ? '#3B7A52' : '#B0A08C'),
         liveLabel: (live && live.voltage != null) ? (live.voltage.toFixed(1) + 'V / ' + live.current.toFixed(2) + 'A') : '',
         usage, windowLabel: isReal ? 'สะสมตั้งแต่บิลล่าสุด' : (hrs + ' ชม.'), costDisplay: this.fmt(cost),
+        windowLabelOnly: isReal,
         windowChips: isReal ? [] : buildWindowChips(hrs, (h) => this.setElecWindow(r.id, h)),
       };
     });
