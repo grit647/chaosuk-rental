@@ -485,16 +485,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <span style="width:6px;height:6px;border-radius:50%;background:{{ sheetStatusDot }}"></span>{{ sheetStatusLabel }}
                 </span>
               </div>
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:18px">วาง URL ของ Google Apps Script (Web App) เพื่อบันทึกข้อมูลรายการเข้า Google Sheet อัตโนมัติ</div>
-              <div style="display:flex;flex-direction:column;gap:14px">
-                <div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">URL ของ Apps Script (Web App)</div>
-                  <input value="{{ sheetConn.url }}" onchange="{{ onSheetUrl }}" placeholder="https://script.google.com/macros/s/AKfyc.../exec" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
-                </div>
-                <div style="display:flex;gap:10px;margin-top:2px">
-                  <div onclick="{{ syncSheet }}" style="flex:1;padding:11px;border-radius:7px;background:#188038;color:#fff;font-size:13px;font-weight:700;text-align:center;cursor:pointer">↻ อัปเดตข้อมูล</div>
-                </div>
-                <div style="font-size:11px;color:#9C8B78;margin-top:2px">{{ sheetLastSyncLabel }}</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:10px">ข้อมูลห้อง/บิล/สัญญาทั้งหมดของระบบนี้เก็บอยู่ใน Google Sheet นี้โดยตรง (ไม่ใช่แค่ sync สำเนา) — ตั้งค่าที่ฝั่งเซิร์ฟเวอร์แล้ว</div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="font-size:12px;color:{{ sheetStatusColor }};font-weight:600">{{ sheetEnvStatusLabel }}</div>
               </div>
             </div>
           </div>
@@ -1686,13 +1679,7 @@ class Component extends DCLogic {
     tuyaEnvConnected: false,
     lineConn: { channelId: '', channelSecret: '', accessToken: '', connected: false },
     lineEnvConnected: false,
-    sheetConn: { url: '', connected: false, lastSync: '', sortAsc: false },
-    sheetRows: [
-      { time: '4 ก.ค. 2569 09:12', room: '101', event: 'ชำระค่าเช่า', amount: 4500, status: 'สำเร็จ' },
-      { time: '3 ก.ค. 2569 18:40', room: '305', event: 'ออกใบแจ้งหนี้', amount: 5850, status: 'สำเร็จ' },
-      { time: '3 ก.ค. 2569 14:05', room: '206', event: 'ชำระค่าเช่า', amount: 4800, status: 'สำเร็จ' },
-      { time: '2 ก.ค. 2569 11:20', room: '103', event: 'แจ้งซ่อม', amount: 0, status: 'สำเร็จ' },
-    ],
+    sheetEnvConnected: false,
     propertyProfile: { name: 'หอพักเช่าสุข', adminName: 'คุณสมหมาย ผู้จัดการ', adminPhone: '081-000-0000' },
     tenantTokens: {},
     lineLinked: { '101': true, '302': true, '202': true },
@@ -1871,9 +1858,11 @@ class Component extends DCLogic {
         trashRate: data.trashRate,
         internetRate: data.internetRate,
         settings: { ...s.settings, ...data.settings },
+        sheetEnvConnected: true,
       }));
     } catch (err) {
       console.error(err);
+      this.setState({ sheetEnvConnected: false });
       this.showAdminToast('โหลดข้อมูลจากเซิร์ฟเวอร์ไม่สำเร็จ — ใช้ข้อมูลตัวอย่างชั่วคราว');
     }
   };
@@ -2702,17 +2691,6 @@ class Component extends DCLogic {
       this.setState({ lineEnvConnected: !!data.connected });
     } catch (err) { console.error(err); }
   };
-  onSheetUrl = (e) => { const v = e.target.value; this.setState(s => ({ sheetConn: { ...s.sheetConn, url: v, connected: false } })); };
-  syncSheet = () => {
-    const c = this.state.sheetConn;
-    if (!c.url.trim()) { this.showAdminToast('กรุณากรอก URL ของ Apps Script'); return; }
-    const now = new Date();
-    const stamp = now.getDate() + ' ก.ค. 2569 ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-    this.setState(s => ({ sheetConn: { ...s.sheetConn, connected: true, lastSync: stamp } }));
-    this.showAdminToast('อัปเดตข้อมูลกับ Google Sheet แล้ว');
-  };
-  toggleSheetSort = () => this.setState(s => ({ sheetConn: { ...s.sheetConn, sortAsc: !s.sheetConn.sortAsc } }));
-
   logout = () => this.showAdminToast('ออกจากระบบเรียบร้อย (เดโม)');
 
   showAdminToast = (message) => {
@@ -3348,19 +3326,12 @@ class Component extends DCLogic {
       lineStatusColor: s.lineEnvConnected ? '#3B7A52' : '#7C6E5F',
       lineStatusDot: s.lineEnvConnected ? '#3B7A52' : '#B0A08C',
       lineEnvStatusLabel: s.lineEnvConnected ? '✓ พร้อมส่งข้อความผ่าน LINE' : 'ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN / LINE_CHANNEL_SECRET ใน server/.env',
-      sheetConn: s.sheetConn,
-      sheetConnected: s.sheetConn.connected,
-      sheetStatusLabel: s.sheetConn.connected ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ',
-      sheetStatusBg: s.sheetConn.connected ? '#E4EFE7' : '#EDE4D6',
-      sheetStatusColor: s.sheetConn.connected ? '#3B7A52' : '#7C6E5F',
-      sheetStatusDot: s.sheetConn.connected ? '#3B7A52' : '#B0A08C',
-      sheetLastSyncLabel: s.sheetConn.lastSync ? ('อัปเดตล่าสุด: ' + s.sheetConn.lastSync) : 'ยังไม่เคยอัปเดต',
-      sheetSortLabel: s.sheetConn.sortAsc ? '▲ เก่า → ใหม่' : '▼ ใหม่ → เก่า',
-      onSheetUrl: this.onSheetUrl, syncSheet: this.syncSheet, toggleSheetSort: this.toggleSheetSort,
-      sheetRowsView: (s.sheetConn.sortAsc ? [...s.sheetRows].reverse() : s.sheetRows).map(r => ({
-        time: r.time, room: r.room, event: r.event, status: r.status,
-        amountDisplay: r.amount > 0 ? this.fmt(r.amount) : '—',
-      })),
+      sheetConnected: s.sheetEnvConnected,
+      sheetStatusLabel: s.sheetEnvConnected ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ',
+      sheetStatusBg: s.sheetEnvConnected ? '#E4EFE7' : '#EDE4D6',
+      sheetStatusColor: s.sheetEnvConnected ? '#3B7A52' : '#7C6E5F',
+      sheetStatusDot: s.sheetEnvConnected ? '#3B7A52' : '#B0A08C',
+      sheetEnvStatusLabel: s.sheetEnvConnected ? '✓ กำลังอ่าน/เขียนข้อมูลกับ Google Sheet จริง' : 'เชื่อมต่อ Google Sheet ไม่สำเร็จ — ตรวจสอบ server/.env และรีเฟรชหน้านี้',
 
       waterRate: s.waterRate, elecRate: s.elecRate, onWaterRateChange: this.onWaterRateChange, onElecRateChange: this.onElecRateChange,
       waterReportView, elecReportView, waterTotalCostDisplay: this.fmt(waterTotalCostNum), elecTotalCostDisplay: this.fmt(elecTotalCostNum),
