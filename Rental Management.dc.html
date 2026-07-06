@@ -670,6 +670,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveVoltage }}</div><div style="font-size:10px;color:#A89A88">โวลต์ (V)</div></div>
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveCurrent }}</div><div style="font-size:10px;color:#A89A88">แอมป์ (A)</div></div>
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLivePower }}</div><div style="font-size:10px;color:#A89A88">วัตต์ (W)</div></div>
+                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#C1622D">{{ equipSelLiveEnergy }}</div><div style="font-size:10px;color:#A89A88">หน่วย (kWh) สะสม</div></div>
                     </div>
                   </div>
                 </div>
@@ -3345,6 +3346,7 @@ class Component extends DCLogic {
       equipSelLiveVoltage: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].voltage != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].voltage.toFixed(1) : '—',
       equipSelLiveCurrent: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].current != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].current.toFixed(2) : '—',
       equipSelLivePower: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].power != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].power.toFixed(1) : '—',
+      equipSelLiveEnergy: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].energy != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].energy.toFixed(2) : '—',
       equipSelElecOnline: equipSelDevice ? (equipSelDevice.elecOnline ? 'ออนไลน์' : 'ออฟไลน์') : '—',
       equipSelElecDot: equipSelDevice ? (equipSelDevice.elecOnline ? '#3B7A52' : '#B24336') : '#C9B79E',
       equipSelWaterOnline: equipSelDevice ? (equipSelDevice.waterOnline ? 'ออนไลน์' : 'ออฟไลน์') : '—',

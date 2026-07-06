@@ -135,17 +135,24 @@ async function getElecReading(deviceId) {
     const scale = spec ? findScale(spec, code) : fallbackScale;
     return Number(map[code]) / scale;
   };
+  // Cumulative energy ("หน่วย" / kWh) used for billing — separate from the
+  // instantaneous V/A/W above. Different device families expose this under
+  // different DP codes; try the common ones in order.
+  const energy = pick('total_forward_energy', 100) ?? pick('add_ele', 100) ?? pick('cur_energy', 100);
+
   const direct = {
     voltage: pick('cur_voltage', 10),
     current: pick('cur_current', 1000),
     power: pick('cur_power', 10),
   };
-  if (direct.voltage != null || direct.current != null || direct.power != null) return direct;
+  if (direct.voltage != null || direct.current != null || direct.power != null) {
+    return { ...direct, energy };
+  }
 
   const phase = decodePhaseRaw(map.phase_a);
-  if (phase) return phase;
+  if (phase) return { ...phase, energy };
 
-  return { voltage: null, current: null, power: null };
+  return { voltage: null, current: null, power: null, energy };
 }
 
 module.exports = { isConfigured, listDevices, getDeviceStatus, getDeviceSpec, getElecReading };
