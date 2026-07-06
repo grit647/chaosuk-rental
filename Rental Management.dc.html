@@ -2359,8 +2359,27 @@ class Component extends DCLogic {
     this.setState({ showInvoiceModal: true, newInvoice: next });
   };
   sendReceiptLine = async (roomId) => {
+    const invoice = this.state.invoices.find(i => i.room === roomId && i.status !== 'paid');
     try {
-      await this._lineSend(roomId, 'แจ้งใบแจ้งหนี้ห้อง ' + roomId + ' ครับ กรุณาตรวจสอบยอดชำระในระบบ');
+      let message;
+      if (invoice) {
+        const rows = [
+          ['ค่าเช่า', invoice.rent], ['ค่าน้ำ', invoice.water], ['ค่าไฟ', invoice.elec],
+          ['ค่าขยะ', invoice.trash], ['ค่าอินเทอร์เน็ต', invoice.internet],
+        ].filter(([, v]) => v);
+        const total = rows.reduce((a, [, v]) => a + Number(v || 0), 0);
+        message = [
+          'ใบแจ้งหนี้ห้อง ' + roomId + ' (' + invoice.id + ')',
+          ...rows.map(([label, v]) => label + ': ' + this.fmt(v)),
+          'รวม: ' + this.fmt(total),
+          'ครบกำหนดชำระ: ' + (invoice.due || '-'),
+        ].join('\n');
+        // Fire-and-forget: a PDF hiccup shouldn't block the LINE message going out.
+        fetch('/api/invoices/' + invoice.id + '/pdf', { method: 'POST' }).catch(err => console.error(err));
+      } else {
+        message = 'แจ้งใบแจ้งหนี้ห้อง ' + roomId + ' ครับ กรุณาตรวจสอบยอดชำระในระบบ';
+      }
+      await this._lineSend(roomId, message);
       this.setState(s => ({ receiptsSent: { ...s.receiptsSent, [roomId]: true } }));
       this.showAdminToast('ส่งใบแจ้งหนี้ห้อง ' + roomId + ' ทาง LINE และบันทึกใบเสร็จแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ส่ง LINE ไม่สำเร็จ'); }
