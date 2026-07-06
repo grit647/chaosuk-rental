@@ -56,7 +56,7 @@ async function appendRow(tab, obj) {
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
     range: `${tab}!A1`,
-    valueInputOption: 'USER_ENTERED',
+    valueInputOption: 'RAW', // store values literally — no auto number/date parsing (that's what strips leading zeros off phone numbers etc; we handle all type coercion ourselves in coerce.js)
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [row] },
   });
@@ -85,7 +85,7 @@ async function updateRow(tab, matchValue, patch, matchCol = 'id') {
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
     range: `${tab}!A${rowNum}:Z${rowNum}`,
-    valueInputOption: 'USER_ENTERED',
+    valueInputOption: 'RAW', // store values literally — no auto number/date parsing (that's what strips leading zeros off phone numbers etc; we handle all type coercion ourselves in coerce.js)
     requestBody: { values: [row] },
   });
   return merged;
