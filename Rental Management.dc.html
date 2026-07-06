@@ -1744,7 +1744,6 @@ class Component extends DCLogic {
     sheetEnvConnected: false,
     propertyProfile: { name: 'หอพักเช่าสุข', adminName: 'คุณสมหมาย ผู้จัดการ', adminPhone: '081-000-0000' },
     tenantTokens: {},
-    lineLinked: { '101': true, '302': true, '202': true },
     phoneMode: {},
     connData: {},
     showConnModal: false,
@@ -2951,7 +2950,7 @@ class Component extends DCLogic {
           const mode = s.phoneMode[r.id] || 'auto';
           const cd = s.connData[r.id];
           const hasManual = cd && (cd.lineId || cd.token);
-          return mode === 'auto' ? (!!s.lineLinked[r.id] || !!hasManual) : !!hasManual;
+          return mode === 'auto' ? (!!r.lineUserId || !!hasManual) : !!hasManual;
         })(),
         connLabel: '', connBg: '', connColor: '', connDot: '',
       };
@@ -2995,7 +2994,8 @@ class Component extends DCLogic {
     const roomSelectOptions = s.rooms.filter(r => r.tenant).map(r => ({ value: r.id, label: r.id + ' · ' + r.tenant }));
     const pendingBills = s.invoices.filter(i => i.status !== 'paid').map(i => {
       const cd = s.connData[i.room];
-      const hasLineId = !!s.lineLinked[i.room] || !!(cd && cd.lineId);
+      const billRoom = s.rooms.find(r => r.id === i.room);
+      const hasLineId = !!(billRoom && billRoom.lineUserId) || !!(cd && cd.lineId);
       const sent = !!s.receiptsSent[i.room];
       const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
       const overdue = i.status === 'overdue';
@@ -3325,7 +3325,7 @@ class Component extends DCLogic {
       broadcastSelCount: s.rooms.filter(r => r.tenant && s.broadcastSel[r.id]).length + (s.broadcastOwner ? 1 : 0),
       broadcastRooms: s.rooms.filter(r => r.tenant).map(r => {
         const cd = s.connData[r.id];
-        const hasLine = !!s.lineLinked[r.id] || !!(cd && cd.lineId);
+        const hasLine = !!r.lineUserId || !!(cd && cd.lineId);
         return { id: r.id, tenant: r.tenant, checked: !!s.broadcastSel[r.id],
           check: s.broadcastSel[r.id] ? '✓' : '',
           hasLine, lineLabel: hasLine ? 'LINE' : 'ไม่มี LINE', lineColor: hasLine ? '#06C755' : '#B0A08C',
