@@ -1719,22 +1719,7 @@ class Component extends DCLogic {
     waterWindows: {},
     elecWindows: {},
     usageSeries: {
-      waterDay: [
-        { label: 'จ', value: 42 }, { label: 'อ', value: 55 }, { label: 'พ', value: 48 },
-        { label: 'พฤ', value: 61 }, { label: 'ศ', value: 58 }, { label: 'ส', value: 72 }, { label: 'อา', value: 67 },
-      ],
-      waterMonth: [
-        { label: 'ก.พ.', value: 1420 }, { label: 'มี.ค.', value: 1560 }, { label: 'เม.ย.', value: 1680 },
-        { label: 'พ.ค.', value: 1610 }, { label: 'มิ.ย.', value: 1720 }, { label: 'ก.ค.', value: 1585 },
-      ],
-      elecDay: [
-        { label: 'จ', value: 320 }, { label: 'อ', value: 410 }, { label: 'พ', value: 385 },
-        { label: 'พฤ', value: 470 }, { label: 'ศ', value: 505 }, { label: 'ส', value: 540 }, { label: 'อา', value: 495 },
-      ],
-      elecMonth: [
-        { label: 'ก.พ.', value: 9800 }, { label: 'มี.ค.', value: 10400 }, { label: 'เม.ย.', value: 11200 },
-        { label: 'พ.ค.', value: 11800 }, { label: 'มิ.ย.', value: 12300 }, { label: 'ก.ค.', value: 11600 },
-      ],
+      waterDay: [], waterMonth: [], elecDay: [], elecMonth: [],
     },
     equipSelectedRoom: '101',
     tuyaForm: { elecName: '', elecDeviceId: '', waterName: '' },
@@ -1742,13 +1727,7 @@ class Component extends DCLogic {
     tuyaLiveReadings: {},
     tuyaLoadingReading: false,
     tuyaDevices: {
-      '101': { elecName: 'TY-Meter-101', elecOnline: true, elecReading: 4268, elecPower: true, waterName: 'TY-Water-101', waterOnline: true, waterReading: 1185 },
-      '103': { elecName: 'TY-Meter-103', elecOnline: true, elecReading: 3176, elecPower: true, waterName: 'TY-Water-103', waterOnline: false, waterReading: 986 },
-      '104': { elecName: 'TY-Meter-104', elecOnline: true, elecReading: 5072, elecPower: true, waterName: 'TY-Water-104', waterOnline: true, waterReading: 1506 },
-      '106': { elecName: 'TY-Meter-106', elecOnline: true, elecReading: 2965, elecPower: false, waterName: 'TY-Water-106', waterOnline: true, waterReading: 865 },
-      '201': { elecName: 'TY-Meter-201', elecOnline: false, elecReading: 4670, elecPower: true, waterName: 'TY-Water-201', waterOnline: true, waterReading: 1346 },
-      '202': { elecName: 'TY-Meter-202', elecOnline: true, elecReading: 4168, elecPower: true, waterName: 'TY-Water-202', waterOnline: true, waterReading: 1125 },
-      '302': { elecName: 'TY-Meter-302', elecOnline: true, elecReading: 4485, elecPower: true, waterName: 'TY-Water-302', waterOnline: true, waterReading: 1096 },
+      '101': { elecName: 'TY-Meter-101', elecOnline: true, elecReading: 0, elecPower: true, waterName: 'ยังไม่เชื่อมต่ออุปกรณ์น้ำ', waterOnline: false, waterReading: 0 },
     },
     showExpenseModal: false,
     expenseCategories: ['ซ่อมบำรุง', 'ค่าน้ำ-ไฟส่วนกลาง', 'เงินเดือนพนักงาน', 'อื่นๆ'],
@@ -3003,7 +2982,7 @@ class Component extends DCLogic {
     const buildChart = (series, accent) => {
       const max = Math.max(1, ...series.map(x => x.value));
       const total = series.reduce((a, x) => a + x.value, 0);
-      const avg = Math.round(total / series.length);
+      const avg = series.length ? Math.round(total / series.length) : 0;
       return {
         bars: series.map(x => ({ label: x.label, value: x.value.toLocaleString('en-US'), heightPct: Math.round((x.value / max) * 100) + '%', accent })),
         total: total.toLocaleString('en-US'), avg: avg.toLocaleString('en-US'), peak: max.toLocaleString('en-US'),
