@@ -1,0 +1,23 @@
+name: Run Scheduled LINE Messages
+
+# Render's free tier sleeps the app when idle, so an in-process timer alone
+# can't reliably fire scheduled LINE messages/reminders at the right time.
+# This workflow pings the scheduler endpoint on a cron schedule instead — the
+# same fix already used for unreliable auto-deploy (see deploy.yml). Each ping
+# both wakes the instance (if asleep) and checks for any due messages; it's a
+# no-op unless something is actually due, so it's safe to run often.
+#
+# Note: GitHub's scheduled workflows are "best effort" and can occasionally
+# run a few minutes late under load — fine for reminders, not for
+# second-precise timing.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  run-scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping scheduler endpoint
+        run: curl -fsS "https://chaosuk-rental.onrender.com/api/scheduler/run"

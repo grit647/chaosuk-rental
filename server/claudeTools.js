@@ -154,7 +154,8 @@ const TOOLS = [
         time: { type: 'string', description: 'เวลานัดหมาย รูปแบบ HH:MM เช่น 14:00 — จำเป็นต้องมี' },
         title: { type: 'string', description: 'ชื่อ/รายละเอียดกิจกรรม' },
         type: { type: 'string', description: 'ประเภทกิจกรรม เช่น ประชุม, ซ่อมบำรุง, อื่นๆ' },
-        notifyChannel: { type: 'string', enum: ['line_broadcast', 'line_specific_room', 'none'], description: 'ช่องทางแจ้งเตือนที่ต้องการ (บันทึกไว้อ้างอิงเท่านั้น ยังไม่ส่งอัตโนมัติ)' },
+        notifyChannel: { type: 'string', enum: ['line_broadcast', 'line_specific_room', 'none'], description: 'ช่องทางแจ้งเตือน — ถ้าเลือก line_broadcast หรือ line_specific_room ระบบจะตั้งเวลาส่งข้อความ LINE จริงให้อัตโนมัติตรงวัน-เวลานัดหมายนี้ (ต้องเปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ไว้ ไม่งั้นจะไม่ส่ง)' },
+        notifyRoomId: { type: 'string', description: 'เลขห้องที่จะแจ้งเตือน — จำเป็นถ้า notifyChannel เป็น line_specific_room' },
       },
       required: ['year', 'month', 'day', 'time', 'title'],
     },
@@ -166,11 +167,27 @@ const TOOLS = [
   },
   {
     name: 'send_line_message',
-    description: 'ส่งข้อความ LINE ถึงผู้เช่าห้องหนึ่ง (ห้องต้องเชื่อมต่อ LINE ไว้แล้ว) — ต้องยืนยันก่อนทำจริง',
+    description: 'ส่งข้อความ LINE ถึงผู้เช่าห้องหนึ่งทันที (ห้องต้องเชื่อมต่อ LINE ไว้แล้ว) — ต้องยืนยันก่อนทำจริง',
     input_schema: {
       type: 'object',
       properties: { roomId: { type: 'string', description: 'เลขห้อง' }, message: { type: 'string', description: 'ข้อความที่จะส่ง' } },
       required: ['roomId', 'message'],
+    },
+  },
+  {
+    name: 'schedule_line_message',
+    description: 'ตั้งเวลาส่งข้อความ LINE ล่วงหน้า (ไม่ส่งทันที ส่งจริงเมื่อถึงวัน-เวลาที่กำหนด) — ต้องยืนยันก่อนทำจริง ต้องเปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ไว้ ไม่งั้นข้อความจะไม่ถูกส่งเมื่อถึงเวลา',
+    input_schema: {
+      type: 'object',
+      properties: {
+        roomId: { type: 'string', description: 'เลขห้อง หรือ "all" เพื่อส่งให้ทุกห้องที่เชื่อมต่อ LINE แล้ว' },
+        message: { type: 'string', description: 'ข้อความที่จะส่ง' },
+        year: { type: 'number', description: 'ปี ค.ศ.' },
+        month: { type: 'number', description: 'เดือน 1-12' },
+        day: { type: 'number', description: 'วันที่ 1-31' },
+        time: { type: 'string', description: 'เวลาที่จะส่ง รูปแบบ HH:MM' },
+      },
+      required: ['roomId', 'message', 'year', 'month', 'day', 'time'],
     },
   },
   {
@@ -276,7 +293,11 @@ async function describeWriteTool(name, input) {
     }
     case 'add_calendar_event': {
       const dateStr = `${input.year}-${String(input.month).padStart(2, '0')}-${String(input.day).padStart(2, '0')}`;
-      const channelLabel = { line_broadcast: 'แจ้งเตือนผู้เช่าทุกห้องทาง LINE (แค่บันทึกไว้ ยังไม่ส่งอัตโนมัติ)', line_specific_room: 'แจ้งเตือนห้องที่เกี่ยวข้องทาง LINE (แค่บันทึกไว้ ยังไม่ส่งอัตโนมัติ)', none: 'ไม่แจ้งเตือน' }[input.notifyChannel] || '';
+      const channelLabel = {
+        line_broadcast: `ตั้งเวลาส่ง LINE แจ้งเตือนให้ทุกห้องที่เชื่อมต่อไว้ อัตโนมัติตรง ${dateStr} ${input.time} (ต้องเปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ไว้)`,
+        line_specific_room: `ตั้งเวลาส่ง LINE แจ้งเตือนห้อง ${input.notifyRoomId || '(ยังไม่ระบุห้อง)'} อัตโนมัติตรง ${dateStr} ${input.time} (ต้องเปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ไว้)`,
+        none: 'ไม่แจ้งเตือน',
+      }[input.notifyChannel] || '';
       return `เพิ่มนัดหมาย "${input.title}" วันที่ ${dateStr} เวลา ${input.time}${input.type ? ' ประเภท ' + input.type : ''}${channelLabel ? ' — ' + channelLabel : ''}`;
     }
     case 'delete_calendar_event':
@@ -290,6 +311,11 @@ async function describeWriteTool(name, input) {
       const room = rooms.find((r) => r.id === input.roomId);
       const warn = room && room.tenant ? ` ⚠️ ห้องนี้มีผู้เช่าอยู่ (${room.tenant}) — ควรตรวจสอบก่อนลบ` : '';
       return `ลบห้อง ${input.roomId} ออกจากระบบทั้งหมด (ลบแล้วกู้คืนไม่ได้)${warn}`;
+    }
+    case 'schedule_line_message': {
+      const dateStr = `${input.year}-${String(input.month).padStart(2, '0')}-${String(input.day).padStart(2, '0')}`;
+      const target = input.roomId === 'all' ? 'ทุกห้องที่เชื่อมต่อ LINE แล้ว' : 'ห้อง ' + input.roomId;
+      return `ตั้งเวลาส่ง LINE ถึง${target}: "${input.message}" ในวันที่ ${dateStr} เวลา ${input.time} (ต้องเปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ไว้ ไม่งั้นจะไม่ถูกส่งเมื่อถึงเวลา)`;
     }
     default:
       return `ทำรายการ "${name}"`;
@@ -372,13 +398,27 @@ async function executeWriteTool(name, input) {
       return { ok: true, message: `บันทึกเลขมิเตอร์ห้อง ${input.roomId} แล้ว` };
     }
     case 'add_calendar_event': {
+      const y = Number(input.year), m = Number(input.month), d = Number(input.day);
+      const time = input.time || '09:00';
       const item = {
-        id: Date.now(), y: Number(input.year), m: Number(input.month), d: Number(input.day),
-        time: input.time || '09:00', title: input.title, type: input.type || 'อื่นๆ',
+        id: Date.now(), y, m, d, time, title: input.title, type: input.type || 'อื่นๆ',
         notifyChannel: input.notifyChannel || 'none', // extra column — silently ignored by appendRow if the sheet header doesn't have it yet
       };
       await appendRow('CalendarEvents', item);
-      return { ok: true, message: `เพิ่มนัดหมาย "${input.title}" ในปฏิทินแล้ว` };
+
+      let scheduledNote = '';
+      if (input.notifyChannel === 'line_broadcast' || input.notifyChannel === 'line_specific_room') {
+        const target = input.notifyChannel === 'line_broadcast' ? 'all' : (input.notifyRoomId || '');
+        if (target) {
+          const sendAt = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}T${time}`;
+          await appendRow('ScheduledMessages', {
+            id: Date.now() + '-cal', room: target, message: `แจ้งเตือน: ${input.title} (${time} น.)`,
+            sendAt, sent: 'FALSE', source: 'calendar',
+          });
+          scheduledNote = ' และตั้งเวลาแจ้งเตือน LINE ไว้แล้ว';
+        }
+      }
+      return { ok: true, message: `เพิ่มนัดหมาย "${input.title}" ในปฏิทินแล้ว${scheduledNote}` };
     }
     case 'delete_calendar_event':
       await deleteRow('CalendarEvents', input.eventId);
@@ -401,6 +441,14 @@ async function executeWriteTool(name, input) {
     case 'delete_room':
       await deleteRow('Rooms', input.roomId);
       return { ok: true, message: `ลบห้อง ${input.roomId} ออกจากระบบแล้ว` };
+    case 'schedule_line_message': {
+      const sendAt = `${input.year}-${String(input.month).padStart(2, '0')}-${String(input.day).padStart(2, '0')}T${input.time}`;
+      await appendRow('ScheduledMessages', {
+        id: Date.now() + '-cmd', room: input.roomId, message: input.message,
+        sendAt, sent: 'FALSE', source: 'manual',
+      });
+      return { ok: true, message: `ตั้งเวลาส่ง LINE ไว้แล้ว (${sendAt.replace('T', ' ')})` };
+    }
     default:
       throw new Error('ไม่รู้จักคำสั่งนี้: ' + name);
   }

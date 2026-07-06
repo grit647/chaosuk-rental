@@ -63,6 +63,7 @@ async function readSettings() {
       autoInvoice: bool(map.autoInvoice, true),
       dueReminder: bool(map.dueReminder, true),
     },
+    claudeAutomationEnabled: bool(map.claudeAutomationEnabled, false),
   };
 }
 

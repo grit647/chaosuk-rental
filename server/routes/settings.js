@@ -31,6 +31,7 @@ router.put('/', async (req, res, next) => {
       internetRate: b.internetRate,
       autoInvoice: b.settings && b.settings.autoInvoice,
       dueReminder: b.settings && b.settings.dueReminder,
+      claudeAutomationEnabled: b.claudeAutomationEnabled,
     };
     const entries = Object.entries(kv).filter(([, v]) => v !== undefined);
     for (const [k, v] of entries) {

@@ -537,7 +537,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC">
                 <div>
                   <div style="font-size:13px;font-weight:600;color:#241812">เปิดใช้งานฟีเจอร์นี้</div>
-                  <div style="font-size:11px;color:#A89A88;margin-top:2px">โหมดเตรียมพร้อม — สวิตช์นี้ยังไม่เชื่อมระบบอัตโนมัติจริง รอสรุปรายละเอียดก่อน</div>
+                  <div style="font-size:11px;color:#A89A88;margin-top:2px">ต้องเปิดไว้ ข้อความ/การแจ้งเตือนที่ตั้งเวลาส่งล่วงหน้าไว้ (ผ่านช่องคำสั่งหรือปฏิทิน) ถึงจะถูกส่งจริงตามเวลา</div>
                 </div>
                 <div onclick="{{ toggleClaudeAutomation }}" style="width:44px;height:24px;border-radius:12px;position:relative;cursor:pointer;flex-shrink:0;background:{{ claudeAutomationBg }}">
                   <div style="position:absolute;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.15s ease;left:{{ claudeAutomationKnobLeft }}"></div>
@@ -1984,6 +1984,7 @@ class Component extends DCLogic {
         trashRate: data.trashRate,
         internetRate: data.internetRate,
         settings: { ...s.settings, ...data.settings },
+        claudeAutomationEnabled: !!data.claudeAutomationEnabled,
         sheetEnvConnected: true,
       }));
     } catch (err) {
@@ -3010,11 +3011,24 @@ class Component extends DCLogic {
       this.setState({ lineEnvConnected: !!data.connected });
     } catch (err) { console.error(err); }
   };
-  // Placeholder toggle only — no automation is wired to this yet, by design,
-  // until we've agreed on exactly what it should do.
-  toggleClaudeAutomation = () => {
-    this.setState(s => ({ claudeAutomationEnabled: !s.claudeAutomationEnabled }));
-    this.showAdminToast('บันทึกการตั้งค่าไว้แล้ว');
+  // This now gates whether scheduled LINE sends (from the command box or
+  // calendar reminders) are actually allowed to fire — persisted server-side
+  // in the Settings sheet, since the scheduler check runs independently of
+  // any browser tab being open.
+  toggleClaudeAutomation = async () => {
+    const next = !this.state.claudeAutomationEnabled;
+    this.setState({ claudeAutomationEnabled: next });
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claudeAutomationEnabled: next }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      this.showAdminToast(next ? 'เปิดใช้งานแล้ว — ข้อความ/แจ้งเตือนที่ตั้งเวลาไว้จะถูกส่งจริง' : 'ปิดใช้งานแล้ว — ข้อความที่ตั้งเวลาไว้จะไม่ถูกส่งจนกว่าจะเปิดอีกครั้ง');
+    } catch (err) {
+      this.setState({ claudeAutomationEnabled: !next }); // revert on failure
+      this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
+    }
   };
   loadClaudeHealth = async () => {
     try {

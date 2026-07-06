@@ -33,6 +33,7 @@ app.use('/api/line', require('./routes/line'));
 app.use('/api/uploads', require('./routes/uploads'));
 app.use('/api/tuya', require('./routes/tuya'));
 app.use('/api/claude', require('./routes/claude'));
+app.use('/api/scheduler', require('./routes/scheduler'));
 
 app.use((err, req, res, next) => {
   console.error(err);
