@@ -1,0 +1,16 @@
+name: Trigger Render Deploy
+
+# Render's GitHub App integration has been intermittently failing to trigger
+# auto-deploys on push (unreliable webhook delivery we can't diagnose from
+# our side). This workflow calls Render's own "Deploy Hook" URL directly via
+# GitHub Actions instead, which is a much more reliable, visible trigger path.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Render deploy hook
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
