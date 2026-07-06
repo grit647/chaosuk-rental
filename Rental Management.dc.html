@@ -2419,7 +2419,21 @@ class Component extends DCLogic {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'ทำคำสั่งไม่สำเร็จ');
-      if (data.type === 'confirm') {
+      if (data.type === 'confirm' && data.action === 'create_room') {
+        // Multi-field forms are friendlier as an actual form than a text
+        // back-and-forth — hand off to the same native "เพิ่มห้อง" modal used
+        // elsewhere in the app, prefilled with whatever Claude already parsed
+        // out. Submitting goes through the normal submitAddRoom flow, not the
+        // Claude confirm endpoint.
+        const p = data.params || {};
+        this.setState(s => ({
+          claudeCommandLoading: false,
+          claudeCommandInput: '',
+          showAddRoomModal: true,
+          newRoom: { id: p.roomId || '', floor: String(p.floor || '1'), rent: p.rent != null ? String(p.rent) : '', deposit: p.deposit != null ? String(p.deposit) : '', photos: [] },
+          claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: 'เปิดฟอร์มเพิ่มห้องให้แล้ว กรอกข้อมูลที่เหลือแล้วกดบันทึกในฟอร์มได้เลยครับ' }],
+        }));
+      } else if (data.type === 'confirm') {
         this.setState(s => ({
           claudeCommandLoading: false,
           claudeCommandInput: '',
