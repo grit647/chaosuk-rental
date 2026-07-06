@@ -720,7 +720,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <div style="font-size:13px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace">{{ e.reading }}</div>
                         <div style="font-size:10px;color:#A89A88">{{ e.unit }}</div>
                       </div>
-                      <sc-if value="{{ e.configured }}" hint-placeholder-val="{{ true }}">
+                      <sc-if value="{{ e.hasPowerControl }}" hint-placeholder-val="{{ true }}">
                         <div onclick="{{ e.onToggle }}" style="font-size:10.5px;font-weight:600;padding:5px 9px;border-radius:5px;color:#fff;cursor:pointer;background:{{ e.powerBg }};min-width:52px;text-align:center">{{ e.powerLabel }}</div>
                       </sc-if>
                     </div>
@@ -1267,6 +1267,20 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showTuyaPowerConfirm }}">
+          <div onclick="{{ closeTuyaPowerConfirm }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-sizing:border-box;text-align:center">
+              <div style="width:52px;height:52px;border-radius:50%;background:#FBE7E4;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px">⚠️</div>
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:6px">ยืนยันตัดไฟห้อง {{ tuyaPowerConfirmRoom }}</div>
+              <div style="font-size:12.5px;color:#9C8B78;margin-bottom:18px;line-height:1.5">ผู้เช่าในห้องนี้จะไม่มีไฟฟ้าใช้ทันทีจนกว่าจะสั่งจ่ายไฟกลับ ตรวจสอบให้แน่ใจก่อนยืนยัน</div>
+              <div style="display:flex;gap:10px">
+                <div onclick="{{ closeTuyaPowerConfirm }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</div>
+                <div onclick="{{ confirmTuyaPowerOff }}" style="flex:1.3;padding:11px;border-radius:7px;background:#B24336;color:#fff;font-size:13px;font-weight:700;cursor:pointer">ยืนยันตัดไฟ</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showDeleteContract }}">
           <div onclick="{{ closeDeleteContract }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-sizing:border-box;text-align:center">
@@ -1688,6 +1702,8 @@ class Component extends DCLogic {
     dueReminderRooms: {},
     tuyaConn: { accessId: '', accessSecret: '', region: 'ศูนย์ข้อมูลไทย (Central)', connected: false },
     tuyaEnvConnected: false,
+    showTuyaPowerConfirm: false,
+    tuyaPowerConfirmRoom: null,
     lineConn: { channelId: '', channelSecret: '', accessToken: '', connected: false },
     lineEnvConnected: false,
     sheetEnvConnected: false,
@@ -2220,12 +2236,32 @@ class Component extends DCLogic {
       this.refreshTuyaLive();
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
   };
-  toggleTuyaPower = (id) => {
-    this.setState(s => {
-      const d = s.tuyaDevices[id];
-      if (!d) return {};
-      return { tuyaDevices: { ...s.tuyaDevices, [id]: { ...d, elecPower: !d.elecPower } } };
-    });
+  // Turning power ON is low-risk and happens immediately. Turning it OFF cuts
+  // a real tenant's electricity, so it goes through a confirmation modal first.
+  toggleTuyaPower = (roomId, currentlyOn) => {
+    if (currentlyOn) {
+      this.setState({ showTuyaPowerConfirm: true, tuyaPowerConfirmRoom: roomId });
+    } else {
+      this._setTuyaSwitch(roomId, true);
+    }
+  };
+  closeTuyaPowerConfirm = () => this.setState({ showTuyaPowerConfirm: false, tuyaPowerConfirmRoom: null });
+  confirmTuyaPowerOff = () => {
+    const roomId = this.state.tuyaPowerConfirmRoom;
+    this.setState({ showTuyaPowerConfirm: false, tuyaPowerConfirmRoom: null });
+    this._setTuyaSwitch(roomId, false);
+  };
+  _setTuyaSwitch = async (roomId, on) => {
+    try {
+      const res = await fetch('/api/tuya/switch', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId, on }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'สั่งงานอุปกรณ์ไม่สำเร็จ');
+      const reading = await res.json();
+      this.setState(s => ({ tuyaLiveReadings: { ...s.tuyaLiveReadings, [roomId]: { ...s.tuyaLiveReadings[roomId], ...reading } } }));
+      this.showAdminToast(on ? ('จ่ายไฟห้อง ' + roomId + ' แล้ว') : ('ตัดไฟห้อง ' + roomId + ' แล้ว'));
+    } catch (err) { this.showAdminToast(err.message || 'สั่งงานอุปกรณ์ไม่สำเร็จ'); }
   };
 
   openExpenseModal = () => this.setState({ showExpenseModal: true, newExpense: { category: 'ซ่อมบำรุง', desc: '', amount: '', date: '2026-07-04' } });
@@ -3035,18 +3071,31 @@ class Component extends DCLogic {
     const equipSelRoom = s.rooms.find(r => r.id === s.equipSelectedRoom) || {};
     const equipSelDevice = s.tuyaDevices[s.equipSelectedRoom] || null;
     const buildDeviceRow = (r, kind) => {
+      if (kind === 'elec' && r.tuyaElecDeviceId) {
+        const live = s.tuyaLiveReadings[r.id];
+        const realDevice = s.tuyaDeviceList.find(dv => dv.id === r.tuyaElecDeviceId);
+        const online = live ? live.online : false;
+        const powerOn = live && live.switchOn != null ? live.switchOn : null;
+        return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: true,
+          name: realDevice ? realDevice.name : r.tuyaElecDeviceId,
+          onlineLabel: online ? 'ออนไลน์' : 'ออฟไลน์', onlineDot: online ? '#3B7A52' : '#B24336',
+          reading: (live && live.energy != null) ? live.energy.toFixed(2) : '—', unit: 'kWh',
+          hasPowerControl: powerOn != null,
+          powerOn, powerLabel: powerOn ? 'จ่ายไฟ' : 'ตัดไฟ',
+          powerBg: powerOn ? '#3B7A52' : '#B24336', onToggle: () => this.toggleTuyaPower(r.id, powerOn) };
+      }
       const d = s.tuyaDevices[r.id];
-      if (!d) return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: false, name: 'ยังไม่ตั้งค่า', onlineLabel: '—', onlineDot: '#C9B79E', reading: '—', unit: '' };
+      if (!d) return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: false, name: 'ยังไม่ตั้งค่า', onlineLabel: '—', onlineDot: '#C9B79E', reading: '—', unit: '', hasPowerControl: false };
       if (kind === 'elec') {
         return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: true, name: d.elecName,
           onlineLabel: d.elecOnline ? 'ออนไลน์' : 'ออฟไลน์', onlineDot: d.elecOnline ? '#3B7A52' : '#B24336',
           reading: Number(d.elecReading).toLocaleString('en-US'), unit: 'kWh',
-          powerOn: d.elecPower, powerLabel: d.elecPower ? 'จ่ายไฟ' : 'ตัดไฟ',
-          powerBg: d.elecPower ? '#3B7A52' : '#B24336', onToggle: () => this.toggleTuyaPower(r.id) };
+          hasPowerControl: false, powerOn: d.elecPower, powerLabel: d.elecPower ? 'จ่ายไฟ' : 'ตัดไฟ',
+          powerBg: d.elecPower ? '#3B7A52' : '#B24336', onToggle: () => {} };
       }
       return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: true, name: d.waterName,
         onlineLabel: d.waterOnline ? 'ออนไลน์' : 'ออฟไลน์', onlineDot: d.waterOnline ? '#3B7A52' : '#B24336',
-        reading: Number(d.waterReading).toLocaleString('en-US'), unit: 'ม³' };
+        reading: Number(d.waterReading).toLocaleString('en-US'), unit: 'ม³', hasPowerControl: false };
     };
     const elecDeviceRows = occupiedRooms.map(r => buildDeviceRow(r, 'elec'));
     const waterDeviceRows = occupiedRooms.map(r => buildDeviceRow(r, 'water'));
@@ -3199,6 +3248,8 @@ class Component extends DCLogic {
       openMaintCount: s.maintenance.filter(m => m.status !== 'done').length,
       hasOpenMaint: s.maintenance.filter(m => m.status !== 'done').length > 0,
       showMaintDone: s.showMaintDone, closeMaintDone: this.closeMaintDone, confirmMaintDone: this.confirmMaintDone,
+      showTuyaPowerConfirm: s.showTuyaPowerConfirm, tuyaPowerConfirmRoom: s.tuyaPowerConfirmRoom,
+      closeTuyaPowerConfirm: this.closeTuyaPowerConfirm, confirmTuyaPowerOff: this.confirmTuyaPowerOff,
       goCalendar: this.goCalendar,
       isCalendar: s.activeNav === 'calendar',
       navCalendar: navStyle('calendar'),

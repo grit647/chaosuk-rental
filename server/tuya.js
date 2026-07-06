@@ -139,6 +139,8 @@ async function getElecReading(deviceId) {
   // instantaneous V/A/W above. Different device families expose this under
   // different DP codes; try the common ones in order.
   const energy = pick('total_forward_energy', 100) ?? pick('add_ele', 100) ?? pick('cur_energy', 100);
+  // Relay/breaker on-off state — used by the "จ่ายไฟ/ตัดไฟ" control button.
+  const switchOn = typeof map.switch === 'boolean' ? map.switch : null;
 
   const direct = {
     voltage: pick('cur_voltage', 10),
@@ -146,13 +148,21 @@ async function getElecReading(deviceId) {
     power: pick('cur_power', 10),
   };
   if (direct.voltage != null || direct.current != null || direct.power != null) {
-    return { ...direct, energy };
+    return { ...direct, energy, switchOn };
   }
 
   const phase = decodePhaseRaw(map.phase_a);
-  if (phase) return { ...phase, energy };
+  if (phase) return { ...phase, energy, switchOn };
 
-  return { voltage: null, current: null, power: null, energy };
+  return { voltage: null, current: null, power: null, energy, switchOn };
 }
 
-module.exports = { isConfigured, listDevices, getDeviceStatus, getDeviceSpec, getElecReading };
+// Sends a control command to the device. `code` is the DP code (e.g. 'switch'
+// for the breaker's relay on/off), `value` is whatever type that DP expects.
+async function sendCommand(deviceId, code, value) {
+  return tuyaRequest('POST', `/v1.0/devices/${deviceId}/commands`, {
+    commands: [{ code, value }],
+  });
+}
+
+module.exports = { isConfigured, listDevices, getDeviceStatus, getDeviceSpec, getElecReading, sendCommand };
