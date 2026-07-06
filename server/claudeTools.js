@@ -41,6 +41,17 @@ const TOOLS = [
     input_schema: { type: 'object', properties: {} },
   },
   {
+    name: 'get_electricity_log',
+    description: 'ดูประวัติการบันทึกค่ามิเตอร์ไฟฟ้าย้อนหลัง (โวลต์, แอมป์, วัตต์, หน่วยไฟสะสม) ที่เก็บไว้อัตโนมัติทุกครั้งที่ระบบอ่านค่าจาก Tuya — ใช้สำหรับดูแนวโน้ม/วิเคราะห์การใช้ไฟฟ้าของห้องใดห้องหนึ่งหรือทุกห้องย้อนหลัง',
+    input_schema: {
+      type: 'object',
+      properties: {
+        roomId: { type: 'string', description: 'กรองเฉพาะห้องนี้ (ไม่ใส่ = ทุกห้อง)' },
+        limit: { type: 'number', description: 'จำนวนแถวล่าสุดที่ต้องการ (ค่าเริ่มต้น 50, สูงสุด 200)' },
+      },
+    },
+  },
+  {
     name: 'get_financial_summary',
     description: 'ดูสรุปตัวเลขการเงินโดยรวม (รายรับที่ชำระแล้ว, รายจ่ายรวม, จำนวนบิลค้าง, ห้องว่าง, งานซ่อมค้าง)',
     input_schema: { type: 'object', properties: {} },
@@ -125,7 +136,7 @@ const TOOLS = [
   },
 ];
 
-const READ_TOOL_NAMES = new Set(['get_rooms', 'get_pending_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary']);
+const READ_TOOL_NAMES = new Set(['get_rooms', 'get_pending_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary', 'get_electricity_log']);
 
 async function executeReadTool(name, input) {
   switch (name) {
@@ -146,6 +157,13 @@ async function executeReadTool(name, input) {
     }
     case 'get_expenses':
       return coerceExpenses(await readTab('Expenses'));
+    case 'get_electricity_log': {
+      let rows = await readTab('ElectricityLog');
+      if (input.roomId) rows = rows.filter((r) => String(r.room) === String(input.roomId));
+      rows.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      const limit = Math.min(Number(input.limit) || 50, 200);
+      return rows.slice(0, limit);
+    }
     case 'get_financial_summary': {
       const [invoices, expenses, rooms, maintenance] = await Promise.all([
         readTab('Invoices').then(coerceInvoices),
