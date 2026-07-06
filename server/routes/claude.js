@@ -90,8 +90,16 @@ router.post('/command', async (req, res, next) => {
     if (!isConfigured()) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ใน server/.env' });
     const message = (req.body.message || '').trim();
     if (!message) return res.status(400).json({ error: 'กรุณาพิมพ์คำสั่ง' });
+    // Prior turns of this same conversation (plain {role, content: string} pairs
+    // the frontend keeps in state) — lets the user answer a clarifying question
+    // or refine a request across multiple messages instead of every message
+    // starting a brand-new, context-free conversation.
+    const history = Array.isArray(req.body.history) ? req.body.history : [];
 
-    let messages = [{ role: 'user', content: message }];
+    let messages = [
+      ...history.filter((h) => h && h.role && h.content).map((h) => ({ role: h.role, content: h.content })),
+      { role: 'user', content: message },
+    ];
     for (let i = 0; i < 4; i++) {
       const resp = await callWithTools(buildCommandSystemPrompt(), messages, TOOLS);
       if (resp.stop_reason !== 'tool_use') {

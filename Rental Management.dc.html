@@ -519,15 +519,24 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
 
               <div style="margin-bottom:12px;padding-bottom:14px;border-bottom:1px dashed #E3D8C8">
-                <div style="font-size:12.5px;font-weight:700;color:#241812;margin-bottom:2px">สั่งงาน Claude ด้วยข้อความ</div>
-                <div style="font-size:11px;color:#A89A88;margin-bottom:8px;line-height:1.5">ทำได้เฉพาะงานในระบบนี้เท่านั้น (ดูข้อมูล, ออกบิล, ส่ง LINE, บันทึกมิเตอร์ ฯลฯ) — รายการที่เพิ่ม/แก้ไข/ลบข้อมูลจะขึ้นpopup ให้ยืนยันก่อนทำจริงเสมอ ไม่แตะโค้ด/เซิร์ฟเวอร์</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+                  <div style="font-size:12.5px;font-weight:700;color:#241812">สั่งงาน Claude ด้วยข้อความ</div>
+                  <sc-if value="{{ claudeCommandHistory }}" hint-placeholder-val="{{ false }}">
+                    <div onclick="{{ clearClaudeCommandHistory }}" style="font-size:10.5px;color:#A89A88;cursor:pointer;text-decoration:underline">ล้างการสนทนา</div>
+                  </sc-if>
+                </div>
+                <div style="font-size:11px;color:#A89A88;margin-bottom:8px;line-height:1.5">ทำได้เฉพาะงานในระบบนี้เท่านั้น (ดูข้อมูล, ออกบิล, ส่ง LINE, บันทึกมิเตอร์ ฯลฯ) — รายการที่เพิ่ม/แก้ไข/ลบข้อมูลจะขึ้นpopup ให้ยืนยันก่อนทำจริงเสมอ ไม่แตะโค้ด/เซิร์ฟเวอร์ — คุยต่อเนื่องได้หลายข้อความจนกว่าจะจบเรื่อง</div>
+                <sc-if value="{{ claudeCommandHistory }}" hint-placeholder-val="{{ false }}">
+                  <div style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
+                    <sc-for list="{{ claudeCommandHistory }}" as="h" hint-placeholder-count="2">
+                      <div style="align-self:{{ h.align }};max-width:85%;padding:9px 12px;border-radius:8px;background:{{ h.bg }};color:{{ h.color }};font-size:12px;white-space:pre-wrap;line-height:1.5">{{ h.text }}</div>
+                    </sc-for>
+                  </div>
+                </sc-if>
                 <div style="display:flex;gap:8px">
                   <input value="{{ claudeCommandInput }}" onchange="{{ onClaudeCommandInput }}" placeholder="เช่น ห้องไหนค้างจ่ายบ้าง / มาร์คบิล INV-101-xxx ว่าจ่ายแล้ว" style="flex:1;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
                   <div onclick="{{ sendClaudeCommand }}" style="padding:10px 18px;border-radius:6px;background:#D97757;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">{{ claudeCommandButtonLabel }}</div>
                 </div>
-                <sc-if value="{{ claudeCommandAnswer }}" hint-placeholder-val="{{ false }}">
-                  <div style="margin-top:10px;padding:12px;border-radius:6px;background:#FBF7F0;border:1px solid #F0E9DC;font-size:12.5px;color:#241812;white-space:pre-wrap;line-height:1.6">{{ claudeCommandAnswer }}</div>
-                </sc-if>
               </div>
 
               <div style="margin-bottom:12px">
@@ -1810,6 +1819,7 @@ class Component extends DCLogic {
     claudeCommandInput: '',
     claudeCommandLoading: false,
     claudeCommandAnswer: '',
+    claudeCommandHistory: [],
     showClaudeConfirm: false,
     claudeConfirmDescription: '',
     claudeConfirmAction: '',
@@ -2394,6 +2404,7 @@ class Component extends DCLogic {
   };
 
   onClaudeCommandInput = (e) => this.setState({ claudeCommandInput: e.target.value });
+  clearClaudeCommandHistory = () => this.setState({ claudeCommandHistory: [], claudeCommandAnswer: '' });
   sendClaudeCommand = async () => {
     const message = this.state.claudeCommandInput.trim();
     if (!message) { this.showAdminToast('กรุณาพิมพ์คำสั่ง'); return; }
@@ -2401,20 +2412,30 @@ class Component extends DCLogic {
     try {
       const res = await fetch('/api/claude/command', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
+        // Send the running conversation so far — lets Claude follow up on its
+        // own clarifying questions instead of treating every message as a
+        // brand-new, context-free request.
+        body: JSON.stringify({ message, history: this.state.claudeCommandHistory }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'ทำคำสั่งไม่สำเร็จ');
       if (data.type === 'confirm') {
-        this.setState({
+        this.setState(s => ({
           claudeCommandLoading: false,
+          claudeCommandInput: '',
           showClaudeConfirm: true,
           claudeConfirmDescription: data.description,
           claudeConfirmAction: data.action,
           claudeConfirmParams: data.params,
-        });
+          claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: data.description }],
+        }));
       } else {
-        this.setState({ claudeCommandLoading: false, claudeCommandAnswer: data.text, claudeCommandInput: '' });
+        this.setState(s => ({
+          claudeCommandLoading: false,
+          claudeCommandAnswer: data.text,
+          claudeCommandInput: '',
+          claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: data.text }],
+        }));
       }
     } catch (err) {
       this.setState({ claudeCommandLoading: false });
@@ -2432,7 +2453,11 @@ class Component extends DCLogic {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'ทำรายการไม่สำเร็จ');
-      this.setState({ claudeCommandAnswer: data.message || 'ทำรายการสำเร็จ', claudeCommandInput: '' });
+      this.setState(s => ({
+        claudeCommandAnswer: data.message || 'ทำรายการสำเร็จ',
+        claudeCommandInput: '',
+        claudeCommandHistory: [...s.claudeCommandHistory, { role: 'assistant', content: '✓ ' + (data.message || 'ทำรายการสำเร็จ') }],
+      }));
       this.showAdminToast(data.message || 'ทำรายการสำเร็จ');
       this.loadFromServer(); // most write actions touch rooms/invoices/expenses/maintenance — refresh so the rest of the UI reflects it
     } catch (err) {
@@ -3731,6 +3756,13 @@ class Component extends DCLogic {
       sendClaudeCommand: this.sendClaudeCommand,
       claudeCommandButtonLabel: s.claudeCommandLoading ? 'กำลังคิด...' : 'ส่งคำสั่ง',
       claudeCommandAnswer: s.claudeCommandAnswer,
+      clearClaudeCommandHistory: this.clearClaudeCommandHistory,
+      claudeCommandHistory: s.claudeCommandHistory.map(h => ({
+        text: h.content,
+        align: h.role === 'user' ? 'flex-end' : 'flex-start',
+        bg: h.role === 'user' ? '#D97757' : '#FBF7F0',
+        color: h.role === 'user' ? '#fff' : '#241812',
+      })),
       showClaudeConfirm: s.showClaudeConfirm,
       claudeConfirmDescription: s.claudeConfirmDescription,
       closeClaudeConfirm: this.closeClaudeConfirm,
