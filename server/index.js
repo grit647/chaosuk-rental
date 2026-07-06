@@ -29,6 +29,7 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/line', require('./routes/line'));
 app.use('/api/uploads', require('./routes/uploads'));
 app.use('/api/tuya', require('./routes/tuya'));
+app.get('/api/version', (req, res) => res.json({ version: 'auto-deploy-test-1' }));
 
 app.use((err, req, res, next) => {
   console.error(err);
