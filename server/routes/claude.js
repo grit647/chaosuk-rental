@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { readTab } = require('../sheets');
 const { coerceInvoices, coerceExpenses, coerceRooms, coerceMaintenance } = require('../coerce');
-const { isConfigured, askClaude } = require('../claude');
+const { isConfigured, askClaude, askClaudeWithImage } = require('../claude');
 
 router.get('/health', (req, res) => {
   res.json({ connected: isConfigured() });
@@ -38,6 +38,31 @@ router.get('/monthly-summary', async (req, res, next) => {
 
     const summary = await askClaude(prompt);
     res.json({ summary, stats: { totalRevenue, totalExpense, pendingCount: pending.length, vacant, totalRooms: rooms.length, openMaint } });
+  } catch (err) { next(err); }
+});
+
+router.post('/read-meters', async (req, res, next) => {
+  try {
+    if (!isConfigured()) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ใน server/.env' });
+    const { dataUrl } = req.body;
+    if (!dataUrl) return res.status(400).json({ error: 'กรุณาอัปโหลดรูปภาพ' });
+
+    const prompt = `นี่คือภาพมิเตอร์น้ำแบบกลไก อาจมีหลายตัวในภาพเดียว แต่ละตัวมีป้ายเลขห้องกำกับอยู่ข้างมิเตอร์ (ตัวเลขใหญ่ เช่น 8, 9, 10, 11) และมีตัวเลขวัดปริมาณน้ำแสดงอยู่ในช่องหน้าปัดสีขาว (มักมี 4 หลัก อาจมีทศนิยมสีแดงต่อท้าย ให้ปัดเป็นจำนวนเต็ม)
+
+อ่านค่าของมิเตอร์ทุกตัวที่เห็นในภาพ แล้วตอบกลับเป็น JSON array เท่านั้น ห้ามมีข้อความอื่นหรือ markdown code fence ปนมา รูปแบบต้องเป็นแบบนี้เป๊ะ:
+[{"room":"8","reading":205},{"room":"9","reading":121}]
+
+ถ้าตัวเลขบางหลักไม่ชัดเจน (เช่นเลขกำลังหมุนเปลี่ยน) ให้ใช้ค่าที่อ่านได้แน่นอนที่สุด (ปัดลง) ถ้าอ่านป้ายเลขห้องไม่ออกให้ข้ามมิเตอร์ตัวนั้นไป`;
+
+    const raw = await askClaudeWithImage(prompt, dataUrl);
+    let readings;
+    try {
+      const jsonText = raw.replace(/```json|```/g, '').trim();
+      readings = JSON.parse(jsonText);
+    } catch {
+      return res.status(502).json({ error: 'อ่านผลลัพธ์จาก Claude ไม่สำเร็จ', raw });
+    }
+    res.json({ readings });
   } catch (err) { next(err); }
 });
 

@@ -555,6 +555,30 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
             </div>
 
+            <div style="background:linear-gradient(135deg,#FBF3EC,#FFFFFF);border-radius:8px;padding:18px 20px;box-sizing:border-box;margin-bottom:16px;border:1px solid #F0DFCF">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <span style="width:22px;height:22px;border-radius:6px;background:#D97757;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">✦</span>
+                <div style="font-size:13.5px;font-weight:700;color:#241812">อ่านมิเตอร์น้ำจากรูปภาพด้วย Claude</div>
+              </div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:12px">ถ่ายรูปมิเตอร์ (ถ่ายได้หลายห้องในรูปเดียว ถ้ามีป้ายเลขห้องกำกับ) แล้วอัปโหลด — Claude จะอ่านตัวเลขให้อัตโนมัติ</div>
+              <label style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border:1px dashed #C9B79E;border-radius:6px;cursor:pointer;background:#FBF7F0">
+                <span style="font-size:12.5px;color:#7C6E5F">{{ meterPhotoButtonLabel }}</span>
+                <input type="file" accept="image/*" onchange="{{ onMeterPhotoUpload }}" style="display:none">
+              </label>
+              <sc-if value="{{ meterReadingResults }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+                  <sc-for list="{{ meterReadingResults }}" as="m" hint-placeholder-count="4">
+                    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#FFFFFF;border:1px solid #F0E9DC;border-radius:6px">
+                      <div style="font-size:12.5px;font-weight:700;color:#241812;min-width:60px">ห้อง {{ m.room }}</div>
+                      <div style="font-size:12px;color:#7C6E5F">อ่านได้:</div>
+                      <input value="{{ m.reading }}" onchange="{{ m.onChange }}" style="width:90px;padding:6px 8px;border-radius:5px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                      <div onclick="{{ m.onSave }}" style="margin-left:auto;padding:7px 14px;border-radius:5px;background:{{ m.savedBg }};color:{{ m.savedColor }};font-size:11.5px;font-weight:600;cursor:pointer">{{ m.saveLabel }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+
             <div style="background:#FFFFFF;border-radius:8px;padding:20px;box-sizing:border-box;margin-bottom:16px">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
                 <div>
@@ -1751,6 +1775,8 @@ class Component extends DCLogic {
     claudeApiConnected: false,
     claudeSummaryText: '',
     claudeSummaryLoading: false,
+    meterPhotoLoading: false,
+    meterReadings: [],
     lineConn: { channelId: '', channelSecret: '', accessToken: '', connected: false },
     lineEnvConnected: false,
     sheetEnvConnected: false,
@@ -2257,6 +2283,53 @@ class Component extends DCLogic {
   setElecChartMode = (m) => this.setState({ elecChartMode: m });
   setWaterWindow = (roomId, hrs) => this.setState(s => ({ waterWindows: { ...s.waterWindows, [roomId]: hrs } }));
   setElecWindow = (roomId, hrs) => this.setState(s => ({ elecWindows: { ...s.elecWindows, [roomId]: hrs } }));
+
+  onMeterPhotoUpload = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    this._downscaleImage(f, 1600, async (dataUrl) => {
+      if (!dataUrl) { this.showAdminToast('อ่านรูปภาพไม่สำเร็จ'); return; }
+      this.setState({ meterPhotoLoading: true, meterReadings: [] });
+      try {
+        const res = await fetch('/api/claude/read-meters', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'อ่านมิเตอร์ไม่สำเร็จ');
+        const readings = (data.readings || []).map(r => ({ room: String(r.room), reading: String(r.reading), saved: false }));
+        this.setState({ meterReadings: readings, meterPhotoLoading: false });
+        if (!readings.length) this.showAdminToast('ไม่พบมิเตอร์ที่อ่านได้ในรูปนี้');
+      } catch (err) {
+        this.setState({ meterPhotoLoading: false });
+        this.showAdminToast(err.message || 'อ่านมิเตอร์ไม่สำเร็จ');
+      }
+    });
+    e.target.value = '';
+  };
+  onMeterReadingEdit = (room, e) => {
+    const v = e.target.value;
+    this.setState(s => ({ meterReadings: s.meterReadings.map(m => m.room === room ? { ...m, reading: v, saved: false } : m) }));
+  };
+  saveMeterReading = async (room) => {
+    const entry = this.state.meterReadings.find(m => m.room === room);
+    if (!entry) return;
+    const roomObj = this.state.rooms.find(r => r.id === room);
+    if (!roomObj) { this.showAdminToast('ไม่พบห้อง ' + room + ' ในระบบ'); return; }
+    try {
+      const res = await fetch('/api/rooms/' + room, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ waterCurr: entry.reading }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState(s => ({
+        rooms: s.rooms.map(r => r.id === room ? updated : r),
+        meterReadings: s.meterReadings.map(m => m.room === room ? { ...m, saved: true } : m),
+      }));
+      this.showAdminToast('บันทึกมิเตอร์ห้อง ' + room + ' แล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
+  };
 
   selectEquipRoom = (id) => {
     const d = this.state.tuyaDevices[id] || {};
@@ -3541,6 +3614,16 @@ class Component extends DCLogic {
 
       waterRate: s.waterRate, elecRate: s.elecRate, onWaterRateChange: this.onWaterRateChange, onElecRateChange: this.onElecRateChange,
       waterReportView, elecReportView, waterTotalCostDisplay: this.fmt(waterTotalCostNum), elecTotalCostDisplay: this.fmt(elecTotalCostNum),
+      onMeterPhotoUpload: this.onMeterPhotoUpload,
+      meterPhotoButtonLabel: s.meterPhotoLoading ? 'กำลังอ่านมิเตอร์...' : '📷 เลือกรูปมิเตอร์น้ำ',
+      meterReadingResults: s.meterReadings.map(m => ({
+        room: m.room, reading: m.reading,
+        onChange: (e) => this.onMeterReadingEdit(m.room, e),
+        onSave: () => this.saveMeterReading(m.room),
+        saveLabel: m.saved ? '✓ บันทึกแล้ว' : 'บันทึก',
+        savedBg: m.saved ? '#E4EFE7' : '#C1622D',
+        savedColor: m.saved ? '#3B7A52' : '#fff',
+      })),
       meterRegistry, commonEquipment,
       waterChartBars: waterChart.bars, waterChartTotal: waterChart.total, waterChartAvg: waterChart.avg, waterChartPeak: waterChart.peak,
       elecChartBars: elecChart.bars, elecChartTotal: elecChart.total, elecChartAvg: elecChart.avg, elecChartPeak: elecChart.peak,
