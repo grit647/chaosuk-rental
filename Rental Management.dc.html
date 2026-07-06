@@ -2316,10 +2316,18 @@ class Component extends DCLogic {
     if (!entry) return;
     const roomObj = this.state.rooms.find(r => r.id === room);
     if (!roomObj) { this.showAdminToast('ไม่พบห้อง ' + room + ' ในระบบ'); return; }
+    // If this room has never had a baseline reading before, treat this first
+    // real reading as both the starting point and the current value — so this
+    // billing cycle shows 0 units used instead of a bogus spike (e.g. a fresh
+    // read of 205 wrongly counted as "205 units used" against an unset prev of 0).
+    const hasBaseline = Number(roomObj.waterPrev) > 0;
+    const patch = hasBaseline
+      ? { waterCurr: entry.reading }
+      : { waterCurr: entry.reading, waterPrev: entry.reading };
     try {
       const res = await fetch('/api/rooms/' + room, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ waterCurr: entry.reading }),
+        body: JSON.stringify(patch),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
       const updated = await res.json();
@@ -2327,7 +2335,9 @@ class Component extends DCLogic {
         rooms: s.rooms.map(r => r.id === room ? updated : r),
         meterReadings: s.meterReadings.map(m => m.room === room ? { ...m, saved: true } : m),
       }));
-      this.showAdminToast('บันทึกมิเตอร์ห้อง ' + room + ' แล้ว');
+      this.showAdminToast(hasBaseline
+        ? 'บันทึกมิเตอร์ห้อง ' + room + ' แล้ว'
+        : 'บันทึกเลขฐานมิเตอร์ห้อง ' + room + ' ครั้งแรกแล้ว (รอบนี้ใช้ 0 หน่วย เริ่มนับจากนี้)');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
   };
 
