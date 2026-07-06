@@ -103,7 +103,9 @@ function findScale(spec, code) {
 // built-in metering) don't expose cur_voltage/cur_current/cur_power as
 // separate DPs — instead they pack all three into a single base64 "raw" DP
 // per phase (phase_a/phase_b/phase_c): 2 bytes voltage (÷10 for V), 3 bytes
-// current (÷1000 for A), 3 bytes power (÷10 for W), all big-endian.
+// current (÷1000 for A), 3 bytes power in whole watts (no scaling), all
+// big-endian. Verified against a real device's own LCD readout (voltage and
+// current matched; power's ÷10 guess was wrong — the raw value is already W).
 function decodePhaseRaw(base64Value) {
   if (!base64Value) return null;
   try {
@@ -112,7 +114,7 @@ function decodePhaseRaw(base64Value) {
     return {
       voltage: buf.readUInt16BE(0) / 10,
       current: buf.readUIntBE(2, 3) / 1000,
-      power: buf.readUIntBE(5, 3) / 10,
+      power: buf.readUIntBE(5, 3),
     };
   } catch { return null; }
 }
