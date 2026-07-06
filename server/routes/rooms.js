@@ -1,0 +1,58 @@
+const express = require('express');
+const router = express.Router();
+const { appendRow, updateRow, deleteRow, readTab } = require('../sheets');
+const { coerceRooms } = require('../coerce');
+
+router.get('/', async (req, res, next) => {
+  try { res.json(coerceRooms(await readTab('Rooms'))); }
+  catch (err) { next(err); }
+});
+
+router.post('/', async (req, res, next) => {
+  try {
+    const b = req.body;
+    const id = String(b.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'กรุณากรอกเลขห้อง' });
+    const existing = await readTab('Rooms');
+    if (existing.some((r) => r.id === id)) return res.status(409).json({ error: 'มีห้อง ' + id + ' อยู่แล้ว' });
+    const rent = Number(b.rent) || 0;
+    const room = {
+      id,
+      floor: Number(b.floor) || 1,
+      status: 'vacant',
+      tenant: '',
+      phone: '',
+      rent,
+      moveIn: '',
+      contractEnd: '',
+      deposit: Number(b.deposit) || rent * 2,
+      waterMeterNo: 'W-' + id,
+      elecMeterNo: 'E-' + id,
+      waterPrev: 0,
+      waterCurr: '0',
+      elecPrev: 0,
+      elecCurr: '0',
+      wifiCode: '',
+      dueDay: '',
+      tenantIdImg: '',
+      tenantIdExpiry: '',
+      leaseDocName: '',
+    };
+    await appendRow('Rooms', room);
+    res.json(room);
+  } catch (err) { next(err); }
+});
+
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const merged = await updateRow('Rooms', req.params.id, req.body);
+    res.json(coerceRooms([merged])[0]);
+  } catch (err) { next(err); }
+});
+
+router.delete('/:id', async (req, res, next) => {
+  try { await deleteRow('Rooms', req.params.id); res.json({ ok: true }); }
+  catch (err) { next(err); }
+});
+
+module.exports = router;
