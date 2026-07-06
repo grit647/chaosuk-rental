@@ -455,30 +455,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <span style="width:6px;height:6px;border-radius:50%;background:{{ tuyaStatusDot }}"></span>{{ tuyaStatusLabel }}
                 </span>
               </div>
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:18px">กรอกคีย์จาก Tuya IoT Platform เพื่อดึงสถานะอุปกรณ์แบบเรียลไทม์</div>
-              <div style="display:flex;flex-direction:column;gap:14px">
-                <div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Access ID / Client ID</div>
-                  <input value="{{ tuyaConn.accessId }}" onchange="{{ onTuyaAccessId }}" placeholder="เช่น 9xa8k7pq3vwd..." style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
-                </div>
-                <div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Access Secret / Client Secret</div>
-                  <input type="password" value="{{ tuyaConn.accessSecret }}" onchange="{{ onTuyaAccessSecret }}" placeholder="••••••••••••••••" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
-                </div>
-                <div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ศูนย์ข้อมูล (Data Center)</div>
-                  <select value="{{ tuyaConn.region }}" onchange="{{ onTuyaRegion }}" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;background:#fff">
-                    <sc-for list="{{ tuyaRegionOptions }}" as="reg" hint-placeholder-count="4">
-                      <option value="{{ reg }}">{{ reg }}</option>
-                    </sc-for>
-                  </select>
-                </div>
-                <div style="display:flex;gap:10px;margin-top:4px">
-                  <div onclick="{{ connectTuya }}" style="flex:1;padding:11px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;text-align:center;cursor:pointer">เชื่อมต่อ</div>
-                  <sc-if value="{{ tuyaConnected }}" hint-placeholder-val="{{ false }}">
-                    <div onclick="{{ disconnectTuya }}" style="padding:11px 18px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;text-align:center;cursor:pointer">ยกเลิกการเชื่อมต่อ</div>
-                  </sc-if>
-                </div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:10px">ดึงสถานะอุปกรณ์ไฟฟ้าแบบเรียลไทม์ (V/A/W) จาก Tuya Cloud</div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="font-size:12px;color:#7C6E5F">Access ID / Access Secret ตั้งค่าที่ฝั่งเซิร์ฟเวอร์เท่านั้น (ไฟล์ <code>server/.env</code>) เพื่อความปลอดภัย — ไม่กรอกผ่านหน้านี้</div>
+                <div style="font-size:12px;color:{{ tuyaStatusColor }};font-weight:600">{{ tuyaEnvStatusLabel }}</div>
               </div>
             </div>
 
@@ -623,9 +603,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="display:grid;grid-template-columns:0.5fr 1.2fr 1.5fr 0.9fr 0.9fr 1.5fr;gap:10px;font-size:12.5px;color:#241812;padding:11px 0;border-bottom:1px solid #F0E9DC;align-items:center">
                   <div>{{ w.id }}</div>
                   <div>{{ w.tenant }}</div>
-                  <div style="display:flex;align-items:center;gap:6px;min-width:0">
-                    <div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;background:{{ w.onlineDot }}"></div>
-                    <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:{{ w.deviceColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ w.deviceName }}</span>
+                  <div style="min-width:0">
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;background:{{ w.onlineDot }}"></div>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:{{ w.deviceColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ w.deviceName }}</span>
+                    </div>
+                    <sc-if value="{{ w.liveLabel }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10px;color:#7C6E5F;margin-top:2px">{{ w.liveLabel }}</div>
+                    </sc-if>
                   </div>
                   <div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ w.usage }} <span style="font-size:10px;color:#A89A88">kWh</span></div>
                   <div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ w.costDisplay }}</div>
@@ -669,8 +654,24 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <span style="font-size:11px;color:#7C6E5F">{{ equipSelElecOnline }}</span>
                     </div>
                   </div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ชื่ออุปกรณ์ Tuya (ไฟ)</div>
-                  <input value="{{ tuyaForm.elecName }}" onchange="{{ onTuyaElecName }}" placeholder="เช่น TY-Meter-101" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Tuya Device ID (ไฟ) · คัดลอกจากหน้า Devices ใน Tuya IoT Platform</div>
+                  <input list="tuyaDeviceDatalist" value="{{ tuyaForm.elecDeviceId }}" onchange="{{ onTuyaElecDeviceId }}" placeholder="เช่น eb6545016d2aeb39d0t8vp" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  <datalist id="tuyaDeviceDatalist">
+                    <sc-for list="{{ tuyaDeviceOptions }}" as="d" hint-placeholder-count="3">
+                      <option value="{{ d.value }}">{{ d.label }}</option>
+                    </sc-for>
+                  </datalist>
+                  <div style="margin-top:10px;padding:10px;border-radius:6px;background:#FBF7F0;border:1px solid #F0E9DC">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                      <span style="font-size:11px;font-weight:700;color:#7C6E5F">ค่าไฟแบบเรียลไทม์</span>
+                      <span onclick="{{ refreshTuyaLive }}" style="font-size:10.5px;color:#C1622D;font-weight:600;cursor:pointer">{{ tuyaRefreshLabel }}</span>
+                    </div>
+                    <div style="display:flex;gap:14px">
+                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveVoltage }}</div><div style="font-size:10px;color:#A89A88">โวลต์ (V)</div></div>
+                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveCurrent }}</div><div style="font-size:10px;color:#A89A88">แอมป์ (A)</div></div>
+                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLivePower }}</div><div style="font-size:10px;color:#A89A88">วัตต์ (W)</div></div>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
@@ -1681,6 +1682,7 @@ class Component extends DCLogic {
     dueReminderMsg: 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ',
     dueReminderRooms: {},
     tuyaConn: { accessId: '', accessSecret: '', region: 'ศูนย์ข้อมูลไทย (Central)', connected: false },
+    tuyaEnvConnected: false,
     lineConn: { channelId: '', channelSecret: '', accessToken: '', connected: false },
     lineEnvConnected: false,
     sheetConn: { url: '', connected: false, lastSync: '', sortAsc: false },
@@ -1744,7 +1746,10 @@ class Component extends DCLogic {
       ],
     },
     equipSelectedRoom: '101',
-    tuyaForm: { elecName: '', waterName: '' },
+    tuyaForm: { elecName: '', elecDeviceId: '', waterName: '' },
+    tuyaDeviceList: [],
+    tuyaLiveReadings: {},
+    tuyaLoadingReading: false,
     tuyaDevices: {
       '101': { elecName: 'TY-Meter-101', elecOnline: true, elecReading: 4268, elecPower: true, waterName: 'TY-Water-101', waterOnline: true, waterReading: 1185 },
       '103': { elecName: 'TY-Meter-103', elecOnline: true, elecReading: 3176, elecPower: true, waterName: 'TY-Water-103', waterOnline: false, waterReading: 986 },
@@ -1825,7 +1830,28 @@ class Component extends DCLogic {
     window.addEventListener('resize', this._onResize);
     this.loadFromServer();
     this.loadLineStatus();
+    this.loadTuyaDevices();
+    this.refreshTuyaLive();
+    this.loadTuyaHealth();
   }
+  loadTuyaDevices = async () => {
+    try {
+      const res = await fetch('/api/tuya/devices');
+      if (!res.ok) return; // not configured yet — leave list empty, UI just shows no options
+      this.setState({ tuyaDeviceList: await res.json() });
+    } catch (err) { console.error(err); }
+  };
+  refreshTuyaLive = async () => {
+    this.setState({ tuyaLoadingReading: true });
+    try {
+      const res = await fetch('/api/tuya/status');
+      const data = res.ok ? await res.json() : {};
+      this.setState({ tuyaLiveReadings: data, tuyaLoadingReading: false });
+    } catch (err) {
+      console.error(err);
+      this.setState({ tuyaLoadingReading: false });
+    }
+  };
   loadFromServer = async () => {
     try {
       const res = await fetch('/api/bootstrap');
@@ -2189,18 +2215,28 @@ class Component extends DCLogic {
 
   selectEquipRoom = (id) => {
     const d = this.state.tuyaDevices[id] || {};
-    this.setState({ equipSelectedRoom: id, tuyaForm: { elecName: d.elecName || '', waterName: d.waterName || '' } });
+    const room = this.state.rooms.find(r => r.id === id) || {};
+    this.setState({ equipSelectedRoom: id, tuyaForm: { elecName: d.elecName || '', elecDeviceId: room.tuyaElecDeviceId || '', waterName: d.waterName || '' } });
   };
-  onTuyaElecName = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, elecName: e.target.value } }));
+  onTuyaElecDeviceId = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, elecDeviceId: e.target.value } }));
   onTuyaWaterName = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, waterName: e.target.value } }));
-  saveTuyaDevice = () => {
+  saveTuyaDevice = async () => {
     const id = this.state.equipSelectedRoom;
     const f = this.state.tuyaForm;
-    this.setState(s => {
-      const prev = s.tuyaDevices[id] || { elecOnline: true, elecReading: 0, elecPower: true, waterOnline: true, waterReading: 0 };
-      return { tuyaDevices: { ...s.tuyaDevices, [id]: { ...prev, elecName: f.elecName, waterName: f.waterName } } };
-    });
-    this.showAdminToast('บันทึกอุปกรณ์ห้อง ' + id + ' แล้ว');
+    try {
+      const res = await fetch('/api/rooms/' + id, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tuyaElecDeviceId: f.elecDeviceId }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
+      const updatedRoom = await res.json();
+      this.setState(s => ({
+        rooms: s.rooms.map(r => r.id === id ? updatedRoom : r),
+        tuyaDevices: { ...s.tuyaDevices, [id]: { ...(s.tuyaDevices[id] || { elecOnline: true, elecReading: 0, elecPower: true, waterOnline: true, waterReading: 0 }), waterName: f.waterName } },
+      }));
+      this.showAdminToast('บันทึกอุปกรณ์ห้อง ' + id + ' แล้ว');
+      this.refreshTuyaLive();
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
   };
   toggleTuyaPower = (id) => {
     this.setState(s => {
@@ -2622,18 +2658,12 @@ class Component extends DCLogic {
     } catch (err) { this.showAdminToast(err.message || 'ส่ง LINE ไม่สำเร็จ'); }
   };
 
-  onTuyaAccessId = (e) => { const v = e.target.value; this.setState(s => ({ tuyaConn: { ...s.tuyaConn, accessId: v, connected: false } })); };
-  onTuyaAccessSecret = (e) => { const v = e.target.value; this.setState(s => ({ tuyaConn: { ...s.tuyaConn, accessSecret: v, connected: false } })); };
-  onTuyaRegion = (e) => { const v = e.target.value; this.setState(s => ({ tuyaConn: { ...s.tuyaConn, region: v } })); };
-  connectTuya = () => {
-    const c = this.state.tuyaConn;
-    if (!c.accessId.trim() || !c.accessSecret.trim()) { this.showAdminToast('กรุณากรอก Access ID และ Access Secret'); return; }
-    this.setState(s => ({ tuyaConn: { ...s.tuyaConn, connected: true } }));
-    this.showAdminToast('เชื่อมต่อ Tuya Cloud สำเร็จ');
-  };
-  disconnectTuya = () => {
-    this.setState(s => ({ tuyaConn: { ...s.tuyaConn, connected: false } }));
-    this.showAdminToast('ยกเลิกการเชื่อมต่อ Tuya แล้ว');
+  loadTuyaHealth = async () => {
+    try {
+      const res = await fetch('/api/tuya/health');
+      const data = await res.json();
+      this.setState({ tuyaEnvConnected: !!data.connected });
+    } catch (err) { console.error(err); }
   };
 
   loadLineStatus = async () => {
@@ -2932,11 +2962,16 @@ class Component extends DCLogic {
       const usage = Math.round(base24 * hrs / 24);
       const cost = usage * s.elecRate;
       elecTotalCostNum += cost;
+      const live = r.tuyaElecDeviceId ? s.tuyaLiveReadings[r.id] : null;
+      const realDevice = r.tuyaElecDeviceId ? s.tuyaDeviceList.find(d => d.id === r.tuyaElecDeviceId) : null;
+      const isReal = !!r.tuyaElecDeviceId;
       return {
         id: r.id, tenant: r.tenant,
-        deviceName: dev ? dev.elecName : 'ยังไม่เชื่อมต่ออุปกรณ์',
-        deviceColor: dev ? '#241812' : '#B0A08C',
-        online: dev ? dev.elecOnline : false, onlineDot: (dev && dev.elecOnline) ? '#3B7A52' : '#B0A08C',
+        deviceName: isReal ? (realDevice ? realDevice.name : r.tuyaElecDeviceId) : (dev ? dev.elecName : 'ยังไม่เชื่อมต่ออุปกรณ์'),
+        deviceColor: (isReal || dev) ? '#241812' : '#B0A08C',
+        online: isReal ? (live ? live.online : false) : (dev ? dev.elecOnline : false),
+        onlineDot: isReal ? ((live && live.online) ? '#3B7A52' : '#B0A08C') : ((dev && dev.elecOnline) ? '#3B7A52' : '#B0A08C'),
+        liveLabel: (live && live.voltage != null) ? (live.voltage.toFixed(1) + 'V / ' + live.current.toFixed(2) + 'A') : '',
         usage, windowLabel: hrs + ' ชม.', costDisplay: this.fmt(cost),
         windowChips: buildWindowChips(hrs, (h) => this.setElecWindow(r.id, h)),
       };
@@ -3263,15 +3298,12 @@ class Component extends DCLogic {
       })),
       propertyProfile: s.propertyProfile,
       onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone, saveProfile: this.saveProfile,
-      tuyaConn: s.tuyaConn,
-      tuyaConnected: s.tuyaConn.connected,
-      tuyaStatusLabel: s.tuyaConn.connected ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ',
-      tuyaStatusBg: s.tuyaConn.connected ? '#E4EFE7' : '#EDE4D6',
-      tuyaStatusColor: s.tuyaConn.connected ? '#3B7A52' : '#7C6E5F',
-      tuyaStatusDot: s.tuyaConn.connected ? '#3B7A52' : '#B0A08C',
-      tuyaRegionOptions: ['ศูนย์ข้อมูลไทย (Central)', 'ศูนย์ข้อมูลจีน (China)', 'ศูนย์ข้อมูลตะวันตก (Western America)', 'ศูนย์ข้อมูลยุโรป (Central Europe)'],
-      onTuyaAccessId: this.onTuyaAccessId, onTuyaAccessSecret: this.onTuyaAccessSecret, onTuyaRegion: this.onTuyaRegion,
-      connectTuya: this.connectTuya, disconnectTuya: this.disconnectTuya,
+      tuyaConnected: s.tuyaEnvConnected,
+      tuyaStatusLabel: s.tuyaEnvConnected ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ',
+      tuyaStatusBg: s.tuyaEnvConnected ? '#E4EFE7' : '#EDE4D6',
+      tuyaStatusColor: s.tuyaEnvConnected ? '#3B7A52' : '#7C6E5F',
+      tuyaStatusDot: s.tuyaEnvConnected ? '#3B7A52' : '#B0A08C',
+      tuyaEnvStatusLabel: s.tuyaEnvConnected ? '✓ พร้อมดึงค่า V/A/W แบบเรียลไทม์' : 'ยังไม่ได้ตั้งค่า TUYA_ACCESS_ID / TUYA_ACCESS_SECRET ใน server/.env',
       lineConnected: s.lineEnvConnected,
       lineStatusLabel: s.lineEnvConnected ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ',
       lineStatusBg: s.lineEnvConnected ? '#E4EFE7' : '#EDE4D6',
@@ -3306,7 +3338,13 @@ class Component extends DCLogic {
       equipSelectedRoom: s.equipSelectedRoom,
       equipSelTenant: equipSelRoom.tenant || '(ห้องว่าง)',
       equipSelConfigured: !!equipSelDevice,
-      tuyaForm: s.tuyaForm, onTuyaElecName: this.onTuyaElecName, onTuyaWaterName: this.onTuyaWaterName, saveTuyaDevice: this.saveTuyaDevice,
+      tuyaForm: s.tuyaForm, onTuyaElecDeviceId: this.onTuyaElecDeviceId, onTuyaWaterName: this.onTuyaWaterName, saveTuyaDevice: this.saveTuyaDevice,
+      tuyaDeviceOptions: s.tuyaDeviceList.map(d => ({ value: d.id, label: d.name + (d.online ? '' : ' (ออฟไลน์)') })),
+      refreshTuyaLive: this.refreshTuyaLive,
+      tuyaRefreshLabel: s.tuyaLoadingReading ? 'กำลังโหลด...' : '⟳ รีเฟรช',
+      equipSelLiveVoltage: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].voltage != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].voltage.toFixed(1) : '—',
+      equipSelLiveCurrent: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].current != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].current.toFixed(2) : '—',
+      equipSelLivePower: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].power != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].power.toFixed(1) : '—',
       equipSelElecOnline: equipSelDevice ? (equipSelDevice.elecOnline ? 'ออนไลน์' : 'ออฟไลน์') : '—',
       equipSelElecDot: equipSelDevice ? (equipSelDevice.elecOnline ? '#3B7A52' : '#B24336') : '#C9B79E',
       equipSelWaterOnline: equipSelDevice ? (equipSelDevice.waterOnline ? 'ออนไลน์' : 'ออฟไลน์') : '—',

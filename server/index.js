@@ -28,6 +28,7 @@ app.use('/api/calendar', require('./routes/calendar'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/line', require('./routes/line'));
 app.use('/api/uploads', require('./routes/uploads'));
+app.use('/api/tuya', require('./routes/tuya'));
 
 app.use((err, req, res, next) => {
   console.error(err);
