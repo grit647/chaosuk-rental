@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { readTab } = require('../sheets');
 const { coerceInvoices, coerceExpenses, coerceRooms, coerceMaintenance } = require('../coerce');
-const { isConfigured, askClaude, askClaudeWithImage } = require('../claude');
+const { isConfigured, askClaude, askClaudeWithImage, callWithTools } = require('../claude');
+const { TOOLS, READ_TOOL_NAMES, executeReadTool, describeWriteTool, executeWriteTool } = require('../claudeTools');
 
 router.get('/health', (req, res) => {
   res.json({ connected: isConfigured() });
@@ -64,6 +65,63 @@ router.post('/read-meters', async (req, res, next) => {
     }
     res.json({ readings });
   } catch (err) { next(err); }
+});
+
+const COMMAND_SYSTEM_PROMPT = `คุณเป็นผู้ช่วยจัดการหอพัก "เช่าสุข" สามารถทำได้เฉพาะงานที่มีเครื่องมือ (tools) ให้เท่านั้น ห้ามสมมติหรือแต่งข้อมูลขึ้นเอง ถ้าต้องการข้อมูลให้เรียกเครื่องมือที่เกี่ยวข้องก่อนเสมอ
+
+ข้อจำกัดสำคัญ: คุณไม่มีความสามารถและไม่มีเครื่องมือใดๆ ที่เกี่ยวกับการแก้ไขโค้ด เซิร์ฟเวอร์ การตั้งค่าระบบ หรือข้อมูลลับ/รหัสผ่านใดๆ ทั้งสิ้น ถ้าผู้ใช้ขอสิ่งเหล่านี้ หรือขอสิ่งที่ไม่มีเครื่องมือรองรับ ให้ปฏิเสธอย่างสุภาพเป็นภาษาไทย อธิบายว่างานนี้อยู่นอกเหนือขอบเขตที่ทำได้ในระบบนี้ อย่าพยายามช่วยด้วยวิธีอื่น
+
+ตอบเป็นภาษาไทยเสมอ กระชับ ตรงประเด็น`;
+
+function extractText(resp) {
+  return (resp.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n').trim();
+}
+
+router.post('/command', async (req, res, next) => {
+  try {
+    if (!isConfigured()) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ใน server/.env' });
+    const message = (req.body.message || '').trim();
+    if (!message) return res.status(400).json({ error: 'กรุณาพิมพ์คำสั่ง' });
+
+    let messages = [{ role: 'user', content: message }];
+    for (let i = 0; i < 4; i++) {
+      const resp = await callWithTools(COMMAND_SYSTEM_PROMPT, messages, TOOLS);
+      if (resp.stop_reason !== 'tool_use') {
+        const text = extractText(resp) || 'ขอโทษครับ ไม่เข้าใจคำสั่งนี้';
+        return res.json({ type: 'answer', text });
+      }
+      const toolUse = resp.content.find((c) => c.type === 'tool_use');
+      if (!toolUse) return res.json({ type: 'answer', text: extractText(resp) || 'ขอโทษครับ ไม่เข้าใจคำสั่งนี้' });
+
+      if (!READ_TOOL_NAMES.has(toolUse.name)) {
+        // Write/mutating action — never auto-execute. Hand back to the
+        // frontend as a pending confirmation; nothing has happened yet.
+        const description = extractText(resp) || await describeWriteTool(toolUse.name, toolUse.input);
+        return res.json({ type: 'confirm', action: toolUse.name, params: toolUse.input, description });
+      }
+
+      // Read-only tool — safe to run immediately, then loop so Claude can
+      // phrase a final natural-language answer from the real data.
+      const result = await executeReadTool(toolUse.name, toolUse.input);
+      messages = [
+        ...messages,
+        { role: 'assistant', content: resp.content },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(result) }] },
+      ];
+    }
+    res.json({ type: 'answer', text: 'คำสั่งนี้ซับซ้อนเกินไป ลองถามให้ชัดเจนหรือแบ่งเป็นหลายคำสั่งครับ' });
+  } catch (err) { next(err); }
+});
+
+router.post('/command/confirm', async (req, res, next) => {
+  try {
+    const { action, params } = req.body;
+    if (!action || !params) return res.status(400).json({ error: 'คำขอไม่ถูกต้อง' });
+    const result = await executeWriteTool(action, params);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'ทำรายการไม่สำเร็จ' });
+  }
 });
 
 module.exports = router;

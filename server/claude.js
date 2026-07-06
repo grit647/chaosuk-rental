@@ -45,4 +45,30 @@ async function askClaudeWithImage(prompt, dataUrl, maxTokens = 1024) {
   return callMessages(VISION_MODEL, content, maxTokens);
 }
 
-module.exports = { isConfigured, askClaude, askClaudeWithImage };
+// Tool-use turn for the scoped "command box" assistant — system prompt +
+// running message history + a fixed tool whitelist. Returns the raw parsed
+// response so the caller can inspect stop_reason / tool_use blocks itself.
+async function callWithTools(system, messages, tools, maxTokens = 1024) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: VISION_MODEL, // stronger model — better at staying within tool boundaries
+      max_tokens: maxTokens,
+      system,
+      tools,
+      messages,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Claude API failed (${res.status}): ${text}`);
+  }
+  return res.json();
+}
+
+module.exports = { isConfigured, askClaude, askClaudeWithImage, callWithTools };

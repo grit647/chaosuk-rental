@@ -518,6 +518,18 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 </sc-if>
               </div>
 
+              <div style="margin-bottom:12px;padding-bottom:14px;border-bottom:1px dashed #E3D8C8">
+                <div style="font-size:12.5px;font-weight:700;color:#241812;margin-bottom:2px">สั่งงาน Claude ด้วยข้อความ</div>
+                <div style="font-size:11px;color:#A89A88;margin-bottom:8px;line-height:1.5">ทำได้เฉพาะงานในระบบนี้เท่านั้น (ดูข้อมูล, ออกบิล, ส่ง LINE, บันทึกมิเตอร์ ฯลฯ) — รายการที่เพิ่ม/แก้ไข/ลบข้อมูลจะขึ้นpopup ให้ยืนยันก่อนทำจริงเสมอ ไม่แตะโค้ด/เซิร์ฟเวอร์</div>
+                <div style="display:flex;gap:8px">
+                  <input value="{{ claudeCommandInput }}" onchange="{{ onClaudeCommandInput }}" placeholder="เช่น ห้องไหนค้างจ่ายบ้าง / มาร์คบิล INV-101-xxx ว่าจ่ายแล้ว" style="flex:1;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                  <div onclick="{{ sendClaudeCommand }}" style="padding:10px 18px;border-radius:6px;background:#D97757;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">{{ claudeCommandButtonLabel }}</div>
+                </div>
+                <sc-if value="{{ claudeCommandAnswer }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top:10px;padding:12px;border-radius:6px;background:#FBF7F0;border:1px solid #F0E9DC;font-size:12.5px;color:#241812;white-space:pre-wrap;line-height:1.6">{{ claudeCommandAnswer }}</div>
+                </sc-if>
+              </div>
+
               <div style="margin-bottom:12px">
                 <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">อีเมลผู้ดูแล (สำหรับอ้างอิงเท่านั้น — ยังไม่ใช่การล็อกอินจริง)</div>
                 <div style="display:flex;gap:8px">
@@ -1336,6 +1348,20 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showClaudeConfirm }}">
+          <div onclick="{{ closeClaudeConfirm }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:380px;max-width:92vw;box-sizing:border-box;text-align:center">
+              <div style="width:52px;height:52px;border-radius:50%;background:#FBEEE4;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:22px">✦</div>
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:6px">ยืนยันคำสั่งนี้กับ Claude</div>
+              <div style="font-size:12.5px;color:#5C4E40;margin-bottom:18px;line-height:1.6;text-align:left;background:#FBF7F0;border:1px solid #F0E9DC;border-radius:7px;padding:12px">{{ claudeConfirmDescription }}</div>
+              <div style="display:flex;gap:10px">
+                <div onclick="{{ closeClaudeConfirm }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</div>
+                <div onclick="{{ confirmClaudeCommand }}" style="flex:1.3;padding:11px;border-radius:7px;background:#D97757;color:#fff;font-size:13px;font-weight:700;cursor:pointer">ยืนยันทำรายการ</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showTuyaPowerConfirm }}">
           <div onclick="{{ closeTuyaPowerConfirm }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-sizing:border-box;text-align:center">
@@ -1781,6 +1807,13 @@ class Component extends DCLogic {
     claudeSummaryLoading: false,
     meterPhotoLoading: false,
     meterReadings: [],
+    claudeCommandInput: '',
+    claudeCommandLoading: false,
+    claudeCommandAnswer: '',
+    showClaudeConfirm: false,
+    claudeConfirmDescription: '',
+    claudeConfirmAction: '',
+    claudeConfirmParams: null,
     lineConn: { channelId: '', channelSecret: '', accessToken: '', connected: false },
     lineEnvConnected: false,
     sheetEnvConnected: false,
@@ -2358,6 +2391,55 @@ class Component extends DCLogic {
         ? 'บันทึกมิเตอร์ห้อง ' + roomId + ' แล้ว'
         : 'บันทึกเลขฐานมิเตอร์ห้อง ' + roomId + ' ครั้งแรกแล้ว (รอบนี้ใช้ 0 หน่วย เริ่มนับจากนี้)');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
+  };
+
+  onClaudeCommandInput = (e) => this.setState({ claudeCommandInput: e.target.value });
+  sendClaudeCommand = async () => {
+    const message = this.state.claudeCommandInput.trim();
+    if (!message) { this.showAdminToast('กรุณาพิมพ์คำสั่ง'); return; }
+    this.setState({ claudeCommandLoading: true, claudeCommandAnswer: '' });
+    try {
+      const res = await fetch('/api/claude/command', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'ทำคำสั่งไม่สำเร็จ');
+      if (data.type === 'confirm') {
+        this.setState({
+          claudeCommandLoading: false,
+          showClaudeConfirm: true,
+          claudeConfirmDescription: data.description,
+          claudeConfirmAction: data.action,
+          claudeConfirmParams: data.params,
+        });
+      } else {
+        this.setState({ claudeCommandLoading: false, claudeCommandAnswer: data.text, claudeCommandInput: '' });
+      }
+    } catch (err) {
+      this.setState({ claudeCommandLoading: false });
+      this.showAdminToast(err.message || 'ทำคำสั่งไม่สำเร็จ');
+    }
+  };
+  closeClaudeConfirm = () => this.setState({ showClaudeConfirm: false, claudeConfirmAction: '', claudeConfirmParams: null });
+  confirmClaudeCommand = async () => {
+    const { claudeConfirmAction, claudeConfirmParams } = this.state;
+    this.setState({ showClaudeConfirm: false });
+    try {
+      const res = await fetch('/api/claude/command/confirm', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: claudeConfirmAction, params: claudeConfirmParams }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'ทำรายการไม่สำเร็จ');
+      this.setState({ claudeCommandAnswer: data.message || 'ทำรายการสำเร็จ', claudeCommandInput: '' });
+      this.showAdminToast(data.message || 'ทำรายการสำเร็จ');
+      this.loadFromServer(); // most write actions touch rooms/invoices/expenses/maintenance — refresh so the rest of the UI reflects it
+    } catch (err) {
+      this.showAdminToast(err.message || 'ทำรายการไม่สำเร็จ');
+    } finally {
+      this.setState({ claudeConfirmAction: '', claudeConfirmParams: null });
+    }
   };
 
   selectEquipRoom = (id) => {
@@ -3643,6 +3725,15 @@ class Component extends DCLogic {
 
       waterRate: s.waterRate, elecRate: s.elecRate, onWaterRateChange: this.onWaterRateChange, onElecRateChange: this.onElecRateChange,
       waterReportView, elecReportView, waterTotalCostDisplay: this.fmt(waterTotalCostNum), elecTotalCostDisplay: this.fmt(elecTotalCostNum),
+      claudeCommandInput: s.claudeCommandInput,
+      onClaudeCommandInput: this.onClaudeCommandInput,
+      sendClaudeCommand: this.sendClaudeCommand,
+      claudeCommandButtonLabel: s.claudeCommandLoading ? 'กำลังคิด...' : 'ส่งคำสั่ง',
+      claudeCommandAnswer: s.claudeCommandAnswer,
+      showClaudeConfirm: s.showClaudeConfirm,
+      claudeConfirmDescription: s.claudeConfirmDescription,
+      closeClaudeConfirm: this.closeClaudeConfirm,
+      confirmClaudeCommand: this.confirmClaudeCommand,
       onMeterPhotoUpload: this.onMeterPhotoUpload,
       meterPhotoButtonLabel: s.meterPhotoLoading ? 'กำลังอ่านมิเตอร์...' : '📷 เลือกรูปมิเตอร์น้ำ',
       meterReadingResults: s.meterReadings.map(m => ({
