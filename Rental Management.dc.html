@@ -2333,8 +2333,17 @@ class Component extends DCLogic {
 
   deviceCharge(roomId, kind) {
     const room = this.state.rooms.find(r => r.id === roomId);
+    if (!room) return null;
+    if (kind === 'elec' && room.tuyaElecDeviceId) {
+      // Real Tuya cumulative kWh reading replaces the manual meter entry when a device is linked.
+      const live = this.state.tuyaLiveReadings[roomId];
+      if (live && live.energy != null) {
+        const units = Math.max(0, live.energy - Number(room.elecPrev || 0));
+        return { units: Number(units.toFixed(2)), charge: Math.round(units * this.state.elecRate) };
+      }
+    }
     const dev = this.state.tuyaDevices[roomId];
-    if (!room || !dev) return null;
+    if (!dev) return null;
     if (kind === 'water') {
       const units = Math.max(0, Number(dev.waterReading) - Number(room.waterPrev || 0));
       return { units, charge: units * this.state.waterRate };
@@ -2380,6 +2389,23 @@ class Component extends DCLogic {
       });
       if (!res.ok) throw new Error((await res.json()).error || 'สร้างใบแจ้งหนี้ไม่สำเร็จ');
       const newInv = await res.json();
+      // Reset the elec baseline to the current cumulative Tuya reading so next
+      // cycle's usage calc starts fresh from here, not double-counting.
+      if (s.newInvoice.elecMode === 'device' && room.tuyaElecDeviceId) {
+        const live = s.tuyaLiveReadings[room.id];
+        if (live && live.energy != null) {
+          try {
+            const rres = await fetch('/api/rooms/' + room.id, {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ elecPrev: live.energy }),
+            });
+            if (rres.ok) {
+              const updatedRoom = await rres.json();
+              this.setState(st => ({ rooms: st.rooms.map(r => r.id === room.id ? updatedRoom : r) }));
+            }
+          } catch { /* non-fatal — invoice already saved either way */ }
+        }
+      }
       this.setState(st => ({ invoices: [newInv, ...st.invoices], showInvoiceModal: false }));
       this.showAdminToast('สร้างใบแจ้งหนี้ห้อง ' + room.id + ' สำเร็จ');
     } catch (err) { this.showAdminToast(err.message || 'สร้างใบแจ้งหนี้ไม่สำเร็จ'); }
