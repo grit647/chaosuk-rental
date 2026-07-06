@@ -529,7 +529,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                 </sc-if>
                 <div style="display:flex;gap:8px">
-                  <input value="{{ claudeCommandInput }}" onchange="{{ onClaudeCommandInput }}" placeholder="เช่น ห้องไหนค้างจ่ายบ้าง / มาร์คบิล INV-101-xxx ว่าจ่ายแล้ว" style="flex:1;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                  <input value="{{ claudeCommandInput }}" onchange="{{ onClaudeCommandInput }}" onkeydown="{{ onClaudeCommandKeyDown }}" placeholder="เช่น ห้องไหนค้างจ่ายบ้าง / มาร์คบิล INV-101-xxx ว่าจ่ายแล้ว (Enter เพื่อส่ง)" style="flex:1;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
                   <div onclick="{{ sendClaudeCommand }}" style="padding:10px 18px;border-radius:6px;background:#D97757;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">{{ claudeCommandButtonLabel }}</div>
                 </div>
               </div>
@@ -2404,6 +2404,7 @@ class Component extends DCLogic {
   };
 
   onClaudeCommandInput = (e) => this.setState({ claudeCommandInput: e.target.value });
+  onClaudeCommandKeyDown = (e) => { if (e.key === 'Enter') this.sendClaudeCommand(); };
   clearClaudeCommandHistory = () => this.setState({ claudeCommandHistory: [], claudeCommandAnswer: '' });
   sendClaudeCommand = async () => {
     const message = this.state.claudeCommandInput.trim();
@@ -3761,6 +3762,7 @@ class Component extends DCLogic {
       waterReportView, elecReportView, waterTotalCostDisplay: this.fmt(waterTotalCostNum), elecTotalCostDisplay: this.fmt(elecTotalCostNum),
       claudeCommandInput: s.claudeCommandInput,
       onClaudeCommandInput: this.onClaudeCommandInput,
+      onClaudeCommandKeyDown: this.onClaudeCommandKeyDown,
       sendClaudeCommand: this.sendClaudeCommand,
       claudeCommandButtonLabel: s.claudeCommandLoading ? 'กำลังคิด...' : 'ส่งคำสั่ง',
       claudeCommandAnswer: s.claudeCommandAnswer,
@@ -3768,7 +3770,7 @@ class Component extends DCLogic {
       claudeCommandHistory: s.claudeCommandHistory.map(h => ({
         text: h.content,
         align: h.role === 'user' ? 'flex-end' : 'flex-start',
-        bg: h.role === 'user' ? '#D97757' : '#FBF7F0',
+        bg: h.role === 'user' ? '#3A2E22' : '#FBF7F0',
         color: h.role === 'user' ? '#fff' : '#241812',
       })),
       showClaudeConfirm: s.showClaudeConfirm,
