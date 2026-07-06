@@ -13,7 +13,7 @@
 // click) calls executeWriteTool.
 
 const { readTab, appendRow, updateRow, deleteRow } = require('./sheets');
-const { coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, readSettings } = require('./coerce');
+const { coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, readSettings } = require('./coerce');
 const { pushMessage, isConfigured: lineConfigured } = require('./line');
 
 const TOOLS = [
@@ -39,6 +39,17 @@ const TOOLS = [
     name: 'get_expenses',
     description: 'ดูรายการรายจ่ายทั้งหมด',
     input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_calendar_events',
+    description: 'ดูรายการนัดหมาย/กิจกรรมที่บันทึกไว้ในปฏิทินของระบบ (เช่น นัดประชุมผู้เช่า, นัดซ่อมบำรุง ฯลฯ)',
+    input_schema: {
+      type: 'object',
+      properties: {
+        year: { type: 'number', description: 'กรองเฉพาะปีนี้ (ไม่ใส่ = ทุกปี)' },
+        month: { type: 'number', description: 'กรองเฉพาะเดือนนี้ 1-12 (ไม่ใส่ = ทุกเดือน)' },
+      },
+    },
   },
   {
     name: 'get_electricity_log',
@@ -113,6 +124,28 @@ const TOOLS = [
     },
   },
   {
+    name: 'add_calendar_event',
+    description: 'เพิ่มนัดหมาย/กิจกรรมลงปฏิทินระบบ — ต้องยืนยันก่อนทำจริง สำคัญ: ต้องระบุ "เวลา" เสมอ (ถ้าผู้ใช้ไม่ได้บอกเวลา ให้ถามก่อน อย่าเดาเวลาเอง) และควรระบุว่าจะแจ้งเตือนผ่านช่องทางไหน — หมายเหตุ: การบันทึกช่องทางแจ้งเตือนตอนนี้เป็นแค่การบันทึกข้อมูลไว้อ้างอิง ระบบยังไม่ส่งการแจ้งเตือนอัตโนมัติเมื่อถึงเวลานัดหมายจริง (เป็นฟีเจอร์ที่ยังไม่ได้สร้าง)',
+    input_schema: {
+      type: 'object',
+      properties: {
+        year: { type: 'number', description: 'ปี ค.ศ. เช่น 2026' },
+        month: { type: 'number', description: 'เดือน 1-12' },
+        day: { type: 'number', description: 'วันที่ 1-31' },
+        time: { type: 'string', description: 'เวลานัดหมาย รูปแบบ HH:MM เช่น 14:00 — จำเป็นต้องมี' },
+        title: { type: 'string', description: 'ชื่อ/รายละเอียดกิจกรรม' },
+        type: { type: 'string', description: 'ประเภทกิจกรรม เช่น ประชุม, ซ่อมบำรุง, อื่นๆ' },
+        notifyChannel: { type: 'string', enum: ['line_broadcast', 'line_specific_room', 'none'], description: 'ช่องทางแจ้งเตือนที่ต้องการ (บันทึกไว้อ้างอิงเท่านั้น ยังไม่ส่งอัตโนมัติ)' },
+      },
+      required: ['year', 'month', 'day', 'time', 'title'],
+    },
+  },
+  {
+    name: 'delete_calendar_event',
+    description: 'ลบนัดหมาย/กิจกรรมออกจากปฏิทิน — ต้องยืนยันก่อนทำจริง (ลบแล้วกู้คืนไม่ได้)',
+    input_schema: { type: 'object', properties: { eventId: { type: 'string', description: 'รหัสนัดหมาย' } }, required: ['eventId'] },
+  },
+  {
     name: 'send_line_message',
     description: 'ส่งข้อความ LINE ถึงผู้เช่าห้องหนึ่ง (ห้องต้องเชื่อมต่อ LINE ไว้แล้ว) — ต้องยืนยันก่อนทำจริง',
     input_schema: {
@@ -136,7 +169,7 @@ const TOOLS = [
   },
 ];
 
-const READ_TOOL_NAMES = new Set(['get_rooms', 'get_pending_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary', 'get_electricity_log']);
+const READ_TOOL_NAMES = new Set(['get_rooms', 'get_pending_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary', 'get_electricity_log', 'get_calendar_events']);
 
 async function executeReadTool(name, input) {
   switch (name) {
@@ -163,6 +196,12 @@ async function executeReadTool(name, input) {
       rows.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       const limit = Math.min(Number(input.limit) || 50, 200);
       return rows.slice(0, limit);
+    }
+    case 'get_calendar_events': {
+      let rows = coerceCalendar(await readTab('CalendarEvents'));
+      if (input.year) rows = rows.filter((r) => r.y === Number(input.year));
+      if (input.month) rows = rows.filter((r) => r.m === Number(input.month));
+      return rows;
     }
     case 'get_financial_summary': {
       const [invoices, expenses, rooms, maintenance] = await Promise.all([
@@ -216,6 +255,13 @@ async function describeWriteTool(name, input) {
       if (input.elec != null) parts.push('ไฟ = ' + input.elec);
       return `บันทึกเลขมิเตอร์ห้อง ${input.roomId}: ${parts.join(', ') || '(ไม่มีค่าที่จะบันทึก)'}`;
     }
+    case 'add_calendar_event': {
+      const dateStr = `${input.year}-${String(input.month).padStart(2, '0')}-${String(input.day).padStart(2, '0')}`;
+      const channelLabel = { line_broadcast: 'แจ้งเตือนผู้เช่าทุกห้องทาง LINE (แค่บันทึกไว้ ยังไม่ส่งอัตโนมัติ)', line_specific_room: 'แจ้งเตือนห้องที่เกี่ยวข้องทาง LINE (แค่บันทึกไว้ ยังไม่ส่งอัตโนมัติ)', none: 'ไม่แจ้งเตือน' }[input.notifyChannel] || '';
+      return `เพิ่มนัดหมาย "${input.title}" วันที่ ${dateStr} เวลา ${input.time}${input.type ? ' ประเภท ' + input.type : ''}${channelLabel ? ' — ' + channelLabel : ''}`;
+    }
+    case 'delete_calendar_event':
+      return `ลบนัดหมายรหัส "${input.eventId}" (ลบแล้วกู้คืนไม่ได้)`;
     default:
       return `ทำรายการ "${name}"`;
   }
@@ -296,6 +342,18 @@ async function executeWriteTool(name, input) {
       await updateRow('Rooms', input.roomId, patch);
       return { ok: true, message: `บันทึกเลขมิเตอร์ห้อง ${input.roomId} แล้ว` };
     }
+    case 'add_calendar_event': {
+      const item = {
+        id: Date.now(), y: Number(input.year), m: Number(input.month), d: Number(input.day),
+        time: input.time || '09:00', title: input.title, type: input.type || 'อื่นๆ',
+        notifyChannel: input.notifyChannel || 'none', // extra column — silently ignored by appendRow if the sheet header doesn't have it yet
+      };
+      await appendRow('CalendarEvents', item);
+      return { ok: true, message: `เพิ่มนัดหมาย "${input.title}" ในปฏิทินแล้ว` };
+    }
+    case 'delete_calendar_event':
+      await deleteRow('CalendarEvents', input.eventId);
+      return { ok: true, message: `ลบนัดหมายรหัส ${input.eventId} แล้ว` };
     default:
       throw new Error('ไม่รู้จักคำสั่งนี้: ' + name);
   }
