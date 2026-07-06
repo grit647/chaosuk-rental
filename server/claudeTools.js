@@ -124,6 +124,25 @@ const TOOLS = [
     },
   },
   {
+    name: 'create_room',
+    description: 'เปิดห้องใหม่ในระบบ (ห้องว่าง ยังไม่มีผู้เช่า) — ต้องยืนยันก่อนทำจริง',
+    input_schema: {
+      type: 'object',
+      properties: {
+        roomId: { type: 'string', description: 'เลขห้อง เช่น 103 (ต้องไม่ซ้ำกับห้องที่มีอยู่)' },
+        floor: { type: 'number', description: 'ชั้นที่ตั้งของห้อง' },
+        rent: { type: 'number', description: 'ค่าเช่ารายเดือน (บาท)' },
+        deposit: { type: 'number', description: 'เงินมัดจำ (บาท) — ถ้าไม่ระบุ ระบบจะตั้งเป็น 2 เท่าของค่าเช่าให้อัตโนมัติ' },
+      },
+      required: ['roomId'],
+    },
+  },
+  {
+    name: 'delete_room',
+    description: 'ลบห้องออกจากระบบทั้งหมด — ต้องยืนยันก่อนทำจริง (ลบแล้วกู้คืนไม่ได้ ควรใช้กับห้องว่างที่เปิดผิดเท่านั้น ไม่ควรลบห้องที่มีผู้เช่าอยู่หรือมีประวัติบิล)',
+    input_schema: { type: 'object', properties: { roomId: { type: 'string', description: 'เลขห้องที่จะลบ' } }, required: ['roomId'] },
+  },
+  {
     name: 'add_calendar_event',
     description: 'เพิ่มนัดหมาย/กิจกรรมลงปฏิทินระบบ — ต้องยืนยันก่อนทำจริง สำคัญ: ต้องระบุ "เวลา" เสมอ (ถ้าผู้ใช้ไม่ได้บอกเวลา ให้ถามก่อน อย่าเดาเวลาเอง) และควรระบุว่าจะแจ้งเตือนผ่านช่องทางไหน — หมายเหตุ: การบันทึกช่องทางแจ้งเตือนตอนนี้เป็นแค่การบันทึกข้อมูลไว้อ้างอิง ระบบยังไม่ส่งการแจ้งเตือนอัตโนมัติเมื่อถึงเวลานัดหมายจริง (เป็นฟีเจอร์ที่ยังไม่ได้สร้าง)',
     input_schema: {
@@ -262,6 +281,16 @@ async function describeWriteTool(name, input) {
     }
     case 'delete_calendar_event':
       return `ลบนัดหมายรหัส "${input.eventId}" (ลบแล้วกู้คืนไม่ได้)`;
+    case 'create_room': {
+      const rent = Number(input.rent) || 0;
+      const deposit = input.deposit != null ? Number(input.deposit) : rent * 2;
+      return `เปิดห้องใหม่ ${input.roomId} (ชั้น ${input.floor || 1}, ค่าเช่า ${rent} บาท, มัดจำ ${deposit} บาท) เป็นห้องว่าง`;
+    }
+    case 'delete_room': {
+      const room = rooms.find((r) => r.id === input.roomId);
+      const warn = room && room.tenant ? ` ⚠️ ห้องนี้มีผู้เช่าอยู่ (${room.tenant}) — ควรตรวจสอบก่อนลบ` : '';
+      return `ลบห้อง ${input.roomId} ออกจากระบบทั้งหมด (ลบแล้วกู้คืนไม่ได้)${warn}`;
+    }
     default:
       return `ทำรายการ "${name}"`;
   }
@@ -354,6 +383,24 @@ async function executeWriteTool(name, input) {
     case 'delete_calendar_event':
       await deleteRow('CalendarEvents', input.eventId);
       return { ok: true, message: `ลบนัดหมายรหัส ${input.eventId} แล้ว` };
+    case 'create_room': {
+      const id = String(input.roomId || '').trim();
+      if (!id) throw new Error('กรุณาระบุเลขห้อง');
+      const existing = await readTab('Rooms');
+      if (existing.some((r) => r.id === id)) throw new Error('มีห้อง ' + id + ' อยู่แล้ว');
+      const rent = Number(input.rent) || 0;
+      const room = {
+        id, floor: Number(input.floor) || 1, status: 'vacant', tenant: '', phone: '', rent,
+        moveIn: '', contractEnd: '', deposit: input.deposit != null ? Number(input.deposit) : rent * 2,
+        waterMeterNo: 'W-' + id, elecMeterNo: 'E-' + id, waterPrev: 0, waterCurr: '0', elecPrev: 0, elecCurr: '0',
+        wifiCode: '', dueDay: '', tenantIdImg: '', tenantIdExpiry: '', leaseDocName: '',
+      };
+      await appendRow('Rooms', room);
+      return { ok: true, message: `เปิดห้อง ${id} แล้ว (ห้องว่าง)` };
+    }
+    case 'delete_room':
+      await deleteRow('Rooms', input.roomId);
+      return { ok: true, message: `ลบห้อง ${input.roomId} ออกจากระบบแล้ว` };
     default:
       throw new Error('ไม่รู้จักคำสั่งนี้: ' + name);
   }
