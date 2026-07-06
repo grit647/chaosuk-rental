@@ -19,7 +19,7 @@ const { pushMessage, isConfigured: lineConfigured } = require('./line');
 const TOOLS = [
   {
     name: 'get_rooms',
-    description: 'ดูรายชื่อห้องทั้งหมด พร้อมสถานะ (ว่าง/มีผู้เช่า/ค้างชำระ), ผู้เช่า, ค่าเช่า, เลขมิเตอร์น้ำ-ไฟปัจจุบัน',
+    description: 'ดูรายชื่อห้องทั้งหมด พร้อมสถานะ (ว่าง/มีผู้เช่า/ค้างชำระ), ผู้เช่า, เบอร์โทร, ค่าเช่า, มัดจำ, เลขมิเตอร์น้ำ-ไฟปัจจุบัน, และรายละเอียดสัญญาเช่า (วันที่เข้าอยู่, วันสิ้นสุดสัญญา, วันครบกำหนดชำระรายเดือน, รหัส WiFi) — ใช้เครื่องมือนี้สำหรับคำถามเกี่ยวกับสัญญาเช่าด้วย',
     input_schema: { type: 'object', properties: {} },
   },
   {
@@ -131,7 +131,8 @@ async function executeReadTool(name, input) {
   switch (name) {
     case 'get_rooms':
       return coerceRooms(await readTab('Rooms')).map((r) => ({
-        id: r.id, status: r.status, tenant: r.tenant, rent: r.rent,
+        id: r.id, status: r.status, tenant: r.tenant, phone: r.phone, rent: r.rent, deposit: r.deposit,
+        moveIn: r.moveIn, contractEnd: r.contractEnd, dueDay: r.dueDay, wifiCode: r.wifiCode,
         waterPrev: r.waterPrev, waterCurr: r.waterCurr, elecPrev: r.elecPrev, elecCurr: r.elecCurr,
         lineConnected: !!r.lineUserId,
       }));
