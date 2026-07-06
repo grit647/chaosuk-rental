@@ -568,11 +568,15 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <sc-if value="{{ meterReadingResults }}" hint-placeholder-val="{{ false }}">
                 <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
                   <sc-for list="{{ meterReadingResults }}" as="m" hint-placeholder-count="4">
-                    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#FFFFFF;border:1px solid #F0E9DC;border-radius:6px">
-                      <div style="font-size:12.5px;font-weight:700;color:#241812;min-width:60px">ห้อง {{ m.room }}</div>
-                      <div style="font-size:12px;color:#7C6E5F">อ่านได้:</div>
-                      <input value="{{ m.reading }}" onchange="{{ m.onChange }}" style="width:90px;padding:6px 8px;border-radius:5px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
-                      <div onclick="{{ m.onSave }}" style="margin-left:auto;padding:7px 14px;border-radius:5px;background:{{ m.savedBg }};color:{{ m.savedColor }};font-size:11.5px;font-weight:600;cursor:pointer">{{ m.saveLabel }}</div>
+                    <div style="display:flex;flex-direction:column;gap:6px;padding:10px 12px;background:#FFFFFF;border:1px solid #F0E9DC;border-radius:6px">
+                      <div style="font-size:10.5px;color:#A99B87">ตรวจพบป้ายมิเตอร์: "{{ m.detectedLabel }}" — ถ้าไม่ตรงกับเลขห้องในระบบ แก้ในช่อง "ห้อง" ด้านล่างได้เลย</div>
+                      <div style="display:flex;align-items:center;gap:10px">
+                        <div style="font-size:12px;color:#7C6E5F">ห้อง:</div>
+                        <input value="{{ m.targetRoom }}" onchange="{{ m.onRoomChange }}" style="width:70px;padding:6px 8px;border-radius:5px;border:1px solid #E3D8C8;font-size:12.5px;font-weight:700;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                        <div style="font-size:12px;color:#7C6E5F">อ่านได้:</div>
+                        <input value="{{ m.reading }}" onchange="{{ m.onChange }}" style="width:90px;padding:6px 8px;border-radius:5px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                        <div onclick="{{ m.onSave }}" style="margin-left:auto;padding:7px 14px;border-radius:5px;background:{{ m.savedBg }};color:{{ m.savedColor }};font-size:11.5px;font-weight:600;cursor:pointer">{{ m.saveLabel }}</div>
+                      </div>
                     </div>
                   </sc-for>
                 </div>
@@ -2297,7 +2301,17 @@ class Component extends DCLogic {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'อ่านมิเตอร์ไม่สำเร็จ');
-        const readings = (data.readings || []).map(r => ({ room: String(r.room), reading: String(r.reading), saved: false }));
+        // "room" here is whatever label Claude found physically printed next to
+        // the meter (e.g. a plain position number like "1", "8"...) — this is
+        // NOT guaranteed to match the room IDs used in this system (e.g. "101"),
+        // since a building's meter-row labeling and its room numbering are often
+        // two separate schemes. So we keep the detected label for reference, but
+        // let the admin edit/re-map it to a real room id before saving.
+        const readings = (data.readings || []).map((r, i) => ({
+          key: Date.now() + '-' + i,
+          detectedLabel: String(r.room), targetRoom: String(r.room),
+          reading: String(r.reading), saved: false,
+        }));
         this.setState({ meterReadings: readings, meterPhotoLoading: false });
         if (!readings.length) this.showAdminToast('ไม่พบมิเตอร์ที่อ่านได้ในรูปนี้');
       } catch (err) {
@@ -2307,15 +2321,20 @@ class Component extends DCLogic {
     });
     e.target.value = '';
   };
-  onMeterReadingEdit = (room, e) => {
+  onMeterReadingEdit = (key, e) => {
     const v = e.target.value;
-    this.setState(s => ({ meterReadings: s.meterReadings.map(m => m.room === room ? { ...m, reading: v, saved: false } : m) }));
+    this.setState(s => ({ meterReadings: s.meterReadings.map(m => m.key === key ? { ...m, reading: v, saved: false } : m) }));
   };
-  saveMeterReading = async (room) => {
-    const entry = this.state.meterReadings.find(m => m.room === room);
+  onMeterRoomEdit = (key, e) => {
+    const v = e.target.value;
+    this.setState(s => ({ meterReadings: s.meterReadings.map(m => m.key === key ? { ...m, targetRoom: v, saved: false } : m) }));
+  };
+  saveMeterReading = async (key) => {
+    const entry = this.state.meterReadings.find(m => m.key === key);
     if (!entry) return;
-    const roomObj = this.state.rooms.find(r => r.id === room);
-    if (!roomObj) { this.showAdminToast('ไม่พบห้อง ' + room + ' ในระบบ'); return; }
+    const roomId = entry.targetRoom.trim();
+    const roomObj = this.state.rooms.find(r => r.id === roomId);
+    if (!roomObj) { this.showAdminToast('ไม่พบห้อง ' + roomId + ' ในระบบ — ตรวจสอบเลขห้องที่กรอกอีกครั้ง'); return; }
     // If this room has never had a baseline reading before, treat this first
     // real reading as both the starting point and the current value — so this
     // billing cycle shows 0 units used instead of a bogus spike (e.g. a fresh
@@ -2325,19 +2344,19 @@ class Component extends DCLogic {
       ? { waterCurr: entry.reading }
       : { waterCurr: entry.reading, waterPrev: entry.reading };
     try {
-      const res = await fetch('/api/rooms/' + room, {
+      const res = await fetch('/api/rooms/' + roomId, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
       const updated = await res.json();
       this.setState(s => ({
-        rooms: s.rooms.map(r => r.id === room ? updated : r),
-        meterReadings: s.meterReadings.map(m => m.room === room ? { ...m, saved: true } : m),
+        rooms: s.rooms.map(r => r.id === roomId ? updated : r),
+        meterReadings: s.meterReadings.map(m => m.key === key ? { ...m, saved: true } : m),
       }));
       this.showAdminToast(hasBaseline
-        ? 'บันทึกมิเตอร์ห้อง ' + room + ' แล้ว'
-        : 'บันทึกเลขฐานมิเตอร์ห้อง ' + room + ' ครั้งแรกแล้ว (รอบนี้ใช้ 0 หน่วย เริ่มนับจากนี้)');
+        ? 'บันทึกมิเตอร์ห้อง ' + roomId + ' แล้ว'
+        : 'บันทึกเลขฐานมิเตอร์ห้อง ' + roomId + ' ครั้งแรกแล้ว (รอบนี้ใช้ 0 หน่วย เริ่มนับจากนี้)');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
   };
 
@@ -3627,9 +3646,10 @@ class Component extends DCLogic {
       onMeterPhotoUpload: this.onMeterPhotoUpload,
       meterPhotoButtonLabel: s.meterPhotoLoading ? 'กำลังอ่านมิเตอร์...' : '📷 เลือกรูปมิเตอร์น้ำ',
       meterReadingResults: s.meterReadings.map(m => ({
-        room: m.room, reading: m.reading,
-        onChange: (e) => this.onMeterReadingEdit(m.room, e),
-        onSave: () => this.saveMeterReading(m.room),
+        detectedLabel: m.detectedLabel, targetRoom: m.targetRoom, reading: m.reading,
+        onRoomChange: (e) => this.onMeterRoomEdit(m.key, e),
+        onChange: (e) => this.onMeterReadingEdit(m.key, e),
+        onSave: () => this.saveMeterReading(m.key),
         saveLabel: m.saved ? '✓ บันทึกแล้ว' : 'บันทึก',
         savedBg: m.saved ? '#E4EFE7' : '#C1622D',
         savedColor: m.saved ? '#3B7A52' : '#fff',
