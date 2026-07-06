@@ -1154,8 +1154,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:5px;color:{{ r.tColor }};background:{{ r.tBg }}">{{ r.type }}</span>
                         <span style="font-size:11px;color:#C1A98A;font-weight:600">{{ r.whenLabel }}</span>
                       </div>
-                      <div style="font-size:12.5px;color:#F1EBE0;line-height:1.4">{{ r.title }}</div>
-                      <div style="font-size:11px;color:#9C8B78;margin-top:3px;font-family:'IBM Plex Mono',monospace">{{ r.dateLabel }} · {{ r.time }} น.</div>
+                      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px">
+                        <div>
+                          <div style="font-size:12.5px;color:#F1EBE0;line-height:1.4">{{ r.title }}</div>
+                          <div style="font-size:11px;color:#9C8B78;margin-top:3px;font-family:'IBM Plex Mono',monospace">{{ r.dateLabel }} · {{ r.time }} น.</div>
+                        </div>
+                        <span onclick="{{ r.onDelete }}" style="font-size:11px;color:#E39A8F;cursor:pointer;font-weight:600;white-space:nowrap">ลบ</span>
+                      </div>
                     </div>
                   </sc-for>
                 </div>
@@ -3531,6 +3536,7 @@ class Component extends DCLogic {
           id: x.e.id, title: x.e.title, time: x.e.time, tColor: m.color, tBg: m.bg, type: x.e.type,
           dateLabel: x.e.d + ' ' + thaiMonthsShort[x.e.m],
           whenLabel: daysDiff === 0 ? 'วันนี้' : (daysDiff === 1 ? 'พรุ่งนี้' : 'อีก ' + daysDiff + ' วัน'),
+          onDelete: () => this.deleteCalEvent(x.e.id),
         };
       });
     const calEventTypeOptions = s.calTypes;
