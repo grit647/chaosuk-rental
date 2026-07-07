@@ -1655,7 +1655,16 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       </div>
                       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
                         <span style="font-size:10px;color:#A89A88">{{ rt.scheduleLabel }}{{ rt.lastRunLabel }}</span>
-                        <span onclick="{{ rt.onDelete }}" style="font-size:10.5px;color:#B24336;cursor:pointer;font-weight:600">ลบ</span>
+                        <sc-if value="{{ rt.confirmingDelete }}" hint-placeholder-val="{{ false }}">
+                          <div style="display:flex;align-items:center;gap:10px">
+                            <span style="font-size:10.5px;color:#7C6E5F;font-weight:600">ลบแน่ใจนะ?</span>
+                            <span onclick="{{ rt.onCancelDelete }}" style="font-size:10.5px;color:#7C6E5F;cursor:pointer;font-weight:600;text-decoration:underline">ยกเลิก</span>
+                            <span onclick="{{ rt.onConfirmDelete }}" style="font-size:10.5px;color:#fff;background:#B24336;padding:3px 9px;border-radius:5px;cursor:pointer;font-weight:600">ยืนยันลบ</span>
+                          </div>
+                        </sc-if>
+                        <sc-if value="{{ rt.notConfirmingDelete }}" hint-placeholder-val="{{ true }}">
+                          <span onclick="{{ rt.onAskDelete }}" style="font-size:10.5px;color:#B24336;cursor:pointer;font-weight:600">ลบ</span>
+                        </sc-if>
                       </div>
                     </div>
                   </sc-for>
@@ -2157,6 +2166,7 @@ class Component extends DCLogic {
     recurringParsedTasks: null,
     recurringParsedInstruction: '',
     recurringSaveLoading: false,
+    recurringDeleteConfirmId: null,
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -3860,9 +3870,16 @@ class Component extends DCLogic {
     }
   };
 
-  deleteRecurringTask = async (id) => {
+  // Deleting a recurring task is a bit more consequential than deleting most
+  // other small records here — it silently stops a running billing/reminder
+  // policy — so ask once inline (replace the row's "ลบ" link with an inline
+  // "ยืนยันลบ/ยกเลิก" pair) instead of deleting on the first tap.
+  askDeleteRecurringTask = (id) => this.setState({ recurringDeleteConfirmId: id });
+  cancelDeleteRecurringTask = () => this.setState({ recurringDeleteConfirmId: null });
+  confirmDeleteRecurringTask = async (id) => {
     try {
       await fetch('/api/recurring-tasks/' + id, { method: 'DELETE' });
+      this.setState({ recurringDeleteConfirmId: null });
       await this.loadRecurringTasks();
     } catch (err) { this.showAdminToast('ลบไม่สำเร็จ'); }
   };
@@ -4192,6 +4209,7 @@ class Component extends DCLogic {
       else if (rt.scheduleType === 'weekly') scheduleLabel = `ทุกวัน${thaiDayNames[rt.dayOfWeek] || ''} เวลา ${rt.time} น.`;
       else scheduleLabel = `ทุกวัน เวลา ${rt.time} น.`;
       const active = rt.active === true || rt.active === 'TRUE' || rt.active === 'true';
+      const confirmingDelete = s.recurringDeleteConfirmId === rt.id;
       return {
         ...rt, active,
         humanSummary: rt.humanSummary || rt.instruction,
@@ -4200,7 +4218,10 @@ class Component extends DCLogic {
         toggleBg: active ? '#D97757' : '#E3D8C8',
         toggleKnobLeft: active ? '18px' : '2px',
         onToggleActive: () => this.toggleRecurringActive(rt),
-        onDelete: () => this.deleteRecurringTask(rt.id),
+        confirmingDelete, notConfirmingDelete: !confirmingDelete,
+        onAskDelete: () => this.askDeleteRecurringTask(rt.id),
+        onCancelDelete: () => this.cancelDeleteRecurringTask(),
+        onConfirmDelete: () => this.confirmDeleteRecurringTask(rt.id),
       };
     });
 
