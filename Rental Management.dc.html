@@ -2505,11 +2505,30 @@ class Component extends DCLogic {
     this.setState(s => ({ claudeDrivingMode: !s.claudeDrivingMode }));
     this.showAdminToast(this.state.claudeDrivingMode ? 'ปิดโหมดขับรถแล้ว' : 'เปิดโหมดขับรถแล้ว — จะอ่านคำตอบออกเสียงให้');
   };
-  speakClaudeText = (text) => {
+  // Voices load asynchronously in most browsers — getVoices() can return an
+  // empty array on the very first call until the 'voiceschanged' event fires.
+  _getSpeechVoices = () => new Promise((resolve) => {
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length) { resolve(voices); return; }
+    window.speechSynthesis.onvoiceschanged = () => resolve(window.speechSynthesis.getVoices());
+    setTimeout(() => resolve(window.speechSynthesis.getVoices()), 500); // fallback if the event never fires
+  });
+  speakClaudeText = async (text) => {
     if (!this.state.claudeDrivingMode || !text || !window.speechSynthesis) return;
     window.speechSynthesis.cancel(); // don't stack multiple answers talking over each other
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'th-TH';
+    utter.rate = 0.95; // very slightly slower than default reads more naturally than the 1.0 default
+    utter.pitch = 1.05; // slight lift — leans toward a warmer/female-leaning tone if the exact voice can't be identified
+    try {
+      const voices = await this._getSpeechVoices();
+      const thVoices = voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith('th'));
+      // Voice objects don't expose gender directly — go by name hints from
+      // known Thai voice packs (Windows/Edge ships "Premwadee" as female,
+      // Android/Chrome often labels voices "Female"/"Male" outright).
+      const femaleVoice = thVoices.find((v) => /female|หญิง|premwadee|kanya/i.test(v.name)) || thVoices[0];
+      if (femaleVoice) utter.voice = femaleVoice;
+    } catch { /* fall back to the browser's own default voice for th-TH */ }
     window.speechSynthesis.speak(utter);
   };
   sendClaudeCommand = async () => {
