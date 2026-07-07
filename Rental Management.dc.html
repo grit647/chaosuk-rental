@@ -711,9 +711,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:21px;font-weight:700;color:#241812">การใช้น้ำประปา</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรอกเลขมิเตอร์ปัจจุบันเพื่อคำนวณค่าน้ำรอบถัดไป · อัตรา ฿{{ waterRate }}/หน่วย</div>
               </div>
-              <div style="background:#FFFFFF;border-top:3px solid #D9A15B;border-radius:8px;padding:14px 18px;box-sizing:border-box">
-                <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:6px">ค่าน้ำรวมโดยประมาณ</div>
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#241812">{{ waterTotalCostDisplay }}</div>
+              <div style="background:#FFFFFF;border-top:3px solid #D9A15B;border-radius:8px;padding:9px 12px;box-sizing:border-box">
+                <div style="font-size:9.5px;font-weight:600;letter-spacing:0.03em;color:#7C6E5F;margin-bottom:3px;white-space:nowrap">ค่าน้ำรวมโดยประมาณ (บาท)</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:#241812">{{ waterTotalCostDisplay }}</div>
               </div>
             </div>
 
@@ -801,9 +801,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:21px;font-weight:700;color:#241812">การใช้ไฟฟ้า</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรอกเลขมิเตอร์ปัจจุบันเพื่อคำนวณค่าไฟรอบถัดไป · อัตรา ฿{{ elecRate }}/หน่วย</div>
               </div>
-              <div style="background:#FFFFFF;border-top:3px solid #D9A15B;border-radius:8px;padding:14px 18px;box-sizing:border-box">
-                <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:6px">ค่าไฟรวมโดยประมาณ</div>
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#241812">{{ elecTotalCostDisplay }}</div>
+              <div style="background:#FFFFFF;border-top:3px solid #D9A15B;border-radius:8px;padding:9px 12px;box-sizing:border-box">
+                <div style="font-size:9.5px;font-weight:600;letter-spacing:0.03em;color:#7C6E5F;margin-bottom:3px;white-space:nowrap">ค่าไฟรวมโดยประมาณ (บาท)</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:#241812">{{ elecTotalCostDisplay }}</div>
               </div>
             </div>
 
@@ -4325,7 +4325,9 @@ class Component extends DCLogic {
       claudeAutomationKnobLeft: s.claudeAutomationEnabled ? '22px' : '2px',
 
       waterRate: s.waterRate, elecRate: s.elecRate, onWaterRateChange: this.onWaterRateChange, onElecRateChange: this.onElecRateChange,
-      waterReportView, elecReportView, waterTotalCostDisplay: this.fmt(waterTotalCostNum), elecTotalCostDisplay: this.fmt(elecTotalCostNum),
+      waterReportView, elecReportView,
+      waterTotalCostDisplay: Number(waterTotalCostNum).toLocaleString('en-US'),
+      elecTotalCostDisplay: Number(elecTotalCostNum).toLocaleString('en-US'),
       claudeCommandInput: s.claudeCommandInput,
       onClaudeCommandInput: this.onClaudeCommandInput,
       onClaudeCommandKeyDown: this.onClaudeCommandKeyDown,
