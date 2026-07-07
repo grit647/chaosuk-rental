@@ -874,16 +874,22 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <!-- ROOM SELECT + DEVICE NAMING -->
             <div style="background:#FFFFFF;border-radius:8px;padding:20px;box-sizing:border-box;margin-bottom:16px">
               <div style="font-size:13px;font-weight:700;color:#241812;margin-bottom:10px">เลือกห้องเพื่อตั้งค่าอุปกรณ์</div>
-              <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:18px">
+              <select value="{{ equipSelectedRoom }}" onchange="{{ onEquipRoomSelectChange }}" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:13px;box-sizing:border-box;background:#fff;margin-bottom:14px">
                 <sc-for list="{{ equipRoomOptions }}" as="o" hint-placeholder-count="18">
-                  <div onclick="{{ o.onPick }}" style="font-size:12px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;background:{{ o.chipBg }};color:{{ o.chipColor }}">{{ o.label }}</div>
+                  <option value="{{ o.id }}">{{ o.label }}</option>
                 </sc-for>
-              </div>
+              </select>
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #F0E9DC">
                 <div style="font-size:15px;font-weight:700;color:#241812">ห้อง {{ equipSelectedRoom }}</div>
                 <div style="font-size:12.5px;color:#7C6E5F">· {{ equipSelTenant }}</div>
               </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+              <div style="display:flex;gap:8px;margin-bottom:16px">
+                <div onclick="{{ setEquipTabElec }}" style="flex:1;text-align:center;padding:9px;border-radius:7px;cursor:pointer;font-size:12.5px;font-weight:700;background:{{ equipTabElecBg }};color:{{ equipTabElecColor }}">⚡ ไฟฟ้า</div>
+                <div onclick="{{ setEquipTabWater }}" style="flex:1;text-align:center;padding:9px;border-radius:7px;cursor:pointer;font-size:12.5px;font-weight:700;background:{{ equipTabWaterBg }};color:{{ equipTabWaterColor }}">💧 น้ำ</div>
+              </div>
+
+              <sc-if value="{{ equipTabIsElec }}" hint-placeholder-val="{{ true }}">
                 <div>
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
                     <span style="font-size:14px">⚡</span>
@@ -905,14 +911,21 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <span style="font-size:11px;font-weight:700;color:#7C6E5F">ค่าไฟแบบเรียลไทม์</span>
                       <span onclick="{{ refreshTuyaLive }}" style="font-size:10.5px;color:#C1622D;font-weight:600;cursor:pointer">{{ tuyaRefreshLabel }}</span>
                     </div>
-                    <div style="display:flex;gap:14px">
+                    <div style="display:flex;gap:14px;flex-wrap:wrap">
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveVoltage }}</div><div style="font-size:10px;color:#A89A88">โวลต์ (V)</div></div>
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveCurrent }}</div><div style="font-size:10px;color:#A89A88">แอมป์ (A)</div></div>
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLivePower }}</div><div style="font-size:10px;color:#A89A88">วัตต์ (W)</div></div>
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#C1622D">{{ equipSelLiveEnergy }}</div><div style="font-size:10px;color:#A89A88">หน่วย (kWh) สะสม</div></div>
                     </div>
                   </div>
+                  <div style="display:flex;gap:10px;margin-top:16px">
+                    <div onclick="{{ deleteTuyaElecDevice }}" style="flex:1;text-align:center;padding:10px;border-radius:7px;border:1px solid #E3B7AC;color:#B24336;font-size:12.5px;font-weight:700;cursor:pointer">ลบอุปกรณ์</div>
+                    <div onclick="{{ saveTuyaElecDevice }}" style="flex:1.4;text-align:center;padding:10px;border-radius:7px;background:#C1622D;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer">บันทึกอุปกรณ์ไฟฟ้า</div>
+                  </div>
                 </div>
+              </sc-if>
+
+              <sc-if value="{{ equipTabIsWater }}" hint-placeholder-val="{{ false }}">
                 <div>
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
                     <span style="font-size:14px">💧</span>
@@ -924,70 +937,67 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                   <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ชื่ออุปกรณ์ Tuya (น้ำ)</div>
                   <input value="{{ tuyaForm.waterName }}" onchange="{{ onTuyaWaterName }}" placeholder="เช่น TY-Water-101" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  <div style="display:flex;gap:10px;margin-top:16px">
+                    <div onclick="{{ deleteTuyaWaterDevice }}" style="flex:1;text-align:center;padding:10px;border-radius:7px;border:1px solid #E3B7AC;color:#B24336;font-size:12.5px;font-weight:700;cursor:pointer">ลบอุปกรณ์</div>
+                    <div onclick="{{ saveTuyaWaterDevice }}" style="flex:1.4;text-align:center;padding:10px;border-radius:7px;background:#C1622D;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer">บันทึกอุปกรณ์น้ำ</div>
+                  </div>
                 </div>
+              </sc-if>
+            </div>
+
+            <!-- STATUS: stacked single column (no side-by-side / no horizontal scroll) -->
+            <div style="background:#FFFFFF;border-radius:8px;padding:20px;box-sizing:border-box;margin-bottom:16px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+                <span style="font-size:16px">⚡</span>
+                <div style="font-size:14px;font-weight:700;color:#241812">สถานะอุปกรณ์ไฟฟ้า</div>
+                <span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:5px;color:#C1622D;background:#F3E3D5;margin-left:auto">{{ elecOnlineCount }}/{{ deviceTotalCount }} ออนไลน์</span>
               </div>
-              <div style="display:flex;justify-content:flex-end;margin-top:16px">
-                <div onclick="{{ saveTuyaDevice }}" style="padding:10px 22px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;cursor:pointer">บันทึกอุปกรณ์</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{ elecDeviceRows }}" as="e" hint-placeholder-count="13">
+                  <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid #F0E9DC;border-radius:8px;flex-wrap:wrap">
+                    <div style="font-size:13px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace;min-width:34px">{{ e.room }}</div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:12px;color:#241812;font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ e.name }}</div>
+                      <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
+                        <div style="width:6px;height:6px;border-radius:50%;background:{{ e.onlineDot }}"></div>
+                        <span style="font-size:10.5px;color:#7C6E5F">{{ e.onlineLabel }}</span>
+                      </div>
+                    </div>
+                    <div style="text-align:right">
+                      <div style="font-size:13px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace">{{ e.reading }}</div>
+                      <div style="font-size:10px;color:#A89A88">{{ e.unit }}</div>
+                    </div>
+                    <sc-if value="{{ e.hasPowerControl }}" hint-placeholder-val="{{ true }}">
+                      <div onclick="{{ e.onToggle }}" style="font-size:10.5px;font-weight:600;padding:5px 9px;border-radius:5px;color:#fff;cursor:pointer;background:{{ e.powerBg }};min-width:52px;text-align:center">{{ e.powerLabel }}</div>
+                    </sc-if>
+                  </div>
+                </sc-for>
               </div>
             </div>
 
-            <!-- STATUS: two columns -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
-              <!-- LEFT: electricity -->
-              <div style="background:#FFFFFF;border-radius:8px;padding:20px;box-sizing:border-box">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-                  <span style="font-size:16px">⚡</span>
-                  <div style="font-size:14px;font-weight:700;color:#241812">สถานะอุปกรณ์ไฟฟ้า</div>
-                  <span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:5px;color:#C1622D;background:#F3E3D5;margin-left:auto">{{ elecOnlineCount }}/{{ deviceTotalCount }} ออนไลน์</span>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:8px">
-                  <sc-for list="{{ elecDeviceRows }}" as="e" hint-placeholder-count="13">
-                    <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid #F0E9DC;border-radius:8px">
-                      <div style="font-size:13px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace;min-width:34px">{{ e.room }}</div>
-                      <div style="flex:1;min-width:0">
-                        <div style="font-size:12px;color:#241812;font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ e.name }}</div>
-                        <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
-                          <div style="width:6px;height:6px;border-radius:50%;background:{{ e.onlineDot }}"></div>
-                          <span style="font-size:10.5px;color:#7C6E5F">{{ e.onlineLabel }}</span>
-                        </div>
-                      </div>
-                      <div style="text-align:right">
-                        <div style="font-size:13px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace">{{ e.reading }}</div>
-                        <div style="font-size:10px;color:#A89A88">{{ e.unit }}</div>
-                      </div>
-                      <sc-if value="{{ e.hasPowerControl }}" hint-placeholder-val="{{ true }}">
-                        <div onclick="{{ e.onToggle }}" style="font-size:10.5px;font-weight:600;padding:5px 9px;border-radius:5px;color:#fff;cursor:pointer;background:{{ e.powerBg }};min-width:52px;text-align:center">{{ e.powerLabel }}</div>
-                      </sc-if>
-                    </div>
-                  </sc-for>
-                </div>
+            <div style="background:#FFFFFF;border-radius:8px;padding:20px;box-sizing:border-box">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+                <span style="font-size:16px">💧</span>
+                <div style="font-size:14px;font-weight:700;color:#241812">สถานะอุปกรณ์น้ำ</div>
+                <span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:5px;color:#2C6E8F;background:#DEEAF0;margin-left:auto">{{ waterOnlineCount }}/{{ deviceTotalCount }} ออนไลน์</span>
               </div>
-
-              <!-- RIGHT: water -->
-              <div style="background:#FFFFFF;border-radius:8px;padding:20px;box-sizing:border-box">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-                  <span style="font-size:16px">💧</span>
-                  <div style="font-size:14px;font-weight:700;color:#241812">สถานะอุปกรณ์น้ำ</div>
-                  <span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:5px;color:#2C6E8F;background:#DEEAF0;margin-left:auto">{{ waterOnlineCount }}/{{ deviceTotalCount }} ออนไลน์</span>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:8px">
-                  <sc-for list="{{ waterDeviceRows }}" as="w" hint-placeholder-count="13">
-                    <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid #F0E9DC;border-radius:8px">
-                      <div style="font-size:13px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace;min-width:34px">{{ w.room }}</div>
-                      <div style="flex:1;min-width:0">
-                        <div style="font-size:12px;color:#241812;font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ w.name }}</div>
-                        <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
-                          <div style="width:6px;height:6px;border-radius:50%;background:{{ w.onlineDot }}"></div>
-                          <span style="font-size:10.5px;color:#7C6E5F">{{ w.onlineLabel }}</span>
-                        </div>
-                      </div>
-                      <div style="text-align:right">
-                        <div style="font-size:13px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace">{{ w.reading }}</div>
-                        <div style="font-size:10px;color:#A89A88">{{ w.unit }}</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{ waterDeviceRows }}" as="w" hint-placeholder-count="13">
+                  <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid #F0E9DC;border-radius:8px;flex-wrap:wrap">
+                    <div style="font-size:13px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace;min-width:34px">{{ w.room }}</div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:12px;color:#241812;font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ w.name }}</div>
+                      <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
+                        <div style="width:6px;height:6px;border-radius:50%;background:{{ w.onlineDot }}"></div>
+                        <span style="font-size:10.5px;color:#7C6E5F">{{ w.onlineLabel }}</span>
                       </div>
                     </div>
-                  </sc-for>
-                </div>
+                    <div style="text-align:right">
+                      <div style="font-size:13px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace">{{ w.reading }}</div>
+                      <div style="font-size:10px;color:#A89A88">{{ w.unit }}</div>
+                    </div>
+                  </div>
+                </sc-for>
               </div>
             </div>
           </div>
@@ -2070,6 +2080,7 @@ class Component extends DCLogic {
     },
     equipSelectedRoom: '101',
     tuyaForm: { elecName: '', elecDeviceId: '', waterName: '' },
+    equipDeviceTab: 'elec',
     tuyaDeviceList: [],
     tuyaLiveReadings: {},
     tuyaLoadingReading: false,
@@ -2991,9 +3002,14 @@ class Component extends DCLogic {
     const room = this.state.rooms.find(r => r.id === id) || {};
     this.setState({ equipSelectedRoom: id, tuyaForm: { elecName: d.elecName || '', elecDeviceId: room.tuyaElecDeviceId || '', waterName: d.waterName || '' } });
   };
+  onEquipRoomSelectChange = (e) => this.selectEquipRoom(e.target.value);
+  setEquipTab = (tab) => this.setState({ equipDeviceTab: tab });
   onTuyaElecDeviceId = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, elecDeviceId: e.target.value } }));
   onTuyaWaterName = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, waterName: e.target.value } }));
-  saveTuyaDevice = async () => {
+  // Split from the old single saveTuyaDevice — เดิมกดปุ่มเดียวบันทึกทั้งน้ำ+ไฟพร้อมกัน
+  // ทั้งที่จริงๆ เป็นข้อมูลคนละก้อน (ไฟ = tuyaElecDeviceId บันทึกลง Sheet จริง, น้ำ =
+  // ยังเป็น mock ในเครื่องเท่านั้น) แยกปุ่ม/handler ตามชนิดอุปกรณ์ให้ชัดเจน
+  saveTuyaElecDevice = async () => {
     const id = this.state.equipSelectedRoom;
     const f = this.state.tuyaForm;
     try {
@@ -3003,13 +3019,39 @@ class Component extends DCLogic {
       });
       if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
       const updatedRoom = await res.json();
-      this.setState(s => ({
-        rooms: s.rooms.map(r => r.id === id ? updatedRoom : r),
-        tuyaDevices: { ...s.tuyaDevices, [id]: { ...(s.tuyaDevices[id] || { elecOnline: true, elecReading: 0, elecPower: true, waterOnline: true, waterReading: 0 }), waterName: f.waterName } },
-      }));
-      this.showAdminToast('บันทึกอุปกรณ์ห้อง ' + id + ' แล้ว');
+      this.setState(s => ({ rooms: s.rooms.map(r => r.id === id ? updatedRoom : r) }));
+      this.showAdminToast('บันทึกอุปกรณ์ไฟฟ้าห้อง ' + id + ' แล้ว');
       this.refreshTuyaLive();
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
+  };
+  deleteTuyaElecDevice = async () => {
+    const id = this.state.equipSelectedRoom;
+    try {
+      const res = await fetch('/api/rooms/' + id, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tuyaElecDeviceId: '' }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'ลบไม่สำเร็จ');
+      const updatedRoom = await res.json();
+      this.setState(s => ({ rooms: s.rooms.map(r => r.id === id ? updatedRoom : r), tuyaForm: { ...s.tuyaForm, elecDeviceId: '' } }));
+      this.showAdminToast('ลบอุปกรณ์ไฟฟ้าห้อง ' + id + ' แล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'ลบไม่สำเร็จ'); }
+  };
+  saveTuyaWaterDevice = () => {
+    const id = this.state.equipSelectedRoom;
+    const f = this.state.tuyaForm;
+    this.setState(s => ({
+      tuyaDevices: { ...s.tuyaDevices, [id]: { ...(s.tuyaDevices[id] || { elecOnline: true, elecReading: 0, elecPower: true, waterOnline: true, waterReading: 0 }), waterName: f.waterName } },
+    }));
+    this.showAdminToast('บันทึกอุปกรณ์น้ำห้อง ' + id + ' แล้ว');
+  };
+  deleteTuyaWaterDevice = () => {
+    const id = this.state.equipSelectedRoom;
+    this.setState(s => ({
+      tuyaDevices: { ...s.tuyaDevices, [id]: { ...(s.tuyaDevices[id] || {}), waterName: '', waterOnline: false } },
+      tuyaForm: { ...s.tuyaForm, waterName: '' },
+    }));
+    this.showAdminToast('ลบอุปกรณ์น้ำห้อง ' + id + ' แล้ว');
   };
   // Turning power ON is low-risk and happens immediately. Turning it OFF cuts
   // a real tenant's electricity, so it goes through a confirmation modal first.
@@ -4385,7 +4427,14 @@ class Component extends DCLogic {
       equipSelectedRoom: s.equipSelectedRoom,
       equipSelTenant: equipSelRoom.tenant || '(ห้องว่าง)',
       equipSelConfigured: !!equipSelDevice,
-      tuyaForm: s.tuyaForm, onTuyaElecDeviceId: this.onTuyaElecDeviceId, onTuyaWaterName: this.onTuyaWaterName, saveTuyaDevice: this.saveTuyaDevice,
+      tuyaForm: s.tuyaForm, onTuyaElecDeviceId: this.onTuyaElecDeviceId, onTuyaWaterName: this.onTuyaWaterName,
+      onEquipRoomSelectChange: this.onEquipRoomSelectChange,
+      setEquipTabElec: () => this.setEquipTab('elec'), setEquipTabWater: () => this.setEquipTab('water'),
+      equipTabIsElec: s.equipDeviceTab === 'elec', equipTabIsWater: s.equipDeviceTab === 'water',
+      equipTabElecBg: s.equipDeviceTab === 'elec' ? '#C1622D' : '#F1EBE0', equipTabElecColor: s.equipDeviceTab === 'elec' ? '#fff' : '#7C6E5F',
+      equipTabWaterBg: s.equipDeviceTab === 'water' ? '#2C6E8F' : '#F1EBE0', equipTabWaterColor: s.equipDeviceTab === 'water' ? '#fff' : '#7C6E5F',
+      saveTuyaElecDevice: this.saveTuyaElecDevice, deleteTuyaElecDevice: this.deleteTuyaElecDevice,
+      saveTuyaWaterDevice: this.saveTuyaWaterDevice, deleteTuyaWaterDevice: this.deleteTuyaWaterDevice,
       tuyaDeviceOptions: s.tuyaDeviceList.map(d => ({ value: d.id, label: d.name + (d.online ? '' : ' (ออฟไลน์)') })),
       refreshTuyaLive: this.refreshTuyaLive,
       tuyaRefreshLabel: s.tuyaLoadingReading ? 'กำลังโหลด...' : '⟳ รีเฟรช',
