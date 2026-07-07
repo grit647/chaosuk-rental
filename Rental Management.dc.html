@@ -1284,86 +1284,88 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
             </div>
 
-            <div style="display:flex;flex-direction:column;gap:16px">
-              <div style="background:#FFFFFF;border-radius:8px;padding:20px;box-sizing:border-box">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-                  <div onclick="{{ calPrevMonth }}" style="width:32px;height:32px;border-radius:7px;border:1px solid #E3D8C8;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#7C6E5F;font-size:15px">‹</div>
-                  <div style="font-size:16px;font-weight:700;color:#241812">{{ calMonthLabel }}</div>
-                  <div onclick="{{ calNextMonth }}" style="width:32px;height:32px;border-radius:7px;border:1px solid #E3D8C8;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#7C6E5F;font-size:15px">›</div>
-                </div>
-                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px">
-                  <sc-for list="{{ calWeekdays }}" as="w" hint-placeholder-count="7">
-                    <div style="text-align:center;font-size:11px;font-weight:600;color:#7C6E5F;padding:4px 0">{{ w }}</div>
-                  </sc-for>
-                </div>
-                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
-                  <sc-for list="{{ calCells }}" as="c" hint-placeholder-count="35">
-                    <sc-if value="{{ c.blank }}" hint-placeholder-val="{{ false }}">
-                      <div style="aspect-ratio:1"></div>
-                    </sc-if>
-                    <sc-if value="{{ c.day }}" hint-placeholder-val="{{ true }}">
-                      <div onclick="{{ c.onPick }}" style="aspect-ratio:1;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;background:{{ c.cellBg }}">
-                        <span style="font-size:13px;font-weight:600;color:{{ c.cellColor }};font-family:'IBM Plex Mono',monospace">{{ c.day }}</span>
-                        <div style="width:5px;height:5px;border-radius:50%;background:{{ c.dotColor }}"></div>
-                      </div>
-                    </sc-if>
-                  </sc-for>
-                </div>
-              </div>
-
-              <div style="background:#FFFFFF;border-radius:8px;padding:20px;box-sizing:border-box">
-                <div style="font-size:14px;font-weight:700;color:#241812;margin-bottom:14px">เพิ่มรายการวันที่ {{ selectedDateLabel }}</div>
-                <div style="display:flex;flex-direction:column;gap:12px">
-                  <div>
-                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รายการ / งาน</div>
-                    <input value="{{ calEventForm.title }}" onchange="{{ onCalTitle }}" placeholder="เช่น ตามบิลห้อง 305" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+            <div style="display:flex;flex-direction:column;gap:14px;max-width:960px">
+              <div class="split-row" style="display:flex;gap:14px">
+                <div class="split-col" style="flex:1.3;background:#FFFFFF;border-radius:8px;padding:16px;box-sizing:border-box">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                    <div onclick="{{ calPrevMonth }}" style="width:26px;height:26px;border-radius:6px;border:1px solid #E3D8C8;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#7C6E5F;font-size:13px">‹</div>
+                    <div style="font-size:13.5px;font-weight:700;color:#241812">{{ calMonthLabel }}</div>
+                    <div onclick="{{ calNextMonth }}" style="width:26px;height:26px;border-radius:6px;border:1px solid #E3D8C8;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#7C6E5F;font-size:13px">›</div>
                   </div>
-                  <div style="display:flex;gap:10px">
-                    <div style="flex:1">
-                      <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เวลา</div>
-                      <input value="{{ calEventForm.time }}" onchange="{{ onCalTime }}" placeholder="09:00" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
-                    </div>
-                    <div style="flex:1.3">
-                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-                        <div style="font-size:11.5px;color:#7C6E5F">ประเภท</div>
-                        <span onclick="{{ toggleAddCalType }}" style="font-size:11px;color:#C1622D;font-weight:600;cursor:pointer">+ เพิ่ม</span>
-                      </div>
-                      <select value="{{ calEventForm.type }}" onchange="{{ onCalType }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;background:#fff">
-                        <sc-for list="{{ calEventTypeOptions }}" as="t" hint-placeholder-count="6">
-                          <option value="{{ t }}">{{ t }}</option>
-                        </sc-for>
-                      </select>
-                    </div>
+                  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:5px">
+                    <sc-for list="{{ calWeekdays }}" as="w" hint-placeholder-count="7">
+                      <div style="text-align:center;font-size:9.5px;font-weight:600;color:#7C6E5F;padding:3px 0">{{ w }}</div>
+                    </sc-for>
                   </div>
-                  <sc-if value="{{ addingCalType }}" hint-placeholder-val="{{ false }}">
-                    <div style="display:flex;gap:8px">
-                      <input value="{{ newCalTypeText }}" onchange="{{ onNewCalTypeText }}" placeholder="ชื่อประเภทใหม่" style="flex:1;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
-                      <div onclick="{{ confirmNewCalType }}" style="padding:9px 16px;border-radius:6px;background:#C1622D;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap">เพิ่มประเภท</div>
-                    </div>
-                  </sc-if>
-                  <div onclick="{{ addCalEvent }}" style="margin-top:2px;padding:11px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;text-align:center;cursor:pointer">+ บันทึกลงปฏิทิน</div>
-                  <div onclick="{{ openBroadcast }}" style="padding:11px;border-radius:7px;background:#06C755;color:#fff;font-size:13px;font-weight:700;text-align:center;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">📢 ส่งแจ้งเตือนทาง LINE</div>
-                </div>
-              </div>
-
-              <div style="background:#241812;border-radius:8px;padding:20px;box-sizing:border-box">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-                  <span style="font-size:15px">🔔</span>
-                  <div style="font-size:14px;font-weight:700;color:#F1EBE0">รายการแจ้งเตือนที่จะถึง</div>
-                </div>
-                <div ontouchstart="{{ onReminderTouchStart }}" ontouchend="{{ onReminderTouchEnd }}" style="display:flex;flex-direction:column;gap:9px">
-                  <sc-for list="{{ upcomingRemindersPageItems }}" as="r" hint-placeholder-count="3">
-                    <div style="background:rgba(241,235,224,0.07);border-radius:8px;padding:11px 12px">
-                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-                        <span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:5px;color:{{ r.tColor }};background:{{ r.tBg }}">{{ r.type }}</span>
-                        <span style="font-size:11px;color:#C1A98A;font-weight:600">{{ r.whenLabel }}</span>
-                      </div>
-                      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px">
-                        <div>
-                          <div style="font-size:12.5px;color:#F1EBE0;line-height:1.4">{{ r.title }}</div>
-                          <div style="font-size:11px;color:#9C8B78;margin-top:3px;font-family:'IBM Plex Mono',monospace">{{ r.dateLabel }} · {{ r.time }} น.</div>
+                  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;max-width:260px;margin:0 auto">
+                    <sc-for list="{{ calCells }}" as="c" hint-placeholder-count="35">
+                      <sc-if value="{{ c.blank }}" hint-placeholder-val="{{ false }}">
+                        <div style="aspect-ratio:1"></div>
+                      </sc-if>
+                      <sc-if value="{{ c.day }}" hint-placeholder-val="{{ true }}">
+                        <div onclick="{{ c.onPick }}" style="aspect-ratio:1;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;background:{{ c.cellBg }}">
+                          <span style="font-size:10.5px;font-weight:600;color:{{ c.cellColor }};font-family:'IBM Plex Mono',monospace">{{ c.day }}</span>
+                          <div style="width:4px;height:4px;border-radius:50%;background:{{ c.dotColor }}"></div>
                         </div>
-                        <span onclick="{{ r.onDelete }}" style="font-size:11px;color:#E39A8F;cursor:pointer;font-weight:600;white-space:nowrap">ลบ</span>
+                      </sc-if>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div class="split-col" style="flex:1;background:#FFFFFF;border-radius:8px;padding:16px;box-sizing:border-box">
+                  <div style="font-size:12.5px;font-weight:700;color:#241812;margin-bottom:10px">เพิ่มรายการวันที่ {{ selectedDateLabel }}</div>
+                  <div style="display:flex;flex-direction:column;gap:9px">
+                    <div>
+                      <div style="font-size:10.5px;color:#7C6E5F;margin-bottom:4px">รายการ / งาน</div>
+                      <input value="{{ calEventForm.title }}" onchange="{{ onCalTitle }}" placeholder="เช่น ตามบิลห้อง 305" style="width:100%;padding:7px 8px;border-radius:5px;border:1px solid #E3D8C8;font-size:11.5px;box-sizing:border-box">
+                    </div>
+                    <div style="display:flex;gap:8px">
+                      <div style="flex:1">
+                        <div style="font-size:10.5px;color:#7C6E5F;margin-bottom:4px">เวลา</div>
+                        <input value="{{ calEventForm.time }}" onchange="{{ onCalTime }}" placeholder="09:00" style="width:100%;padding:7px 8px;border-radius:5px;border:1px solid #E3D8C8;font-size:11.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                      </div>
+                      <div style="flex:1.3">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                          <div style="font-size:10.5px;color:#7C6E5F">ประเภท</div>
+                          <span onclick="{{ toggleAddCalType }}" style="font-size:10px;color:#C1622D;font-weight:600;cursor:pointer">+ เพิ่ม</span>
+                        </div>
+                        <select value="{{ calEventForm.type }}" onchange="{{ onCalType }}" style="width:100%;padding:7px 8px;border-radius:5px;border:1px solid #E3D8C8;font-size:11.5px;box-sizing:border-box;background:#fff">
+                          <sc-for list="{{ calEventTypeOptions }}" as="t" hint-placeholder-count="6">
+                            <option value="{{ t }}">{{ t }}</option>
+                          </sc-for>
+                        </select>
+                      </div>
+                    </div>
+                    <sc-if value="{{ addingCalType }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;gap:6px">
+                        <input value="{{ newCalTypeText }}" onchange="{{ onNewCalTypeText }}" placeholder="ชื่อประเภทใหม่" style="flex:1;padding:7px 8px;border-radius:5px;border:1px solid #E3D8C8;font-size:11.5px;box-sizing:border-box">
+                        <div onclick="{{ confirmNewCalType }}" style="padding:7px 12px;border-radius:5px;background:#C1622D;color:#fff;font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap">เพิ่มประเภท</div>
+                      </div>
+                    </sc-if>
+                    <div onclick="{{ addCalEvent }}" style="margin-top:2px;padding:8px;border-radius:6px;background:#C1622D;color:#fff;font-size:12px;font-weight:700;text-align:center;cursor:pointer">+ บันทึกลงปฏิทิน</div>
+                    <div onclick="{{ openBroadcast }}" style="padding:8px;border-radius:6px;background:#06C755;color:#fff;font-size:12px;font-weight:700;text-align:center;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">📢 ส่งแจ้งเตือนทาง LINE</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="background:#241812;border-radius:8px;padding:14px 16px;box-sizing:border-box">
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:11px">
+                  <span style="font-size:13px">🔔</span>
+                  <div style="font-size:12.5px;font-weight:700;color:#F1EBE0">รายการแจ้งเตือนที่จะถึง</div>
+                </div>
+                <div ontouchstart="{{ onReminderTouchStart }}" ontouchend="{{ onReminderTouchEnd }}" style="display:flex;flex-direction:column;gap:7px">
+                  <sc-for list="{{ upcomingRemindersPageItems }}" as="r" hint-placeholder-count="3">
+                    <div style="background:rgba(241,235,224,0.07);border-radius:7px;padding:9px 10px">
+                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                        <span style="font-size:9.5px;font-weight:600;padding:2px 7px;border-radius:5px;color:{{ r.tColor }};background:{{ r.tBg }}">{{ r.type }}</span>
+                        <span style="font-size:10px;color:#C1A98A;font-weight:600">{{ r.whenLabel }}</span>
+                      </div>
+                      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:7px">
+                        <div>
+                          <div style="font-size:11.5px;color:#F1EBE0;line-height:1.4">{{ r.title }}</div>
+                          <div style="font-size:10px;color:#9C8B78;margin-top:2px;font-family:'IBM Plex Mono',monospace">{{ r.dateLabel }} · {{ r.time }} น.</div>
+                        </div>
+                        <span onclick="{{ r.onDelete }}" style="font-size:10px;color:#E39A8F;cursor:pointer;font-weight:600;white-space:nowrap">ลบ</span>
                       </div>
                     </div>
                   </sc-for>
