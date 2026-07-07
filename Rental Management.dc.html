@@ -2476,6 +2476,13 @@ class Component extends DCLogic {
     if (!SpeechRecognition) { this.showAdminToast('เบราว์เซอร์นี้ไม่รองรับการพูดแทนพิมพ์ครับ (ลองใช้ Chrome หรือ Edge)'); return; }
     const recognition = new SpeechRecognition();
     recognition.lang = 'th-TH';
+    // continuous=true: without it, the browser's own silence-detection stops
+    // recording after a very short pause (feels like it cuts off mid-sentence
+    // with no way to control the timing). continuous keeps the mic open
+    // across natural pauses — it only truly stops when the user taps the mic
+    // again (which calls recognition.stop() above) or a much longer silence
+    // elapses, giving a normal-paced sentence room to finish.
+    recognition.continuous = true;
     // interimResults on: shows text live as it's recognized (not just after
     // stopping) — the strongest visual proof it's actually listening, since
     // the subtle mic-button color change alone wasn't obvious enough.
@@ -2497,7 +2504,16 @@ class Component extends DCLogic {
       };
       this.showAdminToast(messages[e.error] || ('ฟังเสียงไม่สำเร็จ (' + e.error + ')'));
     };
-    recognition.onend = () => this.setState({ claudeListening: false });
+    // Stopping the recording (tap the mic again, or the browser's own longer
+    // timeout) now sends the transcribed text immediately — no separate tap
+    // on "ส่งคำสั่ง" needed. If speech recognition misheard something and the
+    // resulting text doesn't make sense, that's fine: Claude's own multi-turn
+    // design already asks a clarifying question back rather than guessing, so
+    // nothing destructive happens from a garbled transcript alone.
+    recognition.onend = () => {
+      this.setState({ claudeListening: false });
+      if (this.state.claudeCommandInput.trim()) this.sendClaudeCommand();
+    };
     this._recognition = recognition;
     try { recognition.start(); } catch (err) { this.showAdminToast('เริ่มฟังเสียงไม่สำเร็จ ลองแตะไมค์อีกครั้งครับ'); }
   };
