@@ -103,7 +103,10 @@ router.post('/command', async (req, res, next) => {
       { role: 'user', content: message },
     ];
     for (let i = 0; i < 4; i++) {
-      const resp = await callWithTools(buildCommandSystemPrompt(), messages, TOOLS);
+      // 2048 (not the default 1024) — show_chart calls can carry sizeable
+      // xLabels/series arrays plus a written insight, and were getting cut
+      // off (empty tool_use, generic "ไม่เข้าใจ" fallback) at the smaller limit.
+      const resp = await callWithTools(buildCommandSystemPrompt(), messages, TOOLS, 2048);
       if (resp.stop_reason !== 'tool_use') {
         const text = extractText(resp) || 'ขอโทษครับ ไม่เข้าใจคำสั่งนี้';
         return res.json({ type: 'answer', text });
