@@ -2894,7 +2894,10 @@ class Component extends DCLogic {
     link.href = canvas.toDataURL('image/png');
     link.click();
   };
-  closeClaudeConfirm = () => this.setState({ showClaudeConfirm: false, claudeConfirmAction: '', claudeConfirmParams: null });
+  closeClaudeConfirm = () => {
+    this.setState({ showClaudeConfirm: false, claudeConfirmAction: '', claudeConfirmParams: null });
+    this.speakClaudeText('ยกเลิกให้เรียบร้อยแล้วครับ'); // no-ops if driving mode is off
+  };
   confirmClaudeCommand = async () => {
     const { claudeConfirmAction, claudeConfirmParams } = this.state;
     this.setState({ showClaudeConfirm: false });
@@ -2911,9 +2914,14 @@ class Component extends DCLogic {
         claudeCommandHistory: [...s.claudeCommandHistory, { role: 'assistant', content: '✓ ' + (data.message || 'ทำรายการสำเร็จ') }],
       }));
       this.showAdminToast(data.message || 'ทำรายการสำเร็จ');
+      // Read back what actually happened — this is the "ทวนคำสั่ง" step so a
+      // driver gets clear audible confirmation instead of just silence after
+      // saying "ยืนยัน".
+      this.speakClaudeText((data.message || 'บันทึกเรียบร้อยแล้ว') + ' ครับ');
       this.loadFromServer(); // most write actions touch rooms/invoices/expenses/maintenance — refresh so the rest of the UI reflects it
     } catch (err) {
       this.showAdminToast(err.message || 'ทำรายการไม่สำเร็จ');
+      this.speakClaudeText('ขอโทษครับ ทำรายการไม่สำเร็จ ' + (err.message || ''));
     } finally {
       this.setState({ claudeConfirmAction: '', claudeConfirmParams: null });
     }
