@@ -211,7 +211,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </div>
 
-        <div style="flex:1;padding:0 32px 28px;box-sizing:border-box;overflow:auto">
+        <div style="flex:1;padding:{{ contentPadTop }}px 32px 28px;box-sizing:border-box;overflow:auto">
 
           <sc-if value="{{ showMobileMenuBtn }}" hint-placeholder-val="{{ false }}">
             <div onclick="{{ toggleMobileNav }}" style="position:absolute;top:14px;left:14px;z-index:70;display:flex;align-items:center;gap:8px;background:#2B1D14;color:#F1EBE0;padding:9px 14px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(36,24,18,0.25)"><span style="font-size:16px">☰</span> เมนู</div>
@@ -401,7 +401,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">รายชื่อผู้เช่าปัจจุบันทั้งหมด — คลิกแถวเพื่อดูรายละเอียดห้อง หรือกด Generate Token เพื่อออกรหัสเชื่อมต่อ</div>
             </div>
             <input value="{{ tenantSearch }}" onchange="{{ onTenantSearchChange }}" placeholder="ค้นหาชื่อผู้เช่าหรือเลขห้อง" style="width:280px;background:#FFFFFF;border:1px solid #E3D8C8;border-radius:7px;padding:9px 12px;font-size:12.5px;color:#241812;outline:none;margin:14px 0 16px;display:block;box-sizing:border-box">
-            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
+            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;overflow-x:auto">
+              <div style="min-width:640px">
               <div style="display:grid;grid-template-columns:0.5fr 1.1fr 1.1fr 1.7fr 1fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
                 <div>ห้อง</div><div>ชื่อผู้เช่า</div><div>เบอร์โทร</div><div>Token · การเชื่อมต่อ</div><div>ข้อมูลข่าวสาร</div>
               </div>
@@ -427,6 +428,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div><span onclick="{{ t.onSendNews }}" style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;background:#EDE4D6;color:#B85B27">✉ ส่งข่าวสาร</span></div>
                 </div>
               </sc-for>
+              </div>
             </div>
           </div>
           </sc-if>
@@ -451,7 +453,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </sc-for>
             </div>
 
-            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;margin-top:16px">
+            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;margin-top:16px;overflow-x:auto">
+              <div style="min-width:640px">
               <div style="font-size:14px;font-weight:700;color:#241812;margin-bottom:2px">ใบแจ้งหนี้ที่รอชำระ ({{ pendingBillsCount }})</div>
               <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">สร้างบิลจะเพิ่มแถวที่นี่ · กดสถานะเพื่อยืนยันการชำระ เมื่อชำระแล้วแถวจะถูกนำออก</div>
               <div style="display:grid;grid-template-columns:0.5fr 1.5fr 0.9fr 1.1fr 1fr 1.3fr;gap:12px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#9C8B78;padding-bottom:11px;border-bottom:2px solid #EDE1CE">
@@ -472,6 +475,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <sc-if value="{{ noPendingBills }}" hint-placeholder-val="{{ false }}">
                 <div style="text-align:center;padding:32px;color:#A89A88;font-size:12.5px">ไม่มีบิลค้างชำระ — กด "+ สร้างใบแจ้งหนี้" เพื่อเพิ่ม</div>
               </sc-if>
+              </div>
             </div>
           </div>
           </sc-if>
@@ -485,7 +489,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
               <button onclick="{{ openMaintenanceModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer">+ แจ้งปัญหาใหม่</button>
             </div>
-            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
+            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;overflow-x:auto">
+              <div style="min-width:520px">
               <div style="display:grid;grid-template-columns:0.6fr 1.6fr 0.9fr 1.7fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
                 <div>ห้อง</div><div>ปัญหา</div><div>วันที่แจ้ง</div><div>สถานะ</div>
               </div>
@@ -499,6 +504,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                 </div>
               </sc-for>
+              </div>
             </div>
           </div>
           </sc-if>
@@ -720,7 +726,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
             </div>
 
-            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
+            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;overflow-x:auto">
+              <div style="min-width:600px">
               <div style="display:grid;grid-template-columns:0.5fr 1.2fr 1.5fr 0.9fr 0.9fr 1.5fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
                 <div>ห้อง</div><div>ผู้เช่า</div><div>อุปกรณ์</div><div>หน่วยที่ใช้</div><div>ค่าน้ำ</div><div>ช่วงเวลาที่ดึงค่า</div>
               </div>
@@ -741,6 +748,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                 </div>
               </sc-for>
+              </div>
             </div>
           </div>
           </sc-if>
@@ -780,7 +788,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
             </div>
 
-            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
+            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;overflow-x:auto">
+              <div style="min-width:600px">
               <div style="display:grid;grid-template-columns:0.5fr 1.2fr 1.5fr 0.9fr 0.9fr 1.5fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
                 <div>ห้อง</div><div>ผู้เช่า</div><div>อุปกรณ์</div><div>หน่วยที่ใช้</div><div>ค่าไฟ</div><div>ช่วงเวลาที่ดึงค่า</div>
               </div>
@@ -809,6 +818,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                 </div>
               </sc-for>
+              </div>
             </div>
           </div>
           </sc-if>
@@ -980,7 +990,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
               <div onclick="{{ newContractForm }}" style="background:#C1622D;color:#fff;font-size:13px;font-weight:600;padding:10px 18px;border-radius:7px;cursor:pointer">+ กรอกสัญญาใหม่</div>
             </div>
-            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
+            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;overflow-x:auto">
+              <div style="min-width:640px">
               <div style="display:grid;grid-template-columns:0.6fr 1.3fr 1fr 1fr 0.9fr 0.9fr 1fr 1.3fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
                 <div>ห้อง</div><div>ผู้เช่า</div><div>เริ่มสัญญา</div><div>สิ้นสุดสัญญา</div><div>ค่าเช่า</div><div>เงินประกัน</div><div>สถานะ</div><div></div>
               </div>
@@ -994,6 +1005,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                 </div>
               </sc-for>
+              </div>
             </div>
             </div>
             </sc-if>
@@ -4053,7 +4065,12 @@ class Component extends DCLogic {
       navShadow: (isNarrow && s.mobileNavOpen) ? '8px 0 40px rgba(0,0,0,0.45)' : 'none',
       showMobileMenuBtn: isNarrow,
       showNavBackdrop: isNarrow && s.mobileNavOpen,
-      contentPadTop: 28,
+      // Reserves room above the page so the floating "☰ เมนู" button (fixed
+      // near the top-left) never sits directly on top of each page's own
+      // title text — previously both occupied the same corner and the
+      // button visually chopped off the first character or two of every
+      // page heading on mobile.
+      contentPadTop: isNarrow ? 56 : 0,
       toggleMobileNav: this.toggleMobileNav, closeMobileNav: this.closeMobileNav,
       logout: this.logout,
       appRadius: isNarrow ? 0 : 14,
