@@ -528,9 +528,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </sc-for>
                   </div>
                 </sc-if>
-                <div style="display:flex;gap:8px">
-                  <input value="{{ claudeCommandInput }}" onchange="{{ onClaudeCommandInput }}" onkeydown="{{ onClaudeCommandKeyDown }}" placeholder="เช่น ห้องไหนค้างจ่ายบ้าง / มาร์คบิล INV-101-xxx ว่าจ่ายแล้ว (Enter เพื่อส่ง)" style="flex:1;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
-                  <div onclick="{{ sendClaudeCommand }}" style="padding:10px 18px;border-radius:6px;background:#D97757;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">{{ claudeCommandButtonLabel }}</div>
+                <div style="display:flex;align-items:center;gap:8px;background:#FFFFFF;border:1px solid #E3D8C8;border-radius:24px;padding:6px 8px 6px 14px">
+                  <div onclick="{{ clearClaudeCommandHistory }}" title="ล้างการสนทนา" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#7C6E5F;font-size:16px;flex-shrink:0">+</div>
+                  <input value="{{ claudeCommandInput }}" onchange="{{ onClaudeCommandInput }}" onkeydown="{{ onClaudeCommandKeyDown }}" placeholder="เช่น ห้องไหนค้างจ่ายบ้าง (Enter เพื่อส่ง)" style="flex:1;padding:6px 0;border:none;outline:none;font-size:12.5px;box-sizing:border-box;background:transparent">
+                  <div onclick="{{ toggleClaudeVoiceInput }}" title="พูดแทนพิมพ์" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:{{ claudeListeningBg }};color:{{ claudeListeningColor }};font-size:14px">🎤</div>
+                  <div onclick="{{ toggleClaudeDrivingMode }}" title="โหมดกำลังขับรถ — อ่านคำตอบออกเสียง" style="display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:16px;cursor:pointer;background:{{ claudeDrivingModeBg }};color:{{ claudeDrivingModeColor }};font-size:11.5px;font-weight:600;white-space:nowrap;flex-shrink:0">🚗 ขับรถ</div>
+                  <div onclick="{{ sendClaudeCommand }}" style="padding:8px 16px;border-radius:20px;background:#D97757;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">{{ claudeCommandButtonLabel }}</div>
                 </div>
               </div>
 
@@ -1871,6 +1874,8 @@ class Component extends DCLogic {
     claudeConfirmParams: null,
     showClaudeChart: false,
     claudeChart: null,
+    claudeListening: false,
+    claudeDrivingMode: false,
     lineConn: { channelId: '', channelSecret: '', accessToken: '', connected: false },
     lineEnvConnected: false,
     sheetEnvConnected: false,
@@ -2454,6 +2459,39 @@ class Component extends DCLogic {
   onClaudeCommandInput = (e) => this.setState({ claudeCommandInput: e.target.value });
   onClaudeCommandKeyDown = (e) => { if (e.key === 'Enter') this.sendClaudeCommand(); };
   clearClaudeCommandHistory = () => this.setState({ claudeCommandHistory: [], claudeCommandAnswer: '' });
+  // Voice input + spoken answers — both use the browser's built-in Web Speech
+  // API (SpeechRecognition / speechSynthesis), not the Claude API, so this
+  // adds zero extra token cost. Best supported in Chrome/Edge; Safari/Firefox
+  // support is patchy, so we degrade to a toast instead of silently failing.
+  toggleClaudeVoiceInput = () => {
+    if (this.state.claudeListening) { if (this._recognition) this._recognition.stop(); return; }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) { this.showAdminToast('เบราว์เซอร์นี้ไม่รองรับการพูดแทนพิมพ์ครับ (ลองใช้ Chrome หรือ Edge)'); return; }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'th-TH';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onstart = () => this.setState({ claudeListening: true });
+    recognition.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      this.setState({ claudeCommandInput: text });
+    };
+    recognition.onerror = () => { this.setState({ claudeListening: false }); this.showAdminToast('ฟังเสียงไม่สำเร็จ ลองพูดใหม่อีกครั้งครับ'); };
+    recognition.onend = () => this.setState({ claudeListening: false });
+    this._recognition = recognition;
+    recognition.start();
+  };
+  toggleClaudeDrivingMode = () => {
+    this.setState(s => ({ claudeDrivingMode: !s.claudeDrivingMode }));
+    this.showAdminToast(this.state.claudeDrivingMode ? 'ปิดโหมดขับรถแล้ว' : 'เปิดโหมดขับรถแล้ว — จะอ่านคำตอบออกเสียงให้');
+  };
+  speakClaudeText = (text) => {
+    if (!this.state.claudeDrivingMode || !text || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel(); // don't stack multiple answers talking over each other
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'th-TH';
+    window.speechSynthesis.speak(utter);
+  };
   sendClaudeCommand = async () => {
     const message = this.state.claudeCommandInput.trim();
     if (!message) { this.showAdminToast('กรุณาพิมพ์คำสั่ง'); return; }
@@ -2482,6 +2520,7 @@ class Component extends DCLogic {
           newRoom: { id: p.roomId || '', floor: String(p.floor || '1'), rent: p.rent != null ? String(p.rent) : '', deposit: p.deposit != null ? String(p.deposit) : '', photos: [] },
           claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: 'เปิดฟอร์มเพิ่มห้องให้แล้ว กรอกข้อมูลที่เหลือแล้วกดบันทึกในฟอร์มได้เลยครับ' }],
         }));
+        this.speakClaudeText('เปิดฟอร์มเพิ่มห้องให้แล้วครับ');
       } else if (data.type === 'confirm' && data.action === 'open_contract_form') {
         // Lease contracts always involve fields that can't be filled via
         // chat at all (ID card photo, lease document upload) — always hand
@@ -2496,6 +2535,7 @@ class Component extends DCLogic {
           claudeCommandInput: '',
           claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: 'เปิดฟอร์มสัญญาเช่าห้อง ' + roomId + ' ให้แล้ว กรอก/แก้ไขข้อมูลในฟอร์มแล้วกดบันทึกได้เลยครับ' }],
         }));
+        this.speakClaudeText('เปิดฟอร์มสัญญาเช่าห้อง ' + roomId + ' ให้แล้วครับ');
       } else if (data.type === 'confirm') {
         this.setState(s => ({
           claudeCommandLoading: false,
@@ -2506,6 +2546,7 @@ class Component extends DCLogic {
           claudeConfirmParams: data.params,
           claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: data.description }],
         }));
+        this.speakClaudeText(data.description);
       } else if (data.type === 'chart') {
         const note = 'แสดงกราฟ "' + data.title + '" ให้แล้ว' + (data.insight ? '\n\n' + data.insight : '');
         this.setState(s => ({
@@ -2515,6 +2556,7 @@ class Component extends DCLogic {
           claudeChart: data,
           claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: note }],
         }));
+        this.speakClaudeText('แสดงกราฟ ' + data.title + ' ให้แล้วครับ ' + (data.insight || ''));
       } else {
         this.setState(s => ({
           claudeCommandLoading: false,
@@ -2522,6 +2564,7 @@ class Component extends DCLogic {
           claudeCommandInput: '',
           claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: data.text }],
         }));
+        this.speakClaudeText(data.text);
       }
     } catch (err) {
       this.setState({ claudeCommandLoading: false });
@@ -3955,6 +3998,12 @@ class Component extends DCLogic {
       claudeCommandInput: s.claudeCommandInput,
       onClaudeCommandInput: this.onClaudeCommandInput,
       onClaudeCommandKeyDown: this.onClaudeCommandKeyDown,
+      toggleClaudeVoiceInput: this.toggleClaudeVoiceInput,
+      claudeListeningBg: s.claudeListening ? '#B24336' : 'transparent',
+      claudeListeningColor: s.claudeListening ? '#fff' : '#7C6E5F',
+      toggleClaudeDrivingMode: this.toggleClaudeDrivingMode,
+      claudeDrivingModeBg: s.claudeDrivingMode ? '#3B7A52' : '#F1EBE0',
+      claudeDrivingModeColor: s.claudeDrivingMode ? '#fff' : '#7C6E5F',
       sendClaudeCommand: this.sendClaudeCommand,
       claudeCommandButtonLabel: s.claudeCommandLoading ? 'กำลังคิด...' : 'ส่งคำสั่ง',
       claudeCommandAnswer: s.claudeCommandAnswer,
