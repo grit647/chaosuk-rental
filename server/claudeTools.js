@@ -282,8 +282,12 @@ async function executeReadTool(name, input) {
     case 'get_calendar_events': {
       let rows = coerceCalendar(await readTab('CalendarEvents'));
       if (input.year) rows = rows.filter((r) => r.y === Number(input.year));
-      if (input.month) rows = rows.filter((r) => r.m === Number(input.month));
-      return rows;
+      // r.m is stored 0-indexed (0=Jan..11=Dec, matching the calendar page's
+      // own JS Date-based convention) but this tool's "month" param — like
+      // everywhere else Claude sees dates — is always natural 1-12. Convert
+      // at this boundary so the 0-indexed storage quirk never leaks out.
+      if (input.month) rows = rows.filter((r) => r.m === Number(input.month) - 1);
+      return rows.map((r) => ({ id: r.id, year: r.y, month: r.m + 1, day: r.d, time: r.time, title: r.title, type: r.type }));
     }
     case 'get_financial_summary': {
       const [invoices, expenses, rooms, maintenance] = await Promise.all([
@@ -490,7 +494,11 @@ async function executeWriteTool(name, input) {
       const y = Number(input.year), m = Number(input.month), d = Number(input.day);
       const time = input.time || '09:00';
       const item = {
-        id: Date.now(), y, m, d, time, title: input.title, type: input.type || 'อื่นๆ',
+        // CalendarEvents' "m" column is stored 0-indexed (0=Jan..11=Dec) to
+        // match the calendar page's own JS Date-based rendering — Claude's
+        // "month" input is always natural 1-12, so convert here, at the
+        // point the value actually gets written to the sheet.
+        id: Date.now(), y, m: m - 1, d, time, title: input.title, type: input.type || 'อื่นๆ',
         notifyChannel: input.notifyChannel || 'none', // extra column — silently ignored by appendRow if the sheet header doesn't have it yet
       };
       await appendRow('CalendarEvents', item);
