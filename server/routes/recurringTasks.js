@@ -48,6 +48,33 @@ async function parseRecurringInstruction(instruction) {
   return tasks;
 }
 
+// Used when the user picks the frequency/day/time via the checkbox+dropdown
+// controls in the UI instead of leaving Claude to guess it from prose. Much
+// more reliable for a simple single-rule task — Claude only has to turn the
+// freeform "what to do" text into actionSummary/humanSummary, the schedule
+// itself is already known and fixed. Still returns the same {tasks:[...]}
+// shape (just always exactly one task) so the frontend/save path doesn't
+// need to branch on how the schedule was determined.
+async function parseWithExplicitSchedule(instruction, schedule) {
+  const prompt = `คุณคือระบบเขียนคำอธิบายงานประจำของหอพัก ผู้ใช้พิมพ์ข้อความบอกว่าต้องการให้ระบบทำอะไร (ส่วนของ "เวลาที่จะทำ" ผู้ใช้เลือกจากเมนูไว้แล้ว ไม่ต้องเดา) ให้แปลงเป็น JSON เท่านั้น (ห้ามมีข้อความอื่นหรือ markdown code fence ปนมา) ตามรูปแบบนี้เป๊ะ:
+
+{"tasks":[{"actionSummary":"...","humanSummary":"..."}]}
+
+- actionSummary: คำสั่งที่จะให้ระบบ AI อีกตัวหนึ่งเอาไปทำตามจริงตอนถึงเวลา เขียนเป็นประโยคคำสั่งชัดเจน สมบูรณ์ในตัวเอง (ระบบนั้นเข้าถึงข้อมูลห้อง/บิล/รายจ่าย/ปฏิทินได้ผ่านเครื่องมือของมันเอง ไม่ต้องใส่ข้อมูลดิบมาให้ แค่บอกว่าให้ทำอะไร)
+- humanSummary: สรุปสั้นๆ 1 ประโยคภาษาไทยอ่านง่าย สำหรับโชว์ให้เจ้าของหอพักอ่านทวนก่อนกดบันทึกจริง ต้องขึ้นต้นด้วยความถี่+เวลาที่กำหนดไว้นี้เป๊ะ: "${schedule.humanScheduleLabel}" ตามด้วยสิ่งที่จะทำ
+
+กฎสำคัญเรื่องการ "ตัดไฟ/ตัดน้ำ": ระบบอัตโนมัตินี้ไม่มีความสามารถตัดไฟ/ตัดน้ำเองได้จริงๆ (ไม่มีเครื่องมือให้เรียกใช้) และการตัดสินใจตัดไฟต้องเป็นของเจ้าของหอพักเท่านั้น เสมอ ถ้าคำสั่งของผู้ใช้มีเรื่องตัดไฟ/ตัดน้ำเมื่อไม่จ่ายเงิน ให้เขียน actionSummary เป็น: ตรวจสอบห้องที่ยังไม่ชำระเงินตามกำหนด ส่งข้อความเตือนที่หนักแน่นไปยังผู้เช่าทาง LINE และเพิ่มรายการแจ้งเตือนลงปฏิทินของระบบให้เจ้าของหอพักเห็นว่าห้องไหนค้างชำระและอาจต้องพิจารณาตัดไฟ/น้ำ (เจ้าของจะไปกดตัดไฟเองในหน้า "Set อุปกรณ์" ซึ่งมีการยืนยันก่อนตัดอยู่แล้ว) — ห้ามเขียนราวกับว่าระบบจะตัดไฟให้เองอัตโนมัติ
+
+ผู้ใช้พิมพ์ว่าต้องการให้ทำ: "${instruction}"`;
+
+  const raw = await askClaude(prompt, 600);
+  const jsonText = raw.replace(/```json|```/g, '').trim();
+  const parsed = JSON.parse(jsonText);
+  const one = Array.isArray(parsed.tasks) ? parsed.tasks[0] : parsed;
+  if (!one || !one.actionSummary || !one.humanSummary) throw new Error('รูปแบบผลลัพธ์ไม่ถูกต้อง');
+  return [{ ...schedule.fields, actionSummary: one.actionSummary, humanSummary: one.humanSummary }];
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const rows = coerceRecurringTasks(await readTab('RecurringTasks'));
@@ -60,7 +87,24 @@ router.post('/parse', async (req, res, next) => {
     if (!isConfigured()) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ใน server/.env' });
     const instruction = (req.body.instruction || '').trim();
     if (!instruction) return res.status(400).json({ error: 'กรุณาพิมพ์คำสั่ง' });
-    const tasks = await parseRecurringInstruction(instruction);
+
+    // If the user picked frequency/day/time via the checkbox+dropdown
+    // controls, use those exact values instead of asking Claude to guess a
+    // schedule from prose — far more reliable for a simple single-rule task.
+    const { scheduleType, dayOfMonth, time } = req.body;
+    let tasks;
+    if (scheduleType === 'daily' || scheduleType === 'monthly') {
+      const t = time || '09:00';
+      const fields = scheduleType === 'monthly'
+        ? { scheduleType: 'monthly', dayOfMonth: Number(dayOfMonth) || 1, dayOfWeek: null, time: t }
+        : { scheduleType: 'daily', dayOfMonth: null, dayOfWeek: null, time: t };
+      const humanScheduleLabel = scheduleType === 'monthly'
+        ? `ทุกวันที่ ${fields.dayOfMonth} ของเดือน เวลา ${t} น.`
+        : `ทุกวัน เวลา ${t} น.`;
+      tasks = await parseWithExplicitSchedule(instruction, { fields, humanScheduleLabel });
+    } else {
+      tasks = await parseRecurringInstruction(instruction);
+    }
     res.json({ instruction, tasks });
   } catch (err) {
     console.error('[recurringTasks/parse]', err.message);
