@@ -309,7 +309,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div class="split-col" style="flex:1;background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
                 <div style="font-size:14px;font-weight:600;color:#241812;margin-bottom:2px">สถานะห้องพัก</div>
                 <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:14px">คลิกห้องเพื่อดูรายละเอียด</div>
-                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+                <div ontouchstart="{{ onDashTouchStart }}" ontouchend="{{ onDashTouchEnd }}" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
                   <sc-for list="{{ dashRoomsPageItems }}" as="r" hint-placeholder-count="4">
                     <div onclick="{{ r.onClick }}" style="height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;cursor:pointer;background:{{ r.bg }};color:{{ r.color }};border:{{ r.border }}">{{ r.id }}</div>
                   </sc-for>
@@ -399,7 +399,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                  the ‹ › arrows instead of wrapping to more rows or scrolling. -->
             <div style="display:flex;flex-direction:column;gap:16px">
               <div>
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                <div ontouchstart="{{ onRoomTouchStart }}" ontouchend="{{ onRoomTouchEnd }}" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
                   <sc-for list="{{ roomsPageItems }}" as="r" hint-placeholder-count="3">
                     <div onclick="{{ r.onClick }}" style="background:#FFFFFF;border-radius:7px;padding:8px;cursor:pointer;box-sizing:border-box;border:{{ r.cardBorder }}">
                       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#241812">{{ r.id }}</span><span style="font-size:8.5px;font-weight:600;padding:1px 4px;border-radius:4px;background:{{ r.badgeBg }};color:{{ r.badgeColor }};white-space:nowrap">{{ r.statusLabel }}</span></div>
@@ -3178,6 +3178,29 @@ class Component extends DCLogic {
   nextRoomPage = () => this.setState(s => ({ roomCardPage: s.roomCardPage + 1 }));
   prevDashRoomPage = () => this.setState(s => ({ dashRoomPage: Math.max(0, s.dashRoomPage - 1) }));
   nextDashRoomPage = () => this.setState(s => ({ dashRoomPage: s.dashRoomPage + 1 }));
+
+  // Touch-swipe paging for the two room-card carousels — left swipe goes to
+  // the next page, right swipe goes back, matching the ‹/› arrow buttons.
+  // Start X is kept on `this` (not state) so tracking it doesn't trigger
+  // re-renders; a small distance threshold avoids treating taps as swipes.
+  _roomTouchStartX = null;
+  onRoomTouchStart = (e) => { this._roomTouchStartX = e.touches[0].clientX; };
+  onRoomTouchEnd = (e) => {
+    if (this._roomTouchStartX == null) return;
+    const dx = e.changedTouches[0].clientX - this._roomTouchStartX;
+    this._roomTouchStartX = null;
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0) this.nextRoomPage(); else this.prevRoomPage();
+  };
+  _dashTouchStartX = null;
+  onDashTouchStart = (e) => { this._dashTouchStartX = e.touches[0].clientX; };
+  onDashTouchEnd = (e) => {
+    if (this._dashTouchStartX == null) return;
+    const dx = e.changedTouches[0].clientX - this._dashTouchStartX;
+    this._dashTouchStartX = null;
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0) this.nextDashRoomPage(); else this.prevDashRoomPage();
+  };
   onTenantSearchChange = (e) => this.setState({ tenantSearch: e.target.value });
   setBillingFilter = (f) => this.setState({ billingFilter: f });
 
@@ -4307,6 +4330,7 @@ class Component extends DCLogic {
       dashboardMiniRooms, dashRoomsPageItems,
       prevDashRoomPage: this.prevDashRoomPage, nextDashRoomPage: this.nextDashRoomPage,
       prevDashRoomCount, nextDashRoomCount, hasPrevDashRoomPage, hasNextDashRoomPage, noPrevDashRoomPage: !hasPrevDashRoomPage,
+      onDashTouchStart: this.onDashTouchStart, onDashTouchEnd: this.onDashTouchEnd,
       recentPayments: paidList.slice(-5).reverse().map(i => ({ room: i.room, tenant: i.tenant, amountDisplay: this.fmt(i.rent + i.water + i.elec), date: i.paidDate })),
       maintenanceWidgetItems,
       openInvoiceModal: this.openInvoiceModal,
@@ -4316,6 +4340,7 @@ class Component extends DCLogic {
       roomsFiltered, selectedRoom, openRoomEdit: this.openRoomEdit, openContractModal: this.openContractModal,
       roomsPageItems, prevRoomPage: this.prevRoomPage, nextRoomPage: this.nextRoomPage,
       prevRoomCount, nextRoomCount, hasPrevRoomPage, hasNextRoomPage, noPrevRoomPage: !hasPrevRoomPage,
+      onRoomTouchStart: this.onRoomTouchStart, onRoomTouchEnd: this.onRoomTouchEnd,
       showDeleteRoom: s.showDeleteRoom, openDeleteRoom: this.openDeleteRoom, closeDeleteRoom: this.closeDeleteRoom, confirmDeleteRoom: this.confirmDeleteRoom,
       selectedRoomOccupied: !!selectedRoomRaw.tenant, selectedRoomVacant: !selectedRoomRaw.tenant,
       showDeleteContract: s.showDeleteContract, closeDeleteContract: this.closeDeleteContract, confirmDeleteContract: this.confirmDeleteContract,
