@@ -1360,6 +1360,43 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showClaudeChart }}">
+          <div onclick="{{ closeClaudeChart }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:520px;max-width:92vw;box-sizing:border-box">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                <div style="font-size:16px;font-weight:700;color:#241812">{{ claudeChart.title }}</div>
+                <div onclick="{{ closeClaudeChart }}" style="cursor:pointer;color:#A89A88;font-size:18px;line-height:1">✕</div>
+              </div>
+              <div style="display:flex;align-items:flex-end;gap:14px;height:160px;overflow-x:auto;padding-bottom:4px">
+                <sc-for list="{{ claudeChart.categories }}" as="cc" hint-placeholder-count="5">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;min-width:36px">
+                    <div style="display:flex;align-items:flex-end;gap:3px;height:120px">
+                      <sc-if value="{{ cc.hasBar1 }}" hint-placeholder-val="{{ true }}">
+                        <div style="width:11px;height:{{ cc.bar1Height }};background:{{ cc.bar1Color }};border-radius:2px 2px 0 0"></div>
+                      </sc-if>
+                      <sc-if value="{{ cc.hasBar2 }}" hint-placeholder-val="{{ false }}">
+                        <div style="width:11px;height:{{ cc.bar2Height }};background:{{ cc.bar2Color }};border-radius:2px 2px 0 0"></div>
+                      </sc-if>
+                      <sc-if value="{{ cc.hasBar3 }}" hint-placeholder-val="{{ false }}">
+                        <div style="width:11px;height:{{ cc.bar3Height }};background:{{ cc.bar3Color }};border-radius:2px 2px 0 0"></div>
+                      </sc-if>
+                    </div>
+                    <div style="font-size:10px;color:#7C6E5F;white-space:nowrap">{{ cc.label }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:14px;margin-top:14px;flex-wrap:wrap">
+                <sc-for list="{{ claudeChart.legend }}" as="lg" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:2px;background:{{ lg.color }}"></div><span style="font-size:11.5px;color:#7C6E5F">{{ lg.name }}</span></div>
+                </sc-for>
+              </div>
+              <sc-if value="{{ claudeChart.hasInsight }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:14px;padding:12px;border-radius:7px;background:#FBF7F0;border:1px solid #F0E9DC;font-size:12.5px;color:#241812;line-height:1.6">{{ claudeChart.insight }}</div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showClaudeEmailModal }}">
           <div onclick="{{ closeClaudeEmailModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;box-sizing:border-box">
@@ -1829,6 +1866,8 @@ class Component extends DCLogic {
     claudeConfirmDescription: '',
     claudeConfirmAction: '',
     claudeConfirmParams: null,
+    showClaudeChart: false,
+    claudeChart: null,
     lineConn: { channelId: '', channelSecret: '', accessToken: '', connected: false },
     lineEnvConnected: false,
     sheetEnvConnected: false,
@@ -2464,6 +2503,15 @@ class Component extends DCLogic {
           claudeConfirmParams: data.params,
           claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: data.description }],
         }));
+      } else if (data.type === 'chart') {
+        const note = 'แสดงกราฟ "' + data.title + '" ให้แล้ว' + (data.insight ? '\n\n' + data.insight : '');
+        this.setState(s => ({
+          claudeCommandLoading: false,
+          claudeCommandInput: '',
+          showClaudeChart: true,
+          claudeChart: data,
+          claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: note }],
+        }));
       } else {
         this.setState(s => ({
           claudeCommandLoading: false,
@@ -2477,6 +2525,7 @@ class Component extends DCLogic {
       this.showAdminToast(err.message || 'ทำคำสั่งไม่สำเร็จ');
     }
   };
+  closeClaudeChart = () => this.setState({ showClaudeChart: false, claudeChart: null });
   closeClaudeConfirm = () => this.setState({ showClaudeConfirm: false, claudeConfirmAction: '', claudeConfirmParams: null });
   confirmClaudeCommand = async () => {
     const { claudeConfirmAction, claudeConfirmParams } = this.state;
@@ -3586,6 +3635,27 @@ class Component extends DCLogic {
 
     const paymentHistoryView = s.paymentHistory.map(p => ({ month: p.month, amountDisplay: this.fmt(p.amount), date: p.date }));
 
+    // ---- Claude command-box "show_chart" popup — flattened to fixed bar1/bar2/bar3
+    // slots (max 3 series) instead of a nested loop, matching how the
+    // dashboard's own revenue/expense chart is built.
+    let claudeChartView = null;
+    if (s.claudeChart) {
+      const c = s.claudeChart;
+      const seriesColors = ['#C1622D', '#8AA6A3', '#D9A15B'];
+      const series = (c.series || []).slice(0, 3);
+      const allValues = series.flatMap(sr => (sr.values || []).map(v => Number(v) || 0));
+      const maxVal = Math.max(1, ...allValues, 0);
+      const pct = (v) => Math.max(2, Math.round(((Number(v) || 0) / maxVal) * 100)) + '%';
+      const categories = (c.xLabels || []).map((label, i) => ({
+        label,
+        hasBar1: !!series[0], bar1Height: series[0] ? pct(series[0].values[i]) : '2%', bar1Color: seriesColors[0],
+        hasBar2: !!series[1], bar2Height: series[1] ? pct(series[1].values[i]) : '2%', bar2Color: seriesColors[1],
+        hasBar3: !!series[2], bar3Height: series[2] ? pct(series[2].values[i]) : '2%', bar3Color: seriesColors[2],
+      }));
+      const legend = series.map((sr, si) => ({ name: sr.name, color: seriesColors[si] }));
+      claudeChartView = { title: c.title, insight: c.insight || '', categories, legend, hasInsight: !!c.insight };
+    }
+
     const vw = s.viewportWidth || 1400;
     const isNarrow = vw < 860;
     const pagePad = isNarrow ? 0 : 56;
@@ -3830,6 +3900,7 @@ class Component extends DCLogic {
       claudeConfirmDescription: s.claudeConfirmDescription,
       closeClaudeConfirm: this.closeClaudeConfirm,
       confirmClaudeCommand: this.confirmClaudeCommand,
+      showClaudeChart: s.showClaudeChart, claudeChart: claudeChartView, closeClaudeChart: this.closeClaudeChart,
       onMeterPhotoUpload: this.onMeterPhotoUpload,
       meterPhotoButtonLabel: s.meterPhotoLoading ? 'กำลังอ่านมิเตอร์...' : '📷 เลือกรูปมิเตอร์น้ำ',
       meterReadingResults: s.meterReadings.map(m => ({

@@ -111,6 +111,15 @@ router.post('/command', async (req, res, next) => {
       const toolUse = resp.content.find((c) => c.type === 'tool_use');
       if (!toolUse) return res.json({ type: 'answer', text: extractText(resp) || 'ขอโทษครับ ไม่เข้าใจคำสั่งนี้' });
 
+      if (toolUse.name === 'show_chart') {
+        // Not a data mutation and not a data lookup either — Claude has
+        // already gathered the real numbers via get_* tools in an earlier
+        // turn and is now just asking the frontend to render them. No
+        // confirm popup needed (nothing destructive happens), so this is its
+        // own response type distinct from both 'answer' and 'confirm'.
+        return res.json({ type: 'chart', ...toolUse.input });
+      }
+
       if (!READ_TOOL_NAMES.has(toolUse.name)) {
         // Write/mutating action — never auto-execute. Hand back to the
         // frontend as a pending confirmation; nothing has happened yet.
