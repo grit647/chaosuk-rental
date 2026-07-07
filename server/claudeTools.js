@@ -154,6 +154,11 @@ const TOOLS = [
     input_schema: { type: 'object', properties: { roomId: { type: 'string', description: 'เลขห้องที่จะลบ' } }, required: ['roomId'] },
   },
   {
+    name: 'open_contract_form',
+    description: 'เปิดฟอร์มกรอก/แก้ไขสัญญาเช่าของห้องหนึ่งให้ผู้ใช้กรอกเอง — ใช้เครื่องมือนี้ทุกครั้งที่ถูกขอให้เพิ่ม/แก้ไขข้อมูลผู้เช่าหรือสัญญาเช่า (ชื่อผู้เช่า, เบอร์โทร, วันเข้าอยู่, วันสิ้นสุดสัญญา, ค่าเช่า, รหัส WiFi, รูปบัตรประชาชน, ไฟล์สัญญา ฯลฯ) เพราะมีข้อมูลบางส่วน (รูปภาพ/ไฟล์) ที่กรอกผ่านแชทไม่ได้ ต้องให้ผู้ใช้กรอกในฟอร์มจริงเสมอ — ไม่ต้องพยายามถามข้อมูลผู้เช่าเองทีละช่องในแชท แค่เปิดฟอร์มให้ก็พอ',
+    input_schema: { type: 'object', properties: { roomId: { type: 'string', description: 'เลขห้องที่จะเปิดฟอร์มสัญญาเช่าให้' } }, required: ['roomId'] },
+  },
+  {
     name: 'add_calendar_event',
     description: 'เพิ่มนัดหมาย/กิจกรรมลงปฏิทินระบบ — ต้องยืนยันก่อนทำจริง สำคัญ: ต้องระบุ "เวลา" เสมอ (ถ้าผู้ใช้ไม่ได้บอกเวลา ให้ถามก่อน อย่าเดาเวลาเอง) และควรระบุว่าจะแจ้งเตือนผ่านช่องทางไหน — หมายเหตุ: การบันทึกช่องทางแจ้งเตือนตอนนี้เป็นแค่การบันทึกข้อมูลไว้อ้างอิง ระบบยังไม่ส่งการแจ้งเตือนอัตโนมัติเมื่อถึงเวลานัดหมายจริง (เป็นฟีเจอร์ที่ยังไม่ได้สร้าง)',
     input_schema: {
@@ -362,6 +367,8 @@ async function describeWriteTool(name, input) {
       const warn = room && room.tenant ? ` ⚠️ ห้องนี้มีผู้เช่าอยู่ (${room.tenant}) — ควรตรวจสอบก่อนลบ` : '';
       return `ลบห้อง ${input.roomId} ออกจากระบบทั้งหมด (ลบแล้วกู้คืนไม่ได้)${warn}`;
     }
+    case 'open_contract_form':
+      return `เปิดฟอร์มสัญญาเช่าห้อง ${input.roomId} ให้กรอก`;
     case 'schedule_line_message': {
       const dateStr = `${input.year}-${String(input.month).padStart(2, '0')}-${String(input.day).padStart(2, '0')}`;
       const target = input.roomId === 'all' ? 'ทุกห้องที่เชื่อมต่อ LINE แล้ว' : 'ห้อง ' + input.roomId;
@@ -523,6 +530,11 @@ async function executeWriteTool(name, input) {
     case 'delete_room':
       await deleteRow('Rooms', input.roomId);
       return { ok: true, message: `ลบห้อง ${input.roomId} ออกจากระบบแล้ว` };
+    case 'open_contract_form':
+      // No-op here — the frontend intercepts this action before ever calling
+      // /command/confirm and opens the native contract form directly instead.
+      // This only runs if something calls confirm anyway; harmless either way.
+      return { ok: true, message: `เปิดฟอร์มสัญญาเช่าห้อง ${input.roomId} แล้ว` };
     case 'schedule_line_message': {
       const sendAt = `${input.year}-${String(input.month).padStart(2, '0')}-${String(input.day).padStart(2, '0')}T${input.time}`;
       await appendRow('ScheduledMessages', {
