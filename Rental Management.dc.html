@@ -381,19 +381,34 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                  of sitting side-by-side (which forced a fixed-width detail
                  panel + 3-col grid to compete for space and overflow on
                  narrow screens). Tap any room card to select it — the detail
-                 panel below always shows whichever room is selected. Cards
-                 are compact (3-4 per row) and capped to ~2 rows tall — use
-                 the filter chips or the room's own scroll to find the rest. -->
+                 panel below always shows whichever room is selected.
+                 Exactly 3 cards per "page" — more than 3 rooms paginate via
+                 the ‹ › arrows instead of wrapping to more rows or scrolling. -->
             <div style="display:flex;flex-direction:column;gap:16px">
-              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));grid-auto-rows:min-content;gap:8px;max-height:196px;overflow-y:auto">
-                <sc-for list="{{ roomsFiltered }}" as="r" hint-placeholder-count="15">
-                  <div onclick="{{ r.onClick }}" style="background:#FFFFFF;border-radius:7px;padding:8px;cursor:pointer;box-sizing:border-box;border:{{ r.cardBorder }}">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#241812">{{ r.id }}</span><span style="font-size:8.5px;font-weight:600;padding:1px 4px;border-radius:4px;background:{{ r.badgeBg }};color:{{ r.badgeColor }};white-space:nowrap">{{ r.statusLabel }}</span></div>
-                    <div style="font-size:9.5px;color:#7C6E5F;margin-bottom:5px">ชั้น {{ r.floor }}</div>
-                    <div style="font-size:10.5px;color:{{ r.tenantColor }};font-weight:{{ r.tenantWeight }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.tenantDisplay }}</div>
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#7C6E5F">{{ r.rentDisplay }}</div>
-                  </div>
-                </sc-for>
+              <div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                  <sc-for list="{{ roomsPageItems }}" as="r" hint-placeholder-count="3">
+                    <div onclick="{{ r.onClick }}" style="background:#FFFFFF;border-radius:7px;padding:8px;cursor:pointer;box-sizing:border-box;border:{{ r.cardBorder }}">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#241812">{{ r.id }}</span><span style="font-size:8.5px;font-weight:600;padding:1px 4px;border-radius:4px;background:{{ r.badgeBg }};color:{{ r.badgeColor }};white-space:nowrap">{{ r.statusLabel }}</span></div>
+                      <div style="font-size:9.5px;color:#7C6E5F;margin-bottom:5px">ชั้น {{ r.floor }}</div>
+                      <div style="font-size:10.5px;color:{{ r.tenantColor }};font-weight:{{ r.tenantWeight }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.tenantDisplay }}</div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#7C6E5F">{{ r.rentDisplay }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;min-height:18px">
+                  <sc-if value="{{ hasPrevRoomPage }}" hint-placeholder-val="{{ false }}">
+                    <div onclick="{{ prevRoomPage }}" style="cursor:pointer;font-size:10.5px;color:#7C6E5F;display:flex;align-items:center;gap:4px;font-weight:600">
+                      <span style="font-size:13px">‹</span> {{ prevRoomCount }} รายการ
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ noPrevRoomPage }}" hint-placeholder-val="{{ true }}"><div></div></sc-if>
+                  <sc-if value="{{ hasNextRoomPage }}" hint-placeholder-val="{{ false }}">
+                    <div onclick="{{ nextRoomPage }}" style="cursor:pointer;font-size:10.5px;color:#7C6E5F;display:flex;align-items:center;gap:4px;font-weight:600">
+                      {{ nextRoomCount }} รายการ <span style="font-size:13px">›</span>
+                    </div>
+                  </sc-if>
+                </div>
               </div>
 
               <div style="width:100%;max-width:480px;background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
@@ -1976,6 +1991,7 @@ class Component extends DCLogic {
     selectedRoomId: '302',
     roomSearch: '',
     roomFilter: 'all',
+    roomCardPage: 0,
     tenantSearch: '',
     billingFilter: 'all',
     showInvoiceModal: false,
@@ -3142,8 +3158,10 @@ class Component extends DCLogic {
 
   selectRoomAndGo = (id) => this.setState({ selectedRoomId: id, activeNav: 'rooms' });
   selectRoomOnly = (id) => this.setState({ selectedRoomId: id });
-  setRoomFilter = (f) => this.setState({ roomFilter: f });
-  onRoomSearchChange = (e) => this.setState({ roomSearch: e.target.value });
+  setRoomFilter = (f) => this.setState({ roomFilter: f, roomCardPage: 0 });
+  onRoomSearchChange = (e) => this.setState({ roomSearch: e.target.value, roomCardPage: 0 });
+  prevRoomPage = () => this.setState(s => ({ roomCardPage: Math.max(0, s.roomCardPage - 1) }));
+  nextRoomPage = () => this.setState(s => ({ roomCardPage: s.roomCardPage + 1 }));
   onTenantSearchChange = (e) => this.setState({ tenantSearch: e.target.value });
   setBillingFilter = (f) => this.setState({ billingFilter: f });
 
@@ -3741,6 +3759,19 @@ class Component extends DCLogic {
       };
     });
 
+    // Room cards: exactly 3 per "page", paginated with ‹ › arrows instead of
+    // wrapping to more rows or scrolling — clamp the page index in case a
+    // filter/search shrank the list out from under the current page.
+    const ROOMS_PER_PAGE = 3;
+    const roomPageCount = Math.max(1, Math.ceil(roomsFiltered.length / ROOMS_PER_PAGE));
+    const roomCardPage = Math.min(s.roomCardPage, roomPageCount - 1);
+    const roomPageStart = roomCardPage * ROOMS_PER_PAGE;
+    const roomsPageItems = roomsFiltered.slice(roomPageStart, roomPageStart + ROOMS_PER_PAGE);
+    const prevRoomCount = roomPageStart;
+    const nextRoomCount = Math.max(0, roomsFiltered.length - (roomPageStart + ROOMS_PER_PAGE));
+    const hasPrevRoomPage = prevRoomCount > 0;
+    const hasNextRoomPage = nextRoomCount > 0;
+
     const selectedRoomRaw = s.rooms.find(r => r.id === s.selectedRoomId) || s.rooms[0] || {
       id: '', status: 'vacant', tenant: '', phone: '', moveIn: '', contractEnd: '',
       rent: 0, deposit: 0, dueDay: '', wifiCode: '', tenantIdExpiry: '', leaseDocName: '',
@@ -4252,6 +4283,8 @@ class Component extends DCLogic {
       roomSearch: s.roomSearch, onRoomSearchChange: this.onRoomSearchChange,
       roomFilterChips, roomsCountLabel: 'แสดง ' + roomsFiltered.length + ' จาก ' + s.rooms.length + ' ห้อง',
       roomsFiltered, selectedRoom, openRoomEdit: this.openRoomEdit, openContractModal: this.openContractModal,
+      roomsPageItems, prevRoomPage: this.prevRoomPage, nextRoomPage: this.nextRoomPage,
+      prevRoomCount, nextRoomCount, hasPrevRoomPage, hasNextRoomPage, noPrevRoomPage: !hasPrevRoomPage,
       showDeleteRoom: s.showDeleteRoom, openDeleteRoom: this.openDeleteRoom, closeDeleteRoom: this.closeDeleteRoom, confirmDeleteRoom: this.confirmDeleteRoom,
       selectedRoomOccupied: !!selectedRoomRaw.tenant, selectedRoomVacant: !selectedRoomRaw.tenant,
       showDeleteContract: s.showDeleteContract, closeDeleteContract: this.closeDeleteContract, confirmDeleteContract: this.confirmDeleteContract,
