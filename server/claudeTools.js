@@ -29,6 +29,11 @@ const TOOLS = [
     input_schema: { type: 'object', properties: {} },
   },
   {
+    name: 'check_lease_completeness',
+    description: 'ตรวจสอบว่าสัญญาเช่าของแต่ละห้อง (ที่มีผู้เช่าอยู่) มีข้อมูลครบถ้วนหรือไม่ — เช็คว่าขาดข้อมูลอะไรบ้าง เช่น เบอร์โทร, วันเข้าอยู่, วันสิ้นสุดสัญญา, วันครบกำหนดชำระ, รหัส WiFi, รูปบัตรประชาชนผู้เช่า, วันหมดอายุบัตร, ไฟล์สัญญาเช่า ใช้เมื่อถูกถามว่าห้องไหน/สัญญาไหนข้อมูลยังไม่ครบ',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
     name: 'get_pending_invoices',
     description: 'ดูรายการบิล/ใบแจ้งหนี้ที่ยังไม่ได้ชำระ (ค้างจ่าย)',
     input_schema: { type: 'object', properties: {} },
@@ -220,7 +225,7 @@ const TOOLS = [
   },
 ];
 
-const READ_TOOL_NAMES = new Set(['get_rooms', 'get_pending_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary', 'get_electricity_log', 'get_calendar_events']);
+const READ_TOOL_NAMES = new Set(['get_rooms', 'check_lease_completeness', 'get_pending_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary', 'get_electricity_log', 'get_calendar_events']);
 
 async function executeReadTool(name, input) {
   switch (name) {
@@ -231,6 +236,27 @@ async function executeReadTool(name, input) {
         waterPrev: r.waterPrev, waterCurr: r.waterCurr, elecPrev: r.elecPrev, elecCurr: r.elecCurr,
         lineConnected: !!r.lineUserId,
       }));
+    case 'check_lease_completeness': {
+      const rooms = coerceRooms(await readTab('Rooms'));
+      // Only rooms with a tenant are expected to have a full contract on
+      // file — a vacant room having no phone/WiFi/ID card yet is normal,
+      // not a gap.
+      const occupied = rooms.filter((r) => r.tenant && String(r.tenant).trim());
+      const REQUIRED = [
+        ['phone', 'เบอร์โทรผู้เช่า'],
+        ['moveIn', 'วันที่เข้าอยู่'],
+        ['contractEnd', 'วันสิ้นสุดสัญญา'],
+        ['dueDay', 'วันครบกำหนดชำระรายเดือน'],
+        ['wifiCode', 'รหัส WiFi'],
+        ['tenantIdImg', 'รูปบัตรประชาชนผู้เช่า'],
+        ['tenantIdExpiry', 'วันหมดอายุบัตรประชาชน'],
+        ['leaseDocName', 'ไฟล์สัญญาเช่า'],
+      ];
+      return occupied.map((r) => {
+        const missing = REQUIRED.filter(([key]) => !r[key] || !String(r[key]).trim()).map(([, label]) => label);
+        return { room: r.id, tenant: r.tenant, complete: missing.length === 0, missing };
+      });
+    }
     case 'get_pending_invoices': {
       const invoices = coerceInvoices(await readTab('Invoices'));
       return invoices.filter((i) => i.status !== 'paid');
