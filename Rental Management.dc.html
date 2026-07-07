@@ -1679,7 +1679,11 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <sc-if value="{{ showRecurringConfirmStage }}" hint-placeholder-val="{{ false }}">
                 <div style="border-top:1px dashed #E3D8C8;padding-top:14px">
                   <div style="font-size:12.5px;font-weight:700;color:#241812;margin-bottom:8px">Claude เข้าใจว่า:</div>
-                  <div style="padding:12px;border-radius:8px;background:#FBF3EC;border:1px solid #F0DFCF;font-size:12.5px;color:#241812;line-height:1.6;margin-bottom:12px">{{ recurringParsed.humanSummary }}</div>
+                  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+                    <sc-for list="{{ recurringParsedTasksView }}" as="pt" hint-placeholder-count="2">
+                      <div style="padding:12px;border-radius:8px;background:#FBF3EC;border:1px solid #F0DFCF;font-size:12.5px;color:#241812;line-height:1.6">{{ pt.humanSummary }}</div>
+                    </sc-for>
+                  </div>
                   <div style="display:flex;gap:10px">
                     <div onclick="{{ cancelRecurringParse }}" style="flex:1;padding:10px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:12.5px;font-weight:600;cursor:pointer;text-align:center">แก้ไขใหม่</div>
                     <div onclick="{{ confirmSaveRecurring }}" style="flex:1.3;padding:10px;border-radius:7px;background:#3B7A52;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;text-align:center">{{ recurringSaveButtonLabel }}</div>
@@ -2150,7 +2154,8 @@ class Component extends DCLogic {
     recurringInput: '',
     recurringParseLoading: false,
     recurringParseError: '',
-    recurringParsed: null,
+    recurringParsedTasks: null,
+    recurringParsedInstruction: '',
     recurringSaveLoading: false,
     claudeApiConnected: false,
     meterPhotoLoading: false,
@@ -3801,7 +3806,7 @@ class Component extends DCLogic {
   // confirmSaveRecurring persist it. The scheduler (server/automation.js)
   // re-runs the reviewed actionSummary on schedule, unattended.
   openRecurringModal = () => {
-    this.setState({ showRecurringModal: true, recurringParsed: null, recurringParseError: '', recurringInput: '' });
+    this.setState({ showRecurringModal: true, recurringParsedTasks: null, recurringParsedInstruction: '', recurringParseError: '', recurringInput: '' });
     this.loadRecurringTasks();
   };
   closeRecurringModal = () => this.setState({ showRecurringModal: false });
@@ -3815,6 +3820,10 @@ class Component extends DCLogic {
     } catch (err) { console.error(err); }
   };
 
+  // One freeform instruction can expand into several independently-scheduled
+  // sub-tasks (e.g. a full rent-collection policy has a bill day, a reminder
+  // day, an overdue-check day...) — /parse always returns an array, even for
+  // a single-task result, so the confirm stage always shows a list.
   parseRecurringCommand = async () => {
     const instruction = (this.state.recurringInput || '').trim();
     if (!instruction) return;
@@ -3825,25 +3834,26 @@ class Component extends DCLogic {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'แปลคำสั่งไม่สำเร็จ');
-      this.setState({ recurringParsed: data, recurringParseLoading: false });
+      this.setState({ recurringParsedTasks: data.tasks, recurringParsedInstruction: data.instruction, recurringParseLoading: false });
     } catch (err) {
       this.setState({ recurringParseError: err.message, recurringParseLoading: false });
     }
   };
-  cancelRecurringParse = () => this.setState({ recurringParsed: null, recurringParseError: '' });
+  cancelRecurringParse = () => this.setState({ recurringParsedTasks: null, recurringParseError: '' });
 
   confirmSaveRecurring = async () => {
-    const p = this.state.recurringParsed;
-    if (!p) return;
+    const tasks = this.state.recurringParsedTasks;
+    if (!tasks || !tasks.length) return;
     this.setState({ recurringSaveLoading: true });
     try {
       const res = await fetch('/api/recurring-tasks', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instruction: this.state.recurringParsedInstruction, tasks }),
       });
       if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
-      this.setState({ recurringParsed: null, recurringInput: '', recurringSaveLoading: false });
+      this.setState({ recurringParsedTasks: null, recurringInput: '', recurringSaveLoading: false });
       await this.loadRecurringTasks();
-      this.showAdminToast('บันทึกคำสั่งงานประจำแล้ว');
+      this.showAdminToast(tasks.length > 1 ? `บันทึกคำสั่งงานประจำ ${tasks.length} รายการแล้ว` : 'บันทึกคำสั่งงานประจำแล้ว');
     } catch (err) {
       this.setState({ recurringSaveLoading: false });
       this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
@@ -4711,11 +4721,12 @@ class Component extends DCLogic {
       showRecurringModal: s.showRecurringModal, openRecurringModal: this.openRecurringModal, closeRecurringModal: this.closeRecurringModal,
       recurringTasks: recurringTasksView, noRecurringTasks: recurringTasksView.length === 0,
       recurringInput: s.recurringInput, onRecurringInputChange: this.onRecurringInputChange,
-      recurringParseError: s.recurringParseError, recurringParsed: s.recurringParsed,
-      showRecurringParseStage: !s.recurringParsed, showRecurringConfirmStage: !!s.recurringParsed,
+      recurringParseError: s.recurringParseError,
+      recurringParsedTasksView: (s.recurringParsedTasks || []).map(t => ({ humanSummary: t.humanSummary })),
+      showRecurringParseStage: !s.recurringParsedTasks, showRecurringConfirmStage: !!s.recurringParsedTasks,
       parseRecurringCommand: this.parseRecurringCommand, cancelRecurringParse: this.cancelRecurringParse, confirmSaveRecurring: this.confirmSaveRecurring,
       recurringParseButtonLabel: s.recurringParseLoading ? 'กำลังแปลคำสั่ง...' : 'แปลคำสั่ง',
-      recurringSaveButtonLabel: s.recurringSaveLoading ? 'กำลังบันทึก...' : 'ยืนยันบันทึก',
+      recurringSaveButtonLabel: s.recurringSaveLoading ? 'กำลังบันทึก...' : (s.recurringParsedTasks && s.recurringParsedTasks.length > 1 ? `ยืนยันบันทึกทั้งหมด (${s.recurringParsedTasks.length} รายการ)` : 'ยืนยันบันทึก'),
 
       waterRate: s.waterRate, elecRate: s.elecRate, onWaterRateChange: this.onWaterRateChange, onElecRateChange: this.onElecRateChange,
       waterReportView, elecReportView,
