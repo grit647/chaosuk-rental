@@ -68,12 +68,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               🔴 กำลังฟัง... พูดได้เลยครับ (แตะไมค์อีกครั้งเพื่อหยุด)
             </div>
           </sc-if>
-          <div style="display:flex;align-items:center;gap:8px;background:#FFFFFF;border:1px solid #E3D8C8;border-radius:24px;padding:6px 8px 6px 14px">
-            <div onclick="{{ clearClaudeCommandHistory }}" title="ล้างการสนทนา" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#7C6E5F;font-size:16px;flex-shrink:0">+</div>
-            <input value="{{ claudeCommandInput }}" onchange="{{ onClaudeCommandInput }}" onkeydown="{{ onClaudeCommandKeyDown }}" placeholder="เช่น ห้องไหนค้างจ่ายบ้าง" style="flex:1;padding:8px 0;border:none;outline:none;font-size:13px;box-sizing:border-box;background:transparent">
-            <div onclick="{{ toggleClaudeVoiceInput }}" title="พูดแทนพิมพ์" style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:{{ claudeListeningBg }};color:{{ claudeListeningColor }};font-size:15px">🎤</div>
-            <div onclick="{{ toggleClaudeDrivingMode }}" title="โหมดกำลังขับรถ" style="display:flex;align-items:center;gap:5px;padding:7px 10px;border-radius:16px;cursor:pointer;background:{{ claudeDrivingModeBg }};color:{{ claudeDrivingModeColor }};font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0">🚗</div>
-            <div onclick="{{ sendClaudeCommand }}" style="padding:9px 16px;border-radius:20px;background:#D97757;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">{{ claudeCommandButtonLabel }}</div>
+          <div style="display:flex;align-items:center;gap:5px;background:#FFFFFF;border:1px solid #E3D8C8;border-radius:24px;padding:6px 6px 6px 12px">
+            <div onclick="{{ clearClaudeCommandHistory }}" title="ล้างการสนทนา" style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#7C6E5F;font-size:16px;flex-shrink:0">+</div>
+            <input value="{{ claudeCommandInput }}" onchange="{{ onClaudeCommandInput }}" onkeydown="{{ onClaudeCommandKeyDown }}" placeholder="พิมพ์คำสั่ง..." style="flex:1;min-width:0;padding:8px 0;border:none;outline:none;font-size:13px;box-sizing:border-box;background:transparent">
+            <div onclick="{{ toggleClaudeVoiceInput }}" title="พูดแทนพิมพ์" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:{{ claudeListeningBg }};color:{{ claudeListeningColor }};font-size:14px">🎤</div>
+            <div onclick="{{ toggleClaudeDrivingMode }}" title="โหมดกำลังขับรถ" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:{{ claudeDrivingModeBg }};color:{{ claudeDrivingModeColor }};font-size:13px">🚗</div>
+            <div onclick="{{ sendClaudeCommand }}" title="{{ claudeCommandButtonLabel }}" style="width:32px;height:32px;border-radius:50%;background:#D97757;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">➤</div>
           </div>
         </div>
 
