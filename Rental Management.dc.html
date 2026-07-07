@@ -2683,9 +2683,13 @@ class Component extends DCLogic {
         // out. Submitting goes through the normal submitAddRoom flow, not the
         // Claude confirm endpoint.
         const p = data.params || {};
+        // This modal only exists in the normal admin-app view, not in the
+        // full-screen mobile AI mode — switching mobileAiMode off here is
+        // what actually makes it visible when the command came from that view.
         this.setState(s => ({
           claudeCommandLoading: false,
           claudeCommandInput: '',
+          mobileAiMode: false,
           showAddRoomModal: true,
           newRoom: { id: p.roomId || '', floor: String(p.floor || '1'), rent: p.rent != null ? String(p.rent) : '', deposit: p.deposit != null ? String(p.deposit) : '', photos: [] },
           claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: 'เปิดฟอร์มเพิ่มห้องให้แล้ว กรอกข้อมูลที่เหลือแล้วกดบันทึกในฟอร์มได้เลยครับ' }],
@@ -2697,12 +2701,16 @@ class Component extends DCLogic {
         // off to the real "กรอกข้อมูลสัญญาเช่า" form/page instead of asking
         // for details in text. openContractForm() itself pre-fills from
         // whatever's already on file for that room.
+        // The contract page/form only exists in the normal admin-app view —
+        // same reasoning as create_room above, switch mobileAiMode off so
+        // _nav's page change is actually visible.
         const roomId = (data.params || {}).roomId;
         this.openContractForm(roomId);
         this._nav({ activeNav: 'contracts' });
         this.setState(s => ({
           claudeCommandLoading: false,
           claudeCommandInput: '',
+          mobileAiMode: false,
           claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: 'เปิดฟอร์มสัญญาเช่าห้อง ' + roomId + ' ให้แล้ว กรอก/แก้ไขข้อมูลในฟอร์มแล้วกดบันทึกได้เลยครับ' }],
         }));
         this.speakClaudeText('เปิดฟอร์มสัญญาเช่าห้อง ' + roomId + ' ให้แล้วครับ');
