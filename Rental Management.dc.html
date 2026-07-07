@@ -1342,8 +1342,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <span style="font-size:15px">🔔</span>
                   <div style="font-size:14px;font-weight:700;color:#F1EBE0">รายการแจ้งเตือนที่จะถึง</div>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:9px">
-                  <sc-for list="{{ upcomingReminders }}" as="r" hint-placeholder-count="5">
+                <div ontouchstart="{{ onReminderTouchStart }}" ontouchend="{{ onReminderTouchEnd }}" style="display:flex;flex-direction:column;gap:9px">
+                  <sc-for list="{{ upcomingRemindersPageItems }}" as="r" hint-placeholder-count="3">
                     <div style="background:rgba(241,235,224,0.07);border-radius:8px;padding:11px 12px">
                       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
                         <span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:5px;color:{{ r.tColor }};background:{{ r.tBg }}">{{ r.type }}</span>
@@ -1358,6 +1358,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       </div>
                     </div>
                   </sc-for>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;min-height:16px">
+                  <sc-if value="{{ hasPrevReminderPage }}" hint-placeholder-val="{{ false }}">
+                    <div onclick="{{ prevReminderPage }}" style="cursor:pointer;font-size:10.5px;color:#C1A98A;display:flex;align-items:center;gap:3px;font-weight:600">
+                      <span style="font-size:12px">‹</span> {{ prevReminderCount }} รายการ
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ noPrevReminderPage }}" hint-placeholder-val="{{ true }}"><div></div></sc-if>
+                  <sc-if value="{{ hasNextReminderPage }}" hint-placeholder-val="{{ false }}">
+                    <div onclick="{{ nextReminderPage }}" style="cursor:pointer;font-size:10.5px;color:#C1A98A;display:flex;align-items:center;gap:3px;font-weight:600">
+                      {{ nextReminderCount }} รายการ <span style="font-size:12px">›</span>
+                    </div>
+                  </sc-if>
                 </div>
               </div>
             </div>
@@ -2006,6 +2019,7 @@ class Component extends DCLogic {
     roomFilter: 'all',
     roomCardPage: 0,
     dashRoomPage: 0,
+    reminderPage: 0,
     tenantSearch: '',
     billingFilter: 'all',
     showInvoiceModal: false,
@@ -3201,6 +3215,18 @@ class Component extends DCLogic {
     if (Math.abs(dx) < 40) return;
     if (dx < 0) this.nextDashRoomPage(); else this.prevDashRoomPage();
   };
+
+  prevReminderPage = () => this.setState(s => ({ reminderPage: Math.max(0, s.reminderPage - 1) }));
+  nextReminderPage = () => this.setState(s => ({ reminderPage: s.reminderPage + 1 }));
+  _reminderTouchStartX = null;
+  onReminderTouchStart = (e) => { this._reminderTouchStartX = e.touches[0].clientX; };
+  onReminderTouchEnd = (e) => {
+    if (this._reminderTouchStartX == null) return;
+    const dx = e.changedTouches[0].clientX - this._reminderTouchStartX;
+    this._reminderTouchStartX = null;
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0) this.nextReminderPage(); else this.prevReminderPage();
+  };
   onTenantSearchChange = (e) => this.setState({ tenantSearch: e.target.value });
   setBillingFilter = (f) => this.setState({ billingFilter: f });
 
@@ -4184,7 +4210,6 @@ class Component extends DCLogic {
       .map(e => ({ e, val: e.y * 10000 + e.m * 100 + e.d }))
       .filter(x => x.val >= nowVal)
       .sort((a, b) => a.val - b.val || (a.e.time || '').localeCompare(b.e.time || ''))
-      .slice(0, 6)
       .map(x => {
         const m = this.calTypeMeta(x.e.type);
         // x.val - nowVal is NOT a day count (it's a base-100-per-field encoding,
@@ -4199,6 +4224,19 @@ class Component extends DCLogic {
         };
       });
     const calEventTypeOptions = s.calTypes;
+
+    // Same paginated-list treatment as the room-card carousels: show a few
+    // reminders at a time with ‹/› + swipe paging instead of an
+    // ever-growing vertical scroll as more events get added.
+    const REMINDERS_PER_PAGE = 3;
+    const reminderPageCount = Math.max(1, Math.ceil(upcomingReminders.length / REMINDERS_PER_PAGE));
+    const reminderPage = Math.min(s.reminderPage, reminderPageCount - 1);
+    const reminderPageStart = reminderPage * REMINDERS_PER_PAGE;
+    const upcomingRemindersPageItems = upcomingReminders.slice(reminderPageStart, reminderPageStart + REMINDERS_PER_PAGE);
+    const prevReminderCount = reminderPageStart;
+    const nextReminderCount = Math.max(0, upcomingReminders.length - (reminderPageStart + REMINDERS_PER_PAGE));
+    const hasPrevReminderPage = prevReminderCount > 0;
+    const hasNextReminderPage = nextReminderCount > 0;
 
 
     const bill302 = s.invoices.find(i => i.id === 'INV-2607-302');
@@ -4285,6 +4323,9 @@ class Component extends DCLogic {
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,
       upcomingReminders, upcomingCount: upcomingReminders.length,
+      upcomingRemindersPageItems, prevReminderPage: this.prevReminderPage, nextReminderPage: this.nextReminderPage,
+      prevReminderCount, nextReminderCount, hasPrevReminderPage, hasNextReminderPage, noPrevReminderPage: !hasPrevReminderPage,
+      onReminderTouchStart: this.onReminderTouchStart, onReminderTouchEnd: this.onReminderTouchEnd,
       calEventForm: s.calEventForm, calEventTypeOptions,
       onCalTitle: this.onCalTitle, onCalTime: this.onCalTime, onCalType: this.onCalType,
       addingCalType: s.addingCalType, newCalTypeText: s.newCalTypeText, toggleAddCalType: this.toggleAddCalType, onNewCalTypeText: this.onNewCalTypeText, confirmNewCalType: this.confirmNewCalType,
