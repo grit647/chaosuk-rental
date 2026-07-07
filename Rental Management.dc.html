@@ -1027,7 +1027,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">สัญญาเช่า</div>
-                <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">{{ contractsTotalCount }} สัญญาที่ใช้งานอยู่ · {{ contractsNearCount }} สัญญาใกล้ครบกำหนด</div>
+                <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">
+                  <div>{{ contractsTotalCount }} สัญญาที่ใช้งานอยู่</div>
+                  <div>{{ contractsNearCount }} สัญญาใกล้ครบกำหนด</div>
+                </div>
               </div>
               <div onclick="{{ newContractForm }}" style="background:#C1622D;color:#fff;font-size:12px;font-weight:600;padding:8px 12px;border-radius:7px;cursor:pointer;white-space:nowrap;flex-shrink:0">+ กรอกสัญญาใหม่</div>
             </div>
