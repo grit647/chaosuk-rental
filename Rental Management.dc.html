@@ -478,11 +478,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <sc-for list="{{ tenantsPageItems }}" as="t" hint-placeholder-count="3">
                     <div onclick="{{ t.onClick }}" style="background:#FFFFFF;border-radius:7px;padding:10px;cursor:pointer;box-sizing:border-box;border:{{ t.cardBorder }}">
                       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#241812">{{ t.room }}</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:{{ t.connBg }};color:{{ t.connColor }};white-space:nowrap"><span style="width:5px;height:5px;border-radius:50%;background:{{ t.connDot }}"></span>{{ t.connLabel }}</span></div>
-                      <div style="font-size:11px;color:#241812;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px">{{ t.name }}</div>
-                      <div style="display:flex;align-items:center;gap:6px">
-                        <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#7C6E5F">{{ t.phone }}</span>
-                        <a href="{{ t.telHref }}" onclick="{{ t.onCall }}" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:#3B7A52;color:#fff;text-decoration:none;font-size:11px" title="โทร">📞</a>
-                      </div>
+                      <div style="font-size:11px;color:#241812;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.name }}</div>
                     </div>
                   </sc-for>
                 </div>
@@ -509,19 +505,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
                     <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#241812">{{ selectedTenant.phone }}</span>
-                    <a href="{{ selectedTenant.telHref }}" onclick="{{ selectedTenant.onCall }}" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:#3B7A52;color:#fff;text-decoration:none;font-size:13px" title="โทร">📞</a>
+                    <a href="{{ selectedTenant.telHref }}" onclick="{{ selectedTenant.onCall }}" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:#C1622D;color:#fff;text-decoration:none;font-size:13px" title="โทร">📞</a>
                   </div>
                   <div style="font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">Token · การเชื่อมต่อ</div>
-                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                     <div style="display:flex;gap:3px;background:#F7F2E9;padding:2px;border-radius:6px;width:fit-content">
                       <span onclick="{{ selectedTenant.onSetAuto }}" style="font-size:10.5px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;background:{{ selectedTenant.autoBg }};color:{{ selectedTenant.autoColor }}">Auto (LINE)</span>
                       <span onclick="{{ selectedTenant.onSetManual }}" style="font-size:10.5px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;background:{{ selectedTenant.manualBg }};color:{{ selectedTenant.manualColor }}">กรอกเอง</span>
                     </div>
+                    <sc-if value="{{ selectedTenant.isManual }}" hint-placeholder-val="{{ false }}">
+                      <span onclick="{{ selectedTenant.onOpenConn }}" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:7px 14px;border-radius:6px;cursor:pointer;background:{{ selectedTenant.tokenBg }};color:{{ selectedTenant.tokenColor }};font-family:'IBM Plex Mono',monospace">{{ selectedTenant.tokenIcon }} {{ selectedTenant.tokenLabel }}</span>
+                    </sc-if>
+                    <span onclick="{{ selectedTenant.onSendNews }}" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;padding:8px 16px;border-radius:7px;cursor:pointer;background:#EDE4D6;color:#B85B27;white-space:nowrap">✉ ส่งข่าวสาร</span>
                   </div>
-                  <sc-if value="{{ selectedTenant.isManual }}" hint-placeholder-val="{{ false }}">
-                    <div style="margin-bottom:14px"><span onclick="{{ selectedTenant.onOpenConn }}" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:7px 14px;border-radius:6px;cursor:pointer;background:{{ selectedTenant.tokenBg }};color:{{ selectedTenant.tokenColor }};font-family:'IBM Plex Mono',monospace">{{ selectedTenant.tokenIcon }} {{ selectedTenant.tokenLabel }}</span></div>
-                  </sc-if>
-                  <div onclick="{{ selectedTenant.onSendNews }}" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;padding:9px 16px;border-radius:7px;cursor:pointer;background:#EDE4D6;color:#B85B27">✉ ส่งข่าวสาร</div>
                 </div>
               </sc-if>
             </div>
