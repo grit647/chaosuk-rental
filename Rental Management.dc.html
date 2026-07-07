@@ -211,10 +211,20 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </div>
 
-        <div style="flex:1;padding:{{ contentPadTop }}px 32px 28px;box-sizing:border-box;overflow:auto">
+        <div style="flex:1;padding:0 32px 28px;box-sizing:border-box;overflow:auto">
 
           <sc-if value="{{ showMobileMenuBtn }}" hint-placeholder-val="{{ false }}">
-            <div onclick="{{ toggleMobileNav }}" style="position:absolute;top:14px;left:14px;z-index:70;display:flex;align-items:center;gap:8px;background:#2B1D14;color:#F1EBE0;padding:9px 14px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(36,24,18,0.25)"><span style="font-size:16px">☰</span> เมนู</div>
+            <!-- Plain document-flow element (not position:absolute/sticky) so
+                 it physically pushes every page's own sticky header down and
+                 can never overlap it — previously this floated at a fixed
+                 coordinate independent of scroll/padding and ended up
+                 covering page titles/KPI numbers regardless of any padding
+                 adjustment on the content below it. Trade-off: this button
+                 scrolls away with the page instead of staying pinned, but
+                 that's a much smaller cost than silently covering content. -->
+            <div style="margin:0 -32px;padding:14px 32px 10px">
+              <div onclick="{{ toggleMobileNav }}" style="display:inline-flex;align-items:center;gap:8px;background:#2B1D14;color:#F1EBE0;padding:9px 14px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(36,24,18,0.25)"><span style="font-size:16px">☰</span> เมนู</div>
+            </div>
           </sc-if>
           <sc-if value="{{ showNavBackdrop }}" hint-placeholder-val="{{ false }}">
             <div onclick="{{ closeMobileNav }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.5);z-index:70"></div>
@@ -4065,12 +4075,6 @@ class Component extends DCLogic {
       navShadow: (isNarrow && s.mobileNavOpen) ? '8px 0 40px rgba(0,0,0,0.45)' : 'none',
       showMobileMenuBtn: isNarrow,
       showNavBackdrop: isNarrow && s.mobileNavOpen,
-      // Reserves room above the page so the floating "☰ เมนู" button (fixed
-      // near the top-left) never sits directly on top of each page's own
-      // title text — previously both occupied the same corner and the
-      // button visually chopped off the first character or two of every
-      // page heading on mobile.
-      contentPadTop: isNarrow ? 56 : 0,
       toggleMobileNav: this.toggleMobileNav, closeMobileNav: this.closeMobileNav,
       logout: this.logout,
       appRadius: isNarrow ? 0 : 14,
