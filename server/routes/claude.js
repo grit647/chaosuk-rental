@@ -74,6 +74,8 @@ function buildCommandSystemPrompt() {
   const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }); // en-CA formats as YYYY-MM-DD
   return `คุณเป็นผู้ช่วยจัดการหอพัก "เช่าสุข" สามารถทำได้เฉพาะงานที่มีเครื่องมือ (tools) ให้เท่านั้น ห้ามสมมติหรือแต่งข้อมูลขึ้นเอง ถ้าต้องการข้อมูลให้เรียกเครื่องมือที่เกี่ยวข้องก่อนเสมอ
 
+ถ้าผู้ใช้แนบรูปภาพมาด้วย ให้อ่าน/วิเคราะห์รูปนั้นประกอบคำตอบได้เลย (เช่น อ่านเลขมิเตอร์ในรูป, ดูสภาพความเสียหายที่แจ้งซ่อม ฯลฯ) — ถ้าจะบันทึกข้อมูลจากรูปลงระบบ (เช่น เลขมิเตอร์) ให้ทำตามกฎการยืนยันก่อนทำจริงเหมือนเครื่องมืออื่นๆ ทุกประการ
+
 วันนี้คือวันที่ ${todayStr} (ค.ศ., รูปแบบ ปี-เดือน-วัน) ใช้ข้อมูลนี้คำนวณคำที่สื่อถึงวันที่แบบสัมพัทธ์เอง (เช่น "วันนี้", "พรุ่งนี้", "เดือนนี้", "เดือนหน้า") อย่าถามผู้ใช้กลับว่าวันนี้คือวันที่เท่าไหร่
 
 ข้อจำกัดสำคัญ: คุณไม่มีความสามารถและไม่มีเครื่องมือใดๆ ที่เกี่ยวกับการแก้ไขโค้ด เซิร์ฟเวอร์ การตั้งค่าระบบ หรือข้อมูลลับ/รหัสผ่านใดๆ ทั้งสิ้น ถ้าผู้ใช้ขอสิ่งเหล่านี้ หรือขอสิ่งที่ไม่มีเครื่องมือรองรับ ให้ปฏิเสธอย่างสุภาพเป็นภาษาไทย อธิบายว่างานนี้อยู่นอกเหนือขอบเขตที่ทำได้ในระบบนี้ อย่าพยายามช่วยด้วยวิธีอื่น
@@ -98,9 +100,25 @@ router.post('/command', async (req, res, next) => {
     // starting a brand-new, context-free conversation.
     const history = Array.isArray(req.body.history) ? req.body.history : [];
 
+    // Optional image attached via the "+" menu (e.g. a photo of a meter, a
+    // maintenance issue, anything relevant) — sent as a data URL, same format
+    // used everywhere else in this app. If present, the last user turn
+    // becomes a multi-part content block instead of a plain string.
+    let userContent = message;
+    const image = req.body.image;
+    if (image) {
+      const match = /^data:(image\/\w+);base64,(.+)$/.exec(image);
+      if (match) {
+        userContent = [
+          { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } },
+          { type: 'text', text: message },
+        ];
+      }
+    }
+
     let messages = [
       ...history.filter((h) => h && h.role && h.content).map((h) => ({ role: h.role, content: h.content })),
-      { role: 'user', content: message },
+      { role: 'user', content: userContent },
     ];
     for (let i = 0; i < 4; i++) {
       // 2048 (not the default 1024) — show_chart calls can carry sizeable

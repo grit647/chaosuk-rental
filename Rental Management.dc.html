@@ -68,12 +68,29 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               🔴 กำลังฟัง... พูดได้เลยครับ (แตะไมค์อีกครั้งเพื่อหยุด)
             </div>
           </sc-if>
-          <div style="display:flex;align-items:center;gap:5px;background:#FFFFFF;border:1px solid #E3D8C8;border-radius:24px;padding:6px 6px 6px 12px">
-            <div onclick="{{ clearClaudeCommandHistory }}" title="ล้างการสนทนา" style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#7C6E5F;font-size:16px;flex-shrink:0">+</div>
-            <input value="{{ claudeCommandInput }}" onchange="{{ onClaudeCommandInput }}" onkeydown="{{ onClaudeCommandKeyDown }}" placeholder="พิมพ์คำสั่ง..." style="flex:1;min-width:0;padding:8px 0;border:none;outline:none;font-size:13px;box-sizing:border-box;background:transparent">
-            <div onclick="{{ toggleClaudeVoiceInput }}" title="พูดแทนพิมพ์" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:{{ claudeListeningBg }};color:{{ claudeListeningColor }};font-size:14px">🎤</div>
-            <div onclick="{{ toggleClaudeDrivingMode }}" title="โหมดกำลังขับรถ" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:{{ claudeDrivingModeBg }};color:{{ claudeDrivingModeColor }};font-size:13px">🚗</div>
-            <div onclick="{{ sendClaudeCommand }}" title="{{ claudeCommandButtonLabel }}" style="width:32px;height:32px;border-radius:50%;background:#D97757;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">➤</div>
+          <sc-if value="{{ claudeAttachedImage }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:8px;background:#FBF7F0;border:1px solid #F0E9DC;border-radius:8px;padding:6px 10px;margin-bottom:8px">
+              <img src="{{ claudeAttachedImage }}" style="width:32px;height:32px;object-fit:cover;border-radius:5px;flex-shrink:0">
+              <span style="font-size:11.5px;color:#7C6E5F;flex:1">แนบรูปแล้ว — จะส่งพร้อมข้อความ</span>
+              <span onclick="{{ removeClaudeAttachedImage }}" style="cursor:pointer;color:#B24336;font-size:11.5px;font-weight:600">ลบ</span>
+            </div>
+          </sc-if>
+          <div style="position:relative">
+            <sc-if value="{{ showClaudeAttachMenu }}" hint-placeholder-val="{{ false }}">
+              <div onclick="{{ closeClaudeAttachMenu }}" style="position:fixed;inset:0;z-index:74"></div>
+              <div style="position:absolute;bottom:calc(100% + 6px);left:0;z-index:75;background:#FFFFFF;border:1px solid #E3D8C8;border-radius:9px;box-shadow:0 8px 24px rgba(36,24,18,0.18);overflow:hidden;min-width:150px">
+                <div onclick="{{ triggerClaudeFileInput }}" style="padding:11px 14px;font-size:12.5px;color:#241812;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap">📎 เพิ่มไฟล์</div>
+                <div onclick="{{ clearClaudeCommandHistory }}" style="padding:11px 14px;font-size:12.5px;color:#241812;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;border-top:1px solid #F0E9DC">🗑️ เคลียร์หน้าแชท</div>
+              </div>
+            </sc-if>
+            <input id="claude-file-input-ai" type="file" accept="image/*" onchange="{{ onClaudeFileSelected }}" style="display:none">
+            <div style="display:flex;align-items:center;gap:5px;background:#FFFFFF;border:1px solid #E3D8C8;border-radius:24px;padding:6px 6px 6px 12px">
+              <div onclick="{{ toggleClaudeAttachMenu }}" title="เพิ่มไฟล์ / เคลียร์แชท" style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#7C6E5F;font-size:16px;flex-shrink:0">+</div>
+              <input value="{{ claudeCommandInput }}" onchange="{{ onClaudeCommandInput }}" onkeydown="{{ onClaudeCommandKeyDown }}" placeholder="พิมพ์คำสั่ง..." style="flex:1;min-width:0;padding:8px 0;border:none;outline:none;font-size:13px;box-sizing:border-box;background:transparent">
+              <div onclick="{{ toggleClaudeVoiceInput }}" title="พูดแทนพิมพ์" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:{{ claudeListeningBg }};color:{{ claudeListeningColor }};font-size:14px">🎤</div>
+              <div onclick="{{ toggleClaudeDrivingMode }}" title="โหมดกำลังขับรถ" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:{{ claudeDrivingModeBg }};color:{{ claudeDrivingModeColor }};font-size:13px">🚗</div>
+              <div onclick="{{ sendClaudeCommand }}" title="{{ claudeCommandButtonLabel }}" style="width:32px;height:32px;border-radius:50%;background:#D97757;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">➤</div>
+            </div>
           </div>
         </div>
 
@@ -614,10 +631,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             </div>
 
             <div style="background:linear-gradient(135deg,#FBF3EC,#FFFFFF);border-radius:8px;padding:24px;box-sizing:border-box;max-width:560px;margin-top:16px;border:1px solid #F0DFCF">
-              <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-                <span style="width:26px;height:26px;border-radius:8px;background:#D97757;color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center">✦</span>
-                <div style="font-size:15px;font-weight:700;color:#241812">Claude ผู้ช่วยดูแลอัตโนมัติ</div>
-                <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;row-gap:8px">
+                <span style="width:26px;height:26px;border-radius:8px;background:#D97757;color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">✦</span>
+                <div style="font-size:15px;font-weight:700;color:#241812;flex-shrink:0">Claude ผู้ช่วยดูแลอัตโนมัติ</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
                   <div onclick="{{ openClaudeEmailModal }}" style="font-size:10.5px;font-weight:600;padding:4px 9px;border-radius:5px;cursor:pointer;background:{{ claudeEmailBtnBg }};color:{{ claudeEmailBtnColor }};white-space:nowrap">{{ claudeEmailBtnLabel }}</div>
                   <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;display:flex;align-items:center;gap:5px;background:{{ claudeAutomationStatusBg }};color:{{ claudeAutomationStatusColor }}">
                     <span style="width:6px;height:6px;border-radius:50%;background:{{ claudeAutomationStatusColor }}"></span>{{ claudeAutomationStatusLabel }}
@@ -648,12 +665,29 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     🔴 กำลังฟัง... พูดได้เลยครับ (แตะไมค์อีกครั้งเพื่อหยุด)
                   </div>
                 </sc-if>
-                <div style="display:flex;align-items:center;gap:8px;background:#FFFFFF;border:1px solid #E3D8C8;border-radius:24px;padding:6px 8px 6px 14px">
-                  <div onclick="{{ clearClaudeCommandHistory }}" title="ล้างการสนทนา" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#7C6E5F;font-size:16px;flex-shrink:0">+</div>
-                  <input value="{{ claudeCommandInput }}" onchange="{{ onClaudeCommandInput }}" onkeydown="{{ onClaudeCommandKeyDown }}" placeholder="เช่น ห้องไหนค้างจ่ายบ้าง (Enter เพื่อส่ง)" style="flex:1;padding:6px 0;border:none;outline:none;font-size:12.5px;box-sizing:border-box;background:transparent">
-                  <div onclick="{{ toggleClaudeVoiceInput }}" title="พูดแทนพิมพ์" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:{{ claudeListeningBg }};color:{{ claudeListeningColor }};font-size:14px">🎤</div>
-                  <div onclick="{{ toggleClaudeDrivingMode }}" title="โหมดกำลังขับรถ — อ่านคำตอบออกเสียง" style="display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:16px;cursor:pointer;background:{{ claudeDrivingModeBg }};color:{{ claudeDrivingModeColor }};font-size:11.5px;font-weight:600;white-space:nowrap;flex-shrink:0">🚗 ขับรถ</div>
-                  <div onclick="{{ sendClaudeCommand }}" style="padding:8px 16px;border-radius:20px;background:#D97757;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">{{ claudeCommandButtonLabel }}</div>
+                <sc-if value="{{ claudeAttachedImage }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:8px;background:#FBF7F0;border:1px solid #F0E9DC;border-radius:8px;padding:6px 10px;margin-bottom:8px">
+                    <img src="{{ claudeAttachedImage }}" style="width:32px;height:32px;object-fit:cover;border-radius:5px;flex-shrink:0">
+                    <span style="font-size:11.5px;color:#7C6E5F;flex:1">แนบรูปแล้ว — จะส่งพร้อมข้อความ</span>
+                    <span onclick="{{ removeClaudeAttachedImage }}" style="cursor:pointer;color:#B24336;font-size:11.5px;font-weight:600">ลบ</span>
+                  </div>
+                </sc-if>
+                <div style="position:relative">
+                  <sc-if value="{{ showClaudeAttachMenu }}" hint-placeholder-val="{{ false }}">
+                    <div onclick="{{ closeClaudeAttachMenu }}" style="position:fixed;inset:0;z-index:74"></div>
+                    <div style="position:absolute;bottom:calc(100% + 6px);left:0;z-index:75;background:#FFFFFF;border:1px solid #E3D8C8;border-radius:9px;box-shadow:0 8px 24px rgba(36,24,18,0.18);overflow:hidden;min-width:150px">
+                      <div onclick="{{ triggerClaudeFileInput }}" style="padding:11px 14px;font-size:12.5px;color:#241812;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap">📎 เพิ่มไฟล์</div>
+                      <div onclick="{{ clearClaudeCommandHistory }}" style="padding:11px 14px;font-size:12.5px;color:#241812;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;border-top:1px solid #F0E9DC">🗑️ เคลียร์หน้าแชท</div>
+                    </div>
+                  </sc-if>
+                  <input id="claude-file-input" type="file" accept="image/*" onchange="{{ onClaudeFileSelected }}" style="display:none">
+                  <div style="display:flex;align-items:center;gap:6px;background:#FFFFFF;border:1px solid #E3D8C8;border-radius:24px;padding:6px 6px 6px 12px">
+                    <div onclick="{{ toggleClaudeAttachMenu }}" title="เพิ่มไฟล์ / เคลียร์แชท" style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#7C6E5F;font-size:16px;flex-shrink:0">+</div>
+                    <input value="{{ claudeCommandInput }}" onchange="{{ onClaudeCommandInput }}" onkeydown="{{ onClaudeCommandKeyDown }}" placeholder="พิมพ์คำสั่ง..." style="flex:1;min-width:0;padding:6px 0;border:none;outline:none;font-size:12.5px;box-sizing:border-box;background:transparent">
+                    <div onclick="{{ toggleClaudeVoiceInput }}" title="พูดแทนพิมพ์" style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:{{ claudeListeningBg }};color:{{ claudeListeningColor }};font-size:13px">🎤</div>
+                    <div onclick="{{ toggleClaudeDrivingMode }}" title="โหมดกำลังขับรถ — อ่านคำตอบออกเสียง" style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:{{ claudeDrivingModeBg }};color:{{ claudeDrivingModeColor }};font-size:12px">🚗</div>
+                    <div onclick="{{ sendClaudeCommand }}" title="{{ claudeCommandButtonLabel }}" style="width:30px;height:30px;border-radius:50%;background:#D97757;color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">➤</div>
+                  </div>
                 </div>
               </div>
 
@@ -1989,6 +2023,8 @@ class Component extends DCLogic {
     claudeChart: null,
     claudeListening: false,
     claudeDrivingMode: false,
+    showClaudeAttachMenu: false,
+    claudeAttachedImage: '',
     lineConn: { channelId: '', channelSecret: '', accessToken: '', connected: false },
     lineEnvConnected: false,
     sheetEnvConnected: false,
@@ -2573,7 +2609,27 @@ class Component extends DCLogic {
 
   onClaudeCommandInput = (e) => this.setState({ claudeCommandInput: e.target.value });
   onClaudeCommandKeyDown = (e) => { if (e.key === 'Enter') this.sendClaudeCommand(); };
-  clearClaudeCommandHistory = () => this.setState({ claudeCommandHistory: [], claudeCommandAnswer: '' });
+  clearClaudeCommandHistory = () => this.setState({ claudeCommandHistory: [], claudeCommandAnswer: '', showClaudeAttachMenu: false });
+  toggleClaudeAttachMenu = () => this.setState(s => ({ showClaudeAttachMenu: !s.showClaudeAttachMenu }));
+  closeClaudeAttachMenu = () => this.setState({ showClaudeAttachMenu: false });
+  triggerClaudeFileInput = () => {
+    this.setState({ showClaudeAttachMenu: false });
+    // Whichever command-box view is actually mounted (Settings card vs the
+    // full-screen AI mode) has its own file input with a different id — only
+    // one exists in the DOM at a time, so try both and use whichever is there.
+    const el = document.getElementById('claude-file-input') || document.getElementById('claude-file-input-ai');
+    if (el) el.click();
+  };
+  onClaudeFileSelected = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    this._downscaleImage(f, 1400, (dataUrl) => {
+      if (dataUrl) this.setState({ claudeAttachedImage: dataUrl });
+      else this.showAdminToast('อ่านรูปภาพไม่สำเร็จ');
+    });
+    e.target.value = '';
+  };
+  removeClaudeAttachedImage = () => this.setState({ claudeAttachedImage: '' });
   switchToMobileWeb = () => this.setState({ mobileAiMode: false });
   switchToAiMode = () => this.setState({ mobileAiMode: true });
   exitBrowserAttempt = () => {
@@ -2736,16 +2792,19 @@ class Component extends DCLogic {
   };
   sendClaudeCommand = async () => {
     const message = this.state.claudeCommandInput.trim();
-    if (!message) { this.showAdminToast('กรุณาพิมพ์คำสั่ง'); return; }
+    const attachedImage = this.state.claudeAttachedImage;
+    if (!message && !attachedImage) { this.showAdminToast('กรุณาพิมพ์คำสั่งหรือแนบรูปภาพ'); return; }
     this.setState({ claudeCommandLoading: true, claudeCommandAnswer: '' });
     try {
       const res = await fetch('/api/claude/command', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         // Send the running conversation so far — lets Claude follow up on its
         // own clarifying questions instead of treating every message as a
-        // brand-new, context-free request.
-        body: JSON.stringify({ message, history: this.state.claudeCommandHistory }),
+        // brand-new, context-free request. image (optional): a photo attached
+        // via the "+" menu, e.g. a meter reading or a maintenance issue.
+        body: JSON.stringify({ message: message || 'ดูรูปที่แนบมาให้หน่อยครับ', history: this.state.claudeCommandHistory, image: attachedImage || undefined }),
       });
+      this.setState({ claudeAttachedImage: '' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'ทำคำสั่งไม่สำเร็จ');
       if (data.type === 'confirm' && data.action === 'create_room') {
@@ -4272,6 +4331,9 @@ class Component extends DCLogic {
       onClaudeCommandKeyDown: this.onClaudeCommandKeyDown,
       toggleClaudeVoiceInput: this.toggleClaudeVoiceInput,
       claudeListening: s.claudeListening,
+      showClaudeAttachMenu: s.showClaudeAttachMenu, toggleClaudeAttachMenu: this.toggleClaudeAttachMenu, closeClaudeAttachMenu: this.closeClaudeAttachMenu,
+      triggerClaudeFileInput: this.triggerClaudeFileInput, onClaudeFileSelected: this.onClaudeFileSelected,
+      claudeAttachedImage: s.claudeAttachedImage, removeClaudeAttachedImage: this.removeClaudeAttachedImage,
       claudeListeningBg: s.claudeListening ? '#B24336' : 'transparent',
       claudeListeningColor: s.claudeListening ? '#fff' : '#7C6E5F',
       toggleClaudeDrivingMode: this.toggleClaudeDrivingMode,
