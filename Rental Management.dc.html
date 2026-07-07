@@ -214,16 +214,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
         <div style="flex:1;padding:0 32px 28px;box-sizing:border-box;overflow:auto">
 
           <sc-if value="{{ showMobileMenuBtn }}" hint-placeholder-val="{{ false }}">
-            <!-- Plain document-flow element (not position:absolute/sticky) so
-                 it physically pushes every page's own sticky header down and
-                 can never overlap it — previously this floated at a fixed
-                 coordinate independent of scroll/padding and ended up
-                 covering page titles/KPI numbers regardless of any padding
-                 adjustment on the content below it. Trade-off: this button
-                 scrolls away with the page instead of staying pinned, but
-                 that's a much smaller cost than silently covering content. -->
-            <div style="margin:0 -32px;padding:14px 32px 10px">
-              <div onclick="{{ toggleMobileNav }}" style="display:inline-flex;align-items:center;gap:8px;background:#2B1D14;color:#F1EBE0;padding:9px 14px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(36,24,18,0.25)"><span style="font-size:16px">☰</span> เมนู</div>
+            <!-- Sticky bar pinned above every page's own sticky title header
+                 (each of those headers now sticks at top:{{ stickyHeaderTop }}
+                 instead of top:0, leaving exactly this bar's height free —
+                 so the two stack cleanly instead of overlapping, and the
+                 button stays reachable/pinned the whole time you scroll. -->
+            <div style="position:sticky;top:0;z-index:70;background:#F1EBE0;margin:0 -32px;padding:8px 32px 6px">
+              <div onclick="{{ toggleMobileNav }}" style="display:inline-flex;align-items:center;gap:6px;background:#2B1D14;color:#F1EBE0;padding:6px 11px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(36,24,18,0.25)"><span style="font-size:13px">☰</span> เมนู</div>
             </div>
           </sc-if>
           <sc-if value="{{ showNavBackdrop }}" hint-placeholder-val="{{ false }}">
@@ -232,7 +229,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
           <div>
-            <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">แดชบอร์ด</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">ภาพรวมประจำเดือนกรกฎาคม 2569</div>
@@ -340,7 +337,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isRooms }}" hint-placeholder-val="{{ false }}">
           <div style="display:flex;flex-direction:column;height:100%">
-            <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">รายการห้องพัก</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">{{ roomsCountLabel }}</div>
@@ -406,7 +403,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isTenants }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px">
               <div style="font-size:21px;font-weight:700;color:#241812">ข้อมูลการเชื่อมต่อรับข้อมูลอัตโนมัติ</div>
               <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">รายชื่อผู้เช่าปัจจุบันทั้งหมด — คลิกแถวเพื่อดูรายละเอียดห้อง หรือกด Generate Token เพื่อออกรหัสเชื่อมต่อ</div>
             </div>
@@ -445,7 +442,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isBilling }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">บิล &amp; ใบแจ้งหนี้</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรกฎาคม 2569 · คลิกการ์ดสรุปเพื่อกรองรายการ</div>
@@ -492,7 +489,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isMaintenance }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">แจ้งซ่อม</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">คลิกสถานะเพื่ออัปเดตความคืบหน้า</div>
@@ -521,7 +518,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px">
               <div style="font-size:21px;font-weight:700;color:#241812">ตั้งค่า</div>
               <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">การแจ้งเตือนและระบบอัตโนมัติ</div>
             </div>
@@ -675,7 +672,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isWaterReport }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">การใช้น้ำประปา</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรอกเลขมิเตอร์ปัจจุบันเพื่อคำนวณค่าน้ำรอบถัดไป · อัตรา ฿{{ waterRate }}/หน่วย</div>
@@ -765,7 +762,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isElecReport }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">การใช้ไฟฟ้า</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรอกเลขมิเตอร์ปัจจุบันเพื่อคำนวณค่าไฟรอบถัดไป · อัตรา ฿{{ elecRate }}/หน่วย</div>
@@ -835,7 +832,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isEquipment }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px">
               <div style="font-size:21px;font-weight:700;color:#241812">Set อุปกรณ์ · Tuya IoT</div>
               <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">เชื่อมต่ออุปกรณ์ Tuya ประจำห้อง · ไฟ {{ elecOnlineCount }}/{{ deviceTotalCount }} · น้ำ {{ waterOnlineCount }}/{{ deviceTotalCount }} ออนไลน์</div>
             </div>
@@ -964,7 +961,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isExpenses }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">บัญชีรายจ่าย</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรกฎาคม 2569</div>
@@ -993,7 +990,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           <div>
             <sc-if value="{{ contractFormInactive }}" hint-placeholder-val="{{ true }}">
             <div>
-            <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">สัญญาเช่า</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">{{ contractsTotalCount }} สัญญาที่ใช้งานอยู่ · {{ contractsNearCount }} สัญญาใกล้ครบกำหนด</div>
@@ -1022,7 +1019,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
             <sc-if value="{{ contractFormActive }}" hint-placeholder-val="{{ false }}">
             <div style="max-width:760px">
-              <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+              <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px">
                 <div>
                   <div style="font-size:21px;font-weight:700;color:#241812">กรอกข้อมูลสัญญาเช่า · ห้อง {{ contractFormRoomId }}</div>
                   <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรอกรายละเอียดให้ครบแล้วกดบันทึก</div>
@@ -1183,7 +1180,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isCalendar }}" hint-placeholder-val="{{ false }}">
           <div style="display:flex;flex-direction:column">
-            <div style="position:sticky;top:0;z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:26px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">ปฏิทินงาน</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">บันทึกนัดหมาย กำหนดชำระ และงานที่ต้องติดตาม · {{ upcomingCount }} รายการที่จะถึง</div>
@@ -4074,6 +4071,10 @@ class Component extends DCLogic {
       navZ: isNarrow ? 80 : 1,
       navShadow: (isNarrow && s.mobileNavOpen) ? '8px 0 40px rgba(0,0,0,0.45)' : 'none',
       showMobileMenuBtn: isNarrow,
+      // How far down every page's own sticky title header sticks — 0 on
+      // desktop (no menu bar above it), or just tall enough to clear the
+      // sticky "☰ เมนู" bar on mobile so the two stack instead of overlapping.
+      stickyHeaderTop: isNarrow ? '44px' : '0',
       showNavBackdrop: isNarrow && s.mobileNavOpen,
       toggleMobileNav: this.toggleMobileNav, closeMobileNav: this.closeMobileNav,
       logout: this.logout,
