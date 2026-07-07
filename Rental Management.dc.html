@@ -2623,6 +2623,22 @@ class Component extends DCLogic {
         message = 'แจ้งใบแจ้งหนี้ห้อง ' + roomId + ' ครับ กรุณาตรวจสอบยอดชำระในระบบ';
       }
       await this._lineSend(roomId, message);
+      // Persist on the invoice itself (server-side) — not just local state —
+      // so the "sent" status survives a refresh and also reflects sends
+      // triggered from the Claude command box (send_invoice_reminder tool),
+      // not only this exact button.
+      if (invoice) {
+        try {
+          const res = await fetch('/api/invoices/' + invoice.id, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ receiptSent: true }),
+          });
+          if (res.ok) {
+            const updated = await res.json();
+            this.setState(s => ({ invoices: s.invoices.map(i => i.id === updated.id ? updated : i) }));
+          }
+        } catch { /* LINE already sent either way — non-fatal if this save hiccups */ }
+      }
       this.setState(s => ({ receiptsSent: { ...s.receiptsSent, [roomId]: true } }));
       this.showAdminToast('ส่งใบแจ้งหนี้ห้อง ' + roomId + ' ทาง LINE และบันทึกใบเสร็จแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ส่ง LINE ไม่สำเร็จ'); }
@@ -3283,7 +3299,10 @@ class Component extends DCLogic {
       const cd = s.connData[i.room];
       const billRoom = s.rooms.find(r => r.id === i.room);
       const hasLineId = !!(billRoom && billRoom.lineUserId) || !!(cd && cd.lineId);
-      const sent = !!s.receiptsSent[i.room];
+      // Prefer the persisted server-side flag (survives refresh, reflects
+      // sends triggered via the Claude command box too) — fall back to the
+      // local flag only as a belt-and-suspenders in case that save hiccuped.
+      const sent = !!i.receiptSent || !!s.receiptsSent[i.room];
       const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
       const overdue = i.status === 'overdue';
       const sentLabel = hasLineId ? '✓ ส่งไลน์แล้ว' : '✓ บันทึกใบเสร็จแล้ว';

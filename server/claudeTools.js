@@ -12,9 +12,15 @@
 // server/routes/claude.js's /command/confirm endpoint (after explicit user
 // click) calls executeWriteTool.
 
+const fs = require('fs');
+const path = require('path');
 const { readTab, appendRow, updateRow, deleteRow } = require('./sheets');
 const { coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, readSettings } = require('./coerce');
 const { pushMessage, isConfigured: lineConfigured } = require('./line');
+const { generateInvoicePdf } = require('./pdf');
+
+const INVOICE_PDF_DIR = path.join(__dirname, 'uploads', 'invoices');
+fs.mkdirSync(INVOICE_PDF_DIR, { recursive: true });
 
 const TOOLS = [
   {
@@ -167,11 +173,20 @@ const TOOLS = [
   },
   {
     name: 'send_line_message',
-    description: 'ส่งข้อความ LINE ถึงผู้เช่าห้องหนึ่งทันที (ห้องต้องเชื่อมต่อ LINE ไว้แล้ว) — ต้องยืนยันก่อนทำจริง',
+    description: 'ส่งข้อความ LINE ทั่วไปถึงผู้เช่าห้องหนึ่งทันที (ห้องต้องเชื่อมต่อ LINE ไว้แล้ว) — ใช้สำหรับข้อความทั่วไปเท่านั้น ถ้าเป็นการแจ้ง/เตือนใบแจ้งหนี้บิลที่ยังไม่จ่าย ให้ใช้ send_invoice_reminder แทน (จะได้ข้อความแบบแจกแจงรายการและอัปเดตสถานะ "ส่งแล้ว" ให้ถูกต้อง) — ต้องยืนยันก่อนทำจริง',
     input_schema: {
       type: 'object',
       properties: { roomId: { type: 'string', description: 'เลขห้อง' }, message: { type: 'string', description: 'ข้อความที่จะส่ง' } },
       required: ['roomId', 'message'],
+    },
+  },
+  {
+    name: 'send_invoice_reminder',
+    description: 'ส่งใบแจ้งหนี้/แจ้งเตือนบิลค้างชำระของห้องหนึ่งทาง LINE — ส่งข้อความแบบแจกแจงรายการ (ค่าเช่า/น้ำ/ไฟ/ขยะ/เน็ต/ยอดรวม/กำหนดชำระ) พร้อมสร้าง PDF บันทึกไว้ และทำเครื่องหมายว่า "ส่งแล้ว" ในระบบให้ถูกต้อง (ใช้แทน send_line_message เสมอเมื่อเป็นเรื่องบิล/ใบแจ้งหนี้) — ต้องยืนยันก่อนทำจริง',
+    input_schema: {
+      type: 'object',
+      properties: { invoiceId: { type: 'string', description: 'รหัสใบแจ้งหนี้ที่จะส่ง' } },
+      required: ['invoiceId'],
     },
   },
   {
@@ -285,6 +300,15 @@ async function describeWriteTool(name, input) {
       if (room && !room.lineUserId) return `ห้อง ${input.roomId} ยังไม่ได้เชื่อมต่อ LINE — ส่งไม่ได้`;
       return `ส่งข้อความ LINE ถึงห้อง ${input.roomId}: "${input.message}"`;
     }
+    case 'send_invoice_reminder': {
+      const invoices = coerceInvoices(await readTab('Invoices'));
+      const invoice = invoices.find((i) => i.id === input.invoiceId);
+      if (!invoice) return `ไม่พบใบแจ้งหนี้รหัส "${input.invoiceId}"`;
+      const room = rooms.find((r) => r.id === invoice.room);
+      if (room && !room.lineUserId) return `ห้อง ${invoice.room} ยังไม่ได้เชื่อมต่อ LINE — ส่งไม่ได้`;
+      const total = invoice.rent + invoice.water + invoice.elec + (invoice.trash || 0) + (invoice.internet || 0);
+      return `ส่งใบแจ้งหนี้ ${invoice.id} ให้ห้อง ${invoice.room} ทาง LINE (รวม ${total.toLocaleString()} บาท) พร้อมบันทึก PDF และมาร์คว่า "ส่งแล้ว"`;
+    }
     case 'update_room_meter': {
       const parts = [];
       if (input.water != null) parts.push('น้ำ = ' + input.water);
@@ -379,6 +403,38 @@ async function executeWriteTool(name, input) {
       if (!room || !room.lineUserId) throw new Error('ห้อง ' + input.roomId + ' ยังไม่ได้เชื่อมต่อ LINE');
       await pushMessage(room.lineUserId, input.message);
       return { ok: true, message: `ส่งข้อความ LINE ถึงห้อง ${input.roomId} แล้ว` };
+    }
+    case 'send_invoice_reminder': {
+      if (!lineConfigured()) throw new Error('ยังไม่ได้ตั้งค่า LINE บนเซิร์ฟเวอร์');
+      const [invoices, rooms, settingsData] = await Promise.all([
+        readTab('Invoices').then(coerceInvoices), readTab('Rooms'), readSettings(),
+      ]);
+      const invoice = invoices.find((i) => i.id === input.invoiceId);
+      if (!invoice) throw new Error('ไม่พบใบแจ้งหนี้รหัส ' + input.invoiceId);
+      const room = rooms.find((r) => r.id === invoice.room);
+      if (!room || !room.lineUserId) throw new Error('ห้อง ' + invoice.room + ' ยังไม่ได้เชื่อมต่อ LINE');
+
+      const rowsToShow = [
+        ['ค่าเช่า', invoice.rent], ['ค่าน้ำ', invoice.water], ['ค่าไฟ', invoice.elec],
+        ['ค่าขยะ', invoice.trash], ['ค่าอินเทอร์เน็ต', invoice.internet],
+      ].filter(([, v]) => v);
+      const total = rowsToShow.reduce((a, [, v]) => a + Number(v || 0), 0);
+      const message = [
+        'ใบแจ้งหนี้ห้อง ' + invoice.room + ' (' + invoice.id + ')',
+        ...rowsToShow.map(([label, v]) => label + ': ' + Number(v).toLocaleString()),
+        'รวม: ' + total.toLocaleString(),
+        'ครบกำหนดชำระ: ' + (invoice.due || '-'),
+      ].join('\n');
+      await pushMessage(room.lineUserId, message);
+
+      // Fire-and-forget PDF save — same as the direct UI button, a PDF
+      // hiccup shouldn't block the LINE message or the confirm response.
+      generateInvoicePdf(invoice, room, settingsData.propertyProfile)
+        .then((buffer) => fs.writeFileSync(path.join(INVOICE_PDF_DIR, invoice.id.replace(/[^a-zA-Z0-9-]/g, '_') + '.pdf'), buffer))
+        .catch((err) => console.error('[send_invoice_reminder] PDF save failed:', err.message));
+
+      await updateRow('Invoices', invoice.id, { receiptSent: true });
+      return { ok: true, message: `ส่งใบแจ้งหนี้ ${invoice.id} ให้ห้อง ${invoice.room} ทาง LINE แล้ว` };
     }
     case 'update_room_meter': {
       const rooms = await readTab('Rooms');

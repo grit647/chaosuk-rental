@@ -30,6 +30,7 @@ function coerceInvoices(rows) {
     elec: num(r.elec, 0),
     trash: num(r.trash, 0),
     internet: num(r.internet, 0),
+    receiptSent: bool(r.receiptSent, false),
   }));
 }
 
