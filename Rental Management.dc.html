@@ -18,6 +18,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
   .stat-card { flex: 1 1 calc(50% - 7px) !important; min-width: 130px; }
   .split-col { flex: 1 1 100% !important; }
 }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 </style>
 </helmet>
 
@@ -526,6 +527,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <sc-for list="{{ claudeCommandHistory }}" as="h" hint-placeholder-count="2">
                       <div style="align-self:{{ h.align }};max-width:85%;padding:9px 12px;border-radius:8px;background:{{ h.bg }};color:{{ h.color }};font-size:12px;white-space:pre-wrap;line-height:1.5">{{ h.text }}</div>
                     </sc-for>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ claudeListening }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:8px;background:#B24336;color:#fff;border-radius:20px;padding:9px 16px;margin-bottom:8px;font-size:12.5px;font-weight:600">
+                    <span style="width:9px;height:9px;border-radius:50%;background:#fff;animation:pulse 1s infinite"></span>
+                    🔴 กำลังฟัง... พูดได้เลยครับ (แตะไมค์อีกครั้งเพื่อหยุด)
                   </div>
                 </sc-if>
                 <div style="display:flex;align-items:center;gap:8px;background:#FFFFFF;border:1px solid #E3D8C8;border-radius:24px;padding:6px 8px 6px 14px">
@@ -2469,17 +2476,30 @@ class Component extends DCLogic {
     if (!SpeechRecognition) { this.showAdminToast('เบราว์เซอร์นี้ไม่รองรับการพูดแทนพิมพ์ครับ (ลองใช้ Chrome หรือ Edge)'); return; }
     const recognition = new SpeechRecognition();
     recognition.lang = 'th-TH';
-    recognition.interimResults = false;
+    // interimResults on: shows text live as it's recognized (not just after
+    // stopping) — the strongest visual proof it's actually listening, since
+    // the subtle mic-button color change alone wasn't obvious enough.
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
     recognition.onstart = () => this.setState({ claudeListening: true });
     recognition.onresult = (e) => {
-      const text = e.results[0][0].transcript;
+      let text = '';
+      for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
       this.setState({ claudeCommandInput: text });
     };
-    recognition.onerror = () => { this.setState({ claudeListening: false }); this.showAdminToast('ฟังเสียงไม่สำเร็จ ลองพูดใหม่อีกครั้งครับ'); };
+    recognition.onerror = (e) => {
+      this.setState({ claudeListening: false });
+      const messages = {
+        'not-allowed': 'ไม่ได้รับอนุญาตให้ใช้ไมโครโฟนครับ — เช็คการตั้งค่าสิทธิ์ไมค์ของเบราว์เซอร์/เว็บนี้',
+        'no-speech': 'ไม่ได้ยินเสียงพูดครับ ลองพูดใหม่อีกครั้ง',
+        'audio-capture': 'ไม่พบไมโครโฟนในอุปกรณ์นี้ครับ',
+        network: 'เครือข่ายมีปัญหา ลองใหม่อีกครั้งครับ',
+      };
+      this.showAdminToast(messages[e.error] || ('ฟังเสียงไม่สำเร็จ (' + e.error + ')'));
+    };
     recognition.onend = () => this.setState({ claudeListening: false });
     this._recognition = recognition;
-    recognition.start();
+    try { recognition.start(); } catch (err) { this.showAdminToast('เริ่มฟังเสียงไม่สำเร็จ ลองแตะไมค์อีกครั้งครับ'); }
   };
   toggleClaudeDrivingMode = () => {
     this.setState(s => ({ claudeDrivingMode: !s.claudeDrivingMode }));
@@ -3999,6 +4019,7 @@ class Component extends DCLogic {
       onClaudeCommandInput: this.onClaudeCommandInput,
       onClaudeCommandKeyDown: this.onClaudeCommandKeyDown,
       toggleClaudeVoiceInput: this.toggleClaudeVoiceInput,
+      claudeListening: s.claudeListening,
       claudeListeningBg: s.claudeListening ? '#B24336' : 'transparent',
       claudeListeningColor: s.claudeListening ? '#fff' : '#7C6E5F',
       toggleClaudeDrivingMode: this.toggleClaudeDrivingMode,
