@@ -2651,9 +2651,7 @@ class Component extends DCLogic {
     window.speechSynthesis.onvoiceschanged = () => resolve(window.speechSynthesis.getVoices());
     setTimeout(() => resolve(window.speechSynthesis.getVoices()), 500); // fallback if the event never fires
   });
-  speakClaudeText = async (text) => {
-    if (!this.state.claudeDrivingMode || !text || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel(); // don't stack multiple answers talking over each other
+  _buildThaiUtterance = async (text) => {
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'th-TH';
     utter.rate = 0.95; // very slightly slower than default reads more naturally than the 1.0 default
@@ -2667,7 +2665,46 @@ class Component extends DCLogic {
       const femaleVoice = thVoices.find((v) => /female|หญิง|premwadee|kanya/i.test(v.name)) || thVoices[0];
       if (femaleVoice) utter.voice = femaleVoice;
     } catch { /* fall back to the browser's own default voice for th-TH */ }
+    return utter;
+  };
+  speakClaudeText = async (text, onEnd) => {
+    if (!this.state.claudeDrivingMode || !text || !window.speechSynthesis) { if (onEnd) onEnd(); return; }
+    window.speechSynthesis.cancel(); // don't stack multiple answers talking over each other
+    const utter = await this._buildThaiUtterance(text);
+    if (onEnd) utter.onend = onEnd;
     window.speechSynthesis.speak(utter);
+  };
+  // Driving mode only: after reading out a pending confirmation, ask whether
+  // to go ahead and listen for a spoken yes/no — interpreted locally (no
+  // extra Claude API call, so this doesn't cost anything beyond the normal
+  // command that produced the confirmation in the first place). Ambiguous
+  // replies just leave the popup open for a manual tap, same as today.
+  speakConfirmAndListen = (description) => {
+    if (!this.state.claudeDrivingMode) return;
+    this.speakClaudeText(description, () => {
+      this.speakClaudeText('ยืนยันเลยไหมครับ พูดว่า "ยืนยัน" หรือ "ไม่" ได้เลยครับ', () => {
+        this._listenForVoiceConfirm();
+      });
+    });
+  };
+  _listenForVoiceConfirm = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'th-TH';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onstart = () => this.setState({ claudeListening: true });
+    recognition.onresult = (e) => {
+      const text = e.results[0][0].transcript.trim();
+      if (/ยืนยัน|ใช่|ตกลง|โอเค|confirm|yes/i.test(text)) this.confirmClaudeCommand();
+      else if (/ไม่|ยกเลิก|cancel|no/i.test(text)) this.closeClaudeConfirm();
+      // else: unclear — leave the popup open, admin can still tap manually
+    };
+    recognition.onerror = () => this.setState({ claudeListening: false });
+    recognition.onend = () => this.setState({ claudeListening: false });
+    this._recognition = recognition;
+    try { recognition.start(); } catch { /* ignore — popup stays open for manual confirm */ }
   };
   sendClaudeCommand = async () => {
     const message = this.state.claudeCommandInput.trim();
@@ -2734,7 +2771,7 @@ class Component extends DCLogic {
           claudeConfirmParams: data.params,
           claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: data.description }],
         }));
-        this.speakClaudeText(data.description);
+        this.speakConfirmAndListen(data.description);
       } else if (data.type === 'chart') {
         const note = 'แสดงกราฟ "' + data.title + '" ให้แล้ว' + (data.insight ? '\n\n' + data.insight : '');
         this.setState(s => ({
