@@ -1393,6 +1393,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <sc-if value="{{ claudeChart.hasInsight }}" hint-placeholder-val="{{ false }}">
                 <div style="margin-top:14px;padding:12px;border-radius:7px;background:#FBF7F0;border:1px solid #F0E9DC;font-size:12.5px;color:#241812;line-height:1.6">{{ claudeChart.insight }}</div>
               </sc-if>
+              <div style="margin-top:16px;text-align:right">
+                <div onclick="{{ downloadClaudeChart }}" style="display:inline-block;padding:9px 16px;border-radius:6px;background:#D97757;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer">💾 บันทึกภาพกราฟ</div>
+              </div>
             </div>
           </div>
         </sc-if>
@@ -2526,6 +2529,72 @@ class Component extends DCLogic {
     }
   };
   closeClaudeChart = () => this.setState({ showClaudeChart: false, claudeChart: null });
+  downloadClaudeChart = () => {
+    const c = this.state.claudeChart;
+    if (!c) return;
+    const seriesColors = ['#C1622D', '#8AA6A3', '#D9A15B'];
+    const series = (c.series || []).slice(0, 3);
+    const labels = c.xLabels || [];
+    const W = 800, H = 500, padL = 50, padR = 30, padT = 60, padB = 90;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = '#241812'; ctx.font = 'bold 18px sans-serif';
+    ctx.fillText(c.title || '', padL, 30);
+
+    const allValues = series.flatMap(s => (s.values || []).map(v => Number(v) || 0));
+    const maxVal = Math.max(1, ...allValues, 0);
+    const groupW = plotW / Math.max(1, labels.length);
+    const barW = Math.min(22, (groupW - 10) / Math.max(1, series.length));
+
+    labels.forEach((label, i) => {
+      const groupX = padL + i * groupW + (groupW - barW * series.length) / 2;
+      series.forEach((s, si) => {
+        const v = Number((s.values || [])[i]) || 0;
+        const barH = Math.max(2, (v / maxVal) * plotH);
+        ctx.fillStyle = seriesColors[si] || '#C1622D';
+        ctx.fillRect(groupX + si * barW, padT + plotH - barH, barW - 2, barH);
+      });
+      ctx.save();
+      ctx.translate(groupX + (barW * series.length) / 2, padT + plotH + 14);
+      ctx.rotate(-Math.PI / 5);
+      ctx.fillStyle = '#7C6E5F'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+      ctx.fillText(String(label), 0, 0);
+      ctx.restore();
+    });
+
+    // Legend
+    let legendX = padL;
+    series.forEach((s, si) => {
+      ctx.fillStyle = seriesColors[si] || '#C1622D';
+      ctx.fillRect(legendX, H - 46, 10, 10);
+      ctx.fillStyle = '#7C6E5F'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(s.name || '', legendX + 16, H - 37);
+      legendX += 16 + ctx.measureText(s.name || '').width + 24;
+    });
+
+    // Insight text (wrapped)
+    if (c.insight) {
+      ctx.fillStyle = '#5C4E40'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
+      const words = String(c.insight).split(' ');
+      let line = '', y = H - 18, maxLineW = W - padL - padR;
+      words.forEach((w) => {
+        const test = line + w + ' ';
+        if (ctx.measureText(test).width > maxLineW) { ctx.fillText(line, padL, y); line = w + ' '; y += 14; }
+        else line = test;
+      });
+      ctx.fillText(line, padL, y);
+    }
+
+    const link = document.createElement('a');
+    link.download = (c.title || 'chart').replace(/[^\wก-๙-]+/g, '_') + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
   closeClaudeConfirm = () => this.setState({ showClaudeConfirm: false, claudeConfirmAction: '', claudeConfirmParams: null });
   confirmClaudeCommand = async () => {
     const { claudeConfirmAction, claudeConfirmParams } = this.state;
@@ -3901,6 +3970,7 @@ class Component extends DCLogic {
       closeClaudeConfirm: this.closeClaudeConfirm,
       confirmClaudeCommand: this.confirmClaudeCommand,
       showClaudeChart: s.showClaudeChart, claudeChart: claudeChartView, closeClaudeChart: this.closeClaudeChart,
+      downloadClaudeChart: this.downloadClaudeChart,
       onMeterPhotoUpload: this.onMeterPhotoUpload,
       meterPhotoButtonLabel: s.meterPhotoLoading ? 'กำลังอ่านมิเตอร์...' : '📷 เลือกรูปมิเตอร์น้ำ',
       meterReadingResults: s.meterReadings.map(m => ({

@@ -111,32 +111,49 @@ router.post('/command', async (req, res, next) => {
         const text = extractText(resp) || 'ขอโทษครับ ไม่เข้าใจคำสั่งนี้';
         return res.json({ type: 'answer', text });
       }
-      const toolUse = resp.content.find((c) => c.type === 'tool_use');
-      if (!toolUse) return res.json({ type: 'answer', text: extractText(resp) || 'ขอโทษครับ ไม่เข้าใจคำสั่งนี้' });
+      // Claude can return more than one tool_use block in a single turn
+      // (parallel tool calls, e.g. fetching two different reports at once).
+      // Every tool_use MUST get a matching tool_result before the next API
+      // call, or Anthropic rejects the whole request — a bug we hit for real
+      // ("tool_use ids were found without tool_result blocks") because only
+      // the first tool_use was ever being handled, orphaning any others.
+      const toolUses = resp.content.filter((c) => c.type === 'tool_use');
+      if (!toolUses.length) return res.json({ type: 'answer', text: extractText(resp) || 'ขอโทษครับ ไม่เข้าใจคำสั่งนี้' });
 
-      if (toolUse.name === 'show_chart') {
+      const chartTool = toolUses.find((t) => t.name === 'show_chart');
+      if (chartTool) {
         // Not a data mutation and not a data lookup either — Claude has
         // already gathered the real numbers via get_* tools in an earlier
         // turn and is now just asking the frontend to render them. No
         // confirm popup needed (nothing destructive happens), so this is its
-        // own response type distinct from both 'answer' and 'confirm'.
-        return res.json({ type: 'chart', ...toolUse.input });
+        // own response type distinct from both 'answer' and 'confirm'. The
+        // request ends here, so any other tool_use in this same turn never
+        // needs a tool_result — safe to just stop.
+        return res.json({ type: 'chart', ...chartTool.input });
       }
 
-      if (!READ_TOOL_NAMES.has(toolUse.name)) {
+      const writeTool = toolUses.find((t) => !READ_TOOL_NAMES.has(t.name));
+      if (writeTool) {
         // Write/mutating action — never auto-execute. Hand back to the
         // frontend as a pending confirmation; nothing has happened yet.
-        const description = extractText(resp) || await describeWriteTool(toolUse.name, toolUse.input);
-        return res.json({ type: 'confirm', action: toolUse.name, params: toolUse.input, description });
+        // Same reasoning as above: the request ends here, so other tool_use
+        // blocks in this turn (if any) don't need a tool_result either.
+        const description = extractText(resp) || await describeWriteTool(writeTool.name, writeTool.input);
+        return res.json({ type: 'confirm', action: writeTool.name, params: writeTool.input, description });
       }
 
-      // Read-only tool — safe to run immediately, then loop so Claude can
-      // phrase a final natural-language answer from the real data.
-      const result = await executeReadTool(toolUse.name, toolUse.input);
+      // Every tool_use this turn is read-only — execute all of them and pair
+      // each with its own tool_result, then loop so Claude can phrase a final
+      // natural-language answer from the real data.
+      const toolResults = [];
+      for (const tu of toolUses) {
+        const result = await executeReadTool(tu.name, tu.input);
+        toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
+      }
       messages = [
         ...messages,
         { role: 'assistant', content: resp.content },
-        { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(result) }] },
+        { role: 'user', content: toolResults },
       ];
     }
     res.json({ type: 'answer', text: 'คำสั่งนี้ซับซ้อนเกินไป ลองถามให้ชัดเจนหรือแบ่งเป็นหลายคำสั่งครับ' });
