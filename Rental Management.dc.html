@@ -1910,6 +1910,11 @@ class Component extends DCLogic {
     // (narrow viewport at load time) — switching to the regular admin web
     // view is a manual, explicit choice from there.
     mobileAiMode: (typeof window !== 'undefined' && window.innerWidth < 760),
+    // Set only when the command box hands off to a native form (create_room /
+    // open_contract_form) from AI mode — lets submitAddRoom/saveContractForm
+    // know to return to AI mode afterward, without forcing that on someone
+    // who navigated to these forms normally via the sidebar.
+    returnToAiModeAfterForm: false,
     activeNav: 'dashboard',
     selectedRoomId: '302',
     roomSearch: '',
@@ -2430,6 +2435,8 @@ class Component extends DCLogic {
         internetRate: Number(cf.internetRate) || st.internetRate,
         rooms: st.rooms.map(r => r.id === id ? updatedRoom : r),
         contractFormRoomId: null,
+        mobileAiMode: st.returnToAiModeAfterForm ? true : st.mobileAiMode,
+        returnToAiModeAfterForm: false,
       }));
       this.showAdminToast('บันทึกสัญญาห้อง ' + id + ' เรียบร้อย');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
@@ -2690,6 +2697,7 @@ class Component extends DCLogic {
           claudeCommandLoading: false,
           claudeCommandInput: '',
           mobileAiMode: false,
+          returnToAiModeAfterForm: s.mobileAiMode, // only bounce back if we actually came from AI mode
           showAddRoomModal: true,
           newRoom: { id: p.roomId || '', floor: String(p.floor || '1'), rent: p.rent != null ? String(p.rent) : '', deposit: p.deposit != null ? String(p.deposit) : '', photos: [] },
           claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: 'เปิดฟอร์มเพิ่มห้องให้แล้ว กรอกข้อมูลที่เหลือแล้วกดบันทึกในฟอร์มได้เลยครับ' }],
@@ -2705,12 +2713,14 @@ class Component extends DCLogic {
         // same reasoning as create_room above, switch mobileAiMode off so
         // _nav's page change is actually visible.
         const roomId = (data.params || {}).roomId;
+        const wasAiMode = this.state.mobileAiMode;
         this.openContractForm(roomId);
         this._nav({ activeNav: 'contracts' });
         this.setState(s => ({
           claudeCommandLoading: false,
           claudeCommandInput: '',
           mobileAiMode: false,
+          returnToAiModeAfterForm: wasAiMode, // only bounce back if we actually came from AI mode
           claudeCommandHistory: [...s.claudeCommandHistory, { role: 'user', content: message }, { role: 'assistant', content: 'เปิดฟอร์มสัญญาเช่าห้อง ' + roomId + ' ให้แล้ว กรอก/แก้ไขข้อมูลในฟอร์มแล้วกดบันทึกได้เลยครับ' }],
         }));
         this.speakClaudeText('เปิดฟอร์มสัญญาเช่าห้อง ' + roomId + ' ให้แล้วครับ');
@@ -3213,7 +3223,11 @@ class Component extends DCLogic {
       const newRoomObj = await res.json();
       this.setState(s => {
         const rooms = [...s.rooms, newRoomObj].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-        return { rooms, showAddRoomModal: false };
+        return {
+          rooms, showAddRoomModal: false,
+          mobileAiMode: s.returnToAiModeAfterForm ? true : s.mobileAiMode,
+          returnToAiModeAfterForm: false,
+        };
       });
       this.showAdminToast('เพิ่มห้อง ' + id + ' แล้ว — พร้อมทำสัญญา');
     } catch (err) { this.showAdminToast(err.message || 'เพิ่มห้องไม่สำเร็จ'); }
