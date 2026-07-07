@@ -2651,8 +2651,24 @@ class Component extends DCLogic {
     window.speechSynthesis.onvoiceschanged = () => resolve(window.speechSynthesis.getVoices());
     setTimeout(() => resolve(window.speechSynthesis.getVoices()), 500); // fallback if the event never fires
   });
+  // Claude's text often carries markdown (**bold**, tables, bullet dashes) and
+  // decorative runs of punctuation (...... , ***** , ------) that read out
+  // loud as literal "dot dot dot" / "asterisk asterisk" nonsense — strip that
+  // before it ever reaches the speech synthesizer.
+  _cleanForSpeech = (text) => String(text || '')
+    .replace(/\*\*(.*?)\*\*/g, '$1') // **bold**
+    .replace(/\*(.*?)\*/g, '$1') // *italic*
+    .replace(/^[|].*[|]$/gm, '') // markdown table rows
+    .replace(/^#{1,6}\s*/gm, '') // markdown headers
+    .replace(/^[-•]\s+/gm, '') // bullet markers at line start
+    .replace(/[.]{2,}/g, ',') // "......" → a natural short pause instead
+    .replace(/[*_~`]{2,}/g, '') // runs of decorative symbols
+    .replace(/[-=]{3,}/g, '') // "------" separator lines
+    .replace(/\n{2,}/g, '. ')
+    .replace(/\n/g, ' ')
+    .trim();
   _buildThaiUtterance = async (text) => {
-    const utter = new SpeechSynthesisUtterance(text);
+    const utter = new SpeechSynthesisUtterance(this._cleanForSpeech(text));
     utter.lang = 'th-TH';
     utter.rate = 0.95; // very slightly slower than default reads more naturally than the 1.0 default
     utter.pitch = 1.05; // slight lift — leans toward a warmer/female-leaning tone if the exact voice can't be identified
@@ -2682,12 +2698,18 @@ class Component extends DCLogic {
   speakConfirmAndListen = (description) => {
     if (!this.state.claudeDrivingMode) return;
     this.speakClaudeText(description, () => {
-      this.speakClaudeText('ยืนยันเลยไหมครับ พูดว่า "ยืนยัน" หรือ "ไม่" ได้เลยครับ', () => {
-        this._listenForVoiceConfirm();
+      this.speakClaudeText('ต้องการบันทึกหรือไม่ครับ', () => {
+        // Small gap before opening the mic — starting SpeechRecognition the
+        // instant speechSynthesis finishes can be flaky on some phones
+        // (audio-focus handoff between "just spoke" and "now listening").
+        setTimeout(() => this._listenForVoiceConfirm(0), 250);
       });
     });
   };
-  _listenForVoiceConfirm = () => {
+  // attempt: 0 = first try, 1 = one retry after a timeout/silence. Only
+  // retries once — after that, leaves the popup open for a manual tap rather
+  // than looping forever if the mic genuinely isn't picking anything up.
+  _listenForVoiceConfirm = (attempt) => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
     const recognition = new SpeechRecognition();
@@ -2697,11 +2719,20 @@ class Component extends DCLogic {
     recognition.onstart = () => this.setState({ claudeListening: true });
     recognition.onresult = (e) => {
       const text = e.results[0][0].transcript.trim();
-      if (/ยืนยัน|ใช่|ตกลง|โอเค|confirm|yes/i.test(text)) this.confirmClaudeCommand();
+      if (/ยืนยัน|ใช่|ตกลง|โอเค|บันทึก|confirm|yes/i.test(text)) this.confirmClaudeCommand();
       else if (/ไม่|ยกเลิก|cancel|no/i.test(text)) this.closeClaudeConfirm();
       // else: unclear — leave the popup open, admin can still tap manually
     };
-    recognition.onerror = () => this.setState({ claudeListening: false });
+    recognition.onerror = (e) => {
+      this.setState({ claudeListening: false });
+      // 'no-speech' = the mic waited but didn't hear anything in time — worth
+      // asking again once, since the whole point was hands-free confirmation.
+      if (e.error === 'no-speech' && attempt < 1 && this.state.showClaudeConfirm) {
+        this.speakClaudeText('ขอโทษครับ ไม่ได้ยินคำตอบ ต้องการบันทึกหรือไม่ครับ', () => {
+          setTimeout(() => this._listenForVoiceConfirm(attempt + 1), 250);
+        });
+      }
+    };
     recognition.onend = () => this.setState({ claudeListening: false });
     this._recognition = recognition;
     try { recognition.start(); } catch { /* ignore — popup stays open for manual confirm */ }
