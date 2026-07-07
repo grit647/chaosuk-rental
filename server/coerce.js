@@ -46,6 +46,15 @@ function coerceCalendar(rows) {
   return rows.map((r) => ({ ...r, id: num(r.id), y: num(r.y), m: num(r.m), d: num(r.d) }));
 }
 
+function coerceRecurringTasks(rows) {
+  return rows.map((r) => ({
+    ...r,
+    dayOfMonth: r.dayOfMonth === '' ? null : num(r.dayOfMonth, null),
+    dayOfWeek: r.dayOfWeek === '' ? null : num(r.dayOfWeek, null),
+    active: bool(r.active, true),
+  }));
+}
+
 async function readSettings() {
   const rows = await readTab('Settings');
   const map = {};
@@ -69,5 +78,5 @@ async function readSettings() {
 }
 
 module.exports = {
-  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, readSettings,
+  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, readSettings,
 };

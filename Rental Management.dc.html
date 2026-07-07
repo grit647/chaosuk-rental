@@ -685,6 +685,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:15px;font-weight:700;color:#241812;flex-shrink:0">Claude ผู้ช่วยดูแลอัตโนมัติ</div>
                 <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
                   <div onclick="{{ openClaudeEmailModal }}" style="font-size:10.5px;font-weight:600;padding:4px 9px;border-radius:5px;cursor:pointer;background:{{ claudeEmailBtnBg }};color:{{ claudeEmailBtnColor }};white-space:nowrap">{{ claudeEmailBtnLabel }}</div>
+                  <div onclick="{{ openRecurringModal }}" title="คำสั่งงานประจำ" style="width:26px;height:26px;border-radius:5px;cursor:pointer;background:#F1EBE0;color:#7C6E5F;font-size:12.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0">⚙</div>
                   <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;display:flex;align-items:center;gap:5px;background:{{ claudeAutomationStatusBg }};color:{{ claudeAutomationStatusColor }}">
                     <span style="width:6px;height:6px;border-radius:50%;background:{{ claudeAutomationStatusColor }}"></span>{{ claudeAutomationStatusLabel }}
                   </span>
@@ -1633,6 +1634,62 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showRecurringModal }}">
+          <div onclick="{{ closeRecurringModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:440px;max-width:92vw;max-height:85vh;overflow-y:auto;box-sizing:border-box">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                <div style="font-size:16px;font-weight:700;color:#241812">คำสั่งงานประจำ</div>
+                <span onclick="{{ closeRecurringModal }}" style="cursor:pointer;color:#A89A88;font-size:18px">✕</span>
+              </div>
+              <div style="font-size:11.5px;color:#9C8B78;margin-bottom:14px;line-height:1.5">ตั้งให้ Claude ทำงานซ้ำตามรอบเวลา (เช่น ออกบิลทุกวันที่ 1 ของเดือน) — พิมพ์คำสั่ง แล้ว Claude จะสรุปให้ตรวจก่อนบันทึกเสมอ</div>
+
+              <sc-if value="{{ recurringTasks }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+                  <sc-for list="{{ recurringTasks }}" as="rt" hint-placeholder-count="2">
+                    <div style="padding:10px 12px;border-radius:8px;background:#FBF7F0;border:1px solid #F0E9DC">
+                      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+                        <div style="font-size:12px;color:#241812;line-height:1.5;flex:1">{{ rt.humanSummary }}</div>
+                        <div onclick="{{ rt.onToggleActive }}" style="width:36px;height:20px;border-radius:10px;position:relative;cursor:pointer;flex-shrink:0;background:{{ rt.toggleBg }}">
+                          <div style="position:absolute;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left 0.15s ease;left:{{ rt.toggleKnobLeft }}"></div>
+                        </div>
+                      </div>
+                      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+                        <span style="font-size:10px;color:#A89A88">{{ rt.scheduleLabel }}{{ rt.lastRunLabel }}</span>
+                        <span onclick="{{ rt.onDelete }}" style="font-size:10.5px;color:#B24336;cursor:pointer;font-weight:600">ลบ</span>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ noRecurringTasks }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:11.5px;color:#A89A88;margin-bottom:16px">ยังไม่มีคำสั่งงานประจำ</div>
+              </sc-if>
+
+              <sc-if value="{{ showRecurringParseStage }}" hint-placeholder-val="{{ false }}">
+                <div style="border-top:1px dashed #E3D8C8;padding-top:14px">
+                  <div style="font-size:12.5px;font-weight:700;color:#241812;margin-bottom:8px">เพิ่มคำสั่งใหม่</div>
+                  <textarea value="{{ recurringInput }}" onchange="{{ onRecurringInputChange }}" placeholder="เช่น ออกบิลทุกวันที่ 1 ของเดือน เวลา 9 โมงเช้า" style="width:100%;min-height:64px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea>
+                  <sc-if value="{{ recurringParseError }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:11px;color:#B24336;margin-top:6px">{{ recurringParseError }}</div>
+                  </sc-if>
+                  <div onclick="{{ parseRecurringCommand }}" style="margin-top:10px;padding:10px;border-radius:7px;background:#D97757;color:#fff;font-size:12.5px;font-weight:700;text-align:center;cursor:pointer">{{ recurringParseButtonLabel }}</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ showRecurringConfirmStage }}" hint-placeholder-val="{{ false }}">
+                <div style="border-top:1px dashed #E3D8C8;padding-top:14px">
+                  <div style="font-size:12.5px;font-weight:700;color:#241812;margin-bottom:8px">Claude เข้าใจว่า:</div>
+                  <div style="padding:12px;border-radius:8px;background:#FBF3EC;border:1px solid #F0DFCF;font-size:12.5px;color:#241812;line-height:1.6;margin-bottom:12px">{{ recurringParsed.humanSummary }}</div>
+                  <div style="display:flex;gap:10px">
+                    <div onclick="{{ cancelRecurringParse }}" style="flex:1;padding:10px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:12.5px;font-weight:600;cursor:pointer;text-align:center">แก้ไขใหม่</div>
+                    <div onclick="{{ confirmSaveRecurring }}" style="flex:1.3;padding:10px;border-radius:7px;background:#3B7A52;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;text-align:center">{{ recurringSaveButtonLabel }}</div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showTuyaPowerConfirm }}">
           <div onclick="{{ closeTuyaPowerConfirm }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-sizing:border-box;text-align:center">
@@ -2088,6 +2145,13 @@ class Component extends DCLogic {
     claudeAdminEmail: '',
     claudeAdminEmailSaved: false,
     showClaudeEmailModal: false,
+    showRecurringModal: false,
+    recurringTasks: [],
+    recurringInput: '',
+    recurringParseLoading: false,
+    recurringParseError: '',
+    recurringParsed: null,
+    recurringSaveLoading: false,
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -3730,6 +3794,78 @@ class Component extends DCLogic {
     this.showAdminToast('บันทึกอีเมลไว้แล้ว (อ้างอิงในเครื่องนี้ ยังไม่ใช่การล็อกอินจริง)');
   };
 
+  // Recurring-task automation ("คำสั่งงานประจำ") — freeform text in, but
+  // never saved as raw text: /parse asks Claude to turn it into structured
+  // schedule fields + a plain-Thai confirmation sentence first (like filling
+  // out a form), the user reviews that exact sentence, and only THEN does
+  // confirmSaveRecurring persist it. The scheduler (server/automation.js)
+  // re-runs the reviewed actionSummary on schedule, unattended.
+  openRecurringModal = () => {
+    this.setState({ showRecurringModal: true, recurringParsed: null, recurringParseError: '', recurringInput: '' });
+    this.loadRecurringTasks();
+  };
+  closeRecurringModal = () => this.setState({ showRecurringModal: false });
+  onRecurringInputChange = (e) => this.setState({ recurringInput: e.target.value });
+
+  loadRecurringTasks = async () => {
+    try {
+      const res = await fetch('/api/recurring-tasks');
+      const data = await res.json();
+      this.setState({ recurringTasks: Array.isArray(data) ? data : [] });
+    } catch (err) { console.error(err); }
+  };
+
+  parseRecurringCommand = async () => {
+    const instruction = (this.state.recurringInput || '').trim();
+    if (!instruction) return;
+    this.setState({ recurringParseLoading: true, recurringParseError: '' });
+    try {
+      const res = await fetch('/api/recurring-tasks/parse', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'แปลคำสั่งไม่สำเร็จ');
+      this.setState({ recurringParsed: data, recurringParseLoading: false });
+    } catch (err) {
+      this.setState({ recurringParseError: err.message, recurringParseLoading: false });
+    }
+  };
+  cancelRecurringParse = () => this.setState({ recurringParsed: null, recurringParseError: '' });
+
+  confirmSaveRecurring = async () => {
+    const p = this.state.recurringParsed;
+    if (!p) return;
+    this.setState({ recurringSaveLoading: true });
+    try {
+      const res = await fetch('/api/recurring-tasks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      this.setState({ recurringParsed: null, recurringInput: '', recurringSaveLoading: false });
+      await this.loadRecurringTasks();
+      this.showAdminToast('บันทึกคำสั่งงานประจำแล้ว');
+    } catch (err) {
+      this.setState({ recurringSaveLoading: false });
+      this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
+    }
+  };
+
+  deleteRecurringTask = async (id) => {
+    try {
+      await fetch('/api/recurring-tasks/' + id, { method: 'DELETE' });
+      await this.loadRecurringTasks();
+    } catch (err) { this.showAdminToast('ลบไม่สำเร็จ'); }
+  };
+
+  toggleRecurringActive = async (task) => {
+    try {
+      await fetch('/api/recurring-tasks/' + task.id, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !task.active }),
+      });
+      await this.loadRecurringTasks();
+    } catch (err) { this.showAdminToast('อัปเดตไม่สำเร็จ'); }
+  };
+
   logout = () => this.showAdminToast('ออกจากระบบเรียบร้อย (เดโม)');
 
   showAdminToast = (message) => {
@@ -4038,6 +4174,25 @@ class Component extends DCLogic {
       { key: 'autoInvoice', label: 'สร้างใบแจ้งหนี้อัตโนมัติ', desc: 'สร้างบิลทุกวันที่ 1 ของเดือน', hasConfig: true, onConfig: this.openAutoInvoice },
       { key: 'dueReminder', label: 'เตือนก่อนครบกำหนด 3 วัน', desc: 'แจ้งผู้เช่าล่วงหน้าก่อนถึงกำหนดชำระ', hasConfig: true, onConfig: this.openDueReminder },
     ].map(t => ({ ...t, on: s.settings[t.key], bg: s.settings[t.key] ? '#C1622D' : '#E3D8C8', knobLeft: s.settings[t.key] ? '22px' : '2px', onClick: () => this.toggleSetting(t.key) }));
+
+    const thaiDayNames = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+    const recurringTasksView = (s.recurringTasks || []).map(rt => {
+      let scheduleLabel = '';
+      if (rt.scheduleType === 'monthly') scheduleLabel = `ทุกวันที่ ${rt.dayOfMonth} ของเดือน เวลา ${rt.time} น.`;
+      else if (rt.scheduleType === 'weekly') scheduleLabel = `ทุกวัน${thaiDayNames[rt.dayOfWeek] || ''} เวลา ${rt.time} น.`;
+      else scheduleLabel = `ทุกวัน เวลา ${rt.time} น.`;
+      const active = rt.active === true || rt.active === 'TRUE' || rt.active === 'true';
+      return {
+        ...rt, active,
+        humanSummary: rt.humanSummary || rt.instruction,
+        scheduleLabel,
+        lastRunLabel: rt.lastRunDate ? ' · ล่าสุด ' + rt.lastRunDate : ' · ยังไม่เคยทำงาน',
+        toggleBg: active ? '#D97757' : '#E3D8C8',
+        toggleKnobLeft: active ? '18px' : '2px',
+        onToggleActive: () => this.toggleRecurringActive(rt),
+        onDelete: () => this.deleteRecurringTask(rt.id),
+      };
+    });
 
     const occupiedRooms = s.rooms.filter(r => r.tenant);
     const windowOpts = [12, 24, 48];
@@ -4552,6 +4707,15 @@ class Component extends DCLogic {
       claudeApiStatusLabel: s.claudeApiConnected ? '✓ เชื่อมต่อ Claude API แล้ว' : '✗ ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ใน server/.env',
       claudeAutomationBg: s.claudeAutomationEnabled ? '#D97757' : '#E3D8C8',
       claudeAutomationKnobLeft: s.claudeAutomationEnabled ? '22px' : '2px',
+
+      showRecurringModal: s.showRecurringModal, openRecurringModal: this.openRecurringModal, closeRecurringModal: this.closeRecurringModal,
+      recurringTasks: recurringTasksView, noRecurringTasks: recurringTasksView.length === 0,
+      recurringInput: s.recurringInput, onRecurringInputChange: this.onRecurringInputChange,
+      recurringParseError: s.recurringParseError, recurringParsed: s.recurringParsed,
+      showRecurringParseStage: !s.recurringParsed, showRecurringConfirmStage: !!s.recurringParsed,
+      parseRecurringCommand: this.parseRecurringCommand, cancelRecurringParse: this.cancelRecurringParse, confirmSaveRecurring: this.confirmSaveRecurring,
+      recurringParseButtonLabel: s.recurringParseLoading ? 'กำลังแปลคำสั่ง...' : 'แปลคำสั่ง',
+      recurringSaveButtonLabel: s.recurringSaveLoading ? 'กำลังบันทึก...' : 'ยืนยันบันทึก',
 
       waterRate: s.waterRate, elecRate: s.elecRate, onWaterRateChange: this.onWaterRateChange, onElecRateChange: this.onElecRateChange,
       waterReportView, elecReportView,
