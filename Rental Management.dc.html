@@ -1937,6 +1937,28 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showResolveSlipConfirm }}">
+          <div onclick="{{ closeResolveSlipConfirm }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:220">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;box-sizing:border-box">
+              <sc-if value="{{ resolveSlipConfirmInfo }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:6px">{{ resolveSlipConfirmInfo.title }}</div>
+                <div style="font-size:12.5px;color:#7C6E5F;margin-bottom:4px">ห้อง {{ resolveSlipConfirmInfo.room }} · {{ resolveSlipConfirmInfo.tenant }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#241812;margin-bottom:14px">{{ resolveSlipConfirmInfo.amountDisplay }}</div>
+                <sc-if value="{{ resolveSlipConfirmIsPartial }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:12px;color:#B85B27;margin-bottom:14px">ยอดคงเหลือหลังจากนี้: {{ resolveSlipConfirmInfo.remainingDisplay }}</div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">วันครบกำหนดชำระยอดที่เหลือ</div>
+                  <input type="date" value="{{ resolveSlipConfirmDueDate }}" onchange="{{ onResolveSlipDueDateChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;margin-bottom:14px">
+                </sc-if>
+              </sc-if>
+              <div style="font-size:12px;color:#9C8B78;margin-bottom:18px">เมื่อยืนยันแล้ว ระบบจะบันทึกและส่งข้อความแจ้งผู้เช่าทาง LINE ทันที</div>
+              <div style="display:flex;gap:10px">
+                <div onclick="{{ closeResolveSlipConfirm }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer;text-align:center">ยกเลิก</div>
+                <div onclick="{{ confirmResolveSlip }}" style="flex:1.3;padding:11px;border-radius:7px;background:#3B7A52;color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:center">ยืนยัน</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showSlipRejectConfirm }}">
           <div onclick="{{ closeSlipRejectConfirm }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:220">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;box-sizing:border-box">
@@ -2404,6 +2426,10 @@ class Component extends DCLogic {
     showCreditReview: false,
     creditReviewRoomId: '',
     creditActionLoading: false,
+    showResolveSlipConfirm: false,
+    resolveSlipConfirmId: '',
+    resolveSlipConfirmMode: '',
+    resolveSlipConfirmDueDate: '',
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -3806,10 +3832,27 @@ class Component extends DCLogic {
   // invoice id explicitly (not from slipReview modal state) since these are
   // now only triggered per-card from the queue, which can have many
   // invoices open for review at once.
-  confirmSlipFull = (id) => this.resolveSlip(id, 'full');
-  confirmSlipPartial = (id) => this.resolveSlip(id, 'partial');
-  confirmSlipAsCredit = (id) => this.resolveSlip(id, 'credit');
-  resolveSlip = (id, mode) => this._guard('resolveSlip:' + id, async () => {
+  // All 3 resolution buttons now open a confirm popup first instead of
+  // firing immediately — per explicit user request, to add a deliberate
+  // "are you sure" step before anything gets saved/sent. The ชำระบางส่วน
+  // case additionally asks for a new due date for the remaining balance
+  // (defaults to the invoice's existing due date, or today if none set).
+  askResolveSlip = (id, mode) => {
+    const inv = this.state.invoices.find(i => i.id === id);
+    this.setState({
+      showResolveSlipConfirm: true, resolveSlipConfirmId: id, resolveSlipConfirmMode: mode,
+      resolveSlipConfirmDueDate: (inv && inv.due) || new Date().toISOString().slice(0, 10),
+    });
+  };
+  closeResolveSlipConfirm = () => this.setState({ showResolveSlipConfirm: false, resolveSlipConfirmId: '', resolveSlipConfirmMode: '' });
+  onResolveSlipDueDateChange = (e) => this.setState({ resolveSlipConfirmDueDate: e.target.value });
+  confirmResolveSlip = () => {
+    const { resolveSlipConfirmId: id, resolveSlipConfirmMode: mode, resolveSlipConfirmDueDate: dueDate } = this.state;
+    this.setState({ showResolveSlipConfirm: false, resolveSlipConfirmId: '', resolveSlipConfirmMode: '' });
+    this.resolveSlip(id, mode, dueDate);
+  };
+
+  resolveSlip = (id, mode, newDue) => this._guard('resolveSlip:' + id, async () => {
     const inv = this.state.invoices.find(i => i.id === id);
     if (!inv) return;
     this.setState({ slipActionLoading: true });
@@ -3841,12 +3884,17 @@ class Component extends DCLogic {
 
       const newAmountPaid = mode === 'full' ? total : (inv.amountPaid || 0) + combined;
       const newStatus = total > 0 && newAmountPaid >= total ? 'paid' : 'partial';
+      // Only ชำระบางส่วน carries a new due date forward (the remaining
+      // balance needs a "pay by" date); ชำระเต็มจำนวน closes the bill so a
+      // due date is moot.
+      const patch = {
+        amountPaid: newAmountPaid, status: newStatus, slipPending: false, slipsJson: '[]',
+        paidDate: newStatus === 'paid' ? new Date().toISOString().slice(0, 10) : '',
+      };
+      if (mode === 'partial' && newStatus !== 'paid' && newDue) patch.due = newDue;
       const res = await fetch('/api/invoices/' + id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amountPaid: newAmountPaid, status: newStatus, slipPending: false, slipsJson: '[]',
-          paidDate: newStatus === 'paid' ? new Date().toISOString().slice(0, 10) : '',
-        }),
+        body: JSON.stringify(patch),
       });
       if (!res.ok) throw new Error('อัปเดตไม่สำเร็จ');
       const updated = await res.json();
@@ -3859,8 +3907,9 @@ class Component extends DCLogic {
         this._lineSend(inv.room, `ขอบคุณที่ชำระค่าเช่าห้อง ${inv.room} จำนวน ${this.fmt(total)} เรียบร้อยแล้วครับ 🙏`).catch(err => console.error(err));
       } else {
         const remaining = total - newAmountPaid;
+        const dueNote = patch.due ? ` กำหนดชำระส่วนที่เหลือภายในวันที่ ${patch.due}` : '';
         this.showAdminToast(`บันทึกชำระบางส่วนแล้ว คงเหลือ ${this.fmt(remaining)}`);
-        this._lineSend(inv.room, `รับทราบการชำระของห้อง ${inv.room} จำนวน ${this.fmt(combined)} แล้วครับ ยอดคงเหลือ ${this.fmt(remaining)} บาท ขอบคุณครับ 🙏`).catch(err => console.error(err));
+        this._lineSend(inv.room, `รับทราบการชำระของห้อง ${inv.room} จำนวน ${this.fmt(combined)} แล้วครับ ยอดคงเหลือ ${this.fmt(remaining)} บาท${dueNote} ขอบคุณครับ 🙏`).catch(err => console.error(err));
       }
     } catch (err) {
       this.setState({ slipActionLoading: false });
@@ -4744,6 +4793,35 @@ class Component extends DCLogic {
       onDelete: () => this.askDeleteSlip(inv.id, idx),
     }));
 
+    // Confirm-before-save popup for all 3 payment resolution buttons (per
+    // explicit user request — none of them should fire immediately on
+    // click anymore). Mode-specific copy/labels computed here so the
+    // template just picks the right one.
+    const resolveSlipConfirmInvoiceRaw = s.invoices.find(i => i.id === s.resolveSlipConfirmId) || null;
+    let resolveSlipConfirmInfo = null;
+    if (resolveSlipConfirmInvoiceRaw) {
+      const total = resolveSlipConfirmInvoiceRaw.rent + resolveSlipConfirmInvoiceRaw.water + resolveSlipConfirmInvoiceRaw.elec + (resolveSlipConfirmInvoiceRaw.trash || 0) + (resolveSlipConfirmInvoiceRaw.internet || 0);
+      const combined = resolveSlipConfirmInvoiceRaw.slipsTotal || 0;
+      const remaining = Math.max(0, total - ((resolveSlipConfirmInvoiceRaw.amountPaid || 0) + combined));
+      const mode = s.resolveSlipConfirmMode;
+      const titleByMode = {
+        full: 'ยืนยันชำระเต็มจำนวน',
+        partial: 'ยืนยันชำระบางส่วน',
+        credit: 'ยืนยันบันทึกเป็นเงินล่วงหน้า',
+      };
+      const amountByMode = {
+        full: this.fmt(total),
+        partial: this.fmt(combined),
+        credit: this.fmt(combined),
+      };
+      resolveSlipConfirmInfo = {
+        room: resolveSlipConfirmInvoiceRaw.room, tenant: resolveSlipConfirmInvoiceRaw.tenant,
+        title: titleByMode[mode] || 'ยืนยันการทำรายการ',
+        amountDisplay: amountByMode[mode] || '',
+        remainingDisplay: this.fmt(remaining),
+      };
+    }
+
     const creditReviewRoomRaw = s.rooms.find(r => r.id === s.creditReviewRoomId) || null;
     const creditReview = creditReviewRoomRaw ? {
       room: creditReviewRoomRaw.id,
@@ -4792,9 +4870,9 @@ class Component extends DCLogic {
         partialRemainingDisplay: this.fmt(partialRemaining),
         matchLabel: amountMatches ? '✓ ยอดตรงกับบิล' : '⚠️ ยอดไม่ตรงกับบิล',
         matchColor: amountMatches ? '#3B7A52' : '#B24336', matchBg: amountMatches ? '#E4EFE7' : '#FBE7E4',
-        onConfirmFull: () => this.confirmSlipFull(i.id),
-        onConfirmPartial: () => this.confirmSlipPartial(i.id),
-        onConfirmAsCredit: () => this.confirmSlipAsCredit(i.id),
+        onConfirmFull: () => this.askResolveSlip(i.id, 'full'),
+        onConfirmPartial: () => this.askResolveSlip(i.id, 'partial'),
+        onConfirmAsCredit: () => this.askResolveSlip(i.id, 'credit'),
       };
     });
     const slipQueueCount = slipQueueItems.length;
@@ -5273,7 +5351,10 @@ class Component extends DCLogic {
 
       billingChips, invoicesView, pendingBills, pendingBillsCount, noPendingBills: pendingBillsCount === 0,
       showSlipReview: s.showSlipReview, closeSlipReview: this.closeSlipReview, slipReview, hasSlipReview: !!slipReview,
-      confirmSlipFull: this.confirmSlipFull, confirmSlipPartial: this.confirmSlipPartial, confirmSlipAsCredit: this.confirmSlipAsCredit,
+      showResolveSlipConfirm: s.showResolveSlipConfirm, closeResolveSlipConfirm: this.closeResolveSlipConfirm, confirmResolveSlip: this.confirmResolveSlip,
+      resolveSlipConfirmDueDate: s.resolveSlipConfirmDueDate, onResolveSlipDueDateChange: this.onResolveSlipDueDateChange,
+      resolveSlipConfirmIsPartial: s.resolveSlipConfirmMode === 'partial',
+      resolveSlipConfirmInfo,
       showCreditReview: s.showCreditReview, closeCreditReview: this.closeCreditReview, confirmCreditSlips: this.confirmCreditSlips,
       creditReview, hasCreditReview: !!creditReview,
       creditConfirmButtonLabel: s.creditActionLoading ? 'กำลังบันทึก...' : 'ยืนยันเป็นเงินล่วงหน้า',
