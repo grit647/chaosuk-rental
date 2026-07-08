@@ -141,23 +141,35 @@ async function handleSlipImage(event, req) {
     return;
   }
 
+  // ocrFailed distinguishes "Claude Vision itself errored out" (network
+  // hiccup, API error — a real slip we simply couldn't read this time) from
+  // "Claude read the image fine and found nothing slip-like" (below) — the
+  // two used to be handled identically (both just apologized and dropped
+  // the photo with zero record), which was a real bug: a genuine payment
+  // slip that hit a transient OCR error vanished with nothing for the owner
+  // to follow up on. Now an OCR failure still gets filed (image + a note
+  // that amount/date/sender couldn't be auto-read) instead of discarded —
+  // the owner can open the photo themselves and fill in the details.
   let slip;
+  let ocrFailed = false;
   try {
     const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
     slip = await readPaymentSlip(dataUrl);
   } catch (err) {
     console.error('[line] slip read failed', err.message);
-    await replyMessage(event.replyToken, 'ได้รับรูปสลิปแล้วครับ แต่อ่านรายละเอียดไม่สำเร็จ รอเจ้าของตรวจสอบด้วยตนเองครับ');
-    return;
+    ocrFailed = true;
+    slip = { amount: null, date: '', senderName: '' };
   }
 
-  // If Claude couldn't find ANY of the fields a real bank slip always has
-  // (amount, date, sender), the photo almost certainly isn't a payment
-  // slip at all (screenshot of something else, a random photo, etc.) —
-  // reject it outright instead of silently saving an empty "advance
-  // payment" record, per explicit user feedback after hitting exactly this
-  // with a test screenshot.
-  if (slip.amount == null && !slip.date && !slip.senderName) {
+  // If Claude successfully READ the image but found NONE of the fields a
+  // real bank slip always has (amount, date, sender), the photo almost
+  // certainly isn't a payment slip at all (screenshot of something else, a
+  // random photo, etc.) — reject it outright instead of silently saving an
+  // empty "advance payment" record, per explicit user feedback after
+  // hitting exactly this with a test screenshot. Skipped when the OCR call
+  // itself failed (ocrFailed) — that's a different situation (see above),
+  // not evidence the photo isn't a real slip.
+  if (!ocrFailed && slip.amount == null && !slip.date && !slip.senderName) {
     await replyMessage(event.replyToken, 'รูปที่ส่งมาไม่เหมือนสลิปโอนเงินครับ (อ่านยอด/วันที่/ชื่อผู้โอนไม่เจอเลย) กรุณาส่งรูปสลิปที่ถ่ายหรือแคปมาจากแอปธนาคารโดยตรงอีกครั้งนะครับ');
     return;
   }
@@ -167,6 +179,7 @@ async function handleSlipImage(event, req) {
     date: slip.date || '', senderName: slip.senderName || '', imageUrl: publicUrl,
     uploadedAt: new Date().toISOString(),
   };
+  const amountLabel = ocrFailed ? 'อ่านยอดอัตโนมัติไม่สำเร็จ (เจ้าของจะเปิดดูรูปเองครับ)' : `ยอด ${slip.amount ?? '-'} บาท`;
 
   if (!room) {
     // Identity unknown — file it for the owner to manually assign to a room
@@ -176,12 +189,12 @@ async function handleSlipImage(event, req) {
       amount: newSlip.amount != null ? newSlip.amount : '', date: newSlip.date,
       senderName: newSlip.senderName, imageUrl: newSlip.imageUrl, uploadedAt: newSlip.uploadedAt,
     });
-    await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ยอด ${slip.amount ?? '-'} บาท — แต่ระบบยังไม่ทราบว่าเป็นห้องไหน (LINE นี้ยังไม่เชื่อมต่อกับห้อง) กรุณาพิมพ์เลขห้องของคุณครับ (เช่น 301) เจ้าของจะตรวจสอบและจับคู่ให้เร็วๆ นี้ครับ ขอบคุณครับ 🙏`);
+    await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ${amountLabel} — แต่ระบบยังไม่ทราบว่าเป็นห้องไหน (LINE นี้ยังไม่เชื่อมต่อกับห้อง) กรุณาพิมพ์เลขห้องของคุณครับ (เช่น 301) เจ้าของจะตรวจสอบและจับคู่ให้เร็วๆ นี้ครับ ขอบคุณครับ 🙏`);
     return;
   }
 
   const result = await attachSlipToRoom(room.id, newSlip);
-  await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ยอด ${slip.amount ?? '-'} บาท ${result.note} ขอบคุณครับ 🙏`);
+  await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ${amountLabel} ${result.note} ขอบคุณครับ 🙏`);
 }
 
 router.post('/webhook', async (req, res) => {
