@@ -3608,7 +3608,7 @@ class Component extends DCLogic {
     const de = this.deviceCharge(roomId, 'elec'); if (de) next.elec = String(de.charge);
     this.setState({ showInvoiceModal: true, newInvoice: next });
   };
-  sendReceiptLine = async (roomId) => {
+  sendReceiptLine = (roomId) => this._guard('sendReceiptLine:' + roomId, async () => {
     const invoice = this.state.invoices.find(i => i.room === roomId && i.status !== 'paid');
     try {
       let message;
@@ -3649,7 +3649,7 @@ class Component extends DCLogic {
       this.setState(s => ({ receiptsSent: { ...s.receiptsSent, [roomId]: true } }));
       this.showAdminToast('ส่งใบแจ้งหนี้ห้อง ' + roomId + ' ทาง LINE และบันทึกใบเสร็จแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ส่ง LINE ไม่สำเร็จ'); }
-  };
+  });
   openPayConfirm = (id) => this.setState({ showPayConfirm: true, payConfirmId: id });
   openSaveReceipt = (roomId) => this.setState({ showSaveReceipt: true, saveReceiptRoom: roomId });
   closeSaveReceipt = () => this.setState({ showSaveReceipt: false, saveReceiptRoom: null });
@@ -3710,7 +3710,7 @@ class Component extends DCLogic {
   onNewInvoiceElecChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, elec: v } })); };
   onNewInvoiceDueChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, due: v } })); };
 
-  submitInvoice = async () => {
+  submitInvoice = () => this._guard('submitInvoice', async () => {
     const s = this.state;
     if (!s.newInvoice.roomId) { this.showAdminToast('กรุณาเลือกห้อง'); return; }
     const room = s.rooms.find(r => r.id === s.newInvoice.roomId);
@@ -3745,9 +3745,9 @@ class Component extends DCLogic {
       this.setState(st => ({ invoices: [newInv, ...st.invoices], showInvoiceModal: false }));
       this.showAdminToast('สร้างใบแจ้งหนี้ห้อง ' + room.id + ' สำเร็จ');
     } catch (err) { this.showAdminToast(err.message || 'สร้างใบแจ้งหนี้ไม่สำเร็จ'); }
-  };
+  });
 
-  markInvoicePaid = async (id) => {
+  markInvoicePaid = (id) => this._guard('markInvoicePaid:' + id, async () => {
     try {
       const res = await fetch('/api/invoices/' + id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -3761,7 +3761,7 @@ class Component extends DCLogic {
       const total = Number(updated.rent || 0) + Number(updated.water || 0) + Number(updated.elec || 0) + Number(updated.trash || 0) + Number(updated.internet || 0);
       this._lineSend(updated.room, 'ขอบคุณที่ชำระค่าเช่าห้อง ' + updated.room + ' จำนวน ' + this.fmt(total) + ' เรียบร้อยแล้วครับ 🙏').catch(err => console.error(err));
     } catch (err) { this.showAdminToast(err.message || 'อัปเดตไม่สำเร็จ'); }
-  };
+  });
 
   // Slip review — a tenant's payment-slip photo sent straight to the LINE
   // bot gets OCR'd server-side and flagged on the matching invoice
@@ -3814,7 +3814,7 @@ class Component extends DCLogic {
   confirmSlipFull = (id) => this.resolveSlip(id, 'full');
   confirmSlipPartial = (id) => this.resolveSlip(id, 'partial');
   confirmSlipAsCredit = (id) => this.resolveSlip(id, 'credit');
-  resolveSlip = async (id, mode) => {
+  resolveSlip = (id, mode) => this._guard('resolveSlip:' + id, async () => {
     const inv = this.state.invoices.find(i => i.id === id);
     if (!inv) return;
     this.setState({ slipActionLoading: true });
@@ -3871,7 +3871,7 @@ class Component extends DCLogic {
       this.setState({ slipActionLoading: false });
       this.showAdminToast(err.message || 'ดำเนินการไม่สำเร็จ');
     }
-  };
+  });
   rejectSlip = async () => {
     const id = this.state.slipReviewInvoiceId;
     if (!id) return;
@@ -3889,7 +3889,7 @@ class Component extends DCLogic {
   askDeleteSlip = (invoiceId, slipIndex) => this.setState({ showSlipRejectConfirm: true, slipRejectInvoiceId: invoiceId, slipRejectSlipIndex: slipIndex, slipRejectReason: 'resend' });
   closeSlipRejectConfirm = () => this.setState({ showSlipRejectConfirm: false, slipRejectInvoiceId: '', slipRejectSlipIndex: -1 });
   setSlipRejectReason = (reason) => this.setState({ slipRejectReason: reason });
-  confirmDeleteSlip = async () => {
+  confirmDeleteSlip = () => this._guard('confirmDeleteSlip', async () => {
     const { slipRejectInvoiceId: id, slipRejectSlipIndex: idx, slipRejectReason: reason } = this.state;
     const inv = this.state.invoices.find(i => i.id === id);
     if (!inv || idx < 0) return;
@@ -3919,7 +3919,7 @@ class Component extends DCLogic {
       this.setState({ slipRejectLoading: false });
       this.showAdminToast(err.message || 'ลบไม่สำเร็จ');
     }
-  };
+  });
 
   // Advance-payment credit review — a slip that arrived with NO pending
   // invoice to match against (see server/routes/line.js's handleSlipImage)
@@ -3929,7 +3929,7 @@ class Component extends DCLogic {
   // next time a real bill gets opened for that room.
   openCreditReview = (roomId) => this.setState({ showCreditReview: true, creditReviewRoomId: roomId });
   closeCreditReview = () => this.setState({ showCreditReview: false, creditReviewRoomId: '' });
-  confirmCreditSlips = async () => {
+  confirmCreditSlips = () => this._guard('confirmCreditSlips:' + this.state.creditReviewRoomId, async () => {
     const roomId = this.state.creditReviewRoomId;
     const room = this.state.rooms.find(r => r.id === roomId);
     if (!room) return;
@@ -3953,8 +3953,8 @@ class Component extends DCLogic {
       this.setState({ creditActionLoading: false });
       this.showAdminToast(err.message || 'ดำเนินการไม่สำเร็จ');
     }
-  };
-  deleteCreditSlip = async (roomId, idx) => {
+  });
+  deleteCreditSlip = (roomId, idx) => this._guard('deleteCreditSlip:' + roomId + ':' + idx, async () => {
     const room = this.state.rooms.find(r => r.id === roomId);
     if (!room) return;
     try {
@@ -3968,7 +3968,7 @@ class Component extends DCLogic {
       this.setState(s => ({ rooms: s.rooms.map(r => r.id === roomId ? updated : r) }));
       this.showAdminToast('ลบสลิปแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ลบไม่สำเร็จ'); }
-  };
+  });
 
   // Queue view — a header button (shows the live pending count) opens a list
   // of every flagged slip as its own card, each with its own ยืนยัน/ยกเลิก,
@@ -3978,14 +3978,14 @@ class Component extends DCLogic {
   // different/looser confirmation path).
   openSlipQueue = () => this.setState({ showSlipQueue: true });
   closeSlipQueue = () => this.setState({ showSlipQueue: false });
-  confirmAllSlips = async () => {
+  confirmAllSlips = () => this._guard('confirmAllSlips', async () => {
     const ids = this.state.invoices.filter(i => i.slipPending).map(i => i.id);
     if (!ids.length) return;
     this.setState({ slipActionLoading: true });
     for (const id of ids) { await this.confirmSlipPaidFor(id); }
     this.setState({ slipActionLoading: false, showSlipQueue: false });
     this.showAdminToast(`ยืนยันสลิป ${ids.length} รายการแล้ว`);
-  };
+  });
 
   cycleMaintenance = (id) => {
     const order = ['pending', 'inprogress', 'done'];
@@ -4407,6 +4407,22 @@ class Component extends DCLogic {
   };
 
   logout = () => this.showAdminToast('ออกจากระบบเรียบร้อย (เดโม)');
+
+  // Double-click / double-tap guard for anything that hits the server and
+  // shouldn't run twice (create invoice, mark paid, send LINE, delete, etc.)
+  // — a fast double-click on desktop or a double-tap on mobile can otherwise
+  // fire the handler twice before the first request even finishes, causing
+  // duplicate invoices/messages/charges. Tracked on `this` (not state) so
+  // checking it doesn't trigger a re-render; `key` just needs to be unique
+  // per button (using the invoice/room id where relevant so clicking two
+  // DIFFERENT rows' buttons back-to-back still both work normally).
+  _busyKeys = new Set();
+  _guard = async (key, fn) => {
+    if (this._busyKeys.has(key)) return;
+    this._busyKeys.add(key);
+    try { await fn(); }
+    finally { this._busyKeys.delete(key); }
+  };
 
   showAdminToast = (message) => {
     this.setState({ adminToast: { show: true, message } });
