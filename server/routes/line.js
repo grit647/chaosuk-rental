@@ -3,7 +3,7 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { readTab, updateRow } = require('../sheets');
+const { readTab, updateRow, appendRow } = require('../sheets');
 const { coerceInvoices, coerceRooms } = require('../coerce');
 const { isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent } = require('../line');
 const { isConfigured: claudeConfigured, readPaymentSlip } = require('../claude');
@@ -15,6 +15,76 @@ fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 router.get('/status', (req, res) => {
   res.json({ connected: isConfigured() });
 });
+
+// Given a room and a freshly-read slip, files it against that room: adds to
+// a mid-review invoice / amount-matches a pending invoice / falls back to
+// room-level advance-payment credit if there's no bill open at all. Shared
+// by the normal (already-linked LINE user) path below AND by the admin
+// "assign this unmatched slip to a room" action (server/routes/
+// unmatchedSlips.js), since both cases end up doing exactly the same filing
+// once a room is known. Returns a short Thai note describing what happened,
+// for whichever caller wants to report it back (LINE reply or admin toast).
+async function attachSlipToRoom(roomId, newSlip) {
+  const invoices = coerceInvoices(await readTab('Invoices'));
+  const pending = invoices.filter((i) => i.room === roomId && i.status !== 'paid');
+  const totalOf = (inv) => Number(inv.rent || 0) + Number(inv.water || 0) + Number(inv.elec || 0) + Number(inv.trash || 0) + Number(inv.internet || 0);
+
+  if (!pending.length) {
+    // No bill open for this room at all — most likely an advance payment
+    // (tenant paying before the owner has issued next cycle's invoice yet).
+    // Record it against the ROOM (not any invoice, since none exists) so the
+    // owner can review and decide; if confirmed, it becomes creditBalance
+    // and auto-applies the next time an invoice is created for this room.
+    const roomFull = coerceRooms(await readTab('Rooms')).find((r) => r.id === roomId);
+    const allCreditSlips = [...((roomFull && roomFull.creditSlips) || []), newSlip];
+    await updateRow('Rooms', roomId, { creditSlipsJson: JSON.stringify(allCreditSlips) });
+    return { kind: 'credit', note: `ยังไม่มีบิลค้างชำระของห้อง ${roomId} ในระบบ ระบบบันทึกไว้เป็นเงินที่จ่ายล่วงหน้าแล้ว` };
+  }
+
+  // A tenant can send more than one slip before the owner ever reviews the
+  // first one — most commonly because one account didn't have enough
+  // balance, so they split the payment across two (or more) transfers. If
+  // this room already has an invoice mid-review (slipPending), treat any new
+  // slip as belonging to that SAME bill and add to it, rather than trying to
+  // amount-match a partial payment against the wrong invoice. Only fall back
+  // to amount-matching when nothing is currently pending review.
+  const alreadyPending = pending.filter((i) => i.slipPending);
+  let matched;
+  if (alreadyPending.length === 1) {
+    matched = alreadyPending[0];
+  } else if (newSlip.amount != null && pending.find((i) => Math.abs(totalOf(i) - Number(newSlip.amount)) < 1)) {
+    matched = pending.find((i) => Math.abs(totalOf(i) - Number(newSlip.amount)) < 1);
+  } else {
+    // No exact match and nothing already in review — fall back to the
+    // closest pending invoice by amount so something is always flagged for
+    // the owner to look at, even if it's not a clean match.
+    matched = pending.reduce((best, i) => {
+      if (!best) return i;
+      if (newSlip.amount == null) return best;
+      return Math.abs(totalOf(i) - Number(newSlip.amount)) < Math.abs(totalOf(best) - Number(newSlip.amount)) ? i : best;
+    }, null) || pending[0];
+  }
+
+  const allSlips = [...(matched.slips || []), newSlip];
+  const combinedTotal = allSlips.reduce((a, s) => a + (Number(s.amount) || 0), 0);
+
+  await updateRow('Invoices', matched.id, {
+    slipPending: true,
+    slipsJson: JSON.stringify(allSlips),
+    // Keep the singular fields in sync with the latest slip, for any older
+    // code path that still only reads those.
+    slipAmount: newSlip.amount != null ? newSlip.amount : '',
+    slipDate: newSlip.date,
+    slipSenderName: newSlip.senderName,
+    slipImageUrl: newSlip.imageUrl,
+    slipUploadedAt: newSlip.uploadedAt,
+  });
+
+  const amountMatches = Math.abs(totalOf(matched) - combinedTotal) < 1;
+  const countNote = allSlips.length > 1 ? `รวม ${allSlips.length} สลิป (${combinedTotal.toLocaleString()} บาท) ` : '';
+  const note = amountMatches ? '' : ' (ยอดอาจไม่ตรงกับบิลเป๊ะๆ เจ้าของจะตรวจสอบอีกครั้ง)';
+  return { kind: 'invoice', invoiceId: matched.id, note: `${countNote}กำลังรอเจ้าของยืนยันครับ${note}` };
+}
 
 // A tenant sends a payment-slip photo directly to the bot (no menu/command —
 // just an image). This is OCR only (Claude Vision reads what's printed on
@@ -28,10 +98,14 @@ router.get('/status', (req, res) => {
 async function handleSlipImage(event, req) {
   const rooms = await readTab('Rooms');
   const room = rooms.find((r) => r.lineUserId === event.source.userId);
-  if (!room) {
-    await replyMessage(event.replyToken, 'ยังไม่ได้เชื่อมต่อห้องกับ LINE นี้ครับ กรุณาพิมพ์เลขห้องของคุณก่อน (เช่น 301) แล้วค่อยส่งสลิปใหม่อีกครั้งครับ');
-    return;
-  }
+  // Note: unlike before, an unlinked LINE user is NOT rejected here anymore
+  // — we still read the slip below and file it in UnmatchedSlips so the
+  // owner can manually assign it to a room, instead of it vanishing with no
+  // record at all (a real bug a user hit: they'd already typed something
+  // that wasn't a room number earlier in the chat, which doesn't actually
+  // link anything, so the bot has no way to identify which room a slip sent
+  // afterward belongs to — but the payment itself is real and shouldn't be
+  // silently dropped just because identity couldn't be auto-verified).
 
   let buffer;
   try {
@@ -88,76 +162,26 @@ async function handleSlipImage(event, req) {
     return;
   }
 
-  const invoices = coerceInvoices(await readTab('Invoices'));
-  const pending = invoices.filter((i) => i.room === room.id && i.status !== 'paid');
-  const totalOf = (inv) => Number(inv.rent || 0) + Number(inv.water || 0) + Number(inv.elec || 0) + Number(inv.trash || 0) + Number(inv.internet || 0);
-
-  if (!pending.length) {
-    // No bill open for this room at all — most likely an advance payment
-    // (tenant paying before the owner has issued next cycle's invoice yet).
-    // Record it against the ROOM (not any invoice, since none exists) so the
-    // owner can review and decide; if confirmed, it becomes creditBalance
-    // and auto-applies the next time an invoice is created for this room.
-    const roomFull = coerceRooms(await readTab('Rooms')).find((r) => r.id === room.id);
-    const newSlip = {
-      amount: slip.amount != null ? Number(slip.amount) : null,
-      date: slip.date || '', senderName: slip.senderName || '', imageUrl: publicUrl,
-      uploadedAt: new Date().toISOString(),
-    };
-    const allCreditSlips = [...((roomFull && roomFull.creditSlips) || []), newSlip];
-    await updateRow('Rooms', room.id, { creditSlipsJson: JSON.stringify(allCreditSlips) });
-    await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ยอด ${slip.amount ?? '-'} บาท — ตอนนี้ยังไม่มีบิลค้างชำระของห้อง ${room.id} ในระบบ ระบบจะบันทึกไว้เป็นเงินที่จ่ายล่วงหน้า รอเจ้าของตรวจสอบและยืนยันก่อนนะครับ ขอบคุณครับ 🙏`);
-    return;
-  }
-
-  // A tenant can send more than one slip before the owner ever reviews the
-  // first one — most commonly because one account didn't have enough
-  // balance, so they split the payment across two (or more) transfers. If
-  // this room already has an invoice mid-review (slipPending), treat any new
-  // slip as belonging to that SAME bill and add to it, rather than trying to
-  // amount-match a partial payment against the wrong invoice. Only fall back
-  // to amount-matching when nothing is currently pending review.
-  const alreadyPending = pending.filter((i) => i.slipPending);
-  let matched;
-  if (alreadyPending.length === 1) {
-    matched = alreadyPending[0];
-  } else if (slip.amount != null && pending.find((i) => Math.abs(totalOf(i) - Number(slip.amount)) < 1)) {
-    matched = pending.find((i) => Math.abs(totalOf(i) - Number(slip.amount)) < 1);
-  } else {
-    // No exact match and nothing already in review — fall back to the
-    // closest pending invoice by amount so something is always flagged for
-    // the owner to look at, even if it's not a clean match.
-    matched = pending.reduce((best, i) => {
-      if (!best) return i;
-      if (slip.amount == null) return best;
-      return Math.abs(totalOf(i) - Number(slip.amount)) < Math.abs(totalOf(best) - Number(slip.amount)) ? i : best;
-    }, null) || pending[0];
-  }
-
   const newSlip = {
     amount: slip.amount != null ? Number(slip.amount) : null,
     date: slip.date || '', senderName: slip.senderName || '', imageUrl: publicUrl,
     uploadedAt: new Date().toISOString(),
   };
-  const allSlips = [...(matched.slips || []), newSlip];
-  const combinedTotal = allSlips.reduce((a, s) => a + (Number(s.amount) || 0), 0);
 
-  await updateRow('Invoices', matched.id, {
-    slipPending: true,
-    slipsJson: JSON.stringify(allSlips),
-    // Keep the singular fields in sync with the latest slip, for any older
-    // code path that still only reads those.
-    slipAmount: newSlip.amount != null ? newSlip.amount : '',
-    slipDate: newSlip.date,
-    slipSenderName: newSlip.senderName,
-    slipImageUrl: newSlip.imageUrl,
-    slipUploadedAt: newSlip.uploadedAt,
-  });
+  if (!room) {
+    // Identity unknown — file it for the owner to manually assign to a room
+    // from the Bills page's slip queue, instead of dropping it.
+    await appendRow('UnmatchedSlips', {
+      id: 'UM-' + Date.now(), lineUserId: event.source.userId,
+      amount: newSlip.amount != null ? newSlip.amount : '', date: newSlip.date,
+      senderName: newSlip.senderName, imageUrl: newSlip.imageUrl, uploadedAt: newSlip.uploadedAt,
+    });
+    await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ยอด ${slip.amount ?? '-'} บาท — แต่ระบบยังไม่ทราบว่าเป็นห้องไหน (LINE นี้ยังไม่เชื่อมต่อกับห้อง) กรุณาพิมพ์เลขห้องของคุณครับ (เช่น 301) เจ้าของจะตรวจสอบและจับคู่ให้เร็วๆ นี้ครับ ขอบคุณครับ 🙏`);
+    return;
+  }
 
-  const amountMatches = Math.abs(totalOf(matched) - combinedTotal) < 1;
-  const countNote = allSlips.length > 1 ? `รวม ${allSlips.length} สลิป (${combinedTotal.toLocaleString()} บาท) ` : '';
-  const note = amountMatches ? '' : ' (ยอดอาจไม่ตรงกับบิลเป๊ะๆ เจ้าของจะตรวจสอบอีกครั้ง)';
-  await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ${countNote}ยอด ${slip.amount ?? '-'} บาท กำลังรอเจ้าของยืนยันครับ ขอบคุณครับ 🙏${note}`);
+  const result = await attachSlipToRoom(room.id, newSlip);
+  await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ยอด ${slip.amount ?? '-'} บาท ${result.note} ขอบคุณครับ 🙏`);
 }
 
 router.post('/webhook', async (req, res) => {
@@ -221,3 +245,4 @@ router.post('/send', async (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.attachSlipToRoom = attachSlipToRoom;

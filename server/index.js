@@ -34,6 +34,7 @@ app.use('/api/uploads', require('./routes/uploads'));
 app.use('/api/tuya', require('./routes/tuya'));
 app.use('/api/claude', require('./routes/claude'));
 app.use('/api/recurring-tasks', require('./routes/recurringTasks'));
+app.use('/api/unmatched-slips', require('./routes/unmatchedSlips'));
 app.use('/api/scheduler', require('./routes/scheduler'));
 
 app.use((err, req, res, next) => {

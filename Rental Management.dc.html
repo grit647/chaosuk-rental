@@ -178,6 +178,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div onclick="{{ goBilling }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navBilling.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navBilling.dot }}"></div>
               <span style="font-size:13.5px;color:{{ navBilling.color }};font-weight:{{ navBilling.weight }}">บิล &amp; ใบแจ้งหนี้</span>
+              <sc-if value="{{ hasSlipsNeedingReview }}" hint-placeholder-val="{{ false }}">
+                <span style="margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#B24336;color:#fff;font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace">{{ slipQueueCount }}</span>
+              </sc-if>
             </div>
             <div onclick="{{ goMaintenance }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navMaint.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navMaint.dot }}"></div>
@@ -1913,6 +1916,20 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showUnmatchedRejectConfirm }}">
+          <div onclick="{{ closeUnmatchedRejectConfirm }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-sizing:border-box;text-align:center">
+              <div style="width:52px;height:52px;border-radius:50%;background:#F5E1DC;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px">🗑</div>
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:6px">ยืนยันลบสลิปที่ไม่ทราบห้องนี้</div>
+              <div style="font-size:12px;color:#B24336;margin-bottom:18px">ลบแล้วกู้คืนไม่ได้ — ใช้เมื่อสลิปนี้ไม่เกี่ยวข้อง/ส่งผิดจริงๆ เท่านั้น</div>
+              <div style="display:flex;gap:10px">
+                <div onclick="{{ closeUnmatchedRejectConfirm }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</div>
+                <div onclick="{{ confirmRejectUnmatchedSlip }}" style="flex:1.3;padding:11px;border-radius:7px;background:#B24336;color:#fff;font-size:13px;font-weight:700;cursor:pointer">ลบสลิปนี้</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showSlipReview }}">
           <div onclick="{{ closeSlipReview }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:380px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
@@ -2048,7 +2065,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;flex-direction:column;gap:12px">
                 <sc-for list="{{ slipQueueItems }}" as="q" hint-placeholder-count="2">
                   <div style="border:1px solid #F0E9DC;border-radius:8px;padding:14px;box-sizing:border-box">
-                    <div style="font-size:13px;font-weight:600;color:#241812;margin-bottom:6px">ห้อง {{ q.room }} · {{ q.tenant }}</div>
+                    <div style="font-size:13px;font-weight:600;color:#241812;margin-bottom:6px">{{ q.cardTitle }}</div>
                     <sc-if value="{{ q.hasMultipleSlips }}" hint-placeholder-val="{{ false }}">
                       <div style="font-size:10.5px;font-weight:600;color:#B85B27;margin-bottom:8px">📎 ส่งมาแล้ว {{ q.slipCount }} สลิป — ยอดรวมด้านล่างคือผลรวมทุกสลิป</div>
                     </sc-if>
@@ -2088,6 +2105,20 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="padding:8px 10px;border-radius:6px;background:#FBF7F0;color:#9C8B78;font-size:11px;margin-bottom:10px">ห้องนี้ยังไม่มีบิลเปิดอยู่ตอนนี้ — ระบบจะเก็บยอด {{ q.totalDisplay }} ไว้เป็นเงินล่วงหน้า แล้วหักลบให้อัตโนมัติตอนออกบิลรอบถัดไป</div>
                       <div style="display:flex;flex-direction:column;gap:7px">
                         <div onclick="{{ q.onConfirmCredit }}" style="padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">💰 ยืนยันบันทึกเป็นเงินล่วงหน้า ({{ q.totalDisplay }})</div>
+                        <div onclick="{{ closeSlipQueue }}" style="padding:9px;border-radius:6px;border:1px solid #E3D8C8;color:#9C8B78;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ออกจากหน้านี้</div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ q.isUnmatchedKind }}" hint-placeholder-val="{{ false }}">
+                      <div style="padding:8px 10px;border-radius:6px;background:#FBE7DC;color:#B85B27;font-size:11px;margin-bottom:10px">ไม่ทราบว่าเป็นห้องไหน (ผู้เช่ายังไม่ได้พิมพ์เลขห้องเพื่อเชื่อมต่อ) — เลือกห้องที่ถูกต้องแล้วกดจับคู่</div>
+                      <select value="{{ q.pickedRoom }}" onchange="{{ q.onPickRoomChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;margin-bottom:10px">
+                        <option value="">— เลือกห้อง —</option>
+                        <sc-for list="{{ roomSelectOptions }}" as="o" hint-placeholder-count="13">
+                          <option value="{{ o.value }}">{{ o.label }}</option>
+                        </sc-for>
+                      </select>
+                      <div style="display:flex;flex-direction:column;gap:7px">
+                        <div onclick="{{ q.onAssign }}" style="padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">✓ จับคู่ห้องนี้</div>
+                        <div onclick="{{ q.onReject }}" style="padding:9px;border-radius:6px;border:1.5px solid #E3B7AC;color:#B24336;font-size:12px;font-weight:700;cursor:pointer;text-align:center">🗑 ปฏิเสธ/ลบสลิปนี้</div>
                         <div onclick="{{ closeSlipQueue }}" style="padding:9px;border-radius:6px;border:1px solid #E3D8C8;color:#9C8B78;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ออกจากหน้านี้</div>
                       </div>
                     </sc-if>
@@ -2462,6 +2493,7 @@ class Component extends DCLogic {
       { id: 5, y: 2026, m: 6, d: 25, time: '11:00', title: 'สัญญาห้อง 106 ใกล้ครบกำหนด', type: 'สัญญา' },
       { id: 6, y: 2026, m: 6, d: 28, time: '09:30', title: 'สัญญาห้อง 302 ใกล้ครบกำหนด', type: 'สัญญา' },
     ],
+    unmatchedSlips: [],
     showMaintenanceModal: false,
     newMaintenance: { roomId: '', issue: '' },
     settings: { emailNotif: true, smsNotif: false, autoInvoice: true, dueReminder: true, lineNotif: true },
@@ -2514,6 +2546,9 @@ class Component extends DCLogic {
     editInvoice: { id: '', room: '', tenant: '', rent: '', water: '', elec: '', trash: '', internet: '', due: '' },
     showDeleteInvoiceConfirm: false,
     deleteInvoiceId: '',
+    unmatchedSlipPicks: {},
+    showUnmatchedRejectConfirm: false,
+    unmatchedRejectId: '',
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -2712,6 +2747,7 @@ class Component extends DCLogic {
         maintenance: data.maintenance,
         expenses: data.expenses,
         calEvents: data.calEvents,
+        unmatchedSlips: data.unmatchedSlips || [],
         propertyProfile: data.propertyProfile,
         waterRate: data.waterRate,
         elecRate: data.elecRate,
@@ -4188,6 +4224,44 @@ class Component extends DCLogic {
     } catch (err) { this.showAdminToast(err.message || 'ลบไม่สำเร็จ'); }
   });
 
+  // A slip that arrived from a LINE user we couldn't match to any room —
+  // the owner picks the correct room from a dropdown, then this files it
+  // through the exact same server-side logic a normal linked-user slip
+  // would use (server/routes/unmatchedSlips.js's assign route, which calls
+  // the shared attachSlipToRoom helper in server/routes/line.js).
+  assignUnmatchedSlip = (id) => this._guard('assignUnmatchedSlip:' + id, async () => {
+    const roomId = this.state.unmatchedSlipPicks[id];
+    if (!roomId) { this.showAdminToast('กรุณาเลือกห้องก่อนครับ'); return; }
+    try {
+      const res = await fetch('/api/unmatched-slips/' + id + '/assign', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'จับคู่ไม่สำเร็จ');
+      this.setState(s => ({ unmatchedSlips: s.unmatchedSlips.filter(u => u.id !== id) }));
+      this.showAdminToast('จับคู่สลิปกับห้อง ' + roomId + ' แล้ว');
+      this.loadFromServer(); // refreshes rooms/invoices so the new slip shows up wherever it landed (invoice slipsJson or room credit)
+    } catch (err) { this.showAdminToast(err.message || 'จับคู่ไม่สำเร็จ'); }
+  });
+  askRejectUnmatchedSlip = (id) => this.setState({ showUnmatchedRejectConfirm: true, unmatchedRejectId: id });
+  closeUnmatchedRejectConfirm = () => this.setState({ showUnmatchedRejectConfirm: false, unmatchedRejectId: '' });
+  confirmRejectUnmatchedSlip = () => this._guard('confirmRejectUnmatchedSlip:' + this.state.unmatchedRejectId, async () => {
+    const id = this.state.unmatchedRejectId;
+    if (!id) return;
+    try {
+      const res = await fetch('/api/unmatched-slips/' + id, { method: 'DELETE' });
+      if (!res.ok) throw new Error('ลบไม่สำเร็จ');
+      this.setState(s => ({
+        unmatchedSlips: s.unmatchedSlips.filter(u => u.id !== id),
+        showUnmatchedRejectConfirm: false, unmatchedRejectId: '',
+      }));
+      this.showAdminToast('ลบสลิปที่ไม่ทราบห้องแล้ว');
+    } catch (err) {
+      this.showAdminToast(err.message || 'ลบไม่สำเร็จ');
+      this.setState({ showUnmatchedRejectConfirm: false, unmatchedRejectId: '' });
+    }
+  });
+
   // Queue view — a header button (shows the live pending count) opens a list
   // of every flagged slip as its own card, each with its own ยืนยัน/ยกเลิก,
   // plus one "ยืนยันทั้งหมด" to confirm every currently-flagged slip in one
@@ -5054,7 +5128,8 @@ class Component extends DCLogic {
       const isOverpaid = overpayAmount > 0.5;
       return {
         id: i.id, room: i.room, tenant: i.tenant,
-        isBillKind: true, isAdvanceKind: false,
+        cardTitle: `ห้อง ${i.room} · ${i.tenant}`,
+        isBillKind: true, isAdvanceKind: false, isUnmatchedKind: false,
         slipCount: i.slipCount || 0, hasMultipleSlips: (i.slipCount || 0) > 1,
         cards: buildSlipCards(i),
         expectedTotalDisplay: this.fmt(total),
@@ -5081,7 +5156,8 @@ class Component extends DCLogic {
     // ชำระเต็ม/ชำระบางส่วน, since there's no bill to apply them against).
     const creditQueueItems = s.rooms.filter(r => (r.creditSlipCount || 0) > 0).map(r => ({
       id: 'CREDIT-' + r.id, room: r.id, tenant: r.tenant,
-      isBillKind: false, isAdvanceKind: true,
+      cardTitle: `ห้อง ${r.id} · ${r.tenant}`,
+      isBillKind: false, isAdvanceKind: true, isUnmatchedKind: false,
       slipCount: r.creditSlipCount || 0, hasMultipleSlips: (r.creditSlipCount || 0) > 1,
       cards: (r.creditSlips || []).map(sl => ({
         imageUrl: sl.imageUrl || '', amountDisplay: sl.amount != null ? this.fmt(sl.amount) : '-',
@@ -5090,7 +5166,27 @@ class Component extends DCLogic {
       totalDisplay: this.fmt(r.creditSlipsTotal || 0),
       onConfirmCredit: () => this.confirmCreditSlips(r.id),
     }));
-    const slipQueueItems = [...billSlipQueueItems, ...creditQueueItems];
+    // A slip that arrives from a LINE user we can't match to ANY room at all
+    // (they never linked by typing a room number — see handleSlipImage in
+    // server/routes/line.js) used to be silently dropped with zero record
+    // anywhere. Per explicit user request after this bit a real tenant, it's
+    // now saved (UnmatchedSlips sheet tab) and shown here too, with a room
+    // picker so the owner can manually identify + file it themselves.
+    const unmatchedQueueItems = (s.unmatchedSlips || []).map(u => ({
+      id: u.id, room: '', tenant: '',
+      cardTitle: 'ยังไม่ทราบห้อง — สลิปจาก LINE ที่ยังไม่เชื่อมต่อ',
+      isBillKind: false, isAdvanceKind: false, isUnmatchedKind: true,
+      slipCount: 1, hasMultipleSlips: false,
+      cards: [{
+        imageUrl: u.imageUrl || '', amountDisplay: u.amount != null ? this.fmt(u.amount) : '-',
+        date: u.date || '-', senderName: u.senderName || '-',
+      }],
+      pickedRoom: s.unmatchedSlipPicks[u.id] || '',
+      onPickRoomChange: (e) => this.setState(st => ({ unmatchedSlipPicks: { ...st.unmatchedSlipPicks, [u.id]: e.target.value } })),
+      onAssign: () => this.assignUnmatchedSlip(u.id),
+      onReject: () => this.askRejectUnmatchedSlip(u.id),
+    }));
+    const slipQueueItems = [...billSlipQueueItems, ...creditQueueItems, ...unmatchedQueueItems];
     const slipQueueCount = slipQueueItems.length;
 
     const slipRejectReasonDefs = [
@@ -5575,7 +5671,7 @@ class Component extends DCLogic {
       creditReview, hasCreditReview: !!creditReview,
       creditConfirmButtonLabel: s.creditActionLoading ? 'กำลังบันทึก...' : 'ยืนยันเป็นเงินล่วงหน้า',
       slipActionButtonLabel: s.slipActionLoading ? 'กำลังบันทึก...' : 'ยืนยันชำระแล้ว',
-      slipQueueItems, slipQueueCount, showSlipQueue: s.showSlipQueue,
+      slipQueueItems, slipQueueCount, hasSlipsNeedingReview: slipQueueCount > 0, showSlipQueue: s.showSlipQueue,
       openSlipQueue: this.openSlipQueue, closeSlipQueue: this.closeSlipQueue, confirmAllSlips: this.confirmAllSlips,
       confirmAllSlipsLabel: s.slipActionLoading ? 'กำลังบันทึก...' : `ยืนยันทั้งหมด (${slipQueueCount})`,
       showSlipRejectConfirm: s.showSlipRejectConfirm, closeSlipRejectConfirm: this.closeSlipRejectConfirm,
@@ -5593,6 +5689,8 @@ class Component extends DCLogic {
       showDeleteInvoiceConfirm: s.showDeleteInvoiceConfirm, closeDeleteInvoiceConfirm: this.closeDeleteInvoiceConfirm,
       confirmDeleteInvoice: this.confirmDeleteInvoice, hasDeleteInvoiceConfirm: !!s.deleteInvoiceId,
       deleteInvoiceInfo: (() => { const i = s.invoices.find(x => x.id === s.deleteInvoiceId); if (!i) return null; const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0); return { room: i.room, tenant: i.tenant, totalDisplay: this.fmt(total) }; })(),
+      showUnmatchedRejectConfirm: s.showUnmatchedRejectConfirm, closeUnmatchedRejectConfirm: this.closeUnmatchedRejectConfirm,
+      confirmRejectUnmatchedSlip: this.confirmRejectUnmatchedSlip,
       showInvoiceModal: s.showInvoiceModal, closeInvoiceModal: this.closeInvoiceModal,
       newInvoice: s.newInvoice, roomSelectOptions,
       invContract: (() => {

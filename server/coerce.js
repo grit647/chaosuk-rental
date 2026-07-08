@@ -81,6 +81,10 @@ function coerceCalendar(rows) {
   return rows.map((r) => ({ ...r, id: num(r.id), y: num(r.y), m: num(r.m), d: num(r.d) }));
 }
 
+function coerceUnmatchedSlips(rows) {
+  return rows.map((r) => ({ ...r, amount: r.amount === '' || r.amount == null ? null : num(r.amount, null) }));
+}
+
 function coerceRecurringTasks(rows) {
   return rows.map((r) => ({
     ...r,
@@ -113,5 +117,5 @@ async function readSettings() {
 }
 
 module.exports = {
-  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, readSettings,
+  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, coerceUnmatchedSlips, readSettings,
 };
