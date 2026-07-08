@@ -532,7 +532,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:21px;font-weight:700;color:#241812">บิล &amp; ใบแจ้งหนี้</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรกฎาคม 2569 · คลิกการ์ดสรุปเพื่อกรองรายการ</div>
               </div>
-              <button onclick="{{ openInvoiceModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">+ สร้างใบแจ้งหนี้</button>
+              <div style="display:flex;gap:8px;flex-shrink:0">
+                <sc-if value="{{ slipQueueCount }}" hint-placeholder-val="{{ false }}">
+                  <button onclick="{{ openSlipQueue }}" style="background:#FBE7DC;color:#B85B27;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">📎 สลิปรอตรวจสอบ ({{ slipQueueCount }})</button>
+                </sc-if>
+                <button onclick="{{ openInvoiceModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ สร้างใบแจ้งหนี้</button>
+              </div>
             </div>
 
             <div class="stat-row" style="display:flex;gap:14px;margin-bottom:18px">
@@ -1853,6 +1858,41 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showSlipQueue }}">
+          <div onclick="{{ closeSlipQueue }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:440px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                <div style="font-size:16px;font-weight:700;color:#241812">สลิปรอตรวจสอบ ({{ slipQueueCount }})</div>
+                <span onclick="{{ closeSlipQueue }}" style="cursor:pointer;color:#A89A88;font-size:18px">✕</span>
+              </div>
+              <div style="font-size:11px;color:#9C8B78;margin-bottom:14px;line-height:1.5">อ่านด้วย AI จากรูปที่ผู้เช่าส่งเข้า LINE — ไม่ใช่การตรวจสอบกับธนาคารจริง กรุณาตรวจดูก่อนยืนยันทุกรายการ</div>
+
+              <div onclick="{{ confirmAllSlips }}" style="padding:11px;border-radius:7px;background:#3B7A52;color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:center;margin-bottom:16px">{{ confirmAllSlipsLabel }}</div>
+
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <sc-for list="{{ slipQueueItems }}" as="q" hint-placeholder-count="2">
+                  <div style="border:1px solid #F0E9DC;border-radius:8px;padding:14px;box-sizing:border-box">
+                    <div style="font-size:13px;font-weight:600;color:#241812;margin-bottom:8px">ห้อง {{ q.room }} · {{ q.tenant }}</div>
+                    <sc-if value="{{ q.slipImageUrl }}" hint-placeholder-val="{{ false }}">
+                      <img src="{{ q.slipImageUrl }}" style="width:100%;border-radius:8px;margin-bottom:10px;border:1px solid #F0E9DC">
+                    </sc-if>
+                    <div style="display:flex;flex-direction:column;gap:6px;padding:10px;background:#FBF7F0;border-radius:7px;margin-bottom:8px">
+                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอดในบิล</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ q.expectedTotalDisplay }}</span></div>
+                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอดที่อ่านจากสลิป</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ q.slipAmountDisplay }}</span></div>
+                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ q.slipDate }} · {{ q.slipSenderName }}</span></div>
+                    </div>
+                    <div style="padding:7px 10px;border-radius:6px;background:{{ q.matchBg }};color:{{ q.matchColor }};font-size:11.5px;font-weight:600;margin-bottom:10px">{{ q.matchLabel }}</div>
+                    <div style="display:flex;gap:8px">
+                      <div onclick="{{ q.onReject }}" style="flex:1;padding:9px;border-radius:6px;border:1px solid #D8C9B4;color:#B24336;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ยกเลิก</div>
+                      <div onclick="{{ q.onConfirm }}" style="flex:1.3;padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">ยืนยันชำระแล้ว</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showInvoiceModal }}">
           <div onclick="{{ closeInvoiceModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;box-sizing:border-box">
@@ -2241,6 +2281,7 @@ class Component extends DCLogic {
     showSlipReview: false,
     slipReviewInvoiceId: '',
     slipActionLoading: false,
+    showSlipQueue: false,
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -3570,32 +3611,20 @@ class Component extends DCLogic {
   // Slip review — a tenant's payment-slip photo sent straight to the LINE
   // bot gets OCR'd server-side and flagged on the matching invoice
   // (slipPending) but is never auto-marked paid (OCR isn't real bank fraud
-  // verification, so a human always confirms). This is that confirm step.
-  openSlipReview = (id) => this.setState({ showSlipReview: true, slipReviewInvoiceId: id });
-  closeSlipReview = () => this.setState({ showSlipReview: false, slipReviewInvoiceId: '' });
-  confirmSlipPaid = async () => {
-    const id = this.state.slipReviewInvoiceId;
-    if (!id) return;
-    this.setState({ slipActionLoading: true });
+  // verification, so a human always confirms). These two do the actual work
+  // for one invoice id — shared by both the single-invoice review modal
+  // (opened from a Bills-table badge) and the "ยืนยันทั้งหมด" bulk queue below.
+  confirmSlipPaidFor = async (id) => {
     try {
       await this.markInvoicePaid(id);
       await fetch('/api/invoices/' + id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slipPending: false }),
       });
-      this.setState(s => ({
-        invoices: s.invoices.map(i => i.id === id ? { ...i, slipPending: false } : i),
-        showSlipReview: false, slipReviewInvoiceId: '', slipActionLoading: false,
-      }));
-    } catch (err) {
-      this.setState({ slipActionLoading: false });
-      this.showAdminToast(err.message || 'ยืนยันไม่สำเร็จ');
-    }
+      this.setState(s => ({ invoices: s.invoices.map(i => i.id === id ? { ...i, slipPending: false } : i) }));
+    } catch (err) { this.showAdminToast(err.message || 'ยืนยันไม่สำเร็จ'); }
   };
-  rejectSlip = async () => {
-    const id = this.state.slipReviewInvoiceId;
-    if (!id) return;
-    this.setState({ slipActionLoading: true });
+  rejectSlipFor = async (id) => {
     try {
       const res = await fetch('/api/invoices/' + id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -3603,15 +3632,43 @@ class Component extends DCLogic {
       });
       if (!res.ok) throw new Error('อัปเดตไม่สำเร็จ');
       const updated = await res.json();
-      this.setState(s => ({
-        invoices: s.invoices.map(i => i.id === id ? updated : i),
-        showSlipReview: false, slipReviewInvoiceId: '', slipActionLoading: false,
-      }));
-      this.showAdminToast('ยกเลิกสลิปนี้แล้ว (ไม่มาร์คว่าชำระ)');
-    } catch (err) {
-      this.setState({ slipActionLoading: false });
-      this.showAdminToast(err.message || 'อัปเดตไม่สำเร็จ');
-    }
+      this.setState(s => ({ invoices: s.invoices.map(i => i.id === id ? updated : i) }));
+    } catch (err) { this.showAdminToast(err.message || 'อัปเดตไม่สำเร็จ'); }
+  };
+
+  openSlipReview = (id) => this.setState({ showSlipReview: true, slipReviewInvoiceId: id });
+  closeSlipReview = () => this.setState({ showSlipReview: false, slipReviewInvoiceId: '' });
+  confirmSlipPaid = async () => {
+    const id = this.state.slipReviewInvoiceId;
+    if (!id) return;
+    this.setState({ slipActionLoading: true });
+    await this.confirmSlipPaidFor(id);
+    this.setState({ showSlipReview: false, slipReviewInvoiceId: '', slipActionLoading: false });
+  };
+  rejectSlip = async () => {
+    const id = this.state.slipReviewInvoiceId;
+    if (!id) return;
+    this.setState({ slipActionLoading: true });
+    await this.rejectSlipFor(id);
+    this.setState({ showSlipReview: false, slipReviewInvoiceId: '', slipActionLoading: false });
+    this.showAdminToast('ยกเลิกสลิปนี้แล้ว (ไม่มาร์คว่าชำระ)');
+  };
+
+  // Queue view — a header button (shows the live pending count) opens a list
+  // of every flagged slip as its own card, each with its own ยืนยัน/ยกเลิก,
+  // plus one "ยืนยันทั้งหมด" to confirm every currently-flagged slip in one
+  // tap (still per-invoice mark-paid + thank-you LINE message underneath —
+  // this is a convenience batch of the same per-item action, not a
+  // different/looser confirmation path).
+  openSlipQueue = () => this.setState({ showSlipQueue: true });
+  closeSlipQueue = () => this.setState({ showSlipQueue: false });
+  confirmAllSlips = async () => {
+    const ids = this.state.invoices.filter(i => i.slipPending).map(i => i.id);
+    if (!ids.length) return;
+    this.setState({ slipActionLoading: true });
+    for (const id of ids) { await this.confirmSlipPaidFor(id); }
+    this.setState({ slipActionLoading: false, showSlipQueue: false });
+    this.showAdminToast(`ยืนยันสลิป ${ids.length} รายการแล้ว`);
   };
 
   cycleMaintenance = (id) => {
@@ -4343,6 +4400,26 @@ class Component extends DCLogic {
       matchBg: slipAmountMatches ? '#E4EFE7' : '#FBE7E4',
     } : null;
 
+    // Header "📎 สลิปรอตรวจสอบ (N)" button + its queue modal — every
+    // currently-flagged invoice as its own reviewable card, so the owner can
+    // clear a backlog of several tenants' slips without hunting through the
+    // Bills table row by row.
+    const slipQueueItems = s.invoices.filter(i => i.slipPending).map(i => {
+      const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
+      const amountMatches = i.slipAmount != null && Math.abs(Number(i.slipAmount) - total) < 1;
+      return {
+        id: i.id, room: i.room, tenant: i.tenant,
+        expectedTotalDisplay: this.fmt(total),
+        slipAmountDisplay: i.slipAmount != null ? this.fmt(Number(i.slipAmount)) : '-',
+        slipDate: i.slipDate || '-', slipSenderName: i.slipSenderName || '-', slipImageUrl: i.slipImageUrl || '',
+        matchLabel: amountMatches ? '✓ ยอดตรงกับบิล' : '⚠️ ยอดไม่ตรงกับบิล',
+        matchColor: amountMatches ? '#3B7A52' : '#B24336', matchBg: amountMatches ? '#E4EFE7' : '#FBE7E4',
+        onConfirm: () => this.confirmSlipPaidFor(i.id),
+        onReject: () => this.rejectSlipFor(i.id),
+      };
+    });
+    const slipQueueCount = slipQueueItems.length;
+
     const maintenanceView = s.maintenance.map(m => {
       const meta = maintMeta(m.status);
       const chip = (key, label) => ({ label, active: m.status === key,
@@ -4803,6 +4880,9 @@ class Component extends DCLogic {
       showSlipReview: s.showSlipReview, closeSlipReview: this.closeSlipReview, slipReview, hasSlipReview: !!slipReview,
       confirmSlipPaid: this.confirmSlipPaid, rejectSlip: this.rejectSlip,
       slipActionButtonLabel: s.slipActionLoading ? 'กำลังบันทึก...' : 'ยืนยันชำระแล้ว',
+      slipQueueItems, slipQueueCount, showSlipQueue: s.showSlipQueue,
+      openSlipQueue: this.openSlipQueue, closeSlipQueue: this.closeSlipQueue, confirmAllSlips: this.confirmAllSlips,
+      confirmAllSlipsLabel: s.slipActionLoading ? 'กำลังบันทึก...' : `ยืนยันทั้งหมด (${slipQueueCount})`,
       showPayConfirm: s.showPayConfirm, closePayConfirm: this.closePayConfirm, confirmPay: this.confirmPay,
       showSaveReceipt: s.showSaveReceipt, saveReceiptRoom: s.saveReceiptRoom, closeSaveReceipt: this.closeSaveReceipt, confirmSaveReceipt: this.confirmSaveReceipt,
       payConfirmInfo: (() => { const i = s.invoices.find(x => x.id === s.payConfirmId); if (!i) return null; const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0); return { id: i.id, room: i.room, tenant: i.tenant, totalDisplay: this.fmt(total) }; })(),
