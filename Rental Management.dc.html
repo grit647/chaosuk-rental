@@ -2075,7 +2075,15 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                           <sc-if value="{{ sc.imageUrl }}" hint-placeholder-val="{{ false }}">
                             <img src="{{ sc.imageUrl }}" style="width:100%;border-radius:6px;margin-bottom:6px">
                           </sc-if>
-                          <div style="display:flex;justify-content:space-between;font-size:11.5px"><span style="color:#7C6E5F">ยอด</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ sc.amountDisplay }}</span></div>
+                          <sc-if value="{{ sc.needsAmount }}" hint-placeholder-val="{{ false }}">
+                            <div style="margin-bottom:6px">
+                              <div style="font-size:10.5px;color:#B85B27;font-weight:600;margin-bottom:4px">⚠️ อ่านยอดอัตโนมัติไม่สำเร็จ — กรุณาดูรูปแล้วกรอกยอดเอง</div>
+                              <input type="number" placeholder="กรอกยอด (บาท)" onchange="{{ sc.onAmountChange }}" style="width:100%;padding:7px 8px;border-radius:5px;border:1.5px solid #C1872E;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                            </div>
+                          </sc-if>
+                          <sc-if value="{{ sc.hasAmount }}" hint-placeholder-val="{{ true }}">
+                            <div style="display:flex;justify-content:space-between;font-size:11.5px"><span style="color:#7C6E5F">ยอด</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ sc.amountDisplay }}</span></div>
+                          </sc-if>
                           <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:6px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ sc.date }} · {{ sc.senderName }}</span></div>
                           <sc-if value="{{ sc.imageUrl }}" hint-placeholder-val="{{ false }}">
                             <a href="{{ sc.imageUrl }}" target="_blank" rel="noopener" style="font-size:10.5px;color:#C1622D;font-weight:600;text-decoration:none">🔍 ดูสลิปตัวจริง</a>
@@ -4224,6 +4232,63 @@ class Component extends DCLogic {
     } catch (err) { this.showAdminToast(err.message || 'ลบไม่สำเร็จ'); }
   });
 
+  // Manual amount correction for a slip OCR couldn't read (see ocrFailed in
+  // server/routes/line.js) — a real user hit this exact case: confirmed an
+  // advance payment that silently went through as ฿0 because the slip's
+  // amount was null and every total/sum treats null as 0. These write the
+  // corrected amount back into the slip's own record BEFORE any
+  // confirm/resolve action runs, so by the time the owner clicks ยืนยัน the
+  // total is already right — no changes needed to resolveSlip/
+  // confirmCreditSlips/assignUnmatchedSlip themselves.
+  updateSlipAmount = (invoiceId, idx, rawValue) => this._guard('updateSlipAmount:' + invoiceId + ':' + idx, async () => {
+    const amt = Number(rawValue);
+    if (!Number.isFinite(amt) || amt < 0) { this.showAdminToast('กรุณาใส่ยอดเป็นตัวเลข'); return; }
+    const inv = this.state.invoices.find(i => i.id === invoiceId);
+    if (!inv) return;
+    try {
+      const updatedSlips = (inv.slips || []).map((s2, i) => i === idx ? { ...s2, amount: amt } : s2);
+      const res = await fetch('/api/invoices/' + invoiceId, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slipsJson: JSON.stringify(updatedSlips) }),
+      });
+      if (!res.ok) throw new Error('บันทึกยอดไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState(s => ({ invoices: s.invoices.map(i => i.id === invoiceId ? updated : i) }));
+      this.showAdminToast('บันทึกยอด ' + this.fmt(amt) + ' แล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกยอดไม่สำเร็จ'); }
+  });
+  updateCreditSlipAmount = (roomId, idx, rawValue) => this._guard('updateCreditSlipAmount:' + roomId + ':' + idx, async () => {
+    const amt = Number(rawValue);
+    if (!Number.isFinite(amt) || amt < 0) { this.showAdminToast('กรุณาใส่ยอดเป็นตัวเลข'); return; }
+    const room = this.state.rooms.find(r => r.id === roomId);
+    if (!room) return;
+    try {
+      const updatedSlips = (room.creditSlips || []).map((s2, i) => i === idx ? { ...s2, amount: amt } : s2);
+      const res = await fetch('/api/rooms/' + roomId, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creditSlipsJson: JSON.stringify(updatedSlips) }),
+      });
+      if (!res.ok) throw new Error('บันทึกยอดไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState(s => ({ rooms: s.rooms.map(r => r.id === roomId ? updated : r) }));
+      this.showAdminToast('บันทึกยอด ' + this.fmt(amt) + ' แล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกยอดไม่สำเร็จ'); }
+  });
+  updateUnmatchedSlipAmount = (id, rawValue) => this._guard('updateUnmatchedSlipAmount:' + id, async () => {
+    const amt = Number(rawValue);
+    if (!Number.isFinite(amt) || amt < 0) { this.showAdminToast('กรุณาใส่ยอดเป็นตัวเลข'); return; }
+    try {
+      const res = await fetch('/api/unmatched-slips/' + id, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: amt }),
+      });
+      if (!res.ok) throw new Error('บันทึกยอดไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState(s => ({ unmatchedSlips: s.unmatchedSlips.map(u => u.id === id ? updated : u) }));
+      this.showAdminToast('บันทึกยอด ' + this.fmt(amt) + ' แล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกยอดไม่สำเร็จ'); }
+  });
+
   // A slip that arrived from a LINE user we couldn't match to any room —
   // the owner picks the correct room from a dropdown, then this files it
   // through the exact same server-side logic a normal linked-user slip
@@ -5043,8 +5108,16 @@ class Component extends DCLogic {
     // the COMBINED sum of every slip received, not just the latest one.
     const buildSlipCards = (inv) => (inv.slips || []).map((s2, idx) => ({
       amountDisplay: s2.amount != null ? this.fmt(Number(s2.amount)) : '-',
+      // needsAmount: OCR couldn't read a number off this slip (see ocrFailed
+      // in server/routes/line.js) — confirming as-is would silently treat it
+      // as ฿0, which is wrong data, not just a missing display value. Per a
+      // real case the user hit (a ฿0 advance-payment confirmation for a slip
+      // that was never actually ฿0), show an editable field instead of a
+      // dash so the owner fixes the real amount BEFORE confirming anything.
+      needsAmount: s2.amount == null, hasAmount: s2.amount != null,
       date: s2.date || '-', senderName: s2.senderName || '-', imageUrl: s2.imageUrl || '', noImage: !s2.imageUrl,
       onDelete: () => this.askDeleteSlip(inv.id, idx),
+      onAmountChange: (e) => this.updateSlipAmount(inv.id, idx, e.target.value),
     }));
 
     // Confirm-before-save popup for all 3 payment resolution buttons (per
@@ -5159,9 +5232,11 @@ class Component extends DCLogic {
       cardTitle: `ห้อง ${r.id} · ${r.tenant}`,
       isBillKind: false, isAdvanceKind: true, isUnmatchedKind: false,
       slipCount: r.creditSlipCount || 0, hasMultipleSlips: (r.creditSlipCount || 0) > 1,
-      cards: (r.creditSlips || []).map(sl => ({
+      cards: (r.creditSlips || []).map((sl, idx) => ({
         imageUrl: sl.imageUrl || '', amountDisplay: sl.amount != null ? this.fmt(sl.amount) : '-',
+        needsAmount: sl.amount == null, hasAmount: sl.amount != null,
         date: sl.date || '-', senderName: sl.senderName || '-',
+        onAmountChange: (e) => this.updateCreditSlipAmount(r.id, idx, e.target.value),
       })),
       totalDisplay: this.fmt(r.creditSlipsTotal || 0),
       onConfirmCredit: () => this.confirmCreditSlips(r.id),
@@ -5179,7 +5254,9 @@ class Component extends DCLogic {
       slipCount: 1, hasMultipleSlips: false,
       cards: [{
         imageUrl: u.imageUrl || '', amountDisplay: u.amount != null ? this.fmt(u.amount) : '-',
+        needsAmount: u.amount == null, hasAmount: u.amount != null,
         date: u.date || '-', senderName: u.senderName || '-',
+        onAmountChange: (e) => this.updateUnmatchedSlipAmount(u.id, e.target.value),
       }],
       pickedRoom: s.unmatchedSlipPicks[u.id] || '',
       onPickRoomChange: (e) => this.setState(st => ({ unmatchedSlipPicks: { ...st.unmatchedSlipPicks, [u.id]: e.target.value } })),

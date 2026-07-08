@@ -41,6 +41,17 @@ router.patch('/:id/assign', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Owner manually corrects a field on an unmatched slip (currently only
+// `amount` is used, from the queue's inline "OCR failed, type it yourself"
+// input) before assigning it to a room — needs its own plain PATCH since
+// /:id/assign both files AND deletes the row in one step.
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const updated = await updateRow('UnmatchedSlips', req.params.id, req.body);
+    res.json(coerceUnmatchedSlips([updated])[0]);
+  } catch (err) { next(err); }
+});
+
 router.delete('/:id', async (req, res, next) => {
   try { await deleteRow('UnmatchedSlips', req.params.id); res.json({ ok: true }); }
   catch (err) { next(err); }
