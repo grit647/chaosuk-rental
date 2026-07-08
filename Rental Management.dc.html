@@ -2066,22 +2066,31 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         </div>
                       </sc-for>
                     </div>
-                    <div style="display:flex;flex-direction:column;gap:6px;padding:10px;background:#FBF7F0;border-radius:7px;margin-bottom:8px">
-                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอดในบิล</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ q.expectedTotalDisplay }}</span></div>
-                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอดรวมทุกสลิป</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ q.slipAmountDisplay }}</span></div>
-                    </div>
-                    <div style="padding:7px 10px;border-radius:6px;background:{{ q.matchBg }};color:{{ q.matchColor }};font-size:11.5px;font-weight:600;margin-bottom:10px">{{ q.matchLabel }}</div>
-                    <sc-if value="{{ q.isOverpaid }}" hint-placeholder-val="{{ false }}">
-                      <div style="padding:7px 10px;border-radius:6px;background:#F5EFE2;color:#9C7A2E;font-size:11px;margin-bottom:8px">ยอดที่ส่งมาเกินบิลนี้ {{ q.overpayAmountDisplay }} — ระบบจะเก็บส่วนเกินไว้เป็นเงินล่วงหน้าให้อัตโนมัติเมื่อกดยืนยัน</div>
-                    </sc-if>
-                    <div style="display:flex;flex-direction:column;gap:7px">
-                      <div onclick="{{ q.onConfirmFull }}" style="padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">{{ q.confirmFullLabel }}</div>
-                      <sc-if value="{{ q.showAllButtons }}" hint-placeholder-val="{{ true }}">
-                        <div onclick="{{ q.onConfirmPartial }}" style="padding:9px;border-radius:6px;border:1.5px solid #C1872E;color:#B85B27;font-size:12px;font-weight:700;cursor:pointer;text-align:center">◐ ชำระบางส่วน (คงเหลือ {{ q.partialRemainingDisplay }})</div>
-                        <div onclick="{{ q.onConfirmAsCredit }}" style="padding:9px;border-radius:6px;border:1.5px solid #7C6E5F;color:#7C6E5F;font-size:12px;font-weight:700;cursor:pointer;text-align:center">💰 บันทึกเป็นเงินล่วงหน้าแทน</div>
+                    <sc-if value="{{ q.isBillKind }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex;flex-direction:column;gap:6px;padding:10px;background:#FBF7F0;border-radius:7px;margin-bottom:8px">
+                        <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอดในบิล</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ q.expectedTotalDisplay }}</span></div>
+                        <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอดรวมทุกสลิป</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ q.slipAmountDisplay }}</span></div>
+                      </div>
+                      <div style="padding:7px 10px;border-radius:6px;background:{{ q.matchBg }};color:{{ q.matchColor }};font-size:11.5px;font-weight:600;margin-bottom:10px">{{ q.matchLabel }}</div>
+                      <sc-if value="{{ q.isOverpaid }}" hint-placeholder-val="{{ false }}">
+                        <div style="padding:7px 10px;border-radius:6px;background:#F5EFE2;color:#9C7A2E;font-size:11px;margin-bottom:8px">ยอดที่ส่งมาเกินบิลนี้ {{ q.overpayAmountDisplay }} — ระบบจะเก็บส่วนเกินไว้เป็นเงินล่วงหน้าให้อัตโนมัติเมื่อกดยืนยัน</div>
                       </sc-if>
-                      <div onclick="{{ closeSlipQueue }}" style="padding:9px;border-radius:6px;border:1px solid #E3D8C8;color:#9C8B78;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ออกจากหน้านี้</div>
-                    </div>
+                      <div style="display:flex;flex-direction:column;gap:7px">
+                        <div onclick="{{ q.onConfirmFull }}" style="padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">{{ q.confirmFullLabel }}</div>
+                        <sc-if value="{{ q.showAllButtons }}" hint-placeholder-val="{{ true }}">
+                          <div onclick="{{ q.onConfirmPartial }}" style="padding:9px;border-radius:6px;border:1.5px solid #C1872E;color:#B85B27;font-size:12px;font-weight:700;cursor:pointer;text-align:center">◐ ชำระบางส่วน (คงเหลือ {{ q.partialRemainingDisplay }})</div>
+                          <div onclick="{{ q.onConfirmAsCredit }}" style="padding:9px;border-radius:6px;border:1.5px solid #7C6E5F;color:#7C6E5F;font-size:12px;font-weight:700;cursor:pointer;text-align:center">💰 บันทึกเป็นเงินล่วงหน้าแทน</div>
+                        </sc-if>
+                        <div onclick="{{ closeSlipQueue }}" style="padding:9px;border-radius:6px;border:1px solid #E3D8C8;color:#9C8B78;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ออกจากหน้านี้</div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ q.isAdvanceKind }}" hint-placeholder-val="{{ false }}">
+                      <div style="padding:8px 10px;border-radius:6px;background:#FBF7F0;color:#9C8B78;font-size:11px;margin-bottom:10px">ห้องนี้ยังไม่มีบิลเปิดอยู่ตอนนี้ — ระบบจะเก็บยอด {{ q.totalDisplay }} ไว้เป็นเงินล่วงหน้า แล้วหักลบให้อัตโนมัติตอนออกบิลรอบถัดไป</div>
+                      <div style="display:flex;flex-direction:column;gap:7px">
+                        <div onclick="{{ q.onConfirmCredit }}" style="padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">💰 ยืนยันบันทึกเป็นเงินล่วงหน้า ({{ q.totalDisplay }})</div>
+                        <div onclick="{{ closeSlipQueue }}" style="padding:9px;border-radius:6px;border:1px solid #E3D8C8;color:#9C8B78;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ออกจากหน้านี้</div>
+                      </div>
+                    </sc-if>
                   </div>
                 </sc-for>
               </div>
@@ -4133,8 +4142,13 @@ class Component extends DCLogic {
   // next time a real bill gets opened for that room.
   openCreditReview = (roomId) => this.setState({ showCreditReview: true, creditReviewRoomId: roomId });
   closeCreditReview = () => this.setState({ showCreditReview: false, creditReviewRoomId: '' });
-  confirmCreditSlips = () => this._guard('confirmCreditSlips:' + this.state.creditReviewRoomId, async () => {
-    const roomId = this.state.creditReviewRoomId;
+  // Accepts an explicit roomId (used when confirming straight from the
+  // unified "สลิปรอตรวจสอบ" queue card) — falls back to the dedicated
+  // per-room modal's state when called with no argument (that modal, opened
+  // via the Rooms page's "💰 มีเงินล่วงหน้ารอตรวจสอบ" button, still works
+  // as a secondary entry point to the same underlying flow).
+  confirmCreditSlips = (roomIdArg) => this._guard('confirmCreditSlips:' + (roomIdArg || this.state.creditReviewRoomId), async () => {
+    const roomId = roomIdArg || this.state.creditReviewRoomId;
     const room = this.state.rooms.find(r => r.id === roomId);
     if (!room) return;
     this.setState({ creditActionLoading: true });
@@ -5025,7 +5039,7 @@ class Component extends DCLogic {
     // ล่วงหน้า per invoice), per explicit user request: the row-level "ดูสลิป"
     // modal became view-only, so every card here carries the full 3-way
     // resolution — same choices, same labels, as that modal used to have.
-    const slipQueueItems = s.invoices.filter(i => i.slipPending).map(i => {
+    const billSlipQueueItems = s.invoices.filter(i => i.slipPending).map(i => {
       const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
       const combined = i.slipsTotal || 0;
       const amountMatches = Math.abs(combined - total) < 1;
@@ -5040,6 +5054,7 @@ class Component extends DCLogic {
       const isOverpaid = overpayAmount > 0.5;
       return {
         id: i.id, room: i.room, tenant: i.tenant,
+        isBillKind: true, isAdvanceKind: false,
         slipCount: i.slipCount || 0, hasMultipleSlips: (i.slipCount || 0) > 1,
         cards: buildSlipCards(i),
         expectedTotalDisplay: this.fmt(total),
@@ -5057,6 +5072,25 @@ class Component extends DCLogic {
         onConfirmAsCredit: () => this.askResolveSlip(i.id, 'credit'),
       };
     });
+    // A slip that arrives when NO bill is open at all (advance payment —
+    // see handleSlipImage in server/routes/line.js) used to only be
+    // reachable through a small popup on a specific room's detail panel,
+    // easy to miss. Per explicit user request, these now also show up
+    // right in this same unified queue, so there's one central place that
+    // notices "a slip came in" — with only the ชำระล่วงหน้า action (no
+    // ชำระเต็ม/ชำระบางส่วน, since there's no bill to apply them against).
+    const creditQueueItems = s.rooms.filter(r => (r.creditSlipCount || 0) > 0).map(r => ({
+      id: 'CREDIT-' + r.id, room: r.id, tenant: r.tenant,
+      isBillKind: false, isAdvanceKind: true,
+      slipCount: r.creditSlipCount || 0, hasMultipleSlips: (r.creditSlipCount || 0) > 1,
+      cards: (r.creditSlips || []).map(sl => ({
+        imageUrl: sl.imageUrl || '', amountDisplay: sl.amount != null ? this.fmt(sl.amount) : '-',
+        date: sl.date || '-', senderName: sl.senderName || '-',
+      })),
+      totalDisplay: this.fmt(r.creditSlipsTotal || 0),
+      onConfirmCredit: () => this.confirmCreditSlips(r.id),
+    }));
+    const slipQueueItems = [...billSlipQueueItems, ...creditQueueItems];
     const slipQueueCount = slipQueueItems.length;
 
     const slipRejectReasonDefs = [
