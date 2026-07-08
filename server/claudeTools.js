@@ -432,6 +432,18 @@ async function executeWriteTool(name, input) {
       const rooms = await readTab('Rooms');
       const room = rooms.find((r) => r.id === input.roomId);
       if (!room) throw new Error('ไม่พบห้อง ' + input.roomId);
+
+      // Same duplicate-bill guard as the native form's server route
+      // (server/routes/invoices.js) — this tool bypasses that HTTP route
+      // and writes to the Sheet directly, so the check needs to be
+      // repeated here too, otherwise automation could stack a second bill
+      // on top of an unresolved one for the same room.
+      const existingInvoices = coerceInvoices(await readTab('Invoices'));
+      const alreadyPending = existingInvoices.find((i) => i.room === input.roomId && i.status !== 'paid');
+      if (alreadyPending) {
+        throw new Error(`ห้อง ${input.roomId} มีใบแจ้งหนี้ค้างอยู่แล้ว (${alreadyPending.id}) กรุณาจัดการบิลเดิมให้เสร็จก่อน (แก้ไข/ลบ/ยืนยันชำระ) จึงจะออกบิลใหม่ได้`);
+      }
+
       const settings = await readSettings();
       const rent = Number(room.rent) || 0, water = Number(input.water) || 0, elec = Number(input.elec) || 0;
       const trash = settings.trashRate, internet = settings.internetRate;

@@ -3856,6 +3856,17 @@ class Component extends DCLogic {
   submitInvoice = () => this._guard('submitInvoice', async () => {
     const s = this.state;
     if (!s.newInvoice.roomId) { this.showAdminToast('กรุณาเลือกห้อง'); return; }
+    // Block issuing a second bill for a room that already has one
+    // outstanding — per explicit user request after noticing duplicate
+    // bills could stack up for the same room. The server also enforces
+    // this (POST /api/invoices) as a second line of defense, since
+    // invoices can also be created via the Claude automation tools, not
+    // just this form.
+    const alreadyPending = s.invoices.find(i => i.room === s.newInvoice.roomId && i.status !== 'paid');
+    if (alreadyPending) {
+      this.showAdminToast(`ห้อง ${s.newInvoice.roomId} มีใบแจ้งหนี้ค้างอยู่แล้ว (${alreadyPending.id}) กรุณาจัดการบิลเดิมให้เสร็จก่อน (แก้ไข/ลบ/ยืนยันชำระ) จึงจะออกบิลใหม่ได้`);
+      return;
+    }
     const room = s.rooms.find(r => r.id === s.newInvoice.roomId);
     const water = Number(s.newInvoice.water) || 0;
     const elec = Number(s.newInvoice.elec) || 0;

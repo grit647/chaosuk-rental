@@ -18,6 +18,19 @@ router.post('/', async (req, res, next) => {
   try {
     const b = req.body;
     if (!b.room) return res.status(400).json({ error: 'กรุณาเลือกห้อง' });
+
+    // Refuse to issue a second bill for a room that already has one
+    // outstanding (anything not 'paid') — this endpoint is reachable both
+    // from this form AND from the Claude automation tools
+    // (server/claudeTools.js's create_invoice), so the check needs to live
+    // here, not just as a client-side guard, per explicit user request
+    // after duplicate/overlapping bills showed up for the same room.
+    const existingInvoices = coerceInvoices(await readTab('Invoices'));
+    const alreadyPending = existingInvoices.find((i) => i.room === b.room && i.status !== 'paid');
+    if (alreadyPending) {
+      return res.status(400).json({ error: `ห้อง ${b.room} มีใบแจ้งหนี้ค้างอยู่แล้ว (${alreadyPending.id}) กรุณาจัดการบิลเดิมให้เสร็จก่อน (แก้ไข/ลบ/ยืนยันชำระ) จึงจะออกบิลใหม่ได้` });
+    }
+
     const rent = Number(b.rent) || 0, water = Number(b.water) || 0, elec = Number(b.elec) || 0, trash = Number(b.trash) || 0, internet = Number(b.internet) || 0;
     const total = rent + water + elec + trash + internet;
 
