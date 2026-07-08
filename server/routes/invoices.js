@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
-const { appendRow, updateRow, readTab } = require('../sheets');
+const { appendRow, updateRow, deleteRow, readTab } = require('../sheets');
 const { coerceInvoices, coerceRooms, readSettings } = require('../coerce');
 const { generateInvoicePdf } = require('../pdf');
 
@@ -62,6 +62,11 @@ router.patch('/:id', async (req, res, next) => {
     const merged = await updateRow('Invoices', req.params.id, req.body);
     res.json(coerceInvoices([merged])[0]);
   } catch (err) { next(err); }
+});
+
+router.delete('/:id', async (req, res, next) => {
+  try { await deleteRow('Invoices', req.params.id); res.json({ ok: true }); }
+  catch (err) { next(err); }
 });
 
 router.post('/:id/pdf', async (req, res, next) => {

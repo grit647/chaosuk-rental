@@ -583,21 +583,25 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             </div>
 
             <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;margin-top:16px;overflow-x:auto">
-              <div style="min-width:640px">
+              <div style="min-width:820px">
               <div style="font-size:14px;font-weight:700;color:#241812;margin-bottom:2px">ใบแจ้งหนี้ที่รอชำระ ({{ pendingBillsCount }})</div>
               <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">สร้างบิลจะเพิ่มแถวที่นี่ · กดสถานะเพื่อยืนยันการชำระ เมื่อชำระแล้วแถวจะถูกนำออก</div>
-              <div style="display:grid;grid-template-columns:0.5fr 1.5fr 0.9fr 1.1fr 1fr 1.3fr;gap:12px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#9C8B78;padding-bottom:11px;border-bottom:2px solid #EDE1CE">
-                <div>ห้อง</div><div>ผู้เช่า</div><div>ยอดรวม</div><div>วันครบกำหนด</div><div>สถานะ</div><div style="text-align:right">ส่งข้อมูล</div>
+              <div style="display:grid;grid-template-columns:0.5fr 1.5fr 0.9fr 1.1fr 1fr 1.2fr 1.3fr;gap:12px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#9C8B78;padding-bottom:11px;border-bottom:2px solid #EDE1CE">
+                <div>ห้อง</div><div>ผู้เช่า</div><div>ยอดรวม</div><div>วันครบกำหนด</div><div>สถานะ</div><div>จัดการใบเสร็จ</div><div style="text-align:right">ส่งข้อมูล</div>
               </div>
               <sc-if value="{{ pendingBillsCount }}" hint-placeholder-val="{{ true }}">
                 <sc-for list="{{ pendingBills }}" as="b" hint-placeholder-count="6">
-                  <div style="display:grid;grid-template-columns:0.5fr 1.5fr 0.9fr 1.1fr 1fr 1.3fr;gap:12px;font-size:12.5px;color:#241812;padding:13px 0;border-bottom:1px solid #F3ECE0;align-items:center">
+                  <div style="display:grid;grid-template-columns:0.5fr 1.5fr 0.9fr 1.1fr 1fr 1.2fr 1.3fr;gap:12px;font-size:12.5px;color:#241812;padding:13px 0;border-bottom:1px solid #F3ECE0;align-items:center">
                     <div style="font-weight:700;font-family:'IBM Plex Mono',monospace">{{ b.room }}</div>
                     <div style="font-weight:500">{{ b.tenant }}</div>
                     <div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ b.totalDisplay }}</div>
                     <div style="color:#7C6E5F;font-size:12px">{{ b.due }}</div>
                     <div>
                       <span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:5px 11px;border-radius:6px;background:{{ b.statusBg }};color:{{ b.statusColor }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ b.statusDot }}"></span>{{ b.statusLabel }}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <span onclick="{{ b.onEditReceipt }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap">✎ แก้ไข</span>
+                      <span onclick="{{ b.onDeleteReceipt }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336;white-space:nowrap">🗑 ลบ</span>
                     </div>
                     <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px">
                       <sc-if value="{{ b.hasSlipPending }}" hint-placeholder-val="{{ false }}">
@@ -1866,6 +1870,49 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showEditInvoiceModal }}">
+          <div onclick="{{ closeEditInvoiceModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">แก้ไขใบแจ้งหนี้ห้อง {{ editInvoice.room }}</div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">{{ editInvoice.tenant }}</div>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;gap:10px">
+                  <div style="flex:1"><div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าเช่า (บาท)</div><input value="{{ editInvoice.rent }}" onchange="{{ onEditInvoiceRentChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace"></div>
+                  <div style="flex:1"><div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าน้ำ (บาท)</div><input value="{{ editInvoice.water }}" onchange="{{ onEditInvoiceWaterChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace"></div>
+                </div>
+                <div style="display:flex;gap:10px">
+                  <div style="flex:1"><div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าไฟ (บาท)</div><input value="{{ editInvoice.elec }}" onchange="{{ onEditInvoiceElecChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace"></div>
+                  <div style="flex:1"><div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าขยะ (บาท)</div><input value="{{ editInvoice.trash }}" onchange="{{ onEditInvoiceTrashChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace"></div>
+                </div>
+                <div><div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าอินเทอร์เน็ต (บาท)</div><input value="{{ editInvoice.internet }}" onchange="{{ onEditInvoiceInternetChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace"></div>
+                <div><div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ</div><input type="date" value="{{ editInvoice.due }}" onchange="{{ onEditInvoiceDueChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box"></div>
+              </div>
+              <div style="display:flex;gap:10px;margin-top:20px">
+                <button onclick="{{ closeEditInvoiceModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ submitEditInvoice }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึกการแก้ไข</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showDeleteInvoiceConfirm }}">
+          <div onclick="{{ closeDeleteInvoiceConfirm }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:220">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-sizing:border-box;text-align:center">
+              <div style="width:52px;height:52px;border-radius:50%;background:#F5E1DC;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px">🗑</div>
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:6px">ยืนยันลบใบแจ้งหนี้นี้</div>
+              <sc-if value="{{ hasDeleteInvoiceConfirm }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:13px;color:#7C6E5F;margin-bottom:4px">ห้อง {{ deleteInvoiceInfo.room }} · {{ deleteInvoiceInfo.tenant }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#241812;margin-bottom:18px">{{ deleteInvoiceInfo.totalDisplay }}</div>
+              </sc-if>
+              <div style="font-size:12px;color:#B24336;margin-bottom:18px">ลบแล้วกู้คืนไม่ได้ — ใบแจ้งหนี้นี้จะหายไปจากระบบถาวร</div>
+              <div style="display:flex;gap:10px">
+                <div onclick="{{ closeDeleteInvoiceConfirm }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</div>
+                <div onclick="{{ confirmDeleteInvoice }}" style="flex:1.3;padding:11px;border-radius:7px;background:#B24336;color:#fff;font-size:13px;font-weight:700;cursor:pointer">ลบใบแจ้งหนี้</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showSlipReview }}">
           <div onclick="{{ closeSlipReview }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:380px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
@@ -2445,6 +2492,10 @@ class Component extends DCLogic {
     resolveSlipConfirmId: '',
     resolveSlipConfirmMode: '',
     resolveSlipConfirmDueDate: '',
+    showEditInvoiceModal: false,
+    editInvoice: { id: '', room: '', tenant: '', rent: '', water: '', elec: '', trash: '', internet: '', due: '' },
+    showDeleteInvoiceConfirm: false,
+    deleteInvoiceId: '',
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -3687,6 +3738,62 @@ class Component extends DCLogic {
     } catch (err) { this.showAdminToast(err.message || 'ส่ง LINE ไม่สำเร็จ'); }
   });
   openPayConfirm = (id) => this.setState({ showPayConfirm: true, payConfirmId: id });
+
+  // Receipt (invoice) management — edit charges/due date directly, or
+  // delete a bill entirely — added per explicit user request for accurate
+  // record-keeping (e.g. fixing a typo'd amount, or removing a bill created
+  // by mistake) instead of only ever being able to mark paid/resolve slips.
+  openEditInvoice = (id) => {
+    const inv = this.state.invoices.find(i => i.id === id);
+    if (!inv) return;
+    this.setState({
+      showEditInvoiceModal: true,
+      editInvoice: {
+        id: inv.id, room: inv.room, tenant: inv.tenant,
+        rent: inv.rent, water: inv.water, elec: inv.elec,
+        trash: inv.trash || 0, internet: inv.internet || 0, due: inv.due || '',
+      },
+    });
+  };
+  closeEditInvoiceModal = () => this.setState({ showEditInvoiceModal: false });
+  onEditInvoiceRentChange = (e) => this.setState(s => ({ editInvoice: { ...s.editInvoice, rent: e.target.value } }));
+  onEditInvoiceWaterChange = (e) => this.setState(s => ({ editInvoice: { ...s.editInvoice, water: e.target.value } }));
+  onEditInvoiceElecChange = (e) => this.setState(s => ({ editInvoice: { ...s.editInvoice, elec: e.target.value } }));
+  onEditInvoiceTrashChange = (e) => this.setState(s => ({ editInvoice: { ...s.editInvoice, trash: e.target.value } }));
+  onEditInvoiceInternetChange = (e) => this.setState(s => ({ editInvoice: { ...s.editInvoice, internet: e.target.value } }));
+  onEditInvoiceDueChange = (e) => this.setState(s => ({ editInvoice: { ...s.editInvoice, due: e.target.value } }));
+  submitEditInvoice = () => this._guard('submitEditInvoice:' + this.state.editInvoice.id, async () => {
+    const ei = this.state.editInvoice;
+    if (!ei.id) return;
+    try {
+      const res = await fetch('/api/invoices/' + ei.id, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rent: Number(ei.rent) || 0, water: Number(ei.water) || 0, elec: Number(ei.elec) || 0,
+          trash: Number(ei.trash) || 0, internet: Number(ei.internet) || 0, due: ei.due,
+        }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState(s => ({ invoices: s.invoices.map(i => i.id === updated.id ? updated : i), showEditInvoiceModal: false }));
+      this.showAdminToast('แก้ไขใบแจ้งหนี้ห้อง ' + ei.room + ' แล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
+  });
+  askDeleteInvoice = (id) => this.setState({ showDeleteInvoiceConfirm: true, deleteInvoiceId: id });
+  closeDeleteInvoiceConfirm = () => this.setState({ showDeleteInvoiceConfirm: false, deleteInvoiceId: '' });
+  confirmDeleteInvoice = () => this._guard('confirmDeleteInvoice:' + this.state.deleteInvoiceId, async () => {
+    const id = this.state.deleteInvoiceId;
+    if (!id) return;
+    try {
+      const res = await fetch('/api/invoices/' + id, { method: 'DELETE' });
+      if (!res.ok) throw new Error('ลบไม่สำเร็จ');
+      this.setState(s => ({ invoices: s.invoices.filter(i => i.id !== id), showDeleteInvoiceConfirm: false, deleteInvoiceId: '' }));
+      this.showAdminToast('ลบใบแจ้งหนี้แล้ว');
+    } catch (err) {
+      this.showAdminToast(err.message || 'ลบไม่สำเร็จ');
+      this.setState({ showDeleteInvoiceConfirm: false, deleteInvoiceId: '' });
+    }
+  });
   openSaveReceipt = (roomId) => this.setState({ showSaveReceipt: true, saveReceiptRoom: roomId });
   closeSaveReceipt = () => this.setState({ showSaveReceipt: false, saveReceiptRoom: null });
   confirmSaveReceipt = () => {
@@ -4796,6 +4903,8 @@ class Component extends DCLogic {
         onSendLine: hasLineId ? (() => this.sendReceiptLine(i.room)) : (() => this.openSaveReceipt(i.room)),
         hasSlipPending, noSlipPending: !hasSlipPending,
         onOpenSlip: () => this.openSlipReview(i.id),
+        onEditReceipt: () => this.openEditInvoice(i.id),
+        onDeleteReceipt: () => this.askDeleteInvoice(i.id),
       };
     });
     const pendingBillsCount = pendingBills.length;
@@ -5388,6 +5497,14 @@ class Component extends DCLogic {
       showSaveReceipt: s.showSaveReceipt, saveReceiptRoom: s.saveReceiptRoom, closeSaveReceipt: this.closeSaveReceipt, confirmSaveReceipt: this.confirmSaveReceipt,
       payConfirmInfo: (() => { const i = s.invoices.find(x => x.id === s.payConfirmId); if (!i) return null; const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0); return { id: i.id, room: i.room, tenant: i.tenant, totalDisplay: this.fmt(total) }; })(),
       hasPayConfirm: !!s.payConfirmId,
+      showEditInvoiceModal: s.showEditInvoiceModal, editInvoice: s.editInvoice,
+      closeEditInvoiceModal: this.closeEditInvoiceModal, submitEditInvoice: this.submitEditInvoice,
+      onEditInvoiceRentChange: this.onEditInvoiceRentChange, onEditInvoiceWaterChange: this.onEditInvoiceWaterChange,
+      onEditInvoiceElecChange: this.onEditInvoiceElecChange, onEditInvoiceTrashChange: this.onEditInvoiceTrashChange,
+      onEditInvoiceInternetChange: this.onEditInvoiceInternetChange, onEditInvoiceDueChange: this.onEditInvoiceDueChange,
+      showDeleteInvoiceConfirm: s.showDeleteInvoiceConfirm, closeDeleteInvoiceConfirm: this.closeDeleteInvoiceConfirm,
+      confirmDeleteInvoice: this.confirmDeleteInvoice, hasDeleteInvoiceConfirm: !!s.deleteInvoiceId,
+      deleteInvoiceInfo: (() => { const i = s.invoices.find(x => x.id === s.deleteInvoiceId); if (!i) return null; const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0); return { room: i.room, tenant: i.tenant, totalDisplay: this.fmt(total) }; })(),
       showInvoiceModal: s.showInvoiceModal, closeInvoiceModal: this.closeInvoiceModal,
       newInvoice: s.newInvoice, roomSelectOptions,
       invContract: (() => {
