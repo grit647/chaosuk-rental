@@ -77,6 +77,17 @@ async function handleSlipImage(event, req) {
     return;
   }
 
+  // If Claude couldn't find ANY of the fields a real bank slip always has
+  // (amount, date, sender), the photo almost certainly isn't a payment
+  // slip at all (screenshot of something else, a random photo, etc.) —
+  // reject it outright instead of silently saving an empty "advance
+  // payment" record, per explicit user feedback after hitting exactly this
+  // with a test screenshot.
+  if (slip.amount == null && !slip.date && !slip.senderName) {
+    await replyMessage(event.replyToken, 'รูปที่ส่งมาไม่เหมือนสลิปโอนเงินครับ (อ่านยอด/วันที่/ชื่อผู้โอนไม่เจอเลย) กรุณาส่งรูปสลิปที่ถ่ายหรือแคปมาจากแอปธนาคารโดยตรงอีกครั้งนะครับ');
+    return;
+  }
+
   const invoices = coerceInvoices(await readTab('Invoices'));
   const pending = invoices.filter((i) => i.room === room.id && i.status !== 'paid');
   const totalOf = (inv) => Number(inv.rent || 0) + Number(inv.water || 0) + Number(inv.elec || 0) + Number(inv.trash || 0) + Number(inv.internet || 0);
