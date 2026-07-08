@@ -1876,8 +1876,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <img src="{{ sc.imageUrl }}" style="width:100%;border-radius:6px;margin-bottom:8px">
                       </sc-if>
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอด</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ sc.amountDisplay }}</span></div>
-                      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ sc.date }} · {{ sc.senderName }}</span></div>
-                      <div onclick="{{ sc.onDelete }}" style="text-align:right;font-size:11px;color:#B24336;cursor:pointer;font-weight:600">🗑️ ลบสลิปนี้</div>
+                      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ sc.date }} · {{ sc.senderName }}</span></div>
+                      <div style="display:flex;justify-content:space-between;align-items:center">
+                        <sc-if value="{{ sc.imageUrl }}" hint-placeholder-val="{{ false }}">
+                          <a href="{{ sc.imageUrl }}" target="_blank" rel="noopener" style="font-size:11px;color:#C1622D;font-weight:600;text-decoration:none">🔍 ดูสลิปตัวจริง</a>
+                        </sc-if>
+                        <sc-if value="{{ sc.noImage }}" hint-placeholder-val="{{ true }}"><div></div></sc-if>
+                        <div onclick="{{ sc.onDelete }}" style="font-size:11px;color:#B24336;cursor:pointer;font-weight:600">🗑️ ลบสลิปนี้</div>
+                      </div>
                     </div>
                   </sc-for>
                 </div>
@@ -1941,7 +1947,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                             <img src="{{ sc.imageUrl }}" style="width:100%;border-radius:6px;margin-bottom:6px">
                           </sc-if>
                           <div style="display:flex;justify-content:space-between;font-size:11.5px"><span style="color:#7C6E5F">ยอด</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ sc.amountDisplay }}</span></div>
-                          <div style="display:flex;justify-content:space-between;font-size:11.5px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ sc.date }} · {{ sc.senderName }}</span></div>
+                          <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:6px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ sc.date }} · {{ sc.senderName }}</span></div>
+                          <sc-if value="{{ sc.imageUrl }}" hint-placeholder-val="{{ false }}">
+                            <a href="{{ sc.imageUrl }}" target="_blank" rel="noopener" style="font-size:10.5px;color:#C1622D;font-weight:600;text-decoration:none">🔍 ดูสลิปตัวจริง</a>
+                          </sc-if>
                         </div>
                       </sc-for>
                     </div>
@@ -4544,7 +4553,7 @@ class Component extends DCLogic {
     // the COMBINED sum of every slip received, not just the latest one.
     const buildSlipCards = (inv) => (inv.slips || []).map((s2, idx) => ({
       amountDisplay: s2.amount != null ? this.fmt(Number(s2.amount)) : '-',
-      date: s2.date || '-', senderName: s2.senderName || '-', imageUrl: s2.imageUrl || '',
+      date: s2.date || '-', senderName: s2.senderName || '-', imageUrl: s2.imageUrl || '', noImage: !s2.imageUrl,
       onDelete: () => this.askDeleteSlip(inv.id, idx),
     }));
 
