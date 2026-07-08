@@ -7,6 +7,7 @@ const { readTab, updateRow } = require('../sheets');
 const { coerceInvoices, coerceRooms } = require('../coerce');
 const { isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent } = require('../line');
 const { isConfigured: claudeConfigured, readPaymentSlip } = require('../claude');
+const { isConfigured: cloudinaryConfigured, uploadBuffer: uploadToCloudinary } = require('../cloudinary');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -41,9 +42,25 @@ async function handleSlipImage(event, req) {
     return;
   }
 
-  const filename = `slip-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.jpg`;
-  fs.writeFileSync(path.join(UPLOAD_DIR, filename), buffer);
-  const publicUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+  // Prefer Cloudinary (persistent, survives every deploy) — fall back to
+  // local disk only if Cloudinary isn't configured, same as before. Local
+  // disk is ephemeral on Render's free tier, which was a real problem: a
+  // slip could sit "pending review" for a while, and any code deploy in
+  // between silently deleted the image (the extracted data stayed intact,
+  // just the picture itself vanished).
+  let publicUrl;
+  if (cloudinaryConfigured()) {
+    try {
+      publicUrl = await uploadToCloudinary(buffer, 'chaosuk-rental/slips');
+    } catch (err) {
+      console.error('[line] Cloudinary upload failed, falling back to local disk', err.message);
+    }
+  }
+  if (!publicUrl) {
+    const filename = `slip-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.jpg`;
+    fs.writeFileSync(path.join(UPLOAD_DIR, filename), buffer);
+    publicUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+  }
 
   if (!claudeConfigured()) {
     await replyMessage(event.replyToken, 'ได้รับรูปสลิปแล้วครับ แต่ระบบอ่านสลิปอัตโนมัติยังไม่พร้อมใช้งาน รอเจ้าของตรวจสอบด้วยตนเองครับ');
