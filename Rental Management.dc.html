@@ -533,6 +533,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#241812">{{ selectedTenant.phone }}</span>
                     <a href="{{ selectedTenant.telHref }}" onclick="{{ selectedTenant.onCall }}" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:#C1622D;color:#fff;text-decoration:none;font-size:13px" title="โทร">📞</a>
                   </div>
+                  <sc-if value="{{ selectedTenant.hasCredit }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;justify-content:space-between;align-items:center;background:#F5EFE2;border:1px solid #E3D2A8;border-radius:8px;padding:9px 12px;margin-bottom:14px">
+                      <div style="font-size:11px;color:#9C7A2E;font-weight:600">💰 ยอดเงินล่วงหน้าคงเหลือ</div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:13.5px;font-weight:700;color:#9C7A2E">{{ selectedTenant.creditDisplay }}</div>
+                    </div>
+                  </sc-if>
                   <div style="font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">Token · การเชื่อมต่อ</div>
                   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                     <div style="display:flex;gap:3px;background:#F7F2E9;padding:2px;border-radius:6px;width:fit-content">
@@ -2041,6 +2047,15 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </sc-for>
                   </select>
                 </div>
+                <sc-if value="{{ newInvoiceHasCredit }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;justify-content:space-between;align-items:center;background:#F5EFE2;border:1px solid #E3D2A8;border-radius:8px;padding:10px 14px">
+                    <div>
+                      <div style="font-size:11px;color:#9C7A2E;font-weight:600">💰 ยอดเงินล่วงหน้าคงเหลือ</div>
+                      <div style="font-size:10px;color:#A89A88;margin-top:2px">ระบบจะหักลบยอดนี้ให้อัตโนมัติเมื่อสร้างบิลนี้</div>
+                    </div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;color:#9C7A2E">{{ newInvoiceCreditDisplay }}</div>
+                  </div>
+                </sc-if>
                 <sc-if value="{{ invHasContract }}" hint-placeholder-val="{{ false }}">
                   <div style="background:#FBF7F0;border:1px solid #EDE1CE;border-radius:8px;padding:12px 14px">
                     <div style="font-size:10.5px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#B85B27;margin-bottom:8px">จากสัญญาเช่า</div>
@@ -4686,6 +4701,10 @@ class Component extends DCLogic {
           return mode === 'auto' ? (!!r.lineUserId || !!hasManual) : !!hasManual;
         })(),
         connLabel: '', connBg: '', connColor: '', connDot: '',
+        // Advance-payment credit sitting on this room (see resolveSlip's
+        // 'credit' mode) — display-only here too, auto-applied by the
+        // server the next time a bill is issued for this room.
+        creditAmount: r.creditBalance || 0, creditDisplay: this.fmt(r.creditBalance || 0), hasCredit: !!(r.creditBalance > 0),
       };
     });
     tenantsFiltered.forEach(t => {
@@ -5383,6 +5402,15 @@ class Component extends DCLogic {
         };
       })(),
       invHasContract: !!s.rooms.find(x => x.id === s.newInvoice.roomId),
+      // Read-only display of any advance-payment credit sitting on the
+      // selected room — this is what the tenant already paid ahead of time
+      // (see resolveSlip's 'credit' mode / handleSlipImage in
+      // server/routes/line.js) and the server auto-applies it the moment
+      // this invoice is submitted (server/routes/invoices.js), so the owner
+      // should see it here before creating the bill, not edit it directly.
+      newInvoiceCreditAmount: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return (r && r.creditBalance) || 0; })(),
+      newInvoiceCreditDisplay: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return this.fmt((r && r.creditBalance) || 0); })(),
+      newInvoiceHasCredit: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return !!(r && r.creditBalance > 0); })(),
       onNewInvoiceRoomChange: this.onNewInvoiceRoomChange, onNewInvoiceWaterChange: this.onNewInvoiceWaterChange, onNewInvoiceElecChange: this.onNewInvoiceElecChange, onNewInvoiceDueChange: this.onNewInvoiceDueChange, submitInvoice: this.submitInvoice,
       setInvoiceWaterMode: this.setInvoiceWaterMode, setInvoiceElecMode: this.setInvoiceElecMode,
       invWaterIsDevice: s.newInvoice.waterMode === 'device', invElecIsDevice: s.newInvoice.elecMode === 'device',
