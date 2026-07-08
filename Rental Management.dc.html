@@ -1844,14 +1844,23 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="font-size:11px;color:#9C8B78;margin-bottom:14px;line-height:1.5">อ่านด้วย AI จากรูปที่ผู้เช่าส่งเข้า LINE — ไม่ใช่การตรวจสอบกับธนาคารจริง กรุณาตรวจดูก่อนยืนยัน</div>
               <sc-if value="{{ hasSlipReview }}" hint-placeholder-val="{{ false }}">
                 <div style="font-size:13px;color:#7C6E5F;margin-bottom:10px">ห้อง {{ slipReview.room }} · {{ slipReview.tenant }}</div>
-                <sc-if value="{{ slipReview.slipImageUrl }}" hint-placeholder-val="{{ false }}">
-                  <img src="{{ slipReview.slipImageUrl }}" style="width:100%;border-radius:8px;margin-bottom:12px;border:1px solid #F0E9DC">
+                <sc-if value="{{ slipReview.hasMultipleSlips }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:11.5px;font-weight:600;color:#B85B27;margin-bottom:8px">📎 ส่งมาแล้ว {{ slipReview.slipCount }} สลิป (เช่น เงินไม่พอในบัญชีเดียว แบ่งโอน) — ยอดรวมด้านล่างคือผลรวมทุกสลิป</div>
                 </sc-if>
+                <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+                  <sc-for list="{{ slipReview.cards }}" as="sc" hint-placeholder-count="1">
+                    <div style="border:1px solid #F0E9DC;border-radius:8px;padding:10px;box-sizing:border-box">
+                      <sc-if value="{{ sc.imageUrl }}" hint-placeholder-val="{{ false }}">
+                        <img src="{{ sc.imageUrl }}" style="width:100%;border-radius:6px;margin-bottom:8px">
+                      </sc-if>
+                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอด</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ sc.amountDisplay }}</span></div>
+                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ sc.date }} · {{ sc.senderName }}</span></div>
+                    </div>
+                  </sc-for>
+                </div>
                 <div style="display:flex;flex-direction:column;gap:8px;padding:12px;background:#FBF7F0;border-radius:8px;margin-bottom:10px">
                   <div style="display:flex;justify-content:space-between;font-size:12.5px"><span style="color:#7C6E5F">ยอดในบิล</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ slipReview.expectedTotalDisplay }}</span></div>
-                  <div style="display:flex;justify-content:space-between;font-size:12.5px"><span style="color:#7C6E5F">ยอดที่อ่านจากสลิป</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ slipReview.slipAmountDisplay }}</span></div>
-                  <div style="display:flex;justify-content:space-between;font-size:12.5px"><span style="color:#7C6E5F">วันที่ในสลิป</span><span>{{ slipReview.slipDate }}</span></div>
-                  <div style="display:flex;justify-content:space-between;font-size:12.5px"><span style="color:#7C6E5F">ชื่อผู้โอน</span><span>{{ slipReview.slipSenderName }}</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:12.5px"><span style="color:#7C6E5F">ยอดรวมทุกสลิป</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ slipReview.slipAmountDisplay }}</span></div>
                 </div>
                 <div style="padding:8px 12px;border-radius:6px;background:{{ slipReview.matchBg }};color:{{ slipReview.matchColor }};font-size:12px;font-weight:600;margin-bottom:16px">{{ slipReview.matchLabel }}</div>
               </sc-if>
@@ -1877,14 +1886,24 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;flex-direction:column;gap:12px">
                 <sc-for list="{{ slipQueueItems }}" as="q" hint-placeholder-count="2">
                   <div style="border:1px solid #F0E9DC;border-radius:8px;padding:14px;box-sizing:border-box">
-                    <div style="font-size:13px;font-weight:600;color:#241812;margin-bottom:8px">ห้อง {{ q.room }} · {{ q.tenant }}</div>
-                    <sc-if value="{{ q.slipImageUrl }}" hint-placeholder-val="{{ false }}">
-                      <img src="{{ q.slipImageUrl }}" style="width:100%;border-radius:8px;margin-bottom:10px;border:1px solid #F0E9DC">
+                    <div style="font-size:13px;font-weight:600;color:#241812;margin-bottom:6px">ห้อง {{ q.room }} · {{ q.tenant }}</div>
+                    <sc-if value="{{ q.hasMultipleSlips }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10.5px;font-weight:600;color:#B85B27;margin-bottom:8px">📎 ส่งมาแล้ว {{ q.slipCount }} สลิป — ยอดรวมด้านล่างคือผลรวมทุกสลิป</div>
                     </sc-if>
+                    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
+                      <sc-for list="{{ q.cards }}" as="sc" hint-placeholder-count="1">
+                        <div style="border:1px solid #F0E9DC;border-radius:7px;padding:8px;box-sizing:border-box">
+                          <sc-if value="{{ sc.imageUrl }}" hint-placeholder-val="{{ false }}">
+                            <img src="{{ sc.imageUrl }}" style="width:100%;border-radius:6px;margin-bottom:6px">
+                          </sc-if>
+                          <div style="display:flex;justify-content:space-between;font-size:11.5px"><span style="color:#7C6E5F">ยอด</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ sc.amountDisplay }}</span></div>
+                          <div style="display:flex;justify-content:space-between;font-size:11.5px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ sc.date }} · {{ sc.senderName }}</span></div>
+                        </div>
+                      </sc-for>
+                    </div>
                     <div style="display:flex;flex-direction:column;gap:6px;padding:10px;background:#FBF7F0;border-radius:7px;margin-bottom:8px">
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอดในบิล</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ q.expectedTotalDisplay }}</span></div>
-                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอดที่อ่านจากสลิป</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ q.slipAmountDisplay }}</span></div>
-                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ q.slipDate }} · {{ q.slipSenderName }}</span></div>
+                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอดรวมทุกสลิป</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ q.slipAmountDisplay }}</span></div>
                     </div>
                     <div style="padding:7px 10px;border-radius:6px;background:{{ q.matchBg }};color:{{ q.matchColor }};font-size:11.5px;font-weight:600;margin-bottom:10px">{{ q.matchLabel }}</div>
                     <div style="display:flex;gap:8px">
@@ -3622,18 +3641,21 @@ class Component extends DCLogic {
   confirmSlipPaidFor = async (id) => {
     try {
       await this.markInvoicePaid(id);
+      // Clear slipsJson too, not just the flag — otherwise a future slip
+      // that happens to amount-match this same (now paid) invoice id again
+      // would append onto old, already-resolved slip data.
       await fetch('/api/invoices/' + id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slipPending: false }),
+        body: JSON.stringify({ slipPending: false, slipsJson: '[]' }),
       });
-      this.setState(s => ({ invoices: s.invoices.map(i => i.id === id ? { ...i, slipPending: false } : i) }));
+      this.setState(s => ({ invoices: s.invoices.map(i => i.id === id ? { ...i, slipPending: false, slips: [], slipCount: 0, slipsTotal: 0 } : i) }));
     } catch (err) { this.showAdminToast(err.message || 'ยืนยันไม่สำเร็จ'); }
   };
   rejectSlipFor = async (id) => {
     try {
       const res = await fetch('/api/invoices/' + id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slipPending: false }),
+        body: JSON.stringify({ slipPending: false, slipsJson: '[]' }),
       });
       if (!res.ok) throw new Error('อัปเดตไม่สำเร็จ');
       const updated = await res.json();
@@ -4396,16 +4418,27 @@ class Component extends DCLogic {
     });
     const pendingBillsCount = pendingBills.length;
 
+    // A tenant can send more than one slip for the same bill (split
+    // payment, insufficient balance in one account, etc.) — s.invoices
+    // already carries `slips` (the full array), `slipCount`, and
+    // `slipsTotal` from coerceInvoices on the server. Both the single-invoice
+    // review modal and the bulk queue below compare the bill's total against
+    // the COMBINED sum of every slip received, not just the latest one.
+    const buildSlipCards = (inv) => (inv.slips || []).map(s2 => ({
+      amountDisplay: s2.amount != null ? this.fmt(Number(s2.amount)) : '-',
+      date: s2.date || '-', senderName: s2.senderName || '-', imageUrl: s2.imageUrl || '',
+    }));
+
     const slipReviewInvoiceRaw = s.invoices.find(i => i.id === s.slipReviewInvoiceId) || null;
     const slipReviewTotal = slipReviewInvoiceRaw ? (slipReviewInvoiceRaw.rent + slipReviewInvoiceRaw.water + slipReviewInvoiceRaw.elec + (slipReviewInvoiceRaw.trash || 0) + (slipReviewInvoiceRaw.internet || 0)) : 0;
-    const slipAmountMatches = slipReviewInvoiceRaw && slipReviewInvoiceRaw.slipAmount != null && Math.abs(Number(slipReviewInvoiceRaw.slipAmount) - slipReviewTotal) < 1;
+    const slipReviewCombined = slipReviewInvoiceRaw ? (slipReviewInvoiceRaw.slipsTotal || 0) : 0;
+    const slipAmountMatches = slipReviewInvoiceRaw && Math.abs(slipReviewCombined - slipReviewTotal) < 1;
     const slipReview = slipReviewInvoiceRaw ? {
       room: slipReviewInvoiceRaw.room, tenant: slipReviewInvoiceRaw.tenant,
+      slipCount: slipReviewInvoiceRaw.slipCount || 0, hasMultipleSlips: (slipReviewInvoiceRaw.slipCount || 0) > 1,
+      cards: buildSlipCards(slipReviewInvoiceRaw),
       expectedTotalDisplay: this.fmt(slipReviewTotal),
-      slipAmountDisplay: slipReviewInvoiceRaw.slipAmount != null ? this.fmt(Number(slipReviewInvoiceRaw.slipAmount)) : '-',
-      slipDate: slipReviewInvoiceRaw.slipDate || '-',
-      slipSenderName: slipReviewInvoiceRaw.slipSenderName || '-',
-      slipImageUrl: slipReviewInvoiceRaw.slipImageUrl || '',
+      slipAmountDisplay: this.fmt(slipReviewCombined),
       matchLabel: slipAmountMatches ? '✓ ยอดตรงกับบิล' : '⚠️ ยอดไม่ตรงกับบิล — ตรวจสอบก่อนยืนยัน',
       matchColor: slipAmountMatches ? '#3B7A52' : '#B24336',
       matchBg: slipAmountMatches ? '#E4EFE7' : '#FBE7E4',
@@ -4417,12 +4450,14 @@ class Component extends DCLogic {
     // Bills table row by row.
     const slipQueueItems = s.invoices.filter(i => i.slipPending).map(i => {
       const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
-      const amountMatches = i.slipAmount != null && Math.abs(Number(i.slipAmount) - total) < 1;
+      const combined = i.slipsTotal || 0;
+      const amountMatches = Math.abs(combined - total) < 1;
       return {
         id: i.id, room: i.room, tenant: i.tenant,
+        slipCount: i.slipCount || 0, hasMultipleSlips: (i.slipCount || 0) > 1,
+        cards: buildSlipCards(i),
         expectedTotalDisplay: this.fmt(total),
-        slipAmountDisplay: i.slipAmount != null ? this.fmt(Number(i.slipAmount)) : '-',
-        slipDate: i.slipDate || '-', slipSenderName: i.slipSenderName || '-', slipImageUrl: i.slipImageUrl || '',
+        slipAmountDisplay: this.fmt(combined),
         matchLabel: amountMatches ? '✓ ยอดตรงกับบิล' : '⚠️ ยอดไม่ตรงกับบิล',
         matchColor: amountMatches ? '#3B7A52' : '#B24336', matchBg: amountMatches ? '#E4EFE7' : '#FBE7E4',
         onConfirm: () => this.confirmSlipPaidFor(i.id),

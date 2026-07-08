@@ -23,17 +23,31 @@ function coerceRooms(rows) {
 }
 
 function coerceInvoices(rows) {
-  return rows.map((r) => ({
-    ...r,
-    rent: num(r.rent, 0),
-    water: num(r.water, 0),
-    elec: num(r.elec, 0),
-    trash: num(r.trash, 0),
-    internet: num(r.internet, 0),
-    receiptSent: bool(r.receiptSent, false),
-    slipPending: bool(r.slipPending, false),
-    slipAmount: r.slipAmount === '' || r.slipAmount == null ? null : num(r.slipAmount, null),
-  }));
+  return rows.map((r) => {
+    // A tenant can send more than one slip for the same bill (e.g. not
+    // enough balance in one account, split across transfers) — slipsJson
+    // holds every slip received so far as an array; slipAmount/slipDate/
+    // slipSenderName/slipImageUrl still get kept in sync with the LATEST
+    // slip for any older code path that only reads those singular fields.
+    let slips = [];
+    if (r.slipsJson) {
+      try { slips = JSON.parse(r.slipsJson); if (!Array.isArray(slips)) slips = []; } catch { slips = []; }
+    }
+    return {
+      ...r,
+      rent: num(r.rent, 0),
+      water: num(r.water, 0),
+      elec: num(r.elec, 0),
+      trash: num(r.trash, 0),
+      internet: num(r.internet, 0),
+      receiptSent: bool(r.receiptSent, false),
+      slipPending: bool(r.slipPending, false),
+      slipAmount: r.slipAmount === '' || r.slipAmount == null ? null : num(r.slipAmount, null),
+      slips,
+      slipCount: slips.length,
+      slipsTotal: slips.reduce((a, s) => a + (Number(s.amount) || 0), 0),
+    };
+  });
 }
 
 function coerceMaintenance(rows) {

@@ -69,11 +69,23 @@ async function handleSlipImage(event, req) {
     return;
   }
 
-  // Prefer an exact-ish amount match; fall back to the closest pending
-  // invoice by amount so something is always flagged for the owner to look
-  // at, even if the slip amount doesn't line up with any bill exactly.
-  let matched = slip.amount != null ? pending.find((i) => Math.abs(totalOf(i) - Number(slip.amount)) < 1) : null;
-  if (!matched) {
+  // A tenant can send more than one slip before the owner ever reviews the
+  // first one — most commonly because one account didn't have enough
+  // balance, so they split the payment across two (or more) transfers. If
+  // this room already has an invoice mid-review (slipPending), treat any new
+  // slip as belonging to that SAME bill and add to it, rather than trying to
+  // amount-match a partial payment against the wrong invoice. Only fall back
+  // to amount-matching when nothing is currently pending review.
+  const alreadyPending = pending.filter((i) => i.slipPending);
+  let matched;
+  if (alreadyPending.length === 1) {
+    matched = alreadyPending[0];
+  } else if (slip.amount != null && pending.find((i) => Math.abs(totalOf(i) - Number(slip.amount)) < 1)) {
+    matched = pending.find((i) => Math.abs(totalOf(i) - Number(slip.amount)) < 1);
+  } else {
+    // No exact match and nothing already in review — fall back to the
+    // closest pending invoice by amount so something is always flagged for
+    // the owner to look at, even if it's not a clean match.
     matched = pending.reduce((best, i) => {
       if (!best) return i;
       if (slip.amount == null) return best;
@@ -81,18 +93,30 @@ async function handleSlipImage(event, req) {
     }, null) || pending[0];
   }
 
+  const newSlip = {
+    amount: slip.amount != null ? Number(slip.amount) : null,
+    date: slip.date || '', senderName: slip.senderName || '', imageUrl: publicUrl,
+    uploadedAt: new Date().toISOString(),
+  };
+  const allSlips = [...(matched.slips || []), newSlip];
+  const combinedTotal = allSlips.reduce((a, s) => a + (Number(s.amount) || 0), 0);
+
   await updateRow('Invoices', matched.id, {
     slipPending: true,
-    slipAmount: slip.amount != null ? slip.amount : '',
-    slipDate: slip.date || '',
-    slipSenderName: slip.senderName || '',
-    slipImageUrl: publicUrl,
-    slipUploadedAt: new Date().toISOString(),
+    slipsJson: JSON.stringify(allSlips),
+    // Keep the singular fields in sync with the latest slip, for any older
+    // code path that still only reads those.
+    slipAmount: newSlip.amount != null ? newSlip.amount : '',
+    slipDate: newSlip.date,
+    slipSenderName: newSlip.senderName,
+    slipImageUrl: newSlip.imageUrl,
+    slipUploadedAt: newSlip.uploadedAt,
   });
 
-  const amountMatches = slip.amount != null && Math.abs(totalOf(matched) - Number(slip.amount)) < 1;
+  const amountMatches = Math.abs(totalOf(matched) - combinedTotal) < 1;
+  const countNote = allSlips.length > 1 ? `รวม ${allSlips.length} สลิป (${combinedTotal.toLocaleString()} บาท) ` : '';
   const note = amountMatches ? '' : ' (ยอดอาจไม่ตรงกับบิลเป๊ะๆ เจ้าของจะตรวจสอบอีกครั้ง)';
-  await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ยอด ${slip.amount ?? '-'} บาท กำลังรอเจ้าของยืนยันครับ ขอบคุณครับ 🙏${note}`);
+  await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ${countNote}ยอด ${slip.amount ?? '-'} บาท กำลังรอเจ้าของยืนยันครับ ขอบคุณครับ 🙏${note}`);
 }
 
 router.post('/webhook', async (req, res) => {
