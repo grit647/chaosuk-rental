@@ -560,6 +560,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;gap:8px;flex-shrink:0">
                 <sc-if value="{{ slipQueueCount }}" hint-placeholder-val="{{ false }}">
                   <button onclick="{{ openSlipQueue }}" style="background:#FBE7DC;color:#B85B27;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">📎 สลิปรอตรวจสอบ ({{ slipQueueCount }})</button>
+                  <button onclick="{{ confirmAllSlips }}" style="background:#3B7A52;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">{{ confirmAllSlipsLabel }}</button>
                 </sc-if>
                 <button onclick="{{ openInvoiceModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ สร้างใบแจ้งหนี้</button>
               </div>
@@ -589,7 +590,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <div style="font-weight:500">{{ b.tenant }}</div>
                     <div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ b.totalDisplay }}</div>
                     <div style="color:#7C6E5F;font-size:12px">{{ b.due }}</div>
-                    <div><span onclick="{{ b.onMarkPaid }}" style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:5px 11px;border-radius:6px;cursor:pointer;background:{{ b.statusBg }};color:{{ b.statusColor }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ b.statusDot }}"></span>{{ b.statusLabel }}</span></div>
+                    <div>
+                      <sc-if value="{{ b.hasSlipPending }}" hint-placeholder-val="{{ false }}">
+                        <span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:5px 11px;border-radius:6px;background:{{ b.statusBg }};color:{{ b.statusColor }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ b.statusDot }}"></span>{{ b.statusLabel }}</span>
+                      </sc-if>
+                      <sc-if value="{{ b.noSlipPending }}" hint-placeholder-val="{{ true }}">
+                        <span onclick="{{ b.onMarkPaid }}" style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:5px 11px;border-radius:6px;cursor:pointer;background:{{ b.statusBg }};color:{{ b.statusColor }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ b.statusDot }}"></span>{{ b.statusLabel }}</span>
+                      </sc-if>
+                    </div>
                     <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px">
                       <sc-if value="{{ b.hasSlipPending }}" hint-placeholder-val="{{ false }}">
                         <span onclick="{{ b.onOpenSlip }}" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:7px 11px;border-radius:6px;cursor:pointer;background:#FBE7DC;color:#B85B27;white-space:nowrap">📎 ดูสลิป</span>
@@ -1861,14 +1869,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           <div onclick="{{ closeSlipReview }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:380px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-                <div style="font-size:16px;font-weight:700;color:#241812">ตรวจสอบสลิปที่ผู้เช่าส่งมา</div>
+                <div style="font-size:16px;font-weight:700;color:#241812">ดูสลิปที่ผู้เช่าส่งมา</div>
                 <span onclick="{{ closeSlipReview }}" style="cursor:pointer;color:#A89A88;font-size:18px">✕</span>
               </div>
-              <div style="font-size:11px;color:#9C8B78;margin-bottom:14px;line-height:1.5">อ่านด้วย AI จากรูปที่ผู้เช่าส่งเข้า LINE — ไม่ใช่การตรวจสอบกับธนาคารจริง กรุณาตรวจดูก่อนยืนยัน</div>
+              <div style="font-size:11px;color:#9C8B78;margin-bottom:14px;line-height:1.5">หน้านี้สำหรับดูข้อมูลเท่านั้น — ไปที่ปุ่ม "📎 สลิปรอตรวจสอบ" ด้านบนของหน้าบิลเพื่อยืนยัน/จัดการ</div>
               <sc-if value="{{ hasSlipReview }}" hint-placeholder-val="{{ false }}">
                 <div style="font-size:13px;color:#7C6E5F;margin-bottom:10px">ห้อง {{ slipReview.room }} · {{ slipReview.tenant }}</div>
                 <sc-if value="{{ slipReview.hasMultipleSlips }}" hint-placeholder-val="{{ false }}">
-                  <div style="font-size:11.5px;font-weight:600;color:#B85B27;margin-bottom:8px">📎 ส่งมาแล้ว {{ slipReview.slipCount }} สลิป (เช่น เงินไม่พอในบัญชีเดียว แบ่งโอน) — ยอดรวมด้านล่างคือผลรวมทุกสลิป แต่ละใบลบแยกกันได้ถ้ามีใบผิด</div>
+                  <div style="font-size:11.5px;font-weight:600;color:#B85B27;margin-bottom:8px">📎 ส่งมาแล้ว {{ slipReview.slipCount }} สลิป — ยอดรวมด้านล่างคือผลรวมทุกสลิป</div>
                 </sc-if>
                 <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
                   <sc-for list="{{ slipReview.cards }}" as="sc" hint-placeholder-count="1">
@@ -1877,14 +1885,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <img src="{{ sc.imageUrl }}" style="width:100%;border-radius:6px;margin-bottom:8px">
                       </sc-if>
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอด</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ sc.amountDisplay }}</span></div>
-                      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ sc.date }} · {{ sc.senderName }}</span></div>
-                      <div style="display:flex;justify-content:space-between;align-items:center">
-                        <sc-if value="{{ sc.imageUrl }}" hint-placeholder-val="{{ false }}">
-                          <a href="{{ sc.imageUrl }}" target="_blank" rel="noopener" style="font-size:11px;color:#C1622D;font-weight:600;text-decoration:none">🔍 ดูสลิปตัวจริง</a>
-                        </sc-if>
-                        <sc-if value="{{ sc.noImage }}" hint-placeholder-val="{{ true }}"><div></div></sc-if>
-                        <div onclick="{{ sc.onDelete }}" style="font-size:11px;color:#B24336;cursor:pointer;font-weight:600">🗑️ ลบสลิปนี้</div>
-                      </div>
+                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ sc.date }} · {{ sc.senderName }}</span></div>
+                      <sc-if value="{{ sc.imageUrl }}" hint-placeholder-val="{{ false }}">
+                        <a href="{{ sc.imageUrl }}" target="_blank" rel="noopener" style="font-size:11px;color:#C1622D;font-weight:600;text-decoration:none">🔍 ดูสลิปตัวจริง</a>
+                      </sc-if>
                     </div>
                   </sc-for>
                 </div>
@@ -1892,13 +1896,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="display:flex;justify-content:space-between;font-size:12.5px"><span style="color:#7C6E5F">ยอดในบิล</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ slipReview.expectedTotalDisplay }}</span></div>
                   <div style="display:flex;justify-content:space-between;font-size:12.5px"><span style="color:#7C6E5F">ยอดรวมทุกสลิป</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ slipReview.slipAmountDisplay }}</span></div>
                 </div>
-                <div style="padding:8px 12px;border-radius:6px;background:{{ slipReview.matchBg }};color:{{ slipReview.matchColor }};font-size:12px;font-weight:600;margin-bottom:14px">{{ slipReview.matchLabel }}</div>
-                <div style="font-size:10.5px;color:#7C6E5F;margin-bottom:8px">เลือกวิธียืนยัน:</div>
-                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
-                  <div onclick="{{ confirmSlipFull }}" style="padding:10px;border-radius:7px;background:#3B7A52;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;text-align:center">✓ ชำระเต็มจำนวน ({{ slipReview.expectedTotalDisplay }})</div>
-                  <div onclick="{{ confirmSlipPartial }}" style="padding:10px;border-radius:7px;border:1.5px solid #C1872E;color:#B85B27;font-size:12.5px;font-weight:700;cursor:pointer;text-align:center">◐ ชำระบางส่วน (คงเหลือ {{ slipReview.partialRemainingDisplay }})</div>
-                  <div onclick="{{ confirmSlipAsCredit }}" style="padding:10px;border-radius:7px;border:1.5px solid #7C6E5F;color:#7C6E5F;font-size:12.5px;font-weight:700;cursor:pointer;text-align:center">💰 บันทึกเป็นเงินล่วงหน้าแทน</div>
-                </div>
+                <div style="padding:8px 12px;border-radius:6px;background:{{ slipReview.matchBg }};color:{{ slipReview.matchColor }};font-size:12px;font-weight:600;margin-bottom:16px">{{ slipReview.matchLabel }}</div>
               </sc-if>
               <div onclick="{{ closeSlipReview }}" style="padding:9px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:12.5px;font-weight:600;cursor:pointer;text-align:center">ออกจากหน้านี้</div>
             </div>
@@ -1972,9 +1970,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:16px;font-weight:700;color:#241812">สลิปรอตรวจสอบ ({{ slipQueueCount }})</div>
                 <span onclick="{{ closeSlipQueue }}" style="cursor:pointer;color:#A89A88;font-size:18px">✕</span>
               </div>
-              <div style="font-size:11px;color:#9C8B78;margin-bottom:14px;line-height:1.5">อ่านด้วย AI จากรูปที่ผู้เช่าส่งเข้า LINE — ไม่ใช่การตรวจสอบกับธนาคารจริง กรุณาตรวจดูก่อนยืนยันทุกรายการ</div>
-
-              <div onclick="{{ confirmAllSlips }}" style="padding:11px;border-radius:7px;background:#3B7A52;color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:center;margin-bottom:16px">{{ confirmAllSlipsLabel }}</div>
+              <div style="font-size:11px;color:#9C8B78;margin-bottom:14px;line-height:1.5">อ่านด้วย AI จากรูปที่ผู้เช่าส่งเข้า LINE — ไม่ใช่การตรวจสอบกับธนาคารจริง กรุณาตรวจดูก่อนยืนยันทุกรายการ (ปุ่ม "ยืนยันทั้งหมด" อยู่ข้าง "📎 สลิปรอตรวจสอบ" ด้านบนของหน้าบิล)</div>
 
               <div style="display:flex;flex-direction:column;gap:12px">
                 <sc-for list="{{ slipQueueItems }}" as="q" hint-placeholder-count="2">
@@ -2002,9 +1998,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอดรวมทุกสลิป</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ q.slipAmountDisplay }}</span></div>
                     </div>
                     <div style="padding:7px 10px;border-radius:6px;background:{{ q.matchBg }};color:{{ q.matchColor }};font-size:11.5px;font-weight:600;margin-bottom:10px">{{ q.matchLabel }}</div>
-                    <div style="display:flex;gap:8px">
-                      <div onclick="{{ q.onReject }}" style="flex:1;padding:9px;border-radius:6px;border:1px solid #D8C9B4;color:#B24336;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ยกเลิก</div>
-                      <div onclick="{{ q.onConfirm }}" style="flex:1.3;padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">ยืนยันชำระแล้ว</div>
+                    <div style="display:flex;flex-direction:column;gap:7px">
+                      <div onclick="{{ q.onConfirmFull }}" style="padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">✓ ชำระเต็มจำนวน ({{ q.expectedTotalDisplay }})</div>
+                      <div onclick="{{ q.onConfirmPartial }}" style="padding:9px;border-radius:6px;border:1.5px solid #C1872E;color:#B85B27;font-size:12px;font-weight:700;cursor:pointer;text-align:center">◐ ชำระบางส่วน (คงเหลือ {{ q.partialRemainingDisplay }})</div>
+                      <div onclick="{{ q.onConfirmAsCredit }}" style="padding:9px;border-radius:6px;border:1.5px solid #7C6E5F;color:#7C6E5F;font-size:12px;font-weight:700;cursor:pointer;text-align:center">💰 บันทึกเป็นเงินล่วงหน้าแทน</div>
                     </div>
                   </div>
                 </sc-for>
@@ -3797,6 +3794,12 @@ class Component extends DCLogic {
     } catch (err) { this.showAdminToast(err.message || 'อัปเดตไม่สำเร็จ'); }
   };
 
+  // ดูสลิป (row button / status badge) is now VIEW-ONLY — opens this same
+  // modal but with no action buttons, purely for looking at what was sent.
+  // All actual decisions (เต็มจำนวน/บางส่วน/เงินล่วงหน้า) happen from the
+  // "📎 สลิปรอตรวจสอบ" queue instead, per explicit user request to separate
+  // "just look" from "take action" and avoid duplicate ways to do the same
+  // thing.
   openSlipReview = (id) => this.setState({ showSlipReview: true, slipReviewInvoiceId: id });
   closeSlipReview = () => this.setState({ showSlipReview: false, slipReviewInvoiceId: '' });
 
@@ -3804,12 +3807,14 @@ class Component extends DCLogic {
   // เต็มจำนวน / บางส่วน / เงินล่วงหน้า. "full" and "partial" both settle
   // against THIS invoice's amountPaid; "credit" instead moves the money to
   // the room's creditBalance (untouched invoice, auto-applies to whatever
-  // bill gets created next — see server/routes/invoices.js).
-  confirmSlipFull = () => this._resolveSlipReview('full');
-  confirmSlipPartial = () => this._resolveSlipReview('partial');
-  confirmSlipAsCredit = () => this._resolveSlipReview('credit');
-  _resolveSlipReview = async (mode) => {
-    const id = this.state.slipReviewInvoiceId;
+  // bill gets created next — see server/routes/invoices.js). Takes the
+  // invoice id explicitly (not from slipReview modal state) since these are
+  // now only triggered per-card from the queue, which can have many
+  // invoices open for review at once.
+  confirmSlipFull = (id) => this.resolveSlip(id, 'full');
+  confirmSlipPartial = (id) => this.resolveSlip(id, 'partial');
+  confirmSlipAsCredit = (id) => this.resolveSlip(id, 'credit');
+  resolveSlip = async (id, mode) => {
     const inv = this.state.invoices.find(i => i.id === id);
     if (!inv) return;
     this.setState({ slipActionLoading: true });
@@ -3832,7 +3837,7 @@ class Component extends DCLogic {
         this.setState(s => ({
           rooms: s.rooms.map(r => r.id === inv.room ? { ...r, creditBalance: newCredit } : r),
           invoices: s.invoices.map(i => i.id === id ? { ...i, slipPending: false, slips: [], slipCount: 0, slipsTotal: 0 } : i),
-          showSlipReview: false, slipReviewInvoiceId: '', slipActionLoading: false,
+          slipActionLoading: false,
         }));
         this.showAdminToast(`บันทึกเป็นเงินล่วงหน้า ${this.fmt(combined)} ให้ห้อง ${inv.room} แล้ว (ยอดรวมเครดิตตอนนี้ ${this.fmt(newCredit)})`);
         this._lineSend(inv.room, `บันทึกยอด ${this.fmt(combined)} เป็นเงินที่จ่ายล่วงหน้าให้ห้อง ${inv.room} แล้วครับ จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ขอบคุณครับ 🙏`).catch(err => console.error(err));
@@ -3852,7 +3857,7 @@ class Component extends DCLogic {
       const updated = await res.json();
       this.setState(s => ({
         invoices: s.invoices.map(i => i.id === id ? updated : i),
-        showSlipReview: false, slipReviewInvoiceId: '', slipActionLoading: false,
+        slipActionLoading: false,
       }));
       if (newStatus === 'paid') {
         this.showAdminToast('ยืนยันชำระเต็มจำนวนแล้ว');
@@ -4699,13 +4704,18 @@ class Component extends DCLogic {
         statusBg: hasSlipPending ? '#FBE7DC' : (overdue ? '#F5E1DC' : (partial ? '#FBE7DC' : '#F0E7CF')),
         statusColor: hasSlipPending ? '#B85B27' : (overdue ? '#B24336' : (partial ? '#B85B27' : '#8A6D1F')),
         statusDot: hasSlipPending ? '#B85B27' : (overdue ? '#B24336' : (partial ? '#B85B27' : '#C1872E')),
-        onMarkPaid: hasSlipPending ? (() => this.openSlipReview(i.id)) : (() => this.openPayConfirm(i.id)),
+        // The status badge is purely informational when a slip is pending —
+        // per explicit user request, that state is no longer clickable at
+        // all (avoids two different click targets — the badge and "ดูสลิป" —
+        // both opening the same thing). Only the plain awaiting-payment
+        // badge still opens the simple confirm-paid popup.
+        onMarkPaid: hasSlipPending ? null : (() => this.openPayConfirm(i.id)),
         hasLineId,
         sendLabel: sent ? sentLabel : (hasLineId ? 'ส่งข้อมูล (LINE)' : 'บันทึกใบเสร็จ'),
         sendBg: sent ? '#E4EFE7' : (hasLineId ? '#06C755' : '#C1622D'),
         sendColor: sent ? '#3B7A52' : '#fff',
         onSendLine: hasLineId ? (() => this.sendReceiptLine(i.room)) : (() => this.openSaveReceipt(i.room)),
-        hasSlipPending,
+        hasSlipPending, noSlipPending: !hasSlipPending,
         onOpenSlip: () => this.openSlipReview(i.id),
       };
     });
@@ -4752,24 +4762,28 @@ class Component extends DCLogic {
       matchBg: slipAmountMatches ? '#E4EFE7' : '#FBE7E4',
     } : null;
 
-    // Header "📎 สลิปรอตรวจสอบ (N)" button + its queue modal — every
-    // currently-flagged invoice as its own reviewable card, so the owner can
-    // clear a backlog of several tenants' slips without hunting through the
-    // Bills table row by row.
+    // Header "📎 สลิปรอตรวจสอบ (N)" button + its queue modal — this is now
+    // the ONLY place actual decisions get made (เต็มจำนวน/บางส่วน/เงิน
+    // ล่วงหน้า per invoice), per explicit user request: the row-level "ดูสลิป"
+    // modal became view-only, so every card here carries the full 3-way
+    // resolution — same choices, same labels, as that modal used to have.
     const slipQueueItems = s.invoices.filter(i => i.slipPending).map(i => {
       const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
       const combined = i.slipsTotal || 0;
       const amountMatches = Math.abs(combined - total) < 1;
+      const partialRemaining = Math.max(0, total - ((i.amountPaid || 0) + combined));
       return {
         id: i.id, room: i.room, tenant: i.tenant,
         slipCount: i.slipCount || 0, hasMultipleSlips: (i.slipCount || 0) > 1,
         cards: buildSlipCards(i),
         expectedTotalDisplay: this.fmt(total),
         slipAmountDisplay: this.fmt(combined),
+        partialRemainingDisplay: this.fmt(partialRemaining),
         matchLabel: amountMatches ? '✓ ยอดตรงกับบิล' : '⚠️ ยอดไม่ตรงกับบิล',
         matchColor: amountMatches ? '#3B7A52' : '#B24336', matchBg: amountMatches ? '#E4EFE7' : '#FBE7E4',
-        onConfirm: () => this.confirmSlipPaidFor(i.id),
-        onReject: () => this.rejectSlipFor(i.id),
+        onConfirmFull: () => this.confirmSlipFull(i.id),
+        onConfirmPartial: () => this.confirmSlipPartial(i.id),
+        onConfirmAsCredit: () => this.confirmSlipAsCredit(i.id),
       };
     });
     const slipQueueCount = slipQueueItems.length;
