@@ -12,14 +12,29 @@ function bool(v, def = false) {
 }
 
 function coerceRooms(rows) {
-  return rows.map((r) => ({
-    ...r,
-    floor: num(r.floor, 1),
-    rent: num(r.rent, 0),
-    deposit: num(r.deposit, 0),
-    waterPrev: num(r.waterPrev, 0),
-    elecPrev: num(r.elecPrev, 0),
-  }));
+  return rows.map((r) => {
+    // creditBalance: money the tenant has paid in advance, not tied to any
+    // specific invoice (paid before a bill existed to match against).
+    // creditSlipsJson: slips still awaiting the owner's decision on that —
+    // same accumulation pattern as an invoice's slipsJson, just scoped to
+    // the room since there's no invoice id to hang it off of yet.
+    let creditSlips = [];
+    if (r.creditSlipsJson) {
+      try { creditSlips = JSON.parse(r.creditSlipsJson); if (!Array.isArray(creditSlips)) creditSlips = []; } catch { creditSlips = []; }
+    }
+    return {
+      ...r,
+      floor: num(r.floor, 1),
+      rent: num(r.rent, 0),
+      deposit: num(r.deposit, 0),
+      waterPrev: num(r.waterPrev, 0),
+      elecPrev: num(r.elecPrev, 0),
+      creditBalance: num(r.creditBalance, 0),
+      creditSlips,
+      creditSlipCount: creditSlips.length,
+      creditSlipsTotal: creditSlips.reduce((a, s) => a + (Number(s.amount) || 0), 0),
+    };
+  });
 }
 
 function coerceInvoices(rows) {
@@ -33,19 +48,23 @@ function coerceInvoices(rows) {
     if (r.slipsJson) {
       try { slips = JSON.parse(r.slipsJson); if (!Array.isArray(slips)) slips = []; } catch { slips = []; }
     }
+    const rent = num(r.rent, 0), water = num(r.water, 0), elec = num(r.elec, 0), trash = num(r.trash, 0), internet = num(r.internet, 0);
+    const total = rent + water + elec + trash + internet;
+    // amountPaid: cumulative amount actually received against this specific
+    // invoice — lets a bill be "partial" (some money in, not fully settled)
+    // instead of the old binary pending/paid.
+    const amountPaid = num(r.amountPaid, 0);
     return {
       ...r,
-      rent: num(r.rent, 0),
-      water: num(r.water, 0),
-      elec: num(r.elec, 0),
-      trash: num(r.trash, 0),
-      internet: num(r.internet, 0),
+      rent, water, elec, trash, internet,
       receiptSent: bool(r.receiptSent, false),
       slipPending: bool(r.slipPending, false),
       slipAmount: r.slipAmount === '' || r.slipAmount == null ? null : num(r.slipAmount, null),
       slips,
       slipCount: slips.length,
       slipsTotal: slips.reduce((a, s) => a + (Number(s.amount) || 0), 0),
+      amountPaid,
+      remainingDue: Math.max(0, total - amountPaid),
     };
   });
 }

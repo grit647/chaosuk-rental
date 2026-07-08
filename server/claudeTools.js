@@ -433,15 +433,29 @@ async function executeWriteTool(name, input) {
       const room = rooms.find((r) => r.id === input.roomId);
       if (!room) throw new Error('ไม่พบห้อง ' + input.roomId);
       const settings = await readSettings();
+      const rent = Number(room.rent) || 0, water = Number(input.water) || 0, elec = Number(input.elec) || 0;
+      const trash = settings.trashRate, internet = settings.internetRate;
+      const total = rent + water + elec + trash + internet;
+
+      // Same auto-apply as the native "+ สร้างใบแจ้งหนี้" form (server/routes/
+      // invoices.js) — a tenant's already-confirmed advance payment
+      // (creditBalance) gets applied the moment a real bill exists for it.
+      const roomCoerced = coerceRooms([room])[0];
+      const credit = roomCoerced.creditBalance || 0;
+      const applied = Math.min(credit, total);
+      const status = applied >= total && total > 0 ? 'paid' : (applied > 0 ? 'partial' : 'pending');
+
       const invoice = {
         id: 'INV-' + input.roomId + '-' + Date.now(),
-        room: input.roomId, tenant: room.tenant || '', rent: Number(room.rent) || 0,
-        water: Number(input.water) || 0, elec: Number(input.elec) || 0,
-        trash: settings.trashRate, internet: settings.internetRate,
-        due: input.due || '', status: 'pending', paidDate: '',
+        room: input.roomId, tenant: room.tenant || '', rent,
+        water, elec, trash, internet,
+        due: input.due || '', status, paidDate: status === 'paid' ? new Date().toISOString().slice(0, 10) : '',
+        amountPaid: applied,
       };
       await appendRow('Invoices', invoice);
-      return { ok: true, message: `สร้างใบแจ้งหนี้ ${invoice.id} แล้ว` };
+      if (applied > 0) await updateRow('Rooms', input.roomId, { creditBalance: credit - applied });
+      const creditNote = applied > 0 ? ` (หักจากเงินล่วงหน้าที่มีอยู่ ${applied.toLocaleString()} บาทให้อัตโนมัติ${status === 'paid' ? ' ครบจำนวนพอดี' : ', คงเหลือต้องชำระเพิ่ม'})` : '';
+      return { ok: true, message: `สร้างใบแจ้งหนี้ ${invoice.id} แล้ว${creditNote}` };
     }
     case 'add_expense': {
       const item = { id: Date.now(), date: input.date || '', category: input.category || '', desc: input.desc, amount: Number(input.amount) || 0 };

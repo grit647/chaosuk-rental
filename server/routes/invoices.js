@@ -3,7 +3,7 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const { appendRow, updateRow, readTab } = require('../sheets');
-const { coerceInvoices, readSettings } = require('../coerce');
+const { coerceInvoices, coerceRooms, readSettings } = require('../coerce');
 const { generateInvoicePdf } = require('../pdf');
 
 const INVOICE_PDF_DIR = path.join(__dirname, '..', 'uploads', 'invoices');
@@ -18,21 +18,35 @@ router.post('/', async (req, res, next) => {
   try {
     const b = req.body;
     if (!b.room) return res.status(400).json({ error: 'กรุณาเลือกห้อง' });
+    const rent = Number(b.rent) || 0, water = Number(b.water) || 0, elec = Number(b.elec) || 0, trash = Number(b.trash) || 0, internet = Number(b.internet) || 0;
+    const total = rent + water + elec + trash + internet;
+
+    // Auto-apply any advance payment the tenant already made (creditBalance,
+    // built up from slips that arrived with no bill open to match against —
+    // see server/routes/line.js's handleSlipImage) — the owner already
+    // confirmed that credit is real money when they reviewed it, so applying
+    // it here needs no separate confirmation.
+    const rooms = coerceRooms(await readTab('Rooms'));
+    const room = rooms.find((r) => r.id === b.room);
+    const credit = room ? room.creditBalance || 0 : 0;
+    const applied = Math.min(credit, total);
+    const status = applied >= total && total > 0 ? 'paid' : (applied > 0 ? 'partial' : 'pending');
+
     const invoice = {
       id: 'INV-' + b.room + '-' + Date.now(),
       room: b.room,
       tenant: b.tenant || '',
-      rent: Number(b.rent) || 0,
-      water: Number(b.water) || 0,
-      elec: Number(b.elec) || 0,
-      trash: Number(b.trash) || 0,
-      internet: Number(b.internet) || 0,
+      rent, water, elec, trash, internet,
       due: b.due || '',
-      status: 'pending',
-      paidDate: '',
+      status,
+      paidDate: status === 'paid' ? new Date().toISOString().slice(0, 10) : '',
+      amountPaid: applied,
     };
     await appendRow('Invoices', invoice);
-    res.json(invoice);
+    if (applied > 0) {
+      await updateRow('Rooms', b.room, { creditBalance: credit - applied });
+    }
+    res.json({ ...invoice, creditApplied: applied });
   } catch (err) { next(err); }
 });
 

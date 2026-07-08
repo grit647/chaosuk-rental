@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { readTab, updateRow } = require('../sheets');
-const { coerceInvoices } = require('../coerce');
+const { coerceInvoices, coerceRooms } = require('../coerce');
 const { isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent } = require('../line');
 const { isConfigured: claudeConfigured, readPaymentSlip } = require('../claude');
 
@@ -65,7 +65,20 @@ async function handleSlipImage(event, req) {
   const totalOf = (inv) => Number(inv.rent || 0) + Number(inv.water || 0) + Number(inv.elec || 0) + Number(inv.trash || 0) + Number(inv.internet || 0);
 
   if (!pending.length) {
-    await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ (ยอด ${slip.amount ?? '-'} บาท) แต่ไม่พบบิลค้างชำระของห้อง ${room.id} ในระบบตอนนี้ รอเจ้าของตรวจสอบด้วยตนเองครับ`);
+    // No bill open for this room at all — most likely an advance payment
+    // (tenant paying before the owner has issued next cycle's invoice yet).
+    // Record it against the ROOM (not any invoice, since none exists) so the
+    // owner can review and decide; if confirmed, it becomes creditBalance
+    // and auto-applies the next time an invoice is created for this room.
+    const roomFull = coerceRooms(await readTab('Rooms')).find((r) => r.id === room.id);
+    const newSlip = {
+      amount: slip.amount != null ? Number(slip.amount) : null,
+      date: slip.date || '', senderName: slip.senderName || '', imageUrl: publicUrl,
+      uploadedAt: new Date().toISOString(),
+    };
+    const allCreditSlips = [...((roomFull && roomFull.creditSlips) || []), newSlip];
+    await updateRow('Rooms', room.id, { creditSlipsJson: JSON.stringify(allCreditSlips) });
+    await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ยอด ${slip.amount ?? '-'} บาท — ตอนนี้ยังไม่มีบิลค้างชำระของห้อง ${room.id} ในระบบ ระบบจะบันทึกไว้เป็นเงินที่จ่ายล่วงหน้า รอเจ้าของตรวจสอบและยืนยันก่อนนะครับ ขอบคุณครับ 🙏`);
     return;
   }
 
