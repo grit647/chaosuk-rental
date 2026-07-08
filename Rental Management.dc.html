@@ -287,8 +287,17 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:13px;font-weight:600;color:#241812">รีเฟรชหน้าเว็บอัตโนมัติ</div>
                 <div style="font-size:11px;color:#A89A88;margin-top:2px">เปิดไว้ ตัวเลขในหน้านี้ (และหน้าอื่นๆ ที่เปิดค้างไว้) จะอัปเดตเองทุก 30 วินาที ไม่ต้องกด F5</div>
               </div>
-              <div onclick="{{ toggleAutoRefresh }}" style="width:44px;height:24px;border-radius:12px;position:relative;cursor:pointer;flex-shrink:0;background:{{ autoRefreshBg }}">
-                <div style="position:absolute;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.15s ease;left:{{ autoRefreshKnobLeft }}"></div>
+              <div style="display:flex;align-items:center;gap:12px;flex-shrink:0">
+                <sc-if value="{{ autoRefreshEnabled }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;background:linear-gradient(135deg,#FBF3EC,#FFFFFF);border:1px solid #E9C9A8;box-shadow:0 1px 4px rgba(193,98,45,0.15)">
+                    <span style="width:6px;height:6px;border-radius:50%;background:#C1622D;animation:pulse 1s infinite"></span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:700;color:#B85B27;min-width:16px;text-align:center">{{ autoRefreshCountdown }}</span>
+                    <span style="font-size:10.5px;color:#B85B27;font-weight:600">วิ ⏳</span>
+                  </div>
+                </sc-if>
+                <div onclick="{{ toggleAutoRefresh }}" style="width:44px;height:24px;border-radius:12px;position:relative;cursor:pointer;flex-shrink:0;background:{{ autoRefreshBg }}">
+                  <div style="position:absolute;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.15s ease;left:{{ autoRefreshKnobLeft }}"></div>
+                </div>
               </div>
             </div>
 
@@ -2335,6 +2344,7 @@ class Component extends DCLogic {
     recurringSaveLoading: false,
     recurringDeleteConfirmId: null,
     autoRefreshEnabled: false,
+    autoRefreshCountdown: 30,
     recurringFreqType: '',
     recurringDayOfMonth: '1',
     recurringTime: '09:00',
@@ -2513,12 +2523,25 @@ class Component extends DCLogic {
   // When on, re-runs the same bootstrap load used on page-open every 30s so
   // numbers update without a manual F5, same pattern as the existing Tuya
   // live-reading poller.
+  // Ticks once a second (not once every 30s) purely so the little countdown
+  // badge next to the toggle can count down live — the actual data refresh
+  // still only fires once per 30s cycle, when the countdown hits 0.
   toggleAutoRefresh = () => {
     this.setState((s) => {
       const next = !s.autoRefreshEnabled;
       clearInterval(this._autoRefreshTimer);
-      if (next) this._autoRefreshTimer = setInterval(() => this.loadFromServer(), 30000);
-      return { autoRefreshEnabled: next };
+      if (next) {
+        this._autoRefreshTimer = setInterval(() => {
+          this.setState((s2) => {
+            if (s2.autoRefreshCountdown <= 1) {
+              this.loadFromServer();
+              return { autoRefreshCountdown: 30 };
+            }
+            return { autoRefreshCountdown: s2.autoRefreshCountdown - 1 };
+          });
+        }, 1000);
+      }
+      return { autoRefreshEnabled: next, autoRefreshCountdown: 30 };
     });
   };
   loadFromServer = async () => {
@@ -4980,6 +5003,7 @@ class Component extends DCLogic {
       kpiOverdueCount: overdueList.length + ' ห้อง',
       kpiOverdueSum: 'รวม ' + this.fmt(overdueSum),
       toggleAutoRefresh: this.toggleAutoRefresh,
+      autoRefreshEnabled: s.autoRefreshEnabled, autoRefreshCountdown: s.autoRefreshCountdown,
       autoRefreshBg: s.autoRefreshEnabled ? '#C1622D' : '#E3D8C8',
       autoRefreshKnobLeft: s.autoRefreshEnabled ? '22px' : '2px',
       dashboardMiniRooms, dashRoomsPageItems,
