@@ -1997,6 +1997,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:6px">{{ resolveSlipConfirmInfo.title }}</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-bottom:4px">ห้อง {{ resolveSlipConfirmInfo.room }} · {{ resolveSlipConfirmInfo.tenant }}</div>
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#241812;margin-bottom:14px">{{ resolveSlipConfirmInfo.amountDisplay }}</div>
+                <sc-if value="{{ resolveSlipConfirmInfo.hasOverpay }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:12px;color:#9C7A2E;margin-bottom:14px">ส่วนเกินบิลนี้ {{ resolveSlipConfirmInfo.overpayDisplay }} จะถูกเก็บไว้เป็นเงินล่วงหน้าให้อัตโนมัติ</div>
+                </sc-if>
                 <sc-if value="{{ resolveSlipConfirmIsPartial }}" hint-placeholder-val="{{ false }}">
                   <div style="font-size:12px;color:#B85B27;margin-bottom:14px">ยอดคงเหลือหลังจากนี้: {{ resolveSlipConfirmInfo.remainingDisplay }}</div>
                   <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">วันครบกำหนดชำระยอดที่เหลือ</div>
@@ -2068,10 +2071,15 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอดรวมทุกสลิป</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ q.slipAmountDisplay }}</span></div>
                     </div>
                     <div style="padding:7px 10px;border-radius:6px;background:{{ q.matchBg }};color:{{ q.matchColor }};font-size:11.5px;font-weight:600;margin-bottom:10px">{{ q.matchLabel }}</div>
+                    <sc-if value="{{ q.isOverpaid }}" hint-placeholder-val="{{ false }}">
+                      <div style="padding:7px 10px;border-radius:6px;background:#F5EFE2;color:#9C7A2E;font-size:11px;margin-bottom:8px">ยอดที่ส่งมาเกินบิลนี้ {{ q.overpayAmountDisplay }} — ระบบจะเก็บส่วนเกินไว้เป็นเงินล่วงหน้าให้อัตโนมัติเมื่อกดยืนยัน</div>
+                    </sc-if>
                     <div style="display:flex;flex-direction:column;gap:7px">
-                      <div onclick="{{ q.onConfirmFull }}" style="padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">✓ ชำระเต็มจำนวน ({{ q.expectedTotalDisplay }})</div>
-                      <div onclick="{{ q.onConfirmPartial }}" style="padding:9px;border-radius:6px;border:1.5px solid #C1872E;color:#B85B27;font-size:12px;font-weight:700;cursor:pointer;text-align:center">◐ ชำระบางส่วน (คงเหลือ {{ q.partialRemainingDisplay }})</div>
-                      <div onclick="{{ q.onConfirmAsCredit }}" style="padding:9px;border-radius:6px;border:1.5px solid #7C6E5F;color:#7C6E5F;font-size:12px;font-weight:700;cursor:pointer;text-align:center">💰 บันทึกเป็นเงินล่วงหน้าแทน</div>
+                      <div onclick="{{ q.onConfirmFull }}" style="padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">{{ q.confirmFullLabel }}</div>
+                      <sc-if value="{{ q.showAllButtons }}" hint-placeholder-val="{{ true }}">
+                        <div onclick="{{ q.onConfirmPartial }}" style="padding:9px;border-radius:6px;border:1.5px solid #C1872E;color:#B85B27;font-size:12px;font-weight:700;cursor:pointer;text-align:center">◐ ชำระบางส่วน (คงเหลือ {{ q.partialRemainingDisplay }})</div>
+                        <div onclick="{{ q.onConfirmAsCredit }}" style="padding:9px;border-radius:6px;border:1.5px solid #7C6E5F;color:#7C6E5F;font-size:12px;font-weight:700;cursor:pointer;text-align:center">💰 บันทึกเป็นเงินล่วงหน้าแทน</div>
+                      </sc-if>
                     </div>
                   </div>
                 </sc-for>
@@ -4025,19 +4033,37 @@ class Component extends DCLogic {
         paidDate: newStatus === 'paid' ? new Date().toISOString().slice(0, 10) : '',
       };
       if (mode === 'partial' && newStatus !== 'paid' && newDue) patch.due = newDue;
+      // ชำระเต็มจำนวน when the slip(s) sent add up to MORE than the bill —
+      // per explicit user request, the excess automatically becomes advance
+      // credit on the room (same bucket as the "บันทึกเป็นเงินล่วงหน้าแทน"
+      // button uses) instead of just being silently dropped/ignored.
+      const overpay = mode === 'full' ? Math.max(0, combined - total) : 0;
       const res = await fetch('/api/invoices/' + id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       });
       if (!res.ok) throw new Error('อัปเดตไม่สำเร็จ');
       const updated = await res.json();
+      let newCredit = null;
+      if (overpay > 0) {
+        const room = this.state.rooms.find(r => r.id === inv.room);
+        const currentCredit = (room && room.creditBalance) || 0;
+        newCredit = currentCredit + overpay;
+        await fetch('/api/rooms/' + inv.room, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ creditBalance: newCredit }),
+        });
+      }
       this.setState(s => ({
         invoices: s.invoices.map(i => i.id === id ? updated : i),
+        rooms: newCredit != null ? s.rooms.map(r => r.id === inv.room ? { ...r, creditBalance: newCredit } : r) : s.rooms,
         slipActionLoading: false,
       }));
       if (newStatus === 'paid') {
-        this.showAdminToast('ยืนยันชำระเต็มจำนวนแล้ว');
-        this._lineSend(inv.room, `ขอบคุณที่ชำระค่าเช่าห้อง ${inv.room} จำนวน ${this.fmt(total)} เรียบร้อยแล้วครับ 🙏`).catch(err => console.error(err));
+        const overpayNote = overpay > 0 ? ` (ส่วนเกิน ${this.fmt(overpay)} บาท เก็บไว้เป็นเงินล่วงหน้าให้แล้ว)` : '';
+        this.showAdminToast('ยืนยันชำระเต็มจำนวนแล้ว' + overpayNote);
+        const overpayLine = overpay > 0 ? ` ส่วนที่โอนเกินมา ${this.fmt(overpay)} บาท ระบบเก็บไว้เป็นเงินล่วงหน้าให้แล้วครับ จะหักลบให้อัตโนมัติตอนออกบิลรอบถัดไป` : '';
+        this._lineSend(inv.room, `ขอบคุณที่ชำระค่าเช่าห้อง ${inv.room} จำนวน ${this.fmt(total)} เรียบร้อยแล้วครับ 🙏${overpayLine}`).catch(err => console.error(err));
       } else {
         const remaining = total - newAmountPaid;
         const dueNote = patch.due ? ` กำหนดชำระส่วนที่เหลือภายในวันที่ ${patch.due}` : '';
@@ -4953,11 +4979,14 @@ class Component extends DCLogic {
         partial: this.fmt(combined),
         credit: this.fmt(combined),
       };
+      const overpay = mode === 'full' ? Math.max(0, combined - total) : 0;
       resolveSlipConfirmInfo = {
         room: resolveSlipConfirmInvoiceRaw.room, tenant: resolveSlipConfirmInvoiceRaw.tenant,
         title: titleByMode[mode] || 'ยืนยันการทำรายการ',
         amountDisplay: amountByMode[mode] || '',
         remainingDisplay: this.fmt(remaining),
+        hasOverpay: overpay > 0.5,
+        overpayDisplay: this.fmt(overpay),
       };
     }
 
@@ -5000,6 +5029,14 @@ class Component extends DCLogic {
       const combined = i.slipsTotal || 0;
       const amountMatches = Math.abs(combined - total) < 1;
       const partialRemaining = Math.max(0, total - ((i.amountPaid || 0) + combined));
+      // Overpayment (slip(s) add up to MORE than the bill) is a special
+      // case per explicit user request: showing "ชำระบางส่วน (คงเหลือ ฿0)"
+      // and "บันทึกเป็นเงินล่วงหน้าแทน" side by side here was confusing/
+      // risked a wrong click — only "ชำระเต็มจำนวน" makes sense, and its
+      // label now says the excess is auto-saved as credit (resolveSlip's
+      // 'full' branch handles the actual credit top-up).
+      const overpayAmount = Math.max(0, combined - total);
+      const isOverpaid = overpayAmount > 0.5;
       return {
         id: i.id, room: i.room, tenant: i.tenant,
         slipCount: i.slipCount || 0, hasMultipleSlips: (i.slipCount || 0) > 1,
@@ -5009,6 +5046,11 @@ class Component extends DCLogic {
         partialRemainingDisplay: this.fmt(partialRemaining),
         matchLabel: amountMatches ? '✓ ยอดตรงกับบิล' : '⚠️ ยอดไม่ตรงกับบิล',
         matchColor: amountMatches ? '#3B7A52' : '#B24336', matchBg: amountMatches ? '#E4EFE7' : '#FBE7E4',
+        isOverpaid, showAllButtons: !isOverpaid,
+        overpayAmountDisplay: this.fmt(overpayAmount),
+        confirmFullLabel: isOverpaid
+          ? `✓ ชำระเต็มจำนวน (${this.fmt(total)}) + เก็บส่วนเกิน ${this.fmt(overpayAmount)} เป็นเงินล่วงหน้า`
+          : `✓ ชำระเต็มจำนวน (${this.fmt(total)})`,
         onConfirmFull: () => this.askResolveSlip(i.id, 'full'),
         onConfirmPartial: () => this.askResolveSlip(i.id, 'partial'),
         onConfirmAsCredit: () => this.askResolveSlip(i.id, 'credit'),
