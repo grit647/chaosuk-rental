@@ -48,4 +48,17 @@ async function pushMessage(to, text, imageUrl) {
   return callLineApi('push', { to, messages });
 }
 
-module.exports = { isConfigured, verifySignature, replyMessage, pushMessage };
+// Fetches the actual binary content of an image/video/audio message a user
+// sent to the bot — LINE's webhook payload only carries a message id, the
+// content itself lives on a separate "data" API (different host) and needs
+// the same bearer token. Used for reading payment slip photos tenants send.
+async function getMessageContent(messageId) {
+  const res = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
+    headers: { Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}` },
+  });
+  if (!res.ok) throw new Error(`LINE content fetch failed (${res.status})`);
+  const arrayBuffer = await res.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
+module.exports = { isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent };

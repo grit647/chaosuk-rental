@@ -1,11 +1,99 @@
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const { readTab, updateRow } = require('../sheets');
-const { isConfigured, verifySignature, replyMessage, pushMessage } = require('../line');
+const { coerceInvoices } = require('../coerce');
+const { isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent } = require('../line');
+const { isConfigured: claudeConfigured, readPaymentSlip } = require('../claude');
+
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 router.get('/status', (req, res) => {
   res.json({ connected: isConfigured() });
 });
+
+// A tenant sends a payment-slip photo directly to the bot (no menu/command —
+// just an image). This is OCR only (Claude Vision reads what's printed on
+// the slip), not real bank-side fraud verification — that trade-off was an
+// explicit, deliberate choice (see readPaymentSlip's comment in
+// server/claude.js) in exchange for zero extra cost/signup. Because of that,
+// this NEVER marks an invoice paid by itself — it only sets a "รอตรวจสอบ"
+// flag with the extracted amount for the owner to review and confirm
+// manually on the Bills page, same as every other financially consequential
+// action in this app requires a human's final say.
+async function handleSlipImage(event, req) {
+  const rooms = await readTab('Rooms');
+  const room = rooms.find((r) => r.lineUserId === event.source.userId);
+  if (!room) {
+    await replyMessage(event.replyToken, 'ยังไม่ได้เชื่อมต่อห้องกับ LINE นี้ครับ กรุณาพิมพ์เลขห้องของคุณก่อน (เช่น 301) แล้วค่อยส่งสลิปใหม่อีกครั้งครับ');
+    return;
+  }
+
+  let buffer;
+  try {
+    buffer = await getMessageContent(event.message.id);
+  } catch (err) {
+    console.error('[line] failed to fetch slip image', err.message);
+    await replyMessage(event.replyToken, 'ขออภัยครับ รับรูปไม่สำเร็จ ลองส่งใหม่อีกครั้งครับ');
+    return;
+  }
+
+  const filename = `slip-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.jpg`;
+  fs.writeFileSync(path.join(UPLOAD_DIR, filename), buffer);
+  const publicUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+
+  if (!claudeConfigured()) {
+    await replyMessage(event.replyToken, 'ได้รับรูปสลิปแล้วครับ แต่ระบบอ่านสลิปอัตโนมัติยังไม่พร้อมใช้งาน รอเจ้าของตรวจสอบด้วยตนเองครับ');
+    return;
+  }
+
+  let slip;
+  try {
+    const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+    slip = await readPaymentSlip(dataUrl);
+  } catch (err) {
+    console.error('[line] slip read failed', err.message);
+    await replyMessage(event.replyToken, 'ได้รับรูปสลิปแล้วครับ แต่อ่านรายละเอียดไม่สำเร็จ รอเจ้าของตรวจสอบด้วยตนเองครับ');
+    return;
+  }
+
+  const invoices = coerceInvoices(await readTab('Invoices'));
+  const pending = invoices.filter((i) => i.room === room.id && i.status !== 'paid');
+  const totalOf = (inv) => Number(inv.rent || 0) + Number(inv.water || 0) + Number(inv.elec || 0) + Number(inv.trash || 0) + Number(inv.internet || 0);
+
+  if (!pending.length) {
+    await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ (ยอด ${slip.amount ?? '-'} บาท) แต่ไม่พบบิลค้างชำระของห้อง ${room.id} ในระบบตอนนี้ รอเจ้าของตรวจสอบด้วยตนเองครับ`);
+    return;
+  }
+
+  // Prefer an exact-ish amount match; fall back to the closest pending
+  // invoice by amount so something is always flagged for the owner to look
+  // at, even if the slip amount doesn't line up with any bill exactly.
+  let matched = slip.amount != null ? pending.find((i) => Math.abs(totalOf(i) - Number(slip.amount)) < 1) : null;
+  if (!matched) {
+    matched = pending.reduce((best, i) => {
+      if (!best) return i;
+      if (slip.amount == null) return best;
+      return Math.abs(totalOf(i) - Number(slip.amount)) < Math.abs(totalOf(best) - Number(slip.amount)) ? i : best;
+    }, null) || pending[0];
+  }
+
+  await updateRow('Invoices', matched.id, {
+    slipPending: true,
+    slipAmount: slip.amount != null ? slip.amount : '',
+    slipDate: slip.date || '',
+    slipSenderName: slip.senderName || '',
+    slipImageUrl: publicUrl,
+    slipUploadedAt: new Date().toISOString(),
+  });
+
+  const amountMatches = slip.amount != null && Math.abs(totalOf(matched) - Number(slip.amount)) < 1;
+  const note = amountMatches ? '' : ' (ยอดอาจไม่ตรงกับบิลเป๊ะๆ เจ้าของจะตรวจสอบอีกครั้ง)';
+  await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ยอด ${slip.amount ?? '-'} บาท กำลังรอเจ้าของยืนยันครับ ขอบคุณครับ 🙏${note}`);
+}
 
 router.post('/webhook', async (req, res) => {
   // Always ack quickly so LINE doesn't retry/disable the webhook, even if something
@@ -35,6 +123,11 @@ router.post('/webhook', async (req, res) => {
           } else {
             await replyMessage(event.replyToken, 'ไม่พบเลขห้องนี้ครับ กรุณาพิมพ์เลขห้องของคุณให้ถูกต้อง (เช่น 301)');
           }
+          continue;
+        }
+        if (event.type === 'message' && event.message && event.message.type === 'image') {
+          await handleSlipImage(event, req);
+          continue;
         }
       } catch (err) {
         console.error('[line] error handling event', err.message);

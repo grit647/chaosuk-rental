@@ -71,4 +71,31 @@ async function callWithTools(system, messages, tools, maxTokens = 1024) {
   return res.json();
 }
 
-module.exports = { isConfigured, askClaude, askClaudeWithImage, callWithTools };
+// Reads a Thai bank transfer slip photo — used when a tenant sends a payment
+// slip image directly to the LINE bot. This is text/OCR extraction only, NOT
+// fraud verification: Claude reads what's printed/rendered on the slip, it
+// cannot confirm the transaction actually happened against a real bank
+// record, so a convincingly edited slip could still pass. That trade-off was
+// discussed and accepted explicitly — the extracted amount only pre-fills a
+// "รอตรวจสอบ" flag for the owner to manually confirm before it ever marks an
+// invoice paid (see server/routes/line.js's slip handler + the Bills page
+// review modal in Rental Management.dc.html).
+async function readPaymentSlip(dataUrl) {
+  const prompt = `นี่คือภาพสลิปโอนเงินจากแอปธนาคารไทย อ่านข้อมูลจากภาพแล้วตอบเป็น JSON เท่านั้น (ห้ามมีข้อความอื่นหรือ markdown code fence ปนมา) ตามรูปแบบนี้เป๊ะ:
+
+{"amount":1000,"date":"2026-07-08","senderName":"...","recipientName":"...","refNumber":"..."}
+
+- amount: จำนวนเงินที่โอน (ตัวเลขล้วน ไม่มีเครื่องหมายจุลภาคหรือสกุลเงิน)
+- date: วันที่ทำรายการ แปลงเป็นรูปแบบ YYYY-MM-DD (ค.ศ. — ถ้าปีในสลิปเป็น พ.ศ. ให้ลบ 543 ก่อนแปลง)
+- senderName: ชื่อผู้โอน (ฝั่ง "จาก")
+- recipientName: ชื่อผู้รับโอน (ฝั่ง "ไปที่"/"ถึง")
+- refNumber: หมายเลขอ้างอิงของรายการ ถ้ามี
+
+ถ้าอ่านค่าไหนไม่ได้ชัดเจน ให้ใส่ null สำหรับค่านั้น ห้ามเดา`;
+
+  const raw = await askClaudeWithImage(prompt, dataUrl, 400);
+  const jsonText = raw.replace(/```json|```/g, '').trim();
+  return JSON.parse(jsonText);
+}
+
+module.exports = { isConfigured, askClaude, askClaudeWithImage, callWithTools, readPaymentSlip };

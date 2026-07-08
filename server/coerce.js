@@ -31,6 +31,8 @@ function coerceInvoices(rows) {
     trash: num(r.trash, 0),
     internet: num(r.internet, 0),
     receiptSent: bool(r.receiptSent, false),
+    slipPending: bool(r.slipPending, false),
+    slipAmount: r.slipAmount === '' || r.slipAmount == null ? null : num(r.slipAmount, null),
   }));
 }
 
