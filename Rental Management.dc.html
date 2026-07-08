@@ -4369,17 +4369,23 @@ class Component extends DCLogic {
       const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
       const overdue = i.status === 'overdue';
       const sentLabel = hasLineId ? '✓ ส่งไลน์แล้ว' : '✓ บันทึกใบเสร็จแล้ว';
+      const hasSlipPending = !!i.slipPending;
       return {
         id: i.id, room: i.room, tenant: i.tenant, due: i.due || '—', totalDisplay: this.fmt(total),
-        statusLabel: overdue ? 'เกินกำหนด' : 'รอการชำระ',
-        statusBg: overdue ? '#F5E1DC' : '#F0E7CF', statusColor: overdue ? '#B24336' : '#8A6D1F', statusDot: overdue ? '#B24336' : '#C1872E',
-        onMarkPaid: () => this.openPayConfirm(i.id),
+        // A pending slip takes priority over the plain overdue/awaiting-payment
+        // label — it's a more specific, more actionable state ("someone
+        // already tried to pay, come review it") than either of those.
+        statusLabel: hasSlipPending ? 'รอตรวจสอบสลิป' : (overdue ? 'เกินกำหนด' : 'รอการชำระ'),
+        statusBg: hasSlipPending ? '#FBE7DC' : (overdue ? '#F5E1DC' : '#F0E7CF'),
+        statusColor: hasSlipPending ? '#B85B27' : (overdue ? '#B24336' : '#8A6D1F'),
+        statusDot: hasSlipPending ? '#B85B27' : (overdue ? '#B24336' : '#C1872E'),
+        onMarkPaid: hasSlipPending ? (() => this.openSlipReview(i.id)) : (() => this.openPayConfirm(i.id)),
         hasLineId,
         sendLabel: sent ? sentLabel : (hasLineId ? 'ส่งข้อมูล (LINE)' : 'บันทึกใบเสร็จ'),
         sendBg: sent ? '#E4EFE7' : (hasLineId ? '#06C755' : '#C1622D'),
         sendColor: sent ? '#3B7A52' : '#fff',
         onSendLine: hasLineId ? (() => this.sendReceiptLine(i.room)) : (() => this.openSaveReceipt(i.room)),
-        hasSlipPending: !!i.slipPending,
+        hasSlipPending,
         onOpenSlip: () => this.openSlipReview(i.id),
       };
     });
