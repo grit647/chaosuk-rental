@@ -33,26 +33,38 @@ function buildAutomationSystemPrompt() {
 
 คุณไม่มีเครื่องมือสำหรับตัดไฟหรือตัดน้ำเลย (ไม่มีเครื่องมือนี้อยู่จริง) — ถ้าคำสั่งพูดถึงการตัดไฟ/ตัดน้ำเมื่อค้างชำระ ให้ทำได้แค่: ส่งข้อความเตือนที่หนักแน่นไปยังผู้เช่าทาง LINE และเพิ่มรายการแจ้งเตือนลงปฏิทินของระบบ (add_calendar_event) ให้เจ้าของเห็นว่าห้องไหนค้างชำระและอาจต้องพิจารณาตัดไฟ/น้ำเอง — ห้ามพูดหรือทำเหมือนตัดไฟ/น้ำให้เองโดยเด็ดขาด การตัดไฟ/น้ำเป็นการตัดสินใจของเจ้าของหอพักเท่านั้น เจ้าของจะไปกดตัดเองในหน้า "Set อุปกรณ์" ของแอป
 
+งานประจำนี้อาจต้องดูข้อมูลหลายอย่างประกอบกัน (เช่น "ตรวจสอบทั้งระบบ") — เรียกเครื่องมือดูข้อมูล (get_*) เท่าที่จำเป็นจริงๆ ก่อน อย่าเรียกดูข้อมูลที่ไม่เกี่ยวข้องกับคำสั่งเพิ่มเติมโดยไม่จำเป็น แล้วรีบไปถึงขั้นตอนลงมือทำจริง (เช่น ส่งข้อความ) ให้เร็วที่สุด — มีจำนวนรอบการเรียกเครื่องมือจำกัด ถ้าใช้หมดก่อนจะได้ลงมือทำจริง งานจะไม่สำเร็จในรอบนั้น
+
 ทำงานที่ทำได้ให้ครบตามคำสั่ง แล้วสรุปผลเป็นภาษาไทยสั้นๆ ว่าทำอะไรไปบ้าง`;
 }
 
 async function runAutomatedInstruction(instructionText) {
   let messages = [{ role: 'user', content: instructionText }];
   const log = [];
-  for (let i = 0; i < 6; i++) {
-    const resp = await callWithTools(buildAutomationSystemPrompt(), messages, TOOLS, 1024);
+  // 10 (not the original 6) — a broad instruction like "ตรวจสอบทั้งระบบ" can
+  // legitimately need several get_* calls (rooms, invoices, maintenance,
+  // expenses, calendar...) before Claude ever reaches the actual write/send
+  // step. At 6 it was hitting the cap mid-investigation and silently
+  // reporting "ไม่มีการเปลี่ยนแปลง" even though nothing had actually failed —
+  // just run out of headroom. finishedNormally distinguishes that real
+  // "hit the cap without finishing" case from a genuine no-op.
+  let finishedNormally = false;
+  for (let i = 0; i < 10; i++) {
+    const resp = await callWithTools(buildAutomationSystemPrompt(), messages, TOOLS, 2048);
     if (resp.stop_reason !== 'tool_use') {
       const text = (resp.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n').trim();
       if (text) log.push(text);
+      finishedNormally = true;
       break;
     }
     const toolUses = resp.content.filter((c) => c.type === 'tool_use');
-    if (!toolUses.length) break;
+    if (!toolUses.length) { finishedNormally = true; break; }
 
     // A recurring task asking for a chart makes no sense unattended (nowhere
     // to display it) — treat it as a dead end rather than looping forever.
     if (toolUses.some((t) => t.name === 'show_chart')) {
       log.push('คำสั่งนี้ขอให้แสดงกราฟ ซึ่งใช้ไม่ได้กับงานอัตโนมัติ — ข้ามไป');
+      finishedNormally = true;
       break;
     }
 
@@ -77,6 +89,7 @@ async function runAutomatedInstruction(instructionText) {
     }
     messages = [...messages, { role: 'assistant', content: resp.content }, { role: 'user', content: toolResults }];
   }
+  if (!finishedNormally) log.push('หยุดกลางคันเพราะครบจำนวนรอบสูงสุดก่อนทำงานเสร็จ (คำสั่งอาจกว้างเกินไป ลองแบ่งเป็นคำสั่งย่อยๆ)');
   return { ok: log.length > 0, log: log.join(' · ') || 'ไม่มีการเปลี่ยนแปลง' };
 }
 

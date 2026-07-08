@@ -154,6 +154,11 @@ router.patch('/:id', async (req, res, next) => {
   try {
     const patch = {};
     if (req.body.active !== undefined) patch.active = req.body.active;
+    // Lets a stuck/failed run be retried today without waiting for tomorrow
+    // — pass lastRunDate: '' to clear the "already ran today" guard the
+    // scheduler checks in server/routes/scheduler.js.
+    if (req.body.lastRunDate !== undefined) patch.lastRunDate = req.body.lastRunDate;
+    if (req.body.lastRunResult !== undefined) patch.lastRunResult = req.body.lastRunResult;
     const updated = await updateRow('RecurringTasks', req.params.id, patch);
     res.json(updated);
   } catch (err) { next(err); }
