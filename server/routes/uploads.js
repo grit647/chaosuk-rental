@@ -3,6 +3,28 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { isConfigured: cloudinaryConfigured, uploadBuffer: uploadToCloudinary } = require('../cloudinary');
+
+// Diagnostic endpoint — confirms the CLOUDINARY_* env vars are set AND that
+// they're actually valid (does a real tiny test upload, not just a presence
+// check), so a typo in the value (easy to make copying a mixed-case secret
+// by hand) shows up immediately instead of silently falling back to the
+// ephemeral local disk the next time a real slip comes in.
+router.get('/cloudinary-health', async (req, res) => {
+  if (!cloudinaryConfigured()) {
+    return res.json({ configured: false, ok: false, message: 'ยังไม่ได้ตั้งค่า CLOUDINARY_* ใน environment variables' });
+  }
+  try {
+    const tinyPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64'
+    );
+    const url = await uploadToCloudinary(tinyPng, 'chaosuk-rental/health-check');
+    res.json({ configured: true, ok: true, testUrl: url });
+  } catch (err) {
+    res.json({ configured: true, ok: false, message: err.message });
+  }
+});
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
