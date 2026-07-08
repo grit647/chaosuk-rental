@@ -46,7 +46,14 @@ router.post('/', async (req, res, next) => {
     if (applied > 0) {
       await updateRow('Rooms', b.room, { creditBalance: credit - applied });
     }
-    res.json({ ...invoice, creditApplied: applied });
+    // Run through coerceInvoices before responding — the raw object above is
+    // missing fields (receiptSent, slipPending, slips, remainingDue, etc.)
+    // that every OTHER invoice in the frontend's state already has (loaded
+    // via GET /api/bootstrap, which does coerce). Skipping this made a
+    // freshly-created invoice's row look inconsistent (e.g. the "ส่งข้อมูล
+    // (LINE)" status) until the next manual page refresh re-fetched it
+    // through the coerced path — a real bug a user hit.
+    res.json({ ...coerceInvoices([invoice])[0], creditApplied: applied });
   } catch (err) { next(err); }
 });
 
