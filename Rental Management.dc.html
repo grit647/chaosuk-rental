@@ -2298,7 +2298,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                           </sc-if>
                         </div>
                       </sc-if>
-                      <sc-if value="{{ q.amountsKnown }}" hint-placeholder-val="{{ false }}">
+                      <sc-if value="{{ q.amountsUnknown }}" hint-placeholder-val="{{ false }}">
                         <div style="padding:9px 10px;border-radius:6px;background:#FBF7F0;color:#9C8B78;font-size:11px;margin-bottom:7px;text-align:center">กรอกยอดในสลิปด้านบนให้ครบก่อน ระบบจะแสดงตัวเลือกการจัดการให้อัตโนมัติ</div>
                       </sc-if>
                       <div onclick="{{ closeSlipQueue }}" style="padding:9px;border-radius:6px;border:1px solid #E3D8C8;color:#9C8B78;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ออกจากหน้านี้</div>
@@ -2310,7 +2310,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                           <div onclick="{{ q.onConfirmCredit }}" style="padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">💰 ยืนยันบันทึกเป็นเงินล่วงหน้า ({{ q.totalDisplay }})</div>
                         </div>
                       </sc-if>
-                      <sc-if value="{{ q.amountsKnown }}" hint-placeholder-val="{{ false }}">
+                      <sc-if value="{{ q.amountsUnknown }}" hint-placeholder-val="{{ false }}">
                         <div style="padding:9px 10px;border-radius:6px;background:#FBF7F0;color:#9C8B78;font-size:11px;margin-bottom:7px;text-align:center">กรอกยอดในสลิปด้านบนให้ครบก่อน ระบบจะแสดงตัวเลือกการจัดการให้อัตโนมัติ</div>
                       </sc-if>
                       <div onclick="{{ closeSlipQueue }}" style="padding:9px;border-radius:6px;border:1px solid #E3D8C8;color:#9C8B78;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ออกจากหน้านี้</div>
@@ -5706,7 +5706,7 @@ class Component extends DCLogic {
         cardTitle: `ห้อง ${i.room} · ${i.tenant}`,
         isBillKind: true, isAdvanceKind: false, isUnmatchedKind: false,
         slipCount: i.slipCount || 0, hasMultipleSlips: (i.slipCount || 0) > 1,
-        cards: cardsList, amountsKnown,
+        cards: cardsList, amountsKnown, amountsUnknown: !amountsKnown,
         expectedTotalDisplay: this.fmt(total),
         slipAmountDisplay: this.fmt(combined),
         partialRemainingDisplay: this.fmt(partialRemaining),
@@ -5746,7 +5746,7 @@ class Component extends DCLogic {
         cardTitle: `ห้อง ${r.id} · ${r.tenant}`,
         isBillKind: false, isAdvanceKind: true, isUnmatchedKind: false,
         slipCount: r.creditSlipCount || 0, hasMultipleSlips: (r.creditSlipCount || 0) > 1,
-        cards: cardsList, amountsKnown: cardsList.every(c => !c.needsAmount),
+        cards: cardsList, amountsKnown: cardsList.every(c => !c.needsAmount), amountsUnknown: !cardsList.every(c => !c.needsAmount),
         totalDisplay: this.fmt(r.creditSlipsTotal || 0),
         onConfirmCredit: () => this.confirmCreditSlips(r.id),
       };
