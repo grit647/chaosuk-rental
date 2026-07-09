@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { readTab, updateRow } = require('../sheets');
-const { readSettings, coerceRecurringTasks } = require('../coerce');
+const { readSettings, coerceRecurringTasks, coerceInvoices } = require('../coerce');
 const { pushMessage, isConfigured: lineConfigured } = require('../line');
 const { runAutomatedInstruction } = require('../automation');
 const { isConfigured: claudeConfigured } = require('../claude');
+const { notifyAdmin } = require('../adminNotify');
 
 // Called periodically by an external trigger (GitHub Actions cron — see
 // .github/workflows/scheduler.yml) rather than an in-process setInterval,
@@ -15,8 +16,36 @@ const { isConfigured: claudeConfigured } = require('../claude');
 router.get('/run', async (req, res, next) => {
   try {
     const settings = await readSettings();
+
+    // Overdue-bill detection runs unconditionally — deliberately NOT gated
+    // behind claudeAutomationEnabled below, since transitioning a bill to
+    // "เกินกำหนด" is basic bill-management housekeeping, not an "AI
+    // automation" feature the owner might have off. Only invoices moving
+    // INTO overdue status this run get an admin notification (not
+    // re-notifying every 10 minutes for bills already overdue).
+    let overdueChecked = 0, overdueNew = 0;
+    try {
+      const invoices = coerceInvoices(await readTab('Invoices'));
+      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+      const candidates = invoices.filter((i) => (i.status === 'pending' || i.status === 'partial') && i.due && i.due < todayStr);
+      overdueChecked = candidates.length;
+      for (const inv of candidates) {
+        try {
+          await updateRow('Invoices', inv.id, { status: 'overdue' });
+          overdueNew++;
+          const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
+          const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
+          notifyAdmin('overdueBill', `บิลห้อง ${inv.room} เกินกำหนดชำระแล้วครับ (ครบกำหนด ${inv.due}) ยอดค้าง ${remaining.toLocaleString()} บาท`).catch(() => {});
+        } catch (err) {
+          console.error('[scheduler] overdue transition failed', inv.id, err.message);
+        }
+      }
+    } catch (err) {
+      console.error('[scheduler] overdue check failed', err.message);
+    }
+
     if (!settings.claudeAutomationEnabled) {
-      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)' });
+      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew } });
     }
 
     let sentCount = 0, scheduledChecked = 0, scheduledDue = 0;
@@ -75,12 +104,19 @@ router.get('/run', async (req, res, next) => {
         } catch (err) {
           console.error('[scheduler] recurring task failed', task.id, err.message);
           await updateRow('RecurringTasks', task.id, { lastRunDate: todayStr, lastRunResult: ('ผิดพลาด: ' + err.message).slice(0, 500) });
+          // This exact gap (a recurring task silently failing for days with
+          // no owner-visible signal beyond opening the modal) is what
+          // prompted the whole admin-notification feature in the first
+          // place — see the Anthropic-credit-exhaustion incident this app
+          // hit during development.
+          notifyAdmin('taskFailure', `คำสั่งงานประจำล้มเหลวครับ: "${task.humanSummary || task.actionSummary}"\nข้อผิดพลาด: ${err.message}`).catch(() => {});
         }
       }
     }
 
     res.json({
       ran: true,
+      overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew },
       scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount },
       recurringTasks: { checked: recurringChecked, ran: recurringRan },
     });

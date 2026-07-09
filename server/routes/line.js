@@ -8,6 +8,7 @@ const { coerceInvoices, coerceRooms } = require('../coerce');
 const { isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent } = require('../line');
 const { isConfigured: claudeConfigured, readPaymentSlip } = require('../claude');
 const { isConfigured: cloudinaryConfigured, uploadBuffer: uploadToCloudinary } = require('../cloudinary');
+const { notifyAdmin } = require('../adminNotify');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -203,11 +204,13 @@ async function handleSlipImage(event, req) {
       senderName: newSlip.senderName, imageUrl: newSlip.imageUrl, uploadedAt: newSlip.uploadedAt,
     });
     await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ${amountLabel} — แต่ระบบยังไม่ทราบว่าเป็นห้องไหน (LINE นี้ยังไม่เชื่อมต่อกับห้อง) กรุณาพิมพ์เลขห้องของคุณครับ (เช่น 301) เจ้าของจะตรวจสอบและจับคู่ให้เร็วๆ นี้ครับ ขอบคุณครับ 🙏`);
+    notifyAdmin('unmatchedSlip', `มีสลิปใหม่ที่ยังไม่ทราบว่าเป็นห้องไหนครับ (${amountLabel}) เข้าไปจับคู่ห้องได้ที่หน้า Bills → สลิปรอตรวจสอบ`).catch(() => {});
     return;
   }
 
   const result = await attachSlipToRoom(room.id, newSlip);
   await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ${amountLabel} ${result.note} ขอบคุณครับ 🙏`);
+  notifyAdmin('slipPending', `ห้อง ${room.id} ส่งสลิปเข้ามาแล้วครับ (${amountLabel}) รอตรวจสอบที่หน้า Bills → สลิปรอตรวจสอบ`).catch(() => {});
 }
 
 router.post('/webhook', async (req, res) => {
