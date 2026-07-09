@@ -361,12 +361,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div class="split-row" style="display:flex;gap:14px">
               <div class="split-col" style="flex:1.3;background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
                 <div style="font-size:14px;font-weight:600;color:#241812;margin-bottom:12px">การชำระเงินล่าสุด</div>
-                <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1fr 1fr;gap:8px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:8px;border-bottom:1px solid #E3D8C8">
-                  <div>ห้อง</div><div>ผู้เช่า</div><div>จำนวนเงิน</div><div>วันที่</div>
+                <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1fr 1fr 0.5fr;gap:8px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:8px;border-bottom:1px solid #E3D8C8">
+                  <div>ห้อง</div><div>ผู้เช่า</div><div>จำนวนเงิน</div><div>วันที่</div><div></div>
                 </div>
                 <sc-for list="{{ recentPayments }}" as="p" hint-placeholder-count="5">
-                  <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1fr 1fr;gap:8px;font-size:12.5px;color:#241812;padding:9px 0;border-bottom:1px solid #F0E9DC;align-items:center">
+                  <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1fr 1fr 0.5fr;gap:8px;font-size:12.5px;color:#241812;padding:9px 0;border-bottom:1px solid #F0E9DC;align-items:center">
                     <div>{{ p.room }}</div><div>{{ p.tenant }}</div><div style="font-family:'IBM Plex Mono',monospace">{{ p.amountDisplay }}</div><div style="color:#7C6E5F">{{ p.date }}</div>
+                    <div onclick="{{ p.onDelete }}" style="color:#B24336;font-size:11px;cursor:pointer;text-decoration:underline;text-align:right">ลบ</div>
                   </div>
                 </sc-for>
               </div>
@@ -5968,7 +5969,16 @@ class Component extends DCLogic {
       prevDashRoomPage: this.prevDashRoomPage, nextDashRoomPage: this.nextDashRoomPage,
       prevDashRoomCount, nextDashRoomCount, hasPrevDashRoomPage, hasNextDashRoomPage, noPrevDashRoomPage: !hasPrevDashRoomPage,
       onDashTouchStart: this.onDashTouchStart, onDashTouchEnd: this.onDashTouchEnd,
-      recentPayments: paidList.slice(-5).reverse().map(i => ({ room: i.room, tenant: i.tenant, amountDisplay: this.fmt(i.rent + i.water + i.elec), date: i.paidDate })),
+      // "ลบ" here reuses the same askDeleteInvoice/confirmDeleteInvoice
+      // flow already built for the Bills page (confirm-before-delete
+      // popup) — per explicit user request anticipating this list growing
+      // long over time and wanting a way to trim old entries from here
+      // directly, instead of only from the Bills page.
+      recentPayments: paidList.slice(-5).reverse().map(i => ({
+        id: i.id, room: i.room, tenant: i.tenant,
+        amountDisplay: this.fmt(i.rent + i.water + i.elec), date: i.paidDate,
+        onDelete: () => this.askDeleteInvoice(i.id),
+      })),
       maintenanceWidgetItems,
       openInvoiceModal: this.openInvoiceModal,
 
