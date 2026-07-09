@@ -607,9 +607,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:5px 11px;border-radius:6px;background:{{ b.statusBg }};color:{{ b.statusColor }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ b.statusDot }}"></span>{{ b.statusLabel }}</span>
                     </div>
                     <div style="display:flex;align-items:center;gap:6px">
-                      <span onclick="{{ b.onEditReceipt }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap">✎ แก้ไข</span>
-                      <sc-if value="{{ b.canDelete }}" hint-placeholder-val="{{ true }}">
+                      <sc-if value="{{ b.canModify }}" hint-placeholder-val="{{ true }}">
+                        <span onclick="{{ b.onEditReceipt }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap">✎ แก้ไข</span>
                         <span onclick="{{ b.onDeleteReceipt }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336;white-space:nowrap">🗑 ลบ</span>
+                      </sc-if>
+                      <sc-if value="{{ b.cannotModify }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:10.5px;color:#9C8B78;white-space:nowrap">ชำระเงินแล้ว — แก้ไข/ลบไม่ได้</span>
                       </sc-if>
                     </div>
                     <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px">
@@ -5681,12 +5684,12 @@ class Component extends DCLogic {
       // awaiting review, or already resolved as a partial payment (status
       // 'partial' only ever comes from an actual slip resolution now, never
       // from advance-credit auto-applied at creation — see
-      // server/routes/invoices.js) — deleting the bill is blocked entirely.
-      // Editing (amounts/due date) is still allowed; only the destructive
-      // delete path is disabled, since a slip is real evidence of a
-      // transaction attempt that shouldn't be able to just vanish along
-      // with the bill it was matched against.
-      const canDelete = !hasSlipPending && !partial;
+      // server/routes/invoices.js) — BOTH editing and deleting are blocked.
+      // Originally only delete was blocked, but the owner clarified: once
+      // money has actually been received against a bill (partial payment),
+      // its amounts shouldn't be editable anymore either — editing only
+      // makes sense in the earlier "nothing paid yet" stage.
+      const canModify = !hasSlipPending && !partial;
       return {
         id: i.id, room: i.room, tenant: i.tenant, due: i.due || '—',
         totalDisplay: hasAmountPaid ? this.fmt(remaining) : this.fmt(total),
@@ -5711,7 +5714,7 @@ class Component extends DCLogic {
         hasSlipPending, noSlipPending: !hasSlipPending,
         onOpenSlip: () => this.openSlipReview(i.id),
         onEditReceipt: () => this.openEditInvoice(i.id),
-        canDelete, cannotDelete: !canDelete,
+        canModify, cannotModify: !canModify,
         onDeleteReceipt: () => this.askDeleteInvoice(i.id),
       };
     });
