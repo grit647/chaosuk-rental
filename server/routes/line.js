@@ -12,6 +12,19 @@ const { isConfigured: cloudinaryConfigured, uploadBuffer: uploadToCloudinary } =
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+// Same key/value upsert pattern as server/routes/settings.js's upsertKV —
+// duplicated locally (not imported) to avoid pulling an Express router
+// into this file just for one helper. Used only for the admin-PIN
+// self-link case in the webhook below.
+async function updateSettingKV(key, value) {
+  const rows = await readTab('Settings');
+  if (rows.some((r) => r.key === key)) {
+    await updateRow('Settings', key, { value }, 'key');
+  } else {
+    await appendRow('Settings', { key, value });
+  }
+}
+
 router.get('/status', (req, res) => {
   res.json({ connected: isConfigured() });
 });
@@ -217,6 +230,23 @@ router.post('/webhook', async (req, res) => {
         }
         if (event.type === 'message' && event.message && event.message.type === 'text') {
           const text = String(event.message.text || '').trim();
+
+          // Owner self-links by typing their admin PIN instead of a room
+          // number — per explicit user request, avoids having to hunt down
+          // and manually paste their own opaque LINE User ID into Settings.
+          // Same PIN as the "ผู้ดูแลระบบ" card's save-confirmation gate
+          // (server/routes/settings.js's verify-admin-pin), defaults to
+          // "12345" until the owner sets their own adminEditPin.
+          const settingsRows = await readTab('Settings');
+          const pinRow = settingsRows.find((r) => r.key === 'adminEditPin');
+          const adminPin = pinRow ? pinRow.value : '12345';
+          if (text === adminPin) {
+            const nameRow = settingsRows.find((r) => r.key === 'adminName');
+            await updateSettingKV('adminLineUserId', event.source.userId);
+            await replyMessage(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลระบบเรียบร้อยแล้วครับ${nameRow && nameRow.value ? ' (' + nameRow.value + ')' : ''} ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ`);
+            continue;
+          }
+
           const rooms = await readTab('Rooms');
           const room = rooms.find((r) => r.id === text);
           if (room) {
