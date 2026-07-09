@@ -466,7 +466,13 @@ async function executeWriteTool(name, input) {
       const roomCoerced = coerceRooms([room])[0];
       const credit = roomCoerced.creditBalance || 0;
       const applied = Math.min(credit, total);
-      const status = applied >= total && total > 0 ? 'paid' : (applied > 0 ? 'partial' : 'pending');
+      // Same fix as server/routes/invoices.js's POST / handler — credit
+      // applied at creation time that doesn't fully cover the bill should
+      // NOT mark the invoice 'partial' (that status is reserved for an
+      // actual slip payment coming in short); it stays a normal 'pending'
+      // bill for the remainder, so the next slip resolves against it
+      // through the regular full/partial/credit flow.
+      const status = applied >= total && total > 0 ? 'paid' : 'pending';
 
       const invoice = {
         id: 'INV-' + input.roomId + '-' + Date.now(),

@@ -5554,10 +5554,15 @@ class Component extends DCLogic {
     // already-paid portion isn't counted as still "pending" — matches the
     // "ยอดที่ต้องชำระ" column in the pending-bills table, which shows the
     // same remaining-only figure for partial rows.
+    // Always use what's actually still owed (remainingDue), not a
+    // status === 'partial' check — a 'pending' invoice can now also have
+    // amountPaid > 0 (advance credit auto-applied at creation, see
+    // server/routes/invoices.js), and its KPI contribution needs to reflect
+    // that too. Safe for every other status: when amountPaid is 0,
+    // remainingDue just equals the full total anyway.
     const amountOwedFor = (i) => {
       const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
-      if (i.status === 'partial') return i.remainingDue != null ? i.remainingDue : Math.max(0, total - (i.amountPaid || 0));
-      return total;
+      return i.remainingDue != null ? i.remainingDue : Math.max(0, total - (i.amountPaid || 0));
     };
     const sumOf = (list) => list.reduce((a, i) => a + amountOwedFor(i), 0);
     const paidSum = sumOf(paidList), pendingSum = sumOf(pendingList), overdueSum = sumOf(overdueList);
@@ -5598,11 +5603,19 @@ class Component extends DCLogic {
       const remaining = i.remainingDue != null ? i.remainingDue : Math.max(0, total - (i.amountPaid || 0));
       const overdue = i.status === 'overdue';
       const partial = i.status === 'partial';
+      // "ยอดที่ต้องชำระ" should show what's actually still owed whenever ANY
+      // money is already applied against this bill — not just when status is
+      // literally 'partial'. A brand-new invoice that had advance credit
+      // auto-deducted at creation (server/routes/invoices.js) stays status
+      // 'pending' by design (see that file's comment), but the displayed
+      // amount still needs to be the remainder, not the gross total, or the
+      // owner sees a number the tenant was never actually asked to pay.
+      const hasAmountPaid = (i.amountPaid || 0) > 0;
       const sentLabel = hasLineId ? '✓ ส่งไลน์แล้ว' : '✓ บันทึกใบเสร็จแล้ว';
       const hasSlipPending = !!i.slipPending;
       return {
         id: i.id, room: i.room, tenant: i.tenant, due: i.due || '—',
-        totalDisplay: partial ? this.fmt(remaining) : this.fmt(total),
+        totalDisplay: hasAmountPaid ? this.fmt(remaining) : this.fmt(total),
         // A pending slip takes priority over the plain overdue/awaiting-payment
         // label — it's a more specific, more actionable state ("someone
         // already tried to pay, come review it") than either of those.

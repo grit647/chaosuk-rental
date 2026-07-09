@@ -43,7 +43,18 @@ router.post('/', async (req, res, next) => {
     const room = rooms.find((r) => r.id === b.room);
     const credit = room ? room.creditBalance || 0 : 0;
     const applied = Math.min(credit, total);
-    const status = applied >= total && total > 0 ? 'paid' : (applied > 0 ? 'partial' : 'pending');
+    // Deliberately NOT 'partial' when credit only covers part of the bill —
+    // 'partial' is reserved for when an actual slip payment came in and was
+    // less than what was owed (see resolveSlip in Rental Management.dc.html),
+    // a distinct real-world event from "some of this bill was pre-paid via
+    // advance credit at the moment it was issued". A brand-new invoice with
+    // leftover credit applied should still read as a normal outstanding bill
+    // (ยอดที่ต้องชำระ = the remainder) so the next slip that arrives goes
+    // through the regular full/partial/credit resolution flow against that
+    // remainder, instead of being treated as a second partial payment on an
+    // already-partial bill. amountPaid/remainingDue (see coerceInvoices)
+    // still correctly reflect the applied credit either way.
+    const status = applied >= total && total > 0 ? 'paid' : 'pending';
 
     const invoice = {
       id: 'INV-' + b.room + '-' + Date.now(),
