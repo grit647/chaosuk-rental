@@ -129,6 +129,19 @@ async function readSettings() {
     // The real value is only ever read server-side, in
     // server/routes/systemData.js's factory-reset check.
     hasDataResetPin: !!map.dataResetPin,
+    // Per-category admin LINE notification toggles — all default OFF
+    // (per explicit user request, to avoid spamming/wasting resources
+    // until the owner deliberately opts into each one). Only meaningful
+    // once adminLineUserId is set; the UI disables these switches
+    // entirely until then.
+    adminNotify: {
+      taskFailure: bool(map.notifyTaskFailure, false),
+      slipPending: bool(map.notifySlipPending, false),
+      overdueBill: bool(map.notifyOverdueBill, false),
+      unmatchedSlip: bool(map.notifyUnmatchedSlip, false),
+      maintenance: bool(map.notifyMaintenance, false),
+      leaseExpiring: bool(map.notifyLeaseExpiring, false),
+    },
   };
 }
 

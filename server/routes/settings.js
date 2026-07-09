@@ -86,6 +86,12 @@ router.put('/', async (req, res, next) => {
       // the admin-card edit PIN (not yet exposed in the UI, defaults to
       // "12345" server-side in POST /verify-admin-pin until they do).
       adminEditPin: b.adminEditPin,
+      notifyTaskFailure: b.adminNotify && b.adminNotify.taskFailure,
+      notifySlipPending: b.adminNotify && b.adminNotify.slipPending,
+      notifyOverdueBill: b.adminNotify && b.adminNotify.overdueBill,
+      notifyUnmatchedSlip: b.adminNotify && b.adminNotify.unmatchedSlip,
+      notifyMaintenance: b.adminNotify && b.adminNotify.maintenance,
+      notifyLeaseExpiring: b.adminNotify && b.adminNotify.leaseExpiring,
     };
     const entries = Object.entries(kv).filter(([, v]) => v !== undefined);
     for (const [k, v] of entries) {

@@ -706,6 +706,37 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
             </div>
 
+            <div style="background:#FFFFFF;border-radius:8px;padding:24px;box-sizing:border-box;max-width:560px;margin-bottom:16px">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+                <span style="font-size:16px">🔔</span>
+                <div style="font-size:15px;font-weight:700;color:#241812">การแจ้งเตือนผู้ดูแลทาง LINE</div>
+              </div>
+              <sc-if value="{{ adminNotifyLocked }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:11.5px;color:#B85B27;margin-bottom:16px">ต้องเชื่อมต่อ LINE ผู้ดูแล (การ์ดด้านบน) ก่อน ถึงจะเปิดใช้งานสวิตช์เหล่านี้ได้</div>
+              </sc-if>
+              <sc-if value="{{ adminNotifyLocked }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">เลือกได้ว่าอยากให้ระบบแจ้งเตือนอะไรมาทาง LINE บ้าง — ปิดไว้ทั้งหมดเป็นค่าเริ่มต้น</div>
+              </sc-if>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:7px;background:#FBF7F0;border:1px solid #EDE1CE;margin-bottom:10px">
+                <div style="font-size:13px;font-weight:700;color:#241812">เปิดทั้งหมด</div>
+                <div onclick="{{ toggleAdminNotifyAll }}" style="width:44px;height:24px;border-radius:12px;position:relative;cursor:pointer;flex-shrink:0;background:{{ adminNotifyAllBg }}">
+                  <div style="position:absolute;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.15s ease;left:{{ adminNotifyAllKnobLeft }}"></div>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <sc-for list="{{ adminNotifyOptions }}" as="n" hint-placeholder-count="6">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC">
+                    <div>
+                      <div style="font-size:13px;font-weight:600;color:#241812">{{ n.label }}</div>
+                      <div style="font-size:11px;color:#A89A88;margin-top:2px">{{ n.desc }}</div>
+                    </div>
+                    <div onclick="{{ n.onClick }}" style="width:44px;height:24px;border-radius:12px;position:relative;cursor:pointer;flex-shrink:0;background:{{ n.bg }}">
+                      <div style="position:absolute;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.15s ease;left:{{ n.knobLeft }}"></div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
 
             <div style="background:#FFFFFF;border-radius:8px;padding:24px;box-sizing:border-box;max-width:560px;margin-top:16px">
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;row-gap:6px">
@@ -2737,6 +2768,10 @@ class Component extends DCLogic {
     showChangePinModal: false,
     changePinOldDraft: '',
     changePinNewDraft: '',
+    adminNotify: {
+      taskFailure: false, slipPending: false, overdueBill: false,
+      unmatchedSlip: false, maintenance: false, leaseExpiring: false,
+    },
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -2944,6 +2979,7 @@ class Component extends DCLogic {
         settings: { ...s.settings, ...data.settings },
         claudeAutomationEnabled: !!data.claudeAutomationEnabled,
         hasDataResetPin: !!data.hasDataResetPin,
+        adminNotify: data.adminNotify || s.adminNotify,
         sheetEnvConnected: true,
       }));
     } catch (err) {
@@ -4816,6 +4852,42 @@ class Component extends DCLogic {
   closeChangePinModal = () => this.setState({ showChangePinModal: false, changePinOldDraft: '', changePinNewDraft: '' });
   onChangePinOldDraftChange = (e) => this.setState({ changePinOldDraft: e.target.value });
   onChangePinNewDraftChange = (e) => this.setState({ changePinNewDraft: e.target.value });
+  // Per-category admin LINE notification toggles — save immediately on
+  // click (same pattern as toggleClaudeAutomation), no PIN needed since
+  // these only control WHAT gets sent, not WHO receives it (that's the
+  // LINE-connection/PIN-gated card above). Disabled entirely in the UI
+  // until adminLineUserId is connected — see adminNotifyLocked below.
+  toggleAdminNotify = (key) => async () => {
+    const prev = this.state.adminNotify;
+    const next = { ...prev, [key]: !prev[key] };
+    this.setState({ adminNotify: next });
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminNotify: next }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+    } catch (err) {
+      this.setState({ adminNotify: prev });
+      this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
+    }
+  };
+  toggleAdminNotifyAll = async () => {
+    const prev = this.state.adminNotify;
+    const allOn = Object.values(prev).every(Boolean);
+    const next = Object.fromEntries(Object.keys(prev).map(k => [k, !allOn]));
+    this.setState({ adminNotify: next });
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminNotify: next }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+    } catch (err) {
+      this.setState({ adminNotify: prev });
+      this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
+    }
+  };
   confirmChangePin = () => this._guard('confirmChangePin', async () => {
     try {
       const res = await fetch('/api/settings/change-admin-pin', {
@@ -5729,6 +5801,29 @@ class Component extends DCLogic {
       };
     });
 
+    // Per-category admin LINE notification switches — locked (unclickable)
+    // until adminLineUserId is connected, per explicit user request (no
+    // point letting the owner turn these on with nowhere for the message
+    // to go). All default OFF, per the same "don't waste resources"
+    // request that led to building toggles at all instead of hardcoding
+    // everything always-on.
+    const adminNotifyLocked = !s.propertyProfile.adminLineUserId;
+    const adminNotifyOptions = [
+      { key: 'taskFailure', label: 'คำสั่งงานประจำล้มเหลว', desc: 'แจ้งทันทีถ้างานอัตโนมัติที่ตั้งเวลาไว้รันไม่สำเร็จ' },
+      { key: 'slipPending', label: 'มีสลิปใหม่รอตรวจสอบ', desc: 'แจ้งทันทีที่ผู้เช่าส่งสลิปเข้ามา' },
+      { key: 'overdueBill', label: 'บิลเกินกำหนดชำระ', desc: 'แจ้งเมื่อบิลไหนเข้าสถานะเกินกำหนด' },
+      { key: 'unmatchedSlip', label: 'สลิปที่ยังไม่ทราบห้อง', desc: 'แจ้งเมื่อมีสลิปที่ระบบจับคู่ห้องไม่ได้' },
+      { key: 'maintenance', label: 'แจ้งซ่อมเข้าใหม่', desc: 'แจ้งทันทีที่ผู้เช่าแจ้งปัญหาเข้ามา' },
+      { key: 'leaseExpiring', label: 'สัญญาเช่าใกล้หมดอายุ', desc: 'เตือนล่วงหน้าก่อนสัญญาหมดอายุ' },
+    ].map(o => {
+      const on = !!s.adminNotify[o.key];
+      return {
+        ...o, on, bg: on ? '#C1622D' : '#E3D8C8', knobLeft: on ? '22px' : '2px',
+        onClick: adminNotifyLocked ? null : this.toggleAdminNotify(o.key),
+      };
+    });
+    const adminNotifyAllOn = Object.values(s.adminNotify).every(Boolean);
+
     const thaiDayNames = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
     const recurringTasksView = (s.recurringTasks || []).map(rt => {
       let scheduleLabel = '';
@@ -6301,6 +6396,9 @@ class Component extends DCLogic {
       onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone,
       onProfileAdminLineUserId: this.onProfileAdminLineUserId, saveAdminInfo: this.saveAdminInfo,
       adminLineConnected: !!s.propertyProfile.adminLineUserId, disconnectAdminLine: this.disconnectAdminLine,
+      adminNotifyOptions, adminNotifyLocked, adminNotifyAllOn,
+      adminNotifyAllBg: adminNotifyAllOn ? '#C1622D' : '#E3D8C8', adminNotifyAllKnobLeft: adminNotifyAllOn ? '22px' : '2px',
+      toggleAdminNotifyAll: adminNotifyLocked ? null : this.toggleAdminNotifyAll,
       openChangePinModal: this.openChangePinModal, closeChangePinModal: this.closeChangePinModal,
       showChangePinModal: s.showChangePinModal, changePinOldDraft: s.changePinOldDraft, changePinNewDraft: s.changePinNewDraft,
       onChangePinOldDraftChange: this.onChangePinOldDraftChange, onChangePinNewDraftChange: this.onChangePinNewDraftChange,
