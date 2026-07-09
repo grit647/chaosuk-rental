@@ -2701,7 +2701,7 @@ class Component extends DCLogic {
     tenantSearch: '',
     billingFilter: 'all',
     showInvoiceModal: false,
-    newInvoice: { roomId: '', water: '90', elec: '550', due: '' },
+    newInvoice: { roomId: '', water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' },
     showRoomEditModal: false,
     editRoomForm: { tenant: '', phone: '', rent: '' },
     showAddRoomModal: false,
@@ -4017,9 +4017,13 @@ class Component extends DCLogic {
   onTenantSearchChange = (e) => this.setState({ tenantSearch: e.target.value, tenantCardPage: 0 });
   setBillingFilter = (f) => this.setState({ billingFilter: f });
 
-  openInvoiceModal = () => this.setState({ showInvoiceModal: true, newInvoice: { roomId: '', water: '90', elec: '550', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' } });
+  // Per explicit user request: these used to default to '90'/'550' — leftover
+  // placeholder numbers from early testing that looked like a real reading
+  // once "อุปกรณ์" mode was selected with no device ready. Defaulting to
+  // '0' means an unready device honestly shows 0 instead of a fake number.
+  openInvoiceModal = () => this.setState({ showInvoiceModal: true, newInvoice: { roomId: '', water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' } });
   openInvoiceForRoom = (roomId) => {
-    const next = { roomId, water: '90', elec: '550', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' };
+    const next = { roomId, water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' };
     const dw = this.deviceCharge(roomId, 'water'); if (dw) next.water = String(dw.charge);
     const de = this.deviceCharge(roomId, 'elec'); if (de) next.elec = String(de.charge);
     this.setState({ showInvoiceModal: true, newInvoice: next });
@@ -4264,19 +4268,25 @@ class Component extends DCLogic {
     const v = e.target.value;
     this.setState(s => {
       const next = { ...s.newInvoice, roomId: v };
-      if (next.waterMode === 'device') { const d = this.deviceCharge(v, 'water'); if (d) next.water = String(d.charge); }
-      if (next.elecMode === 'device') { const d = this.deviceCharge(v, 'elec'); if (d) next.elec = String(d.charge); }
+      // Per explicit user request: when in "อุปกรณ์" mode but the device
+      // isn't ready/linked (deviceCharge returns null — "อุปกรณ์ไม่พร้อม"),
+      // the amount should read 0, not silently keep whatever leftover
+      // number (e.g. the form's original placeholder default) happened to
+      // be sitting there before — that stale number looked like a real
+      // reading the owner might accidentally bill against.
+      if (next.waterMode === 'device') { const d = this.deviceCharge(v, 'water'); next.water = d ? String(d.charge) : '0'; }
+      if (next.elecMode === 'device') { const d = this.deviceCharge(v, 'elec'); next.elec = d ? String(d.charge) : '0'; }
       return { newInvoice: next };
     });
   };
   setInvoiceWaterMode = (mode) => this.setState(s => {
     const next = { ...s.newInvoice, waterMode: mode };
-    if (mode === 'device') { const d = this.deviceCharge(next.roomId, 'water'); if (d) next.water = String(d.charge); }
+    if (mode === 'device') { const d = this.deviceCharge(next.roomId, 'water'); next.water = d ? String(d.charge) : '0'; }
     return { newInvoice: next };
   });
   setInvoiceElecMode = (mode) => this.setState(s => {
     const next = { ...s.newInvoice, elecMode: mode };
-    if (mode === 'device') { const d = this.deviceCharge(next.roomId, 'elec'); if (d) next.elec = String(d.charge); }
+    if (mode === 'device') { const d = this.deviceCharge(next.roomId, 'elec'); next.elec = d ? String(d.charge) : '0'; }
     return { newInvoice: next };
   });
   // Per explicit user request: "กรอกเอง" (manual) mode used to just take a
