@@ -2038,6 +2038,20 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showAdminInfoPinModal }}">
+          <div onclick="{{ closeAdminInfoPinModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ยืนยันรหัสก่อนบันทึก</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">การแก้ไขข้อมูลผู้ดูแลระบบ (รวมถึง LINE User ID ที่ใช้รับการแจ้งเตือน) ต้องใส่รหัสยืนยันก่อนทุกครั้ง</div>
+              <input type="password" value="{{ adminInfoPinDraft }}" onchange="{{ onAdminInfoPinDraftChange }}" placeholder="รหัสยืนยัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+              <div style="display:flex;gap:10px;margin-top:20px">
+                <button onclick="{{ closeAdminInfoPinModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ confirmSaveAdminInfo }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยืนยันและบันทึก</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showFactoryResetModal }}">
           <div onclick="{{ closeFactoryResetModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
@@ -2703,6 +2717,8 @@ class Component extends DCLogic {
     factoryResetPin: '',
     factoryResetConfirmText: '',
     hasDataResetPin: false,
+    showAdminInfoPinModal: false,
+    adminInfoPinDraft: '',
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -4783,16 +4799,31 @@ class Component extends DCLogic {
   // two halves of the state getting out of sync); this exists mainly so
   // the owner can save just the admin/LINE section without it visually
   // being lumped in with the property-name field above.
-  saveAdminInfo = async () => {
+  //
+  // Gated behind a PIN (per explicit follow-up request) — the LINE User ID
+  // field here controls where system notifications go, so saving changes
+  // to this whole card requires typing a PIN first (server-verified in
+  // POST /api/settings/verify-admin-pin, defaults to "12345" until the
+  // owner sets their own via adminEditPin).
+  saveAdminInfo = () => this.setState({ showAdminInfoPinModal: true, adminInfoPinDraft: '' });
+  closeAdminInfoPinModal = () => this.setState({ showAdminInfoPinModal: false, adminInfoPinDraft: '' });
+  onAdminInfoPinDraftChange = (e) => this.setState({ adminInfoPinDraft: e.target.value });
+  confirmSaveAdminInfo = () => this._guard('confirmSaveAdminInfo', async () => {
     try {
+      const verifyRes = await fetch('/api/settings/verify-admin-pin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: this.state.adminInfoPinDraft }),
+      });
+      if (!verifyRes.ok) throw new Error((await verifyRes.json()).error || 'รหัสไม่ถูกต้อง');
       const res = await fetch('/api/settings', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ propertyProfile: this.state.propertyProfile }),
       });
       if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      this.setState({ showAdminInfoPinModal: false, adminInfoPinDraft: '' });
       this.showAdminToast('บันทึกข้อมูลผู้ดูแลแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
-  };
+  });
 
   // "ล้างข้อมูล" system-data feature — per explicit user request for a
   // checkbox-based way to wipe specific categories of recorded data
@@ -6225,6 +6256,8 @@ class Component extends DCLogic {
       propertyProfile: s.propertyProfile,
       onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone,
       onProfileAdminLineUserId: this.onProfileAdminLineUserId, saveProfile: this.saveProfile, saveAdminInfo: this.saveAdminInfo,
+      showAdminInfoPinModal: s.showAdminInfoPinModal, closeAdminInfoPinModal: this.closeAdminInfoPinModal,
+      adminInfoPinDraft: s.adminInfoPinDraft, onAdminInfoPinDraftChange: this.onAdminInfoPinDraftChange, confirmSaveAdminInfo: this.confirmSaveAdminInfo,
       tuyaConnected: s.tuyaEnvConnected,
       tuyaStatusLabel: s.tuyaEnvConnected ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ',
       tuyaStatusBg: s.tuyaEnvConnected ? '#E4EFE7' : '#EDE4D6',
