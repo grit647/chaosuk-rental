@@ -65,6 +65,12 @@ function coerceInvoices(rows) {
       slipsTotal: slips.reduce((a, s) => a + (Number(s.amount) || 0), 0),
       amountPaid,
       remainingDue: Math.max(0, total - amountPaid),
+      // Purely a display preference for the Dashboard's "การชำระเงินล่าสุด"
+      // widget — hiding an entry here does NOT delete the invoice or affect
+      // any totals/reports, per explicit user request after they initially
+      // got the full-delete confirm popup and clarified they only wanted
+      // to declutter that one widget, not remove real bill data.
+      hiddenFromDashboard: bool(r.hiddenFromDashboard, false),
     };
   });
 }

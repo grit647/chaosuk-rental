@@ -3930,6 +3930,24 @@ class Component extends DCLogic {
   });
   openPayConfirm = (id) => this.setState({ showPayConfirm: true, payConfirmId: id });
 
+  // Hides one entry from the Dashboard's "การชำระเงินล่าสุด" widget only —
+  // sets hiddenFromDashboard on the invoice (persisted, so it stays hidden
+  // across refreshes/devices) without touching any other field. No confirm
+  // popup needed since nothing destructive happens; the underlying invoice
+  // is untouched and still shows normally everywhere else (Bills page,
+  // totals, reports).
+  hideFromRecentPayments = (id) => this._guard('hideFromRecentPayments:' + id, async () => {
+    try {
+      const res = await fetch('/api/invoices/' + id, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hiddenFromDashboard: true }),
+      });
+      if (!res.ok) throw new Error('ซ่อนรายการไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState(s => ({ invoices: s.invoices.map(i => i.id === id ? updated : i) }));
+    } catch (err) { this.showAdminToast(err.message || 'ซ่อนรายการไม่สำเร็จ'); }
+  });
+
   // Receipt (invoice) management — edit charges/due date directly, or
   // delete a bill entirely — added per explicit user request for accurate
   // record-keeping (e.g. fixing a typo'd amount, or removing a bill created
@@ -5969,15 +5987,14 @@ class Component extends DCLogic {
       prevDashRoomPage: this.prevDashRoomPage, nextDashRoomPage: this.nextDashRoomPage,
       prevDashRoomCount, nextDashRoomCount, hasPrevDashRoomPage, hasNextDashRoomPage, noPrevDashRoomPage: !hasPrevDashRoomPage,
       onDashTouchStart: this.onDashTouchStart, onDashTouchEnd: this.onDashTouchEnd,
-      // "ลบ" here reuses the same askDeleteInvoice/confirmDeleteInvoice
-      // flow already built for the Bills page (confirm-before-delete
-      // popup) — per explicit user request anticipating this list growing
-      // long over time and wanting a way to trim old entries from here
-      // directly, instead of only from the Bills page.
-      recentPayments: paidList.slice(-5).reverse().map(i => ({
+      // "ลบ" only hides an entry from THIS widget (hiddenFromDashboard) —
+      // per explicit user clarification, it must never delete the actual
+      // invoice/bill (that's what the Bills page's separate ลบ button is
+      // for, with its own heavier confirm-before-delete popup).
+      recentPayments: paidList.filter(i => !i.hiddenFromDashboard).slice(-5).reverse().map(i => ({
         id: i.id, room: i.room, tenant: i.tenant,
         amountDisplay: this.fmt(i.rent + i.water + i.elec), date: i.paidDate,
-        onDelete: () => this.askDeleteInvoice(i.id),
+        onDelete: () => this.hideFromRecentPayments(i.id),
       })),
       maintenanceWidgetItems,
       openInvoiceModal: this.openInvoiceModal,
