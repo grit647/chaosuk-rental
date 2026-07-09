@@ -43,6 +43,39 @@ this trade-off and initially said the free/no-signup approach was fine when
 building the slip-verification feature, this note exists so a future session
 can pick the conversation back up instead of re-discovering the bug.
 
+### PIN-gated actions store the PIN as plain text — by design, low-security
+
+**Status:** Accepted trade-off, deliberate — not a bug.
+
+Several "are you sure" gates in this app (ล้างข้อมูลทั้งหมด factory reset,
+the "ผู้ดูแลระบบ" card's save-confirm, LINE self-link via typing the PIN
+instead of a room number — all in `server/routes/settings.js` /
+`server/routes/line.js`) are protected by a short PIN. These PINs are
+stored as **plain text** in the `Settings` Google Sheet tab (`dataResetPin`,
+`adminEditPin` keys) — not hashed, not encrypted. This app has no real
+authentication system, so there was never a secure place to hash against;
+the PIN is meant to stop an accidental click/tap or an unauthorized person
+with app access, not to withstand someone who can already open the
+underlying Google Sheet (which is restricted to the owner + the service
+account, same trust boundary as everything else in this app).
+
+**Owner was told explicitly:** never reuse a real banking/sensitive PIN
+here — treat these as a friction gate, not real security.
+
+**Master recovery code:** `server/routes/settings.js` hardcodes a
+permanent constant, `MASTER_RECOVERY_PIN = 'werty1122'`, which always
+works as the "old PIN" step when changing the ผู้ดูแลระบบ card's PIN
+(`POST /api/settings/change-admin-pin`) — explicitly requested by the
+owner as a way to help a user (himself, or a future customer if this app
+is ever resold — see the 1:1-for-now note above) recover access if they
+forget their own PIN. Deliberately kept OUT of the Sheet (hardcoded in
+source instead of a `Settings` row) specifically so it doesn't sit in
+plain text next to the regular PIN where anyone glancing at the Sheet
+would see both together. If this app is ever actually resold/multi-
+tenant, this constant needs to move to a real per-deployment secret
+instead of a shared hardcoded value — flagging now so a future session
+doesn't miss it.
+
 ## Permanent rules (do not relax without the owner explicitly re-confirming)
 
 - **No code/server/credential access from the Claude command box or recurring
