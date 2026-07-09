@@ -676,13 +676,18 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 </div>
                 <div style="display:flex;gap:12px">
                   <div style="flex:1.4">
-                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ผู้ดูแล</div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ผู้ดูแลระบบ</div>
                     <input value="{{ propertyProfile.adminName }}" onchange="{{ onProfileAdmin }}" placeholder="ชื่อผู้ดูแล" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
                   </div>
                   <div style="flex:1">
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เบอร์ติดต่อผู้ดูแล</div>
                     <input value="{{ propertyProfile.adminPhone }}" onchange="{{ onProfilePhone }}" placeholder="08x-xxx-xxxx" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   </div>
+                </div>
+                <div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">LINE User ID ผู้ดูแล (สำหรับรับการแจ้งเตือนจากระบบ)</div>
+                  <input value="{{ propertyProfile.adminLineUserId }}" onchange="{{ onProfileAdminLineUserId }}" placeholder="เช่น U54ad44ec4a0eb7d453aa4c464c5b6ed2" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  <div style="font-size:10px;color:#A89A88;margin-top:4px;line-height:1.5">ใส่ค่านี้เพื่อให้ระบบส่งแจ้งเตือน (บิลค้าง/สลิปรอตรวจสอบ/สรุปงานประจำ) มาทาง LINE ของผู้ดูแลเองได้ — ถ้ายังไม่รู้ค่านี้ บอกผมได้ ช่วยหาให้ได้ครับ</div>
                 </div>
                 <div style="display:flex;justify-content:flex-end">
                   <div onclick="{{ saveProfile }}" style="padding:10px 22px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;cursor:pointer">บันทึกข้อมูล</div>
@@ -4748,6 +4753,7 @@ class Component extends DCLogic {
   onProfileName = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, name: v } })); };
   onProfileAdmin = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminName: v } })); };
   onProfilePhone = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminPhone: v } })); };
+  onProfileAdminLineUserId = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminLineUserId: v } })); };
   saveProfile = async () => {
     try {
       const res = await fetch('/api/settings', {
@@ -6188,7 +6194,8 @@ class Component extends DCLogic {
         onToggle: () => this.toggleDueReminderRoom(r.id),
       })),
       propertyProfile: s.propertyProfile,
-      onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone, saveProfile: this.saveProfile,
+      onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone,
+      onProfileAdminLineUserId: this.onProfileAdminLineUserId, saveProfile: this.saveProfile,
       tuyaConnected: s.tuyaEnvConnected,
       tuyaStatusLabel: s.tuyaEnvConnected ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ',
       tuyaStatusBg: s.tuyaEnvConnected ? '#E4EFE7' : '#EDE4D6',

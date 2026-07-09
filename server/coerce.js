@@ -109,6 +109,11 @@ async function readSettings() {
       name: map.propertyName || '',
       adminName: map.adminName || '',
       adminPhone: map.adminPhone || '',
+      // The owner's own LINE User ID — lets the system push notifications
+      // (overdue bills, slips awaiting review, recurring-task summaries)
+      // straight to the owner's LINE, separate from the tenant-facing
+      // messaging that already exists via server/line.js.
+      adminLineUserId: map.adminLineUserId || '',
     },
     waterRate: num(map.waterRate, 18),
     elecRate: num(map.elecRate, 8),

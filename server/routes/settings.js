@@ -25,6 +25,7 @@ router.put('/', async (req, res, next) => {
       propertyName: b.propertyProfile && b.propertyProfile.name,
       adminName: b.propertyProfile && b.propertyProfile.adminName,
       adminPhone: b.propertyProfile && b.propertyProfile.adminPhone,
+      adminLineUserId: b.propertyProfile && b.propertyProfile.adminLineUserId,
       waterRate: b.waterRate,
       elecRate: b.elecRate,
       trashRate: b.trashRate,
