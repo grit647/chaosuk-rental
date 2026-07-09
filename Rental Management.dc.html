@@ -4239,7 +4239,18 @@ class Component extends DCLogic {
           } catch { /* non-fatal — invoice already saved either way */ }
         }
       }
-      this.setState(st => ({ invoices: [newInv, ...st.invoices], showInvoiceModal: false }));
+      // Real bug a user hit: receiptsSent is a room-keyed LOCAL flag (see
+      // sendReceiptLine/openSaveReceipt below) meant as a belt-and-suspenders
+      // fallback alongside the invoice's own server-side receiptSent field —
+      // but it never got cleared when a room's old (already-sent) bill was
+      // resolved and a brand-new one issued, so the new invoice inherited
+      // the previous bill's "already sent" flag and showed "✓ ส่งไลน์แล้ว"
+      // before anyone had actually sent anything for it. Clear this room's
+      // entry on every new invoice so send-status always starts fresh.
+      this.setState(st => ({
+        invoices: [newInv, ...st.invoices], showInvoiceModal: false,
+        receiptsSent: Object.fromEntries(Object.entries(st.receiptsSent).filter(([k]) => k !== room.id)),
+      }));
       this.showAdminToast('สร้างใบแจ้งหนี้ห้อง ' + room.id + ' สำเร็จ');
       // The server (POST /api/invoices) auto-applies any advance credit the
       // room had on file to this new bill and reports how much it used
