@@ -416,7 +416,17 @@ async function describeWriteTool(name, input) {
 async function executeWriteTool(name, input) {
   switch (name) {
     case 'mark_invoice_paid': {
-      const updated = await updateRow('Invoices', input.invoiceId, { status: 'paid', paidDate: new Date().toISOString().slice(0, 10) });
+      // Found during an accounting audit: this used to only set
+      // status:'paid' and never touched amountPaid, leaving remainingDue
+      // (total - amountPaid) showing a leftover balance on an invoice that
+      // was supposedly fully paid — status and amount disagreeing on the
+      // same record. Compute the total first and set amountPaid to match,
+      // same as the native form's markInvoicePaid handler.
+      const existingInvoices = coerceInvoices(await readTab('Invoices'));
+      const before = existingInvoices.find((i) => i.id === input.invoiceId);
+      if (!before) throw new Error('ไม่พบใบแจ้งหนี้ ' + input.invoiceId);
+      const total0 = before.rent + before.water + before.elec + (before.trash || 0) + (before.internet || 0);
+      const updated = await updateRow('Invoices', input.invoiceId, { status: 'paid', paidDate: new Date().toISOString().slice(0, 10), amountPaid: total0 });
       const inv = coerceInvoices([updated])[0];
       const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
       if (lineConfigured()) {

@@ -4128,17 +4128,26 @@ class Component extends DCLogic {
 
   markInvoicePaid = (id) => this._guard('markInvoicePaid:' + id, async () => {
     try {
+      // Found during an accounting audit: this only ever set status:'paid'
+      // and never touched amountPaid, so an invoice confirmed through here
+      // (e.g. the "ยืนยันทั้งหมด" bulk slip-queue button, which calls this
+      // via confirmSlipPaidFor) ended up "paid" on the outside but with
+      // remainingDue still showing a leftover balance — status and amount
+      // disagreeing on the same invoice. Now sets amountPaid to the full
+      // total too, matching what resolveSlip's 'full' mode already does.
+      const inv = this.state.invoices.find(i => i.id === id);
+      const total = inv ? (inv.rent || 0) + (inv.water || 0) + (inv.elec || 0) + (inv.trash || 0) + (inv.internet || 0) : undefined;
       const res = await fetch('/api/invoices/' + id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'paid', paidDate: new Date().toISOString().slice(0, 10) }),
+        body: JSON.stringify({ status: 'paid', paidDate: new Date().toISOString().slice(0, 10), ...(total != null ? { amountPaid: total } : {}) }),
       });
       if (!res.ok) throw new Error('อัปเดตไม่สำเร็จ');
       const updated = await res.json();
       this.setState(s => ({ invoices: s.invoices.map(i => i.id === id ? updated : i) }));
       this.showAdminToast('ทำเครื่องหมายชำระแล้ว');
       // Thank-you notification — best-effort, doesn't block/alter the paid status either way.
-      const total = Number(updated.rent || 0) + Number(updated.water || 0) + Number(updated.elec || 0) + Number(updated.trash || 0) + Number(updated.internet || 0);
-      this._lineSend(updated.room, 'ขอบคุณที่ชำระค่าเช่าห้อง ' + updated.room + ' จำนวน ' + this.fmt(total) + ' เรียบร้อยแล้วครับ 🙏').catch(err => console.error(err));
+      const total2 = Number(updated.rent || 0) + Number(updated.water || 0) + Number(updated.elec || 0) + Number(updated.trash || 0) + Number(updated.internet || 0);
+      this._lineSend(updated.room, 'ขอบคุณที่ชำระค่าเช่าห้อง ' + updated.room + ' จำนวน ' + this.fmt(total2) + ' เรียบร้อยแล้วครับ 🙏').catch(err => console.error(err));
     } catch (err) { this.showAdminToast(err.message || 'อัปเดตไม่สำเร็จ'); }
   });
 
@@ -5198,7 +5207,7 @@ class Component extends DCLogic {
       tenantIdExpiry: selectedRoomRaw.tenantIdExpiry || '-',
       leaseDocLabel: selectedRoomRaw.leaseDocName || 'ยังไม่แนบเอกสาร',
       hasLeaseDoc: !!selectedRoomRaw.leaseDocName,
-      invoiceAmount: selInvoice ? this.fmt(selInvoice.rent + selInvoice.water + selInvoice.elec) : '-',
+      invoiceAmount: selInvoice ? this.fmt(selInvoice.rent + selInvoice.water + selInvoice.elec + (selInvoice.trash || 0) + (selInvoice.internet || 0)) : '-',
       invoiceStatusLabel: selInvoice ? invMeta(selInvoice.status).label : '-',
       invoiceStatusBg: selInvoice ? invMeta(selInvoice.status).bg : '#E3D8C8',
       creditBalance: selectedRoomRaw.creditBalance || 0,
@@ -5295,9 +5304,29 @@ class Component extends DCLogic {
     const selectedTenant = tenantsFiltered.find(t => t.room === s.selectedTenantRoom) || tenantsFiltered[0] || null;
 
     const paidList = s.invoices.filter(i => i.status === 'paid');
-    const pendingList = s.invoices.filter(i => i.status === 'pending');
+    // "partial" invoices used to fall into NONE of these three buckets at
+    // all — not paid, not pending, not overdue — so they silently vanished
+    // from every Bills-page KPI card (รวมเดือนนี้/รอชำระ totals and counts)
+    // even though the pending-bills TABLE right below correctly includes
+    // them (filters status !== 'paid'). Found during an accounting audit
+    // at the user's request. Grouping them with "pending" here, since
+    // they're still awaiting further payment either way.
+    const pendingList = s.invoices.filter(i => i.status === 'pending' || i.status === 'partial');
     const overdueList = s.invoices.filter(i => i.status === 'overdue');
-    const sumOf = (list) => list.reduce((a, i) => a + i.rent + i.water + i.elec, 0);
+    // Was ALSO missing trash/internet in the sum itself (separate bug,
+    // same audit) — undercounted every revenue/pending/overdue KPI on the
+    // Bills page and the Dashboard's headline revenue figure, both of
+    // which read from this same helper. For a partial invoice specifically,
+    // sum only the REMAINING balance (not the full original bill) so the
+    // already-paid portion isn't counted as still "pending" — matches the
+    // "ยอดที่ต้องชำระ" column in the pending-bills table, which shows the
+    // same remaining-only figure for partial rows.
+    const amountOwedFor = (i) => {
+      const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
+      if (i.status === 'partial') return i.remainingDue != null ? i.remainingDue : Math.max(0, total - (i.amountPaid || 0));
+      return total;
+    };
+    const sumOf = (list) => list.reduce((a, i) => a + amountOwedFor(i), 0);
     const paidSum = sumOf(paidList), pendingSum = sumOf(pendingList), overdueSum = sumOf(overdueList);
     const totalSum = paidSum + pendingSum + overdueSum;
 
@@ -5312,7 +5341,7 @@ class Component extends DCLogic {
     if (s.billingFilter !== 'all') invoicesFiltered = s.invoices.filter(i => i.status === s.billingFilter);
     const invoicesView = invoicesFiltered.map(i => {
       const meta = invMeta(i.status);
-      const total = i.rent + i.water + i.elec;
+      const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
       return {
         id: i.id, room: i.room, tenant: i.tenant,
         rentDisplay: i.rent.toLocaleString('en-US'), waterDisplay: i.water.toLocaleString('en-US'), elecDisplay: i.elec.toLocaleString('en-US'), totalDisplay: total.toLocaleString('en-US'),
@@ -5850,10 +5879,6 @@ class Component extends DCLogic {
     const hasNextReminderPage = nextReminderCount > 0;
 
 
-    const bill302 = s.invoices.find(i => i.id === 'INV-2607-302');
-    const billTotal = bill302 ? bill302.rent + bill302.water + bill302.elec : 0;
-    const billMeta = bill302 ? invMeta(bill302.status) : { label: '-', bg: '#ccc' };
-
     const mobileActivityView = s.mobileActivity.slice(0, 4).map(a => {
       const meta = a.statusKey === 'paid' ? { label: 'สำเร็จ', bg: '#3B7A52' } : maintMeta(a.statusKey);
       return { title: a.title, date: a.date, statusLabel: meta.label, statusBg: meta.bg };
@@ -5993,7 +6018,9 @@ class Component extends DCLogic {
       // for, with its own heavier confirm-before-delete popup).
       recentPayments: paidList.filter(i => !i.hiddenFromDashboard).slice(-5).reverse().map(i => ({
         id: i.id, room: i.room, tenant: i.tenant,
-        amountDisplay: this.fmt(i.rent + i.water + i.elec), date: i.paidDate,
+        // Was missing trash/internet — same accounting-audit bug as sumOf
+        // above, understating every amount shown in this widget.
+        amountDisplay: this.fmt(i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0)), date: i.paidDate,
         onDelete: () => this.hideFromRecentPayments(i.id),
       })),
       maintenanceWidgetItems,
@@ -6331,7 +6358,6 @@ class Component extends DCLogic {
 
       mobileIsHome: s.mobileView === 'home', mobileIsRepair: s.mobileView === 'repair', mobileIsHistory: s.mobileView === 'history', mobileIsContract: s.mobileView === 'contract', mobileIsContact: s.mobileView === 'contact',
       goMobileHome: this.goMobileHome, goMobileRepair: this.goMobileRepair, goMobileHistory: this.goMobileHistory, goMobileContract: this.goMobileContract, goMobileContact: this.goMobileContact,
-      billAmountDisplay: this.fmt(billTotal), billStatusLabel: billMeta.label, billStatusBg: billMeta.bg,
       payNow: this.payNow, cancelPayment: this.cancelPayment, confirmPayment: this.confirmPayment,
       paymentIsConfirming: s.paymentState === 'confirming', paymentIsSuccess: s.paymentState === 'success',
       mobileActivityView, paymentHistoryView,
