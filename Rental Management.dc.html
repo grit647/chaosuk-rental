@@ -4090,13 +4090,22 @@ class Component extends DCLogic {
   openEditInvoice = (id) => {
     const inv = this.state.invoices.find(i => i.id === id);
     if (!inv) return;
+    const snapshot = {
+      rent: inv.rent, water: inv.water, elec: inv.elec,
+      trash: inv.trash || 0, internet: inv.internet || 0, due: inv.due || '',
+    };
     this.setState({
       showEditInvoiceModal: true,
-      editInvoice: {
-        id: inv.id, room: inv.room, tenant: inv.tenant,
-        rent: inv.rent, water: inv.water, elec: inv.elec,
-        trash: inv.trash || 0, internet: inv.internet || 0, due: inv.due || '',
-      },
+      // editInvoiceOpenedSnapshot: what this bill's amounts looked like the
+      // moment this form was opened — compared against the live server copy
+      // right before saving (see submitEditInvoice) so a stale edit from an
+      // old browser tab/session can't silently overwrite a more recent
+      // change someone else already saved in the meantime. Per explicit
+      // user request after a "does simultaneous use cause problems?"
+      // question — Google Sheets has no row locking, so this is an
+      // application-level guard instead of a database-level one.
+      editInvoiceOpenedSnapshot: snapshot,
+      editInvoice: { id: inv.id, room: inv.room, tenant: inv.tenant, ...snapshot },
     });
   };
   closeEditInvoiceModal = () => this.setState({ showEditInvoiceModal: false });
@@ -4118,6 +4127,24 @@ class Component extends DCLogic {
     const prevInv = this.state.invoices.find(i => i.id === ei.id);
     const wasSent = !!(prevInv && (prevInv.receiptSent || this.state.receiptsSent[prevInv.room]));
     try {
+      // Conflict check: re-fetch this exact invoice fresh from the server
+      // and compare its amount/due fields against what this form saw when
+      // it was opened. A mismatch means another tab/session already saved a
+      // change to this bill while this form was sitting open — refuse to
+      // overwrite it and ask the owner to reopen the form with the latest
+      // numbers instead.
+      const snap = this.state.editInvoiceOpenedSnapshot;
+      if (snap) {
+        const freshRes = await fetch('/api/invoices');
+        const freshList = await freshRes.json();
+        const fresh = freshList.find(i => i.id === ei.id);
+        const changed = fresh && (['rent', 'water', 'elec', 'trash', 'internet', 'due'].some(k => Number(fresh[k] ?? 0) !== Number(snap[k] ?? 0) && String(fresh[k] ?? '') !== String(snap[k] ?? '')));
+        if (changed) {
+          this.setState(s => ({ invoices: s.invoices.map(i => i.id === fresh.id ? fresh : i), showEditInvoiceModal: false }));
+          this.showAdminToast('บิลนี้ถูกแก้ไขจากที่อื่นไปแล้วระหว่างที่หน้าต่างนี้เปิดอยู่ — ปิดหน้าต่างแล้วเปิด "แก้ไข" ใหม่อีกครั้งเพื่อดูยอดล่าสุดก่อนบันทึกนะครับ');
+          return;
+        }
+      }
       const res = await fetch('/api/invoices/' + ei.id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -4813,7 +4840,13 @@ class Component extends DCLogic {
   openRoomEdit = () => {
     const room = this.state.rooms.find(r => r.id === this.state.selectedRoomId);
     if (!room) { this.showAdminToast('กรุณาเพิ่มห้องก่อน'); return; }
-    this.setState({ showRoomEditModal: true, editRoomForm: { tenant: room.tenant, phone: room.phone, rent: String(room.rent) } });
+    this.setState({
+      showRoomEditModal: true,
+      editRoomForm: { tenant: room.tenant, phone: room.phone, rent: String(room.rent) },
+      // Same stale-edit guard as openEditInvoice/submitEditInvoice — see
+      // that comment for why.
+      editRoomOpenedSnapshot: { tenant: room.tenant, phone: room.phone, rent: room.rent },
+    });
   };
   openDeleteRoom = () => this.setState({ showDeleteRoom: true });
   closeDeleteRoom = () => this.setState({ showDeleteRoom: false });
@@ -4885,6 +4918,23 @@ class Component extends DCLogic {
     const id = this.state.selectedRoomId;
     const form = this.state.editRoomForm;
     try {
+      // Same conflict check as submitEditInvoice — re-fetch this room fresh
+      // and compare against what this form saw when it opened, so a stale
+      // edit from an old tab/session can't silently overwrite a more
+      // recent change (e.g. rent adjusted, or tenant/phone updated
+      // elsewhere) that landed while this form was sitting open.
+      const snap = this.state.editRoomOpenedSnapshot;
+      if (snap) {
+        const freshRes = await fetch('/api/rooms');
+        const freshList = await freshRes.json();
+        const fresh = freshList.find(r => r.id === id);
+        const changed = fresh && (['tenant', 'phone', 'rent'].some(k => String(fresh[k] ?? '') !== String(snap[k] ?? '')));
+        if (changed) {
+          this.setState(s => ({ rooms: s.rooms.map(r => r.id === fresh.id ? fresh : r), showRoomEditModal: false }));
+          this.showAdminToast('ข้อมูลห้องนี้ถูกแก้ไขจากที่อื่นไปแล้วระหว่างที่หน้าต่างนี้เปิดอยู่ — ปิดหน้าต่างแล้วเปิด "แก้ไขข้อมูล" ใหม่อีกครั้งก่อนบันทึกนะครับ');
+          return;
+        }
+      }
       const res = await fetch('/api/rooms/' + id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenant: form.tenant, phone: form.phone, rent: Number(form.rent) || undefined }),
