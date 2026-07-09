@@ -2388,12 +2388,38 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       </div>
                       <div style="display:flex;gap:8px">
                         <div style="flex:1">
-                          <div style="font-size:10.5px;color:#7C6E5F;margin-bottom:3px">ค่าน้ำ (บาท)</div>
-                          <input value="{{ b.water }}" onchange="{{ b.onWaterChange }}" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+                            <div style="font-size:10.5px;color:#7C6E5F">ค่าน้ำ (บาท)</div>
+                            <div style="display:flex;gap:3px">
+                              <div onclick="{{ b.onSetWaterDevice }}" style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;background:{{ b.waterDeviceBg }};color:{{ b.waterDeviceColor }}">อุปกรณ์</div>
+                              <div onclick="{{ b.onSetWaterManual }}" style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;background:{{ b.waterManualBg }};color:{{ b.waterManualColor }}">กรอกเอง</div>
+                            </div>
+                          </div>
+                          <sc-if value="{{ b.isWaterDevice }}" hint-placeholder-val="{{ true }}">
+                            <input value="{{ b.water }}" readonly="{{ true }}" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:#F7F2E9">
+                            <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">📟 {{ b.waterDeviceHint }}</div>
+                          </sc-if>
+                          <sc-if value="{{ b.isWaterManual }}" hint-placeholder-val="{{ false }}">
+                            <input value="{{ b.waterUnits }}" onchange="{{ b.onWaterUnitsChange }}" placeholder="หน่วยที่ใช้" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                            <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">{{ b.waterManualHint }}</div>
+                          </sc-if>
                         </div>
                         <div style="flex:1">
-                          <div style="font-size:10.5px;color:#7C6E5F;margin-bottom:3px">ค่าไฟ (บาท)</div>
-                          <input value="{{ b.elec }}" onchange="{{ b.onElecChange }}" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+                            <div style="font-size:10.5px;color:#7C6E5F">ค่าไฟ (บาท)</div>
+                            <div style="display:flex;gap:3px">
+                              <div onclick="{{ b.onSetElecDevice }}" style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;background:{{ b.elecDeviceBg }};color:{{ b.elecDeviceColor }}">อุปกรณ์</div>
+                              <div onclick="{{ b.onSetElecManual }}" style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;background:{{ b.elecManualBg }};color:{{ b.elecManualColor }}">กรอกเอง</div>
+                            </div>
+                          </div>
+                          <sc-if value="{{ b.isElecDevice }}" hint-placeholder-val="{{ true }}">
+                            <input value="{{ b.elec }}" readonly="{{ true }}" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:#F7F2E9">
+                            <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">📟 {{ b.elecDeviceHint }}</div>
+                          </sc-if>
+                          <sc-if value="{{ b.isElecManual }}" hint-placeholder-val="{{ false }}">
+                            <input value="{{ b.elecUnits }}" onchange="{{ b.onElecUnitsChange }}" placeholder="หน่วยที่ใช้" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                            <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">{{ b.elecManualHint }}</div>
+                          </sc-if>
                         </div>
                       </div>
                       <div style="font-size:10.5px;color:#A89A88;font-family:'IBM Plex Mono',monospace">{{ b.breakdownLabel }}</div>
@@ -4119,23 +4145,44 @@ class Component extends DCLogic {
     const roomsWithOpenBill = new Set(this.state.invoices.filter(i => i.status !== 'paid').map(i => i.room));
     const eligible = this.state.rooms.filter(r => r.tenant && !roomsWithOpenBill.has(r.id));
     const drafts = {};
+    // Defaults every room to "อุปกรณ์" mode, same starting point as the
+    // single-invoice form — per explicit user request, each row also gets
+    // its own อุปกรณ์/กรอกเอง toggle (not just a plain Baht field), so the
+    // owner can switch a specific room to manual units entry if its device
+    // isn't ready or the reading looks wrong.
     eligible.forEach(r => {
       const dw = this.deviceCharge(r.id, 'water');
       const de = this.deviceCharge(r.id, 'elec');
-      drafts[r.id] = { water: dw ? String(dw.charge) : '0', elec: de ? String(de.charge) : '0' };
+      drafts[r.id] = {
+        waterMode: 'device', elecMode: 'device',
+        water: dw ? String(dw.charge) : '0', elec: de ? String(de.charge) : '0',
+        waterUnits: '', elecUnits: '',
+      };
     });
     this.setState({ showInvoiceModeModal: false, showBulkInvoiceModal: true, bulkInvoiceDrafts: drafts, bulkInvoiceDue: '' });
   };
   closeBulkInvoiceModal = () => this.setState({ showBulkInvoiceModal: false });
+  setBulkWaterMode = (roomId, mode) => this.setState(s => {
+    const draft = { ...s.bulkInvoiceDrafts[roomId], waterMode: mode };
+    if (mode === 'device') { const d = this.deviceCharge(roomId, 'water'); draft.water = d ? String(d.charge) : '0'; }
+    else { draft.water = String(Math.round((Number(draft.waterUnits) || 0) * this.roomRate(roomId, 'water'))); }
+    return { bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: draft } };
+  });
+  setBulkElecMode = (roomId, mode) => this.setState(s => {
+    const draft = { ...s.bulkInvoiceDrafts[roomId], elecMode: mode };
+    if (mode === 'device') { const d = this.deviceCharge(roomId, 'elec'); draft.elec = d ? String(d.charge) : '0'; }
+    else { draft.elec = String(Math.round((Number(draft.elecUnits) || 0) * this.roomRate(roomId, 'elec'))); }
+    return { bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: draft } };
+  });
+  onBulkInvoiceWaterUnitsChange = (roomId) => (e) => {
+    const units = e.target.value;
+    this.setState(s => ({ bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], waterUnits: units, water: String(Math.round((Number(units) || 0) * this.roomRate(roomId, 'water'))) } } }));
+  };
+  onBulkInvoiceElecUnitsChange = (roomId) => (e) => {
+    const units = e.target.value;
+    this.setState(s => ({ bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], elecUnits: units, elec: String(Math.round((Number(units) || 0) * this.roomRate(roomId, 'elec'))) } } }));
+  };
   onBulkInvoiceDueChange = (e) => this.setState({ bulkInvoiceDue: e.target.value });
-  onBulkInvoiceWaterChange = (roomId) => (e) => {
-    const v = e.target.value;
-    this.setState(s => ({ bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], water: v } } }));
-  };
-  onBulkInvoiceElecChange = (roomId) => (e) => {
-    const v = e.target.value;
-    this.setState(s => ({ bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], elec: v } } }));
-  };
   // Loops POST /api/invoices per room SEQUENTIALLY (not Promise.all) so the
   // server's own duplicate-bill/credit-apply logic (POST /api/invoices in
   // server/routes/invoices.js) never has to race against itself — each
@@ -6828,13 +6875,35 @@ class Component extends DCLogic {
         const draft = s.bulkInvoiceDrafts[roomId] || {};
         const water = Number(draft.water) || 0, elec = Number(draft.elec) || 0;
         const total = (room.rent || 0) + water + elec + (s.trashRate || 0) + (s.internetRate || 0);
+        // Same อุปกรณ์/กรอกเอง toggle as the single-invoice form, per
+        // explicit user request — genuinely separate isWaterDevice/
+        // isWaterManual (and elec equivalents) fields, not one condition
+        // reused with hint-placeholder-val flipped (that anti-pattern has
+        // bitten this file repeatedly this session).
+        const isWaterDevice = draft.waterMode !== 'manual', isWaterManual = draft.waterMode === 'manual';
+        const isElecDevice = draft.elecMode !== 'manual', isElecManual = draft.elecMode === 'manual';
+        const dw = this.deviceCharge(roomId, 'water'), de = this.deviceCharge(roomId, 'elec');
+        const waterRate = this.roomRate(roomId, 'water'), elecRate = this.roomRate(roomId, 'elec');
+        const waterUnitsNum = Number(draft.waterUnits) || 0, elecUnitsNum = Number(draft.elecUnits) || 0;
         return {
           room: room.id, tenant: room.tenant,
           water: draft.water, elec: draft.elec,
+          waterUnits: draft.waterUnits, elecUnits: draft.elecUnits,
           totalDisplay: this.fmt(total),
           breakdownLabel: `ค่าเช่า ${this.fmt(room.rent || 0)} + ขยะ ${this.fmt(s.trashRate || 0)} + เน็ต ${this.fmt(s.internetRate || 0)}`,
-          onWaterChange: this.onBulkInvoiceWaterChange(roomId),
-          onElecChange: this.onBulkInvoiceElecChange(roomId),
+          isWaterDevice, isWaterManual, isElecDevice, isElecManual,
+          waterDeviceHint: dw ? dw.units + ' หน่วย × ' + waterRate : 'อุปกรณ์ไม่พร้อม',
+          elecDeviceHint: de ? de.units + ' หน่วย × ' + elecRate : 'อุปกรณ์ไม่พร้อม',
+          waterManualHint: waterUnitsNum + ' หน่วย × ' + waterRate + '/หน่วย = ' + this.fmt(waterUnitsNum * waterRate) + ' บาท',
+          elecManualHint: elecUnitsNum + ' หน่วย × ' + elecRate + '/หน่วย = ' + this.fmt(elecUnitsNum * elecRate) + ' บาท',
+          waterDeviceBg: isWaterDevice ? '#C1622D' : '#EDE4D6', waterDeviceColor: isWaterDevice ? '#fff' : '#7C6E5F',
+          waterManualBg: isWaterManual ? '#C1622D' : '#EDE4D6', waterManualColor: isWaterManual ? '#fff' : '#7C6E5F',
+          elecDeviceBg: isElecDevice ? '#C1622D' : '#EDE4D6', elecDeviceColor: isElecDevice ? '#fff' : '#7C6E5F',
+          elecManualBg: isElecManual ? '#C1622D' : '#EDE4D6', elecManualColor: isElecManual ? '#fff' : '#7C6E5F',
+          onSetWaterDevice: () => this.setBulkWaterMode(roomId, 'device'), onSetWaterManual: () => this.setBulkWaterMode(roomId, 'manual'),
+          onSetElecDevice: () => this.setBulkElecMode(roomId, 'device'), onSetElecManual: () => this.setBulkElecMode(roomId, 'manual'),
+          onWaterUnitsChange: this.onBulkInvoiceWaterUnitsChange(roomId),
+          onElecUnitsChange: this.onBulkInvoiceElecUnitsChange(roomId),
         };
       }).filter(Boolean),
       // Genuinely separate fields, NOT bulkInvoiceRows.length reused with
