@@ -2362,7 +2362,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เลือกห้อง</div>
                   <select value="{{ newInvoice.roomId }}" onchange="{{ onNewInvoiceRoomChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
                     <option value="">— เลือกห้อง —</option>
-                    <sc-for list="{{ roomSelectOptions }}" as="o" hint-placeholder-count="13">
+                    <sc-for list="{{ invoiceRoomSelectOptions }}" as="o" hint-placeholder-count="13">
                       <option value="{{ o.value }}">{{ o.label }}</option>
                     </sc-for>
                   </select>
@@ -5777,6 +5777,16 @@ class Component extends DCLogic {
     });
 
     const roomSelectOptions = s.rooms.filter(r => r.tenant).map(r => ({ value: r.id, label: r.id + ' · ' + r.tenant }));
+    // Per explicit user request: the create-invoice room picker should not
+    // even offer a room that already has an outstanding (non-paid) bill —
+    // previously the owner could select it and only find out on submit
+    // (the existing duplicate-bill guard in submitInvoice/POST /api/invoices
+    // would reject it). Filtering it out of the list itself avoids that
+    // dead-end click. Deliberately a SEPARATE list from roomSelectOptions,
+    // which is still used unfiltered by the maintenance-ticket and
+    // unmatched-slip room pickers — those aren't about billing status.
+    const roomsWithOpenBill = new Set(s.invoices.filter(i => i.status !== 'paid').map(i => i.room));
+    const invoiceRoomSelectOptions = roomSelectOptions.filter(o => !roomsWithOpenBill.has(o.value));
     const pendingBills = s.invoices.filter(i => i.status !== 'paid').map(i => {
       const cd = s.connData[i.room];
       const billRoom = s.rooms.find(r => r.id === i.room);
@@ -6625,7 +6635,7 @@ class Component extends DCLogic {
       showEditCreditModal: s.showEditCreditModal, editCreditRoomId: s.editCreditRoomId, editCreditDraft: s.editCreditDraft,
       closeEditCreditModal: this.closeEditCreditModal, onEditCreditDraftChange: this.onEditCreditDraftChange, saveEditCredit: this.saveEditCredit,
       showInvoiceModal: s.showInvoiceModal, closeInvoiceModal: this.closeInvoiceModal,
-      newInvoice: s.newInvoice, roomSelectOptions,
+      newInvoice: s.newInvoice, roomSelectOptions, invoiceRoomSelectOptions,
       invContract: (() => {
         const r = s.rooms.find(x => x.id === s.newInvoice.roomId);
         if (!r) return null;
