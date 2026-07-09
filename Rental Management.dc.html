@@ -2405,7 +2405,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <input value="{{ newInvoice.water }}" readonly="{{ true }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:{{ invWaterFieldBg }}">
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">📟 {{ invWaterUnitsHint }}</div>
                     </sc-if>
-                    <sc-if value="{{ invWaterIsDevice }}" hint-placeholder-val="{{ false }}">
+                    <sc-if value="{{ invWaterIsManual }}" hint-placeholder-val="{{ false }}">
                       <input value="{{ newInvoice.waterUnits }}" onchange="{{ onNewInvoiceWaterUnitsChange }}" placeholder="หน่วยที่ใช้" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">{{ invWaterManualHint }}</div>
                     </sc-if>
@@ -2422,7 +2422,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <input value="{{ newInvoice.elec }}" readonly="{{ true }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:{{ invElecFieldBg }}">
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">📟 {{ invElecUnitsHint }}</div>
                     </sc-if>
-                    <sc-if value="{{ invElecIsDevice }}" hint-placeholder-val="{{ false }}">
+                    <sc-if value="{{ invElecIsManual }}" hint-placeholder-val="{{ false }}">
                       <input value="{{ newInvoice.elecUnits }}" onchange="{{ onNewInvoiceElecUnitsChange }}" placeholder="หน่วยที่ใช้" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">{{ invElecManualHint }}</div>
                     </sc-if>
@@ -6625,6 +6625,16 @@ class Component extends DCLogic {
       onNewInvoiceRoomChange: this.onNewInvoiceRoomChange, onNewInvoiceWaterChange: this.onNewInvoiceWaterChange, onNewInvoiceElecChange: this.onNewInvoiceElecChange, onNewInvoiceDueChange: this.onNewInvoiceDueChange, submitInvoice: this.submitInvoice,
       setInvoiceWaterMode: this.setInvoiceWaterMode, setInvoiceElecMode: this.setInvoiceElecMode,
       invWaterIsDevice: s.newInvoice.waterMode === 'device', invElecIsDevice: s.newInvoice.elecMode === 'device',
+      // Genuinely negated companion fields, NOT the same invWaterIsDevice/
+      // invElecIsDevice condition reused with hint-placeholder-val flipped —
+      // that exact anti-pattern (same live boolean bound to two sc-if
+      // blocks, only the SSR hint differing) has bitten this file multiple
+      // times this session: hint-placeholder-val is a rendering hint only,
+      // not a runtime inverter, so both blocks end up rendering together.
+      // A real user report caught this again here (both the readonly
+      // device-mode field AND the manual units field showing stacked at
+      // once) — fixed by computing the negation explicitly instead.
+      invWaterIsManual: s.newInvoice.waterMode !== 'device', invElecIsManual: s.newInvoice.elecMode !== 'device',
       invWaterFieldBg: s.newInvoice.waterMode === 'device' ? '#F7F2E9' : '#fff',
       invElecFieldBg: s.newInvoice.elecMode === 'device' ? '#F7F2E9' : '#fff',
       invWaterDeviceBg: s.newInvoice.waterMode === 'device' ? '#C1622D' : '#EDE4D6', invWaterDeviceColor: s.newInvoice.waterMode === 'device' ? '#fff' : '#7C6E5F',
