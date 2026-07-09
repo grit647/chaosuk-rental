@@ -2078,7 +2078,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                           <sc-if value="{{ sc.needsAmount }}" hint-placeholder-val="{{ false }}">
                             <div style="margin-bottom:6px">
                               <div style="font-size:10.5px;color:#B85B27;font-weight:600;margin-bottom:4px">⚠️ อ่านยอดอัตโนมัติไม่สำเร็จ — กรุณาดูรูปแล้วกรอกยอดเอง</div>
-                              <input type="number" placeholder="กรอกยอด (บาท)" onchange="{{ sc.onAmountChange }}" style="width:100%;padding:7px 8px;border-radius:5px;border:1.5px solid #C1872E;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                              <div style="display:flex;gap:6px">
+                                <input type="number" placeholder="กรอกยอด (บาท)" value="{{ sc.amountDraftValue }}" onchange="{{ sc.onAmountDraftChange }}" style="flex:1;padding:7px 8px;border-radius:5px;border:1.5px solid #C1872E;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                                <div onclick="{{ sc.onConfirmAmount }}" style="padding:7px 10px;border-radius:5px;background:#C1872E;color:#fff;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center">ยืนยันการบันทึก</div>
+                              </div>
                             </div>
                           </sc-if>
                           <sc-if value="{{ sc.hasAmount }}" hint-placeholder-val="{{ true }}">
@@ -2557,6 +2560,7 @@ class Component extends DCLogic {
     unmatchedSlipPicks: {},
     showUnmatchedRejectConfirm: false,
     unmatchedRejectId: '',
+    slipAmountDrafts: {},
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -4232,6 +4236,14 @@ class Component extends DCLogic {
     } catch (err) { this.showAdminToast(err.message || 'ลบไม่สำเร็จ'); }
   });
 
+  // This framework's "onchange" fires on every keystroke (React-style, not
+  // native browser onchange-on-blur) — binding the amount input straight to
+  // a save call meant typing a single digit fired a PATCH immediately, per
+  // a real user report. Instead, keystrokes only update a local draft value
+  // here; nothing is saved until the owner explicitly clicks "ยืนยันการ
+  // บันทึก" (see onConfirmAmount on each card below).
+  setSlipAmountDraft = (key, value) => this.setState(s => ({ slipAmountDrafts: { ...s.slipAmountDrafts, [key]: value } }));
+
   // Manual amount correction for a slip OCR couldn't read (see ocrFailed in
   // server/routes/line.js) — a real user hit this exact case: confirmed an
   // advance payment that silently went through as ฿0 because the slip's
@@ -5114,19 +5126,24 @@ class Component extends DCLogic {
     // `slipsTotal` from coerceInvoices on the server. Both the single-invoice
     // review modal and the bulk queue below compare the bill's total against
     // the COMBINED sum of every slip received, not just the latest one.
-    const buildSlipCards = (inv) => (inv.slips || []).map((s2, idx) => ({
-      amountDisplay: s2.amount != null ? this.fmt(Number(s2.amount)) : '-',
-      // needsAmount: OCR couldn't read a number off this slip (see ocrFailed
-      // in server/routes/line.js) — confirming as-is would silently treat it
-      // as ฿0, which is wrong data, not just a missing display value. Per a
-      // real case the user hit (a ฿0 advance-payment confirmation for a slip
-      // that was never actually ฿0), show an editable field instead of a
-      // dash so the owner fixes the real amount BEFORE confirming anything.
-      needsAmount: s2.amount == null, hasAmount: s2.amount != null,
-      date: s2.date || '-', senderName: s2.senderName || '-', imageUrl: s2.imageUrl || '', noImage: !s2.imageUrl,
-      onDelete: () => this.askDeleteSlip(inv.id, idx),
-      onAmountChange: (e) => this.updateSlipAmount(inv.id, idx, e.target.value),
-    }));
+    const buildSlipCards = (inv) => (inv.slips || []).map((s2, idx) => {
+      const draftKey = 'inv:' + inv.id + ':' + idx;
+      return {
+        amountDisplay: s2.amount != null ? this.fmt(Number(s2.amount)) : '-',
+        // needsAmount: OCR couldn't read a number off this slip (see ocrFailed
+        // in server/routes/line.js) — confirming as-is would silently treat it
+        // as ฿0, which is wrong data, not just a missing display value. Per a
+        // real case the user hit (a ฿0 advance-payment confirmation for a slip
+        // that was never actually ฿0), show an editable field instead of a
+        // dash so the owner fixes the real amount BEFORE confirming anything.
+        needsAmount: s2.amount == null, hasAmount: s2.amount != null,
+        date: s2.date || '-', senderName: s2.senderName || '-', imageUrl: s2.imageUrl || '', noImage: !s2.imageUrl,
+        onDelete: () => this.askDeleteSlip(inv.id, idx),
+        amountDraftValue: s.slipAmountDrafts[draftKey] || '',
+        onAmountDraftChange: (e) => this.setSlipAmountDraft(draftKey, e.target.value),
+        onConfirmAmount: () => this.updateSlipAmount(inv.id, idx, s.slipAmountDrafts[draftKey]),
+      };
+    });
 
     // Confirm-before-save popup for all 3 payment resolution buttons (per
     // explicit user request — none of them should fire immediately on
@@ -5240,12 +5257,17 @@ class Component extends DCLogic {
       cardTitle: `ห้อง ${r.id} · ${r.tenant}`,
       isBillKind: false, isAdvanceKind: true, isUnmatchedKind: false,
       slipCount: r.creditSlipCount || 0, hasMultipleSlips: (r.creditSlipCount || 0) > 1,
-      cards: (r.creditSlips || []).map((sl, idx) => ({
-        imageUrl: sl.imageUrl || '', amountDisplay: sl.amount != null ? this.fmt(sl.amount) : '-',
-        needsAmount: sl.amount == null, hasAmount: sl.amount != null,
-        date: sl.date || '-', senderName: sl.senderName || '-',
-        onAmountChange: (e) => this.updateCreditSlipAmount(r.id, idx, e.target.value),
-      })),
+      cards: (r.creditSlips || []).map((sl, idx) => {
+        const draftKey = 'credit:' + r.id + ':' + idx;
+        return {
+          imageUrl: sl.imageUrl || '', amountDisplay: sl.amount != null ? this.fmt(sl.amount) : '-',
+          needsAmount: sl.amount == null, hasAmount: sl.amount != null,
+          date: sl.date || '-', senderName: sl.senderName || '-',
+          amountDraftValue: s.slipAmountDrafts[draftKey] || '',
+          onAmountDraftChange: (e) => this.setSlipAmountDraft(draftKey, e.target.value),
+          onConfirmAmount: () => this.updateCreditSlipAmount(r.id, idx, s.slipAmountDrafts[draftKey]),
+        };
+      }),
       totalDisplay: this.fmt(r.creditSlipsTotal || 0),
       onConfirmCredit: () => this.confirmCreditSlips(r.id),
     }));
@@ -5264,7 +5286,9 @@ class Component extends DCLogic {
         imageUrl: u.imageUrl || '', amountDisplay: u.amount != null ? this.fmt(u.amount) : '-',
         needsAmount: u.amount == null, hasAmount: u.amount != null,
         date: u.date || '-', senderName: u.senderName || '-',
-        onAmountChange: (e) => this.updateUnmatchedSlipAmount(u.id, e.target.value),
+        amountDraftValue: s.slipAmountDrafts['unmatched:' + u.id] || '',
+        onAmountDraftChange: (e) => this.setSlipAmountDraft('unmatched:' + u.id, e.target.value),
+        onConfirmAmount: () => this.updateUnmatchedSlipAmount(u.id, s.slipAmountDrafts['unmatched:' + u.id]),
       }],
       pickedRoom: s.unmatchedSlipPicks[u.id] || '',
       onPickRoomChange: (e) => this.setState(st => ({ unmatchedSlipPicks: { ...st.unmatchedSlipPicks, [u.id]: e.target.value } })),
