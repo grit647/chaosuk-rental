@@ -534,16 +534,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
                     <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#241812">{{ selectedTenant.phone }}</span>
-                    <a href="{{ selectedTenant.telHref }}" onclick="{{ selectedTenant.onCall }}" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:#C1622D;color:#fff;text-decoration:none;font-size:13px" title="โทร">📞</a>
+                    <a href="{{ selectedTenant.telHref }}" onclick="{{ selectedTenant.onCall }}" style="display:inline-flex;align-items:center;justify-content:center;color:#C1622D;text-decoration:none;font-size:16px" title="โทร">📞</a>
                   </div>
                   <sc-if value="{{ selectedTenant.hasCredit }}" hint-placeholder-val="{{ false }}">
                     <div style="display:flex;justify-content:space-between;align-items:center;background:#F5EFE2;border:1px solid #E3D2A8;border-radius:8px;padding:9px 12px;margin-bottom:14px">
                       <div style="font-size:11px;color:#9C7A2E;font-weight:600">💰 ยอดเงินล่วงหน้าคงเหลือ</div>
-                      <div style="font-family:'IBM Plex Mono',monospace;font-size:13.5px;font-weight:700;color:#9C7A2E">{{ selectedTenant.creditDisplay }}</div>
+                      <div style="display:flex;align-items:center;gap:8px">
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:13.5px;font-weight:700;color:#9C7A2E">{{ selectedTenant.creditDisplay }}</div>
+                        <span onclick="{{ selectedTenant.onEditCredit }}" style="cursor:pointer;font-size:12px;color:#9C7A2E;text-decoration:underline">แก้ไข</span>
+                      </div>
                     </div>
                   </sc-if>
                   <div style="font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">Token · การเชื่อมต่อ</div>
-                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">
                     <div style="display:flex;gap:3px;background:#F7F2E9;padding:2px;border-radius:6px;width:fit-content">
                       <span onclick="{{ selectedTenant.onSetAuto }}" style="font-size:10.5px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;background:{{ selectedTenant.autoBg }};color:{{ selectedTenant.autoColor }}">Auto (LINE)</span>
                       <span onclick="{{ selectedTenant.onSetManual }}" style="font-size:10.5px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;background:{{ selectedTenant.manualBg }};color:{{ selectedTenant.manualColor }}">กรอกเอง</span>
@@ -551,8 +554,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <sc-if value="{{ selectedTenant.isManual }}" hint-placeholder-val="{{ false }}">
                       <span onclick="{{ selectedTenant.onOpenConn }}" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:7px 14px;border-radius:6px;cursor:pointer;background:{{ selectedTenant.tokenBg }};color:{{ selectedTenant.tokenColor }};font-family:'IBM Plex Mono',monospace">{{ selectedTenant.tokenIcon }} {{ selectedTenant.tokenLabel }}</span>
                     </sc-if>
-                    <span onclick="{{ selectedTenant.onSendNews }}" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;padding:8px 16px;border-radius:7px;cursor:pointer;background:#EDE4D6;color:#B85B27;white-space:nowrap">✉ ส่งข่าวสาร</span>
                   </div>
+                  <div onclick="{{ selectedTenant.onSendNews }}" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:700;padding:10px 16px;border-radius:7px;cursor:pointer;background:#EDE4D6;color:#B85B27">✉ ส่งข่าวสาร</div>
                 </div>
               </sc-if>
             </div>
@@ -1930,6 +1933,22 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showEditCreditModal }}">
+          <div onclick="{{ closeEditCreditModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">แก้ไขยอดเงินล่วงหน้า</div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">ห้อง {{ editCreditRoomId }}</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ยอดเงินล่วงหน้า (บาท)</div>
+              <input type="number" value="{{ editCreditDraft }}" onchange="{{ onEditCreditDraftChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+              <div style="font-size:10.5px;color:#A89A88;margin-top:6px">แก้ยอดนี้โดยตรง เช่น ปรับให้ตรงหลังรับเงินสด หรือแก้ไขข้อผิดพลาด</div>
+              <div style="display:flex;gap:10px;margin-top:20px">
+                <button onclick="{{ closeEditCreditModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ saveEditCredit }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึก</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showSlipReview }}">
           <div onclick="{{ closeSlipReview }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:380px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
@@ -2565,6 +2584,9 @@ class Component extends DCLogic {
     showUnmatchedRejectConfirm: false,
     unmatchedRejectId: '',
     slipAmountDrafts: {},
+    showEditCreditModal: false,
+    editCreditRoomId: '',
+    editCreditDraft: '',
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -4264,6 +4286,33 @@ class Component extends DCLogic {
   // บันทึก" (see onConfirmAmount on each card below).
   setSlipAmountDraft = (key, value) => this.setState(s => ({ slipAmountDrafts: { ...s.slipAmountDrafts, [key]: value } }));
 
+  // Direct manual edit of a room's advance-payment credit balance — added
+  // per explicit user request (there was previously no way to correct this
+  // number directly; it could only ever move via the slip-confirmation
+  // flows or auto-apply-on-invoice, which isn't enough for e.g. fixing a
+  // mistake or a cash top-up outside the app).
+  openEditCredit = (roomId) => {
+    const room = this.state.rooms.find(r => r.id === roomId);
+    this.setState({ showEditCreditModal: true, editCreditRoomId: roomId, editCreditDraft: String((room && room.creditBalance) || 0) });
+  };
+  closeEditCreditModal = () => this.setState({ showEditCreditModal: false, editCreditRoomId: '', editCreditDraft: '' });
+  onEditCreditDraftChange = (e) => this.setState({ editCreditDraft: e.target.value });
+  saveEditCredit = () => this._guard('saveEditCredit:' + this.state.editCreditRoomId, async () => {
+    const roomId = this.state.editCreditRoomId;
+    const amt = Number(this.state.editCreditDraft);
+    if (!roomId || !Number.isFinite(amt) || amt < 0) { this.showAdminToast('กรุณาใส่ยอดเป็นตัวเลข'); return; }
+    try {
+      const res = await fetch('/api/rooms/' + roomId, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creditBalance: amt }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState(s => ({ rooms: s.rooms.map(r => r.id === roomId ? updated : r), showEditCreditModal: false, editCreditRoomId: '', editCreditDraft: '' }));
+      this.showAdminToast('แก้ไขยอดเงินล่วงหน้าห้อง ' + roomId + ' เป็น ' + this.fmt(amt) + ' แล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
+  });
+
   // Manual amount correction for a slip OCR couldn't read (see ocrFailed in
   // server/routes/line.js) — a real user hit this exact case: confirmed an
   // advance payment that silently went through as ฿0 because the slip's
@@ -5043,6 +5092,7 @@ class Component extends DCLogic {
         // 'credit' mode) — display-only here too, auto-applied by the
         // server the next time a bill is issued for this room.
         creditAmount: r.creditBalance || 0, creditDisplay: this.fmt(r.creditBalance || 0), hasCredit: !!(r.creditBalance > 0),
+        onEditCredit: (e) => { e.stopPropagation(); this.openEditCredit(r.id); },
       };
     });
     tenantsFiltered.forEach(t => {
@@ -5820,6 +5870,8 @@ class Component extends DCLogic {
       deleteInvoiceInfo: (() => { const i = s.invoices.find(x => x.id === s.deleteInvoiceId); if (!i) return null; const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0); return { room: i.room, tenant: i.tenant, totalDisplay: this.fmt(total) }; })(),
       showUnmatchedRejectConfirm: s.showUnmatchedRejectConfirm, closeUnmatchedRejectConfirm: this.closeUnmatchedRejectConfirm,
       confirmRejectUnmatchedSlip: this.confirmRejectUnmatchedSlip,
+      showEditCreditModal: s.showEditCreditModal, editCreditRoomId: s.editCreditRoomId, editCreditDraft: s.editCreditDraft,
+      closeEditCreditModal: this.closeEditCreditModal, onEditCreditDraftChange: this.onEditCreditDraftChange, saveEditCredit: this.saveEditCredit,
       showInvoiceModal: s.showInvoiceModal, closeInvoiceModal: this.closeInvoiceModal,
       newInvoice: s.newInvoice, roomSelectOptions,
       invContract: (() => {
