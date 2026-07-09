@@ -465,8 +465,15 @@ async function executeWriteTool(name, input) {
         amountPaid: applied,
       };
       await appendRow('Invoices', invoice);
-      if (applied > 0) await updateRow('Rooms', input.roomId, { creditBalance: credit - applied });
+      const creditAfter = credit - applied;
+      if (applied > 0) await updateRow('Rooms', input.roomId, { creditBalance: creditAfter });
       const creditNote = applied > 0 ? ` (หักจากเงินล่วงหน้าที่มีอยู่ ${applied.toLocaleString()} บาทให้อัตโนมัติ${status === 'paid' ? ' ครบจำนวนพอดี' : ', คงเหลือต้องชำระเพิ่ม'})` : '';
+      // Same as the native "+ สร้างใบแจ้งหนี้" form: if credit was applied
+      // and some is still left over afterward, tell the tenant both facts
+      // (deducted + remaining) instead of leaving them to find out later.
+      if (applied > 0 && creditAfter > 0 && lineConfigured() && room.lineUserId) {
+        await pushMessage(room.lineUserId, `ตัดยอดเงินล่วงหน้าของห้อง ${input.roomId} ไปชำระบิลใหม่ (${invoice.id}) จำนวน ${applied.toLocaleString()} บาทแล้วครับ ยอดเงินล่วงหน้าคงเหลือ ${creditAfter.toLocaleString()} บาท ขอบคุณครับ 🙏`).catch(() => {});
+      }
       return { ok: true, message: `สร้างใบแจ้งหนี้ ${invoice.id} แล้ว${creditNote}` };
     }
     case 'add_expense': {
