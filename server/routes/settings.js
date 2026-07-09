@@ -32,6 +32,11 @@ router.put('/', async (req, res, next) => {
       autoInvoice: b.settings && b.settings.autoInvoice,
       dueReminder: b.settings && b.settings.dueReminder,
       claudeAutomationEnabled: b.claudeAutomationEnabled,
+      // Only written when the owner is actively setting/changing it (see
+      // the "ตั้งรหัส PIN" field in Settings) — never sent as part of a
+      // routine save, since readSettings() never sends the value back down
+      // for the client to accidentally resubmit unchanged.
+      dataResetPin: b.dataResetPin,
     };
     const entries = Object.entries(kv).filter(([, v]) => v !== undefined);
     for (const [k, v] of entries) {

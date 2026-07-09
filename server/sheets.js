@@ -111,4 +111,19 @@ async function deleteRow(tab, matchValue, matchCol = 'id') {
   });
 }
 
-module.exports = { readTab, appendRow, updateRow, deleteRow };
+// Wipes every data row in a tab, keeping the header row (row 1) intact.
+// Uses values.clear (blanks cells) rather than deleting the rows/dimension
+// outright — simpler, no sheetId lookup needed, and rowsToObjects already
+// filters out fully-blank rows so a cleared tab reads back as empty either
+// way. Used by the "ล้างข้อมูล" system-data feature (server/routes/
+// systemData.js) — irreversible, gated behind explicit owner confirmation
+// (and a PIN for the full factory-reset case) at the route level.
+async function clearTab(tab) {
+  const sheets = await client();
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId: SHEET_ID,
+    range: `${tab}!A2:Z100000`,
+  });
+}
+
+module.exports = { readTab, appendRow, updateRow, deleteRow, clearTab };

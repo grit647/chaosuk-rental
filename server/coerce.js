@@ -113,6 +113,11 @@ async function readSettings() {
       dueReminder: bool(map.dueReminder, true),
     },
     claudeAutomationEnabled: bool(map.claudeAutomationEnabled, false),
+    // Never expose the actual PIN value to the client — only whether one is
+    // set, so the Settings page knows to show "ตั้งรหัส" vs "เปลี่ยนรหัส".
+    // The real value is only ever read server-side, in
+    // server/routes/systemData.js's factory-reset check.
+    hasDataResetPin: !!map.dataResetPin,
   };
 }
 
