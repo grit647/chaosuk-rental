@@ -3,6 +3,17 @@ const router = express.Router();
 const { readTab, appendRow } = require('../sheets');
 const { isConfigured, listDevices, getElecReading, sendCommand } = require('../tuya');
 
+// ElectricityLog was writing a row on EVERY /status call — every 5-minute
+// auto-refresh tick from the frontend, plus every manual "รีเฟรช" click,
+// plus once per open browser tab if more than one — which piled up far more
+// often than once an hour (a real user report after seeing near-duplicate
+// rows minutes apart in the Sheet). Per explicit request, throttle logging
+// to at most once per hour per room. Kept in-memory (not persisted) since
+// this only needs to survive within a single server process; a restart
+// just means the next status poll logs immediately, which is harmless.
+const lastLoggedAt = new Map();
+const LOG_INTERVAL_MS = 60 * 60 * 1000;
+
 router.get('/health', async (req, res) => {
   if (!isConfigured()) return res.json({ connected: false });
   try {
@@ -37,8 +48,13 @@ router.get('/status', async (req, res, next) => {
 
     // Fire-and-forget historical log for future usage analysis — never let a
     // logging hiccup affect the response above, which has already been sent.
+    // Throttled to once per hour per room (see LOG_INTERVAL_MS above).
+    const now = Date.now();
     entries.forEach(([roomId, reading]) => {
       if (reading.voltage == null) return; // device was offline/errored — nothing useful to log
+      const last = lastLoggedAt.get(roomId) || 0;
+      if (now - last < LOG_INTERVAL_MS) return;
+      lastLoggedAt.set(roomId, now);
       appendRow('ElectricityLog', {
         id: Date.now() + '-' + roomId,
         timestamp: new Date().toISOString(),
