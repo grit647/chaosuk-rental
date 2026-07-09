@@ -575,7 +575,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <button onclick="{{ openSlipQueue }}" style="background:#FBE7DC;color:#B85B27;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">📎 สลิปรอตรวจสอบ ({{ slipQueueCount }})</button>
                   <button onclick="{{ confirmAllSlips }}" style="background:#3B7A52;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">{{ confirmAllSlipsLabel }}</button>
                 </sc-if>
-                <button onclick="{{ openInvoiceModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ สร้างใบแจ้งหนี้</button>
+                <button onclick="{{ openInvoiceModeModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ สร้างใบแจ้งหนี้</button>
               </div>
             </div>
 
@@ -2353,6 +2353,70 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showInvoiceModeModal }}">
+          <div onclick="{{ closeInvoiceModeModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">สร้างใบแจ้งหนี้</div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">เลือกวิธีออกบิลครับ</div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div onclick="{{ chooseSingleInvoiceMode }}" style="padding:14px;border-radius:8px;border:1.5px solid #E3D8C8;cursor:pointer">
+                  <div style="font-size:13.5px;font-weight:700;color:#241812;margin-bottom:3px">🧾 ออกบิลทีละห้อง</div>
+                  <div style="font-size:11.5px;color:#7C6E5F">เลือกห้องเดียว กรอกรายละเอียดแล้วสร้างบิลตามปกติ</div>
+                </div>
+                <div onclick="{{ chooseBulkInvoiceMode }}" style="padding:14px;border-radius:8px;border:1.5px solid #E3D8C8;cursor:pointer">
+                  <div style="font-size:13.5px;font-weight:700;color:#241812;margin-bottom:3px">📑 ออกบิลทุกห้องพร้อมกัน</div>
+                  <div style="font-size:11.5px;color:#7C6E5F">ออกบิลให้ทุกห้องที่มีผู้เช่าและยังไม่มีบิลค้าง ในครั้งเดียว</div>
+                </div>
+              </div>
+              <div onclick="{{ closeInvoiceModeModal }}" style="margin-top:14px;padding:9px;border-radius:6px;border:1px solid #E3D8C8;color:#9C8B78;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ยกเลิก</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showBulkInvoiceModal }}">
+          <div onclick="{{ closeBulkInvoiceModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:420px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ออกบิลทุกห้องพร้อมกัน</div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">ตรวจสอบ/แก้ไขค่าน้ำ-ค่าไฟรายห้องก่อนบันทึกทั้งหมดพร้อมกัน — บิลแต่ละห้องจะแสดงแยกกันตามปกติในรายการ "ใบแจ้งหนี้ที่รอชำระ"</div>
+              <sc-if value="{{ hasBulkInvoiceRows }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow-y:auto;padding-right:4px">
+                  <sc-for list="{{ bulkInvoiceRows }}" as="b" hint-placeholder-count="4">
+                    <div style="padding:12px;border-radius:8px;background:#FBF7F0;display:flex;flex-direction:column;gap:6px">
+                      <div style="display:flex;justify-content:space-between;align-items:center">
+                        <div style="font-size:13px;font-weight:700;color:#241812">ห้อง {{ b.room }} · {{ b.tenant }}</div>
+                        <div style="font-size:13px;font-weight:700;color:#C1622D;font-family:'IBM Plex Mono',monospace">{{ b.totalDisplay }}</div>
+                      </div>
+                      <div style="display:flex;gap:8px">
+                        <div style="flex:1">
+                          <div style="font-size:10.5px;color:#7C6E5F;margin-bottom:3px">ค่าน้ำ (บาท)</div>
+                          <input value="{{ b.water }}" onchange="{{ b.onWaterChange }}" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                        </div>
+                        <div style="flex:1">
+                          <div style="font-size:10.5px;color:#7C6E5F;margin-bottom:3px">ค่าไฟ (บาท)</div>
+                          <input value="{{ b.elec }}" onchange="{{ b.onElecChange }}" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                        </div>
+                      </div>
+                      <div style="font-size:10.5px;color:#A89A88;font-family:'IBM Plex Mono',monospace">{{ b.breakdownLabel }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="margin-top:14px">
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ (ใช้ร่วมกันทุกห้อง)</div>
+                  <input type="date" value="{{ bulkInvoiceDue }}" onchange="{{ onBulkInvoiceDueChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                </div>
+                <div style="display:flex;gap:10px;margin-top:16px">
+                  <button onclick="{{ closeBulkInvoiceModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                  <button onclick="{{ submitBulkInvoice }}" style="flex:1.5;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">{{ bulkInvoiceSubmitLabel }}</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ noBulkInvoiceRows }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:14px;border-radius:8px;background:#FBF7F0;color:#9C8B78;font-size:12.5px;text-align:center;margin-bottom:10px">ไม่มีห้องที่พร้อมออกบิลใหม่ตอนนี้ครับ (ทุกห้องมีผู้เช่ามีบิลค้างอยู่แล้ว หรือยังไม่มีผู้เช่า)</div>
+                <div onclick="{{ closeBulkInvoiceModal }}" style="padding:9px;border-radius:6px;border:1px solid #E3D8C8;color:#9C8B78;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ปิด</div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showInvoiceModal }}">
           <div onclick="{{ closeInvoiceModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
@@ -2702,6 +2766,14 @@ class Component extends DCLogic {
     billingFilter: 'all',
     showInvoiceModal: false,
     newInvoice: { roomId: '', water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' },
+    // Bulk "ออกบิลทุกห้องพร้อมกัน" flow — per explicit user request to cut
+    // down the steps needed to bill every tenant each month instead of
+    // opening the single-room form one room at a time.
+    showInvoiceModeModal: false,
+    showBulkInvoiceModal: false,
+    bulkInvoiceDue: '',
+    bulkInvoiceDrafts: {},
+    bulkInvoiceLoading: false,
     showRoomEditModal: false,
     editRoomForm: { tenant: '', phone: '', rent: '' },
     showAddRoomModal: false,
@@ -4030,6 +4102,109 @@ class Component extends DCLogic {
   // placeholder numbers from early testing that looked like a real reading
   // once "อุปกรณ์" mode was selected with no device ready. Defaulting to
   // '0' means an unready device honestly shows 0 instead of a fake number.
+  openInvoiceModeModal = () => this.setState({ showInvoiceModeModal: true });
+  closeInvoiceModeModal = () => this.setState({ showInvoiceModeModal: false });
+  chooseSingleInvoiceMode = () => {
+    this.setState({ showInvoiceModeModal: false });
+    this.openInvoiceModal();
+  };
+  // Bulk "ออกบิลทุกห้องพร้อมกัน" — per explicit user request to cut down
+  // the steps needed to bill every tenant each month. Pre-fills every
+  // eligible room (has a tenant, no outstanding bill already — same
+  // eligibility as invoiceRoomSelectOptions in renderVals()) with a
+  // starting water/elec draft, sourced from deviceCharge when a device is
+  // ready, else '0' for the owner to fill in manually — reviewed/adjusted
+  // per room in the bulk modal, then all saved together in one action.
+  chooseBulkInvoiceMode = () => {
+    const roomsWithOpenBill = new Set(this.state.invoices.filter(i => i.status !== 'paid').map(i => i.room));
+    const eligible = this.state.rooms.filter(r => r.tenant && !roomsWithOpenBill.has(r.id));
+    const drafts = {};
+    eligible.forEach(r => {
+      const dw = this.deviceCharge(r.id, 'water');
+      const de = this.deviceCharge(r.id, 'elec');
+      drafts[r.id] = { water: dw ? String(dw.charge) : '0', elec: de ? String(de.charge) : '0' };
+    });
+    this.setState({ showInvoiceModeModal: false, showBulkInvoiceModal: true, bulkInvoiceDrafts: drafts, bulkInvoiceDue: '' });
+  };
+  closeBulkInvoiceModal = () => this.setState({ showBulkInvoiceModal: false });
+  onBulkInvoiceDueChange = (e) => this.setState({ bulkInvoiceDue: e.target.value });
+  onBulkInvoiceWaterChange = (roomId) => (e) => {
+    const v = e.target.value;
+    this.setState(s => ({ bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], water: v } } }));
+  };
+  onBulkInvoiceElecChange = (roomId) => (e) => {
+    const v = e.target.value;
+    this.setState(s => ({ bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], elec: v } } }));
+  };
+  // Loops POST /api/invoices per room SEQUENTIALLY (not Promise.all) so the
+  // server's own duplicate-bill/credit-apply logic (POST /api/invoices in
+  // server/routes/invoices.js) never has to race against itself — each
+  // room's own bill still shows up individually afterward everywhere else
+  // (ใบแจ้งหนี้ที่รอชำระ list, KPIs, etc.), same as if created one at a time.
+  submitBulkInvoice = () => this._guard('submitBulkInvoice', async () => {
+    const s = this.state;
+    const roomIds = Object.keys(s.bulkInvoiceDrafts);
+    if (!roomIds.length) return;
+    this.setState({ bulkInvoiceLoading: true });
+    let successCount = 0, failCount = 0;
+    const newInvoices = [];
+    const roomCreditUpdates = {};
+    const elecPrevUpdates = {};
+    for (const roomId of roomIds) {
+      const room = s.rooms.find(r => r.id === roomId);
+      if (!room) continue;
+      const draft = s.bulkInvoiceDrafts[roomId] || {};
+      const water = Number(draft.water) || 0, elec = Number(draft.elec) || 0;
+      try {
+        const res = await fetch('/api/invoices', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room: room.id, tenant: room.tenant, rent: room.rent, water, elec, trash: s.trashRate, internet: s.internetRate, due: s.bulkInvoiceDue }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'สร้างไม่สำเร็จ');
+        const newInv = await res.json();
+        newInvoices.push(newInv);
+        successCount++;
+        // Same advance-credit LINE notification as the single-invoice flow.
+        const creditApplied = newInv.creditApplied || 0;
+        if (creditApplied > 0) {
+          const creditBefore = room.creditBalance || 0;
+          const creditAfter = Math.max(0, creditBefore - creditApplied);
+          roomCreditUpdates[roomId] = creditAfter;
+          if (creditAfter > 0) {
+            this._lineSend(roomId, `ตัดยอดเงินล่วงหน้าของห้อง ${roomId} ไปชำระบิลใหม่ (${newInv.id}) จำนวน ${this.fmt(creditApplied)} บาทแล้วครับ ยอดเงินล่วงหน้าคงเหลือ ${this.fmt(creditAfter)} บาท ขอบคุณครับ 🙏`).catch(err => console.error(err));
+          }
+        }
+        // Same elecPrev baseline reset as submitInvoice's device-mode path —
+        // any room with a real linked device gets its usage counter reset
+        // for the next billing cycle, since a fresh bill for it just went out.
+        if (room.tuyaElecDeviceId) {
+          const live = s.tuyaLiveReadings[roomId];
+          if (live && live.energy != null) elecPrevUpdates[roomId] = live.energy;
+        }
+      } catch (err) {
+        failCount++;
+        console.error('bulk invoice failed for room', roomId, err);
+      }
+    }
+    // Fire-and-forget the elecPrev resets — non-fatal if one hiccups, same
+    // as submitInvoice's own comment on this exact pattern.
+    Object.entries(elecPrevUpdates).forEach(([roomId, energy]) => {
+      fetch('/api/rooms/' + roomId, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ elecPrev: energy }),
+      }).then(r => r.ok ? r.json() : null).then(updatedRoom => {
+        if (updatedRoom) this.setState(st => ({ rooms: st.rooms.map(r => r.id === roomId ? updatedRoom : r) }));
+      }).catch(() => {});
+    });
+    this.setState(st => ({
+      invoices: [...newInvoices, ...st.invoices],
+      rooms: st.rooms.map(r => roomCreditUpdates[r.id] != null ? { ...r, creditBalance: roomCreditUpdates[r.id] } : r),
+      showBulkInvoiceModal: false, bulkInvoiceLoading: false,
+    }));
+    this.showAdminToast(failCount === 0
+      ? `สร้างใบแจ้งหนี้สำเร็จ ${successCount} ห้อง`
+      : `สร้างสำเร็จ ${successCount} ห้อง, ไม่สำเร็จ ${failCount} ห้อง`);
+  });
   openInvoiceModal = () => this.setState({ showInvoiceModal: true, newInvoice: { roomId: '', water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' } });
   openInvoiceForRoom = (roomId) => {
     const next = { roomId, water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' };
@@ -6548,6 +6723,9 @@ class Component extends DCLogic {
       })),
       maintenanceWidgetItems,
       openInvoiceModal: this.openInvoiceModal,
+      showInvoiceModeModal: s.showInvoiceModeModal, closeInvoiceModeModal: this.closeInvoiceModeModal,
+      openInvoiceModeModal: this.openInvoiceModeModal,
+      chooseSingleInvoiceMode: this.chooseSingleInvoiceMode, chooseBulkInvoiceMode: this.chooseBulkInvoiceMode,
 
       roomSearch: s.roomSearch, onRoomSearchChange: this.onRoomSearchChange,
       roomFilterChips, roomsCountLabel: 'แสดง ' + roomsFiltered.length + ' จาก ' + s.rooms.length + ' ห้อง',
@@ -6636,6 +6814,36 @@ class Component extends DCLogic {
       closeEditCreditModal: this.closeEditCreditModal, onEditCreditDraftChange: this.onEditCreditDraftChange, saveEditCredit: this.saveEditCredit,
       showInvoiceModal: s.showInvoiceModal, closeInvoiceModal: this.closeInvoiceModal,
       newInvoice: s.newInvoice, roomSelectOptions, invoiceRoomSelectOptions,
+      showBulkInvoiceModal: s.showBulkInvoiceModal, closeBulkInvoiceModal: this.closeBulkInvoiceModal,
+      bulkInvoiceDue: s.bulkInvoiceDue, onBulkInvoiceDueChange: this.onBulkInvoiceDueChange,
+      submitBulkInvoice: this.submitBulkInvoice,
+      bulkInvoiceSubmitLabel: s.bulkInvoiceLoading ? 'กำลังบันทึก...' : `สร้างใบแจ้งหนี้ทั้งหมด (${Object.keys(s.bulkInvoiceDrafts).length} ห้อง)`,
+      // Per-room draft rows for the bulk modal — recomputed live every
+      // render from bulkInvoiceDrafts (same reactive pattern used
+      // throughout this file), so editing one room's water/elec here
+      // updates its total instantly.
+      bulkInvoiceRows: Object.keys(s.bulkInvoiceDrafts).map((roomId) => {
+        const room = s.rooms.find(r => r.id === roomId);
+        if (!room) return null;
+        const draft = s.bulkInvoiceDrafts[roomId] || {};
+        const water = Number(draft.water) || 0, elec = Number(draft.elec) || 0;
+        const total = (room.rent || 0) + water + elec + (s.trashRate || 0) + (s.internetRate || 0);
+        return {
+          room: room.id, tenant: room.tenant,
+          water: draft.water, elec: draft.elec,
+          totalDisplay: this.fmt(total),
+          breakdownLabel: `ค่าเช่า ${this.fmt(room.rent || 0)} + ขยะ ${this.fmt(s.trashRate || 0)} + เน็ต ${this.fmt(s.internetRate || 0)}`,
+          onWaterChange: this.onBulkInvoiceWaterChange(roomId),
+          onElecChange: this.onBulkInvoiceElecChange(roomId),
+        };
+      }).filter(Boolean),
+      // Genuinely separate fields, NOT bulkInvoiceRows.length reused with
+      // hint-placeholder-val flipped — that exact anti-pattern (same live
+      // value bound to two sc-if blocks, only the SSR hint differing) has
+      // bitten this file repeatedly this session; hint-placeholder-val is a
+      // rendering hint only, not a runtime inverter.
+      hasBulkInvoiceRows: Object.keys(s.bulkInvoiceDrafts).length > 0,
+      noBulkInvoiceRows: Object.keys(s.bulkInvoiceDrafts).length === 0,
       invContract: (() => {
         const r = s.rooms.find(x => x.id === s.newInvoice.roomId);
         if (!r) return null;
