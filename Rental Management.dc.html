@@ -692,7 +692,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <span onclick="{{ disconnectAdminLine }}" style="font-size:11px;color:#B24336;cursor:pointer;text-decoration:underline">ยกเลิกการเชื่อมต่อ</span>
                     </div>
                   </sc-if>
-                  <sc-if value="{{ adminLineConnected }}" hint-placeholder-val="{{ true }}">
+                  <sc-if value="{{ adminLineNotConnected }}" hint-placeholder-val="{{ true }}">
                     <div style="background:#F1EBE0;border-radius:7px;padding:11px 14px">
                       <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#9C8B78"><span style="width:7px;height:7px;border-radius:50%;background:#B0A08C"></span>ยังไม่ได้เชื่อมต่อ</span>
                       <div style="font-size:10px;color:#A89A88;margin-top:6px;line-height:1.5">แอด LINE OA ของหอพักเป็นเพื่อน แล้วพิมพ์รหัสยืนยัน (เช่น 12345) แทนเลขห้อง ระบบจะเชื่อมให้อัตโนมัติ</div>
@@ -714,7 +714,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <sc-if value="{{ adminNotifyLocked }}" hint-placeholder-val="{{ false }}">
                 <div style="font-size:11.5px;color:#B85B27;margin-bottom:16px">ต้องเชื่อมต่อ LINE ผู้ดูแล (การ์ดด้านบน) ก่อน ถึงจะเปิดใช้งานสวิตช์เหล่านี้ได้</div>
               </sc-if>
-              <sc-if value="{{ adminNotifyLocked }}" hint-placeholder-val="{{ true }}">
+              <sc-if value="{{ adminNotifyUnlocked }}" hint-placeholder-val="{{ true }}">
                 <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">เลือกได้ว่าอยากให้ระบบแจ้งเตือนอะไรมาทาง LINE บ้าง — ปิดไว้ทั้งหมดเป็นค่าเริ่มต้น</div>
               </sc-if>
               <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:7px;background:#FBF7F0;border:1px solid #EDE1CE;margin-bottom:10px">
@@ -876,7 +876,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <sc-if value="{{ hasDataResetPin }}" hint-placeholder-val="{{ false }}">
                 <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:10px">ตั้งรหัส PIN ไว้แล้ว — <span onclick="{{ openSetPinModal }}" style="color:#C1622D;cursor:pointer;text-decoration:underline">เปลี่ยนรหัส</span></div>
               </sc-if>
-              <sc-if value="{{ hasDataResetPin }}" hint-placeholder-val="{{ true }}">
+              <sc-if value="{{ noDataResetPin }}" hint-placeholder-val="{{ true }}">
                 <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:10px">ยังไม่ได้ตั้งรหัส PIN — <span onclick="{{ openSetPinModal }}" style="color:#C1622D;cursor:pointer;text-decoration:underline">ตั้งรหัส PIN</span> ก่อนถึงจะล้างข้อมูลทั้งหมดได้</div>
               </sc-if>
               <div onclick="{{ openFactoryResetModal }}" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:7px;background:#F5E1DC;border:1px solid #E3B7AC;cursor:pointer">
@@ -2453,7 +2453,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <input type="file" accept="image/*" multiple="{{ true }}" onchange="{{ onNewRoomPhotos }}" style="display:none">
                     </label>
                   </sc-if>
-                  <sc-if value="{{ newRoomCanAddPhoto }}" hint-placeholder-val="{{ false }}">
+                  <sc-if value="{{ newRoomPhotoFull }}" hint-placeholder-val="{{ false }}">
                     <div style="padding:10px;border-radius:6px;background:#EDE4D6;text-align:center;font-size:11.5px;color:#7C6E5F">ครบ 5 ภาพแล้ว — ลบภาพเพื่อเพิ่มใหม่</div>
                   </sc-if>
                   {{ newRoomPhotoGallery }}
@@ -2566,7 +2566,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </sc-for>
                 </div>
               </sc-if>
-              <sc-if value="{{ leaseDocsCount }}" hint-placeholder-val="{{ false }}">
+              <sc-if value="{{ noLeaseDocs }}" hint-placeholder-val="{{ false }}">
                 <div style="text-align:center;padding:28px;color:#A89A88;font-size:12.5px">ยังไม่มีไฟล์เอกสารสัญญาที่แนบไว้</div>
               </sc-if>
             </div>
@@ -6268,7 +6268,7 @@ class Component extends DCLogic {
       onNewRoomId: this.onNewRoomId, onNewRoomFloor: this.onNewRoomFloor, onNewRoomRent: this.onNewRoomRent, onNewRoomDeposit: this.onNewRoomDeposit, submitAddRoom: this.submitAddRoom,
       onNewRoomPhotos: this.onNewRoomPhotos,
       newRoomPhotoCount: s.newRoom.photos.length,
-      newRoomCanAddPhoto: s.newRoom.photos.length < 5,
+      newRoomCanAddPhoto: s.newRoom.photos.length < 5, newRoomPhotoFull: s.newRoom.photos.length >= 5,
       newRoomPhotoGallery: s.newRoom.photos.length ? React.createElement(
         'div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 } },
         s.newRoom.photos.map((src, i) => React.createElement(
@@ -6383,7 +6383,7 @@ class Component extends DCLogic {
       openClearDataModal: this.openClearDataModal, closeClearDataModal: this.closeClearDataModal,
       showClearDataModal: s.showClearDataModal, clearDataOptions, clearDataConfirmText: s.clearDataConfirmText,
       onClearDataConfirmTextChange: this.onClearDataConfirmTextChange, submitClearData: this.submitClearData,
-      hasDataResetPin: s.hasDataResetPin,
+      hasDataResetPin: s.hasDataResetPin, noDataResetPin: !s.hasDataResetPin,
       openSetPinModal: this.openSetPinModal, closeSetPinModal: this.closeSetPinModal,
       showSetPinModal: s.showSetPinModal, setPinDraft: s.setPinDraft, onSetPinDraftChange: this.onSetPinDraftChange, saveDataResetPin: this.saveDataResetPin,
       openFactoryResetModal: this.openFactoryResetModal, closeFactoryResetModal: this.closeFactoryResetModal,
@@ -6417,8 +6417,8 @@ class Component extends DCLogic {
       propertyProfile: s.propertyProfile,
       onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone,
       onProfileAdminLineUserId: this.onProfileAdminLineUserId, saveAdminInfo: this.saveAdminInfo,
-      adminLineConnected: !!s.propertyProfile.adminLineUserId, disconnectAdminLine: this.disconnectAdminLine,
-      adminNotifyOptions, adminNotifyLocked, adminNotifyAllOn,
+      adminLineConnected: !!s.propertyProfile.adminLineUserId, adminLineNotConnected: !s.propertyProfile.adminLineUserId, disconnectAdminLine: this.disconnectAdminLine,
+      adminNotifyOptions, adminNotifyLocked, adminNotifyUnlocked: !adminNotifyLocked, adminNotifyAllOn,
       adminNotifyAllBg: adminNotifyAllOn ? '#C1622D' : '#E3D8C8', adminNotifyAllKnobLeft: adminNotifyAllOn ? '22px' : '2px',
       toggleAdminNotifyAll: adminNotifyLocked ? null : this.toggleAdminNotifyAll,
       openChangePinModal: this.openChangePinModal, closeChangePinModal: this.closeChangePinModal,
@@ -6582,7 +6582,7 @@ class Component extends DCLogic {
       openLeaseDocs: this.openLeaseDocs, closeLeaseDocs: this.closeLeaseDocs,
       showLeaseDocsModal: s.showLeaseDocsModal,
       leaseDocsList: s.rooms.filter(r => r.leaseDocName).map(r => ({ room: r.id, tenant: r.tenant || '(ไม่มีผู้เช่า)', docName: r.leaseDocName })),
-      leaseDocsCount: s.rooms.filter(r => r.leaseDocName).length,
+      leaseDocsCount: s.rooms.filter(r => r.leaseDocName).length, noLeaseDocs: s.rooms.filter(r => r.leaseDocName).length === 0,
       cfLineQrPreview: s.contractForm.lineQrImg ? React.createElement('img', { src: s.contractForm.lineQrImg, style: { width: 88, height: 88, objectFit: 'cover', borderRadius: 8, border: '1px solid #E3D8C8' } }) : null,
       cfHasLineQr: !!s.contractForm.lineQrImg,
       cfHasTenantId: !!s.contractForm.tenantIdImg, cfHasOwnerId: !!s.contractForm.ownerIdImg,
