@@ -1975,6 +1975,16 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 </div>
                 <div><div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าอินเทอร์เน็ต (บาท)</div><input value="{{ editInvoice.internet }}" onchange="{{ onEditInvoiceInternetChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace"></div>
                 <div><div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ</div><input type="date" value="{{ editInvoice.due }}" onchange="{{ onEditInvoiceDueChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box"></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#FBF7F0;border-radius:6px">
+                  <span style="font-size:12.5px;color:#7C6E5F;font-weight:600">ยอดรวม</span>
+                  <span style="font-size:15px;color:#241812;font-weight:700;font-family:'IBM Plex Mono',monospace">{{ editInvoiceTotalDisplay }}</span>
+                </div>
+                <sc-if value="{{ editInvoiceCreditInfo }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#F5EFE2;border-radius:6px">
+                    <span style="font-size:12.5px;color:#9C7A2E;font-weight:600">💰 ยอดเงินล่วงหน้าคงเหลือของผู้เช่า</span>
+                    <span style="font-size:15px;color:#9C7A2E;font-weight:700;font-family:'IBM Plex Mono',monospace">{{ editInvoiceCreditInfo.display }}</span>
+                  </div>
+                </sc-if>
               </div>
               <div style="display:flex;gap:10px;margin-top:20px">
                 <button onclick="{{ closeEditInvoiceModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
@@ -6474,6 +6484,16 @@ class Component extends DCLogic {
       onEditInvoiceRentChange: this.onEditInvoiceRentChange, onEditInvoiceWaterChange: this.onEditInvoiceWaterChange,
       onEditInvoiceElecChange: this.onEditInvoiceElecChange, onEditInvoiceTrashChange: this.onEditInvoiceTrashChange,
       onEditInvoiceInternetChange: this.onEditInvoiceInternetChange, onEditInvoiceDueChange: this.onEditInvoiceDueChange,
+      // Per explicit user request: show (display-only, not editable) the
+      // live total of the fields above, plus the tenant's current advance-
+      // payment credit balance if they have any — both recompute on every
+      // keystroke since they're derived straight from editInvoice/rooms.
+      editInvoiceTotalDisplay: this.fmt((Number(s.editInvoice.rent) || 0) + (Number(s.editInvoice.water) || 0) + (Number(s.editInvoice.elec) || 0) + (Number(s.editInvoice.trash) || 0) + (Number(s.editInvoice.internet) || 0)),
+      editInvoiceCreditInfo: (() => {
+        const room = s.rooms.find(r => r.id === s.editInvoice.room);
+        const credit = (room && room.creditBalance) || 0;
+        return credit > 0 ? { display: this.fmt(credit) } : null;
+      })(),
       showDeleteInvoiceConfirm: s.showDeleteInvoiceConfirm, closeDeleteInvoiceConfirm: this.closeDeleteInvoiceConfirm,
       confirmDeleteInvoice: this.confirmDeleteInvoice, hasDeleteInvoiceConfirm: !!s.deleteInvoiceId,
       deleteInvoiceInfo: (() => { const i = s.invoices.find(x => x.id === s.deleteInvoiceId); if (!i) return null; const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0); return { room: i.room, tenant: i.tenant, totalDisplay: this.fmt(total) }; })(),
