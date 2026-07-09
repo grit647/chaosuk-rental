@@ -685,9 +685,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                 </div>
                 <div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">LINE User ID ผู้ดูแล (สำหรับรับการแจ้งเตือนจากระบบ)</div>
-                  <input value="{{ propertyProfile.adminLineUserId }}" onchange="{{ onProfileAdminLineUserId }}" placeholder="เช่น U54ad44ec4a0eb7d453aa4c464c5b6ed2" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
-                  <div style="font-size:10px;color:#A89A88;margin-top:4px;line-height:1.5">ใส่ค่านี้เพื่อให้ระบบส่งแจ้งเตือน (บิลค้าง/สลิปรอตรวจสอบ/สรุปงานประจำ) มาทาง LINE ของผู้ดูแลเองได้ — หรือแอด LINE OA ของหอพักเป็นเพื่อนแล้วพิมพ์รหัสยืนยัน (เช่น 12345) แทนเลขห้อง ระบบจะเชื่อมให้อัตโนมัติ</div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">การเชื่อมต่อ LINE ผู้ดูแล (สำหรับรับการแจ้งเตือนจากระบบ)</div>
+                  <sc-if value="{{ adminLineConnected }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;align-items:center;justify-content:space-between;background:#F1EBE0;border-radius:7px;padding:11px 14px">
+                      <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#3B7A52"><span style="width:7px;height:7px;border-radius:50%;background:#3B7A52"></span>เชื่อมต่อแล้ว</span>
+                      <span onclick="{{ disconnectAdminLine }}" style="font-size:11px;color:#B24336;cursor:pointer;text-decoration:underline">ยกเลิกการเชื่อมต่อ</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ adminLineConnected }}" hint-placeholder-val="{{ true }}">
+                    <div style="background:#F1EBE0;border-radius:7px;padding:11px 14px">
+                      <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#9C8B78"><span style="width:7px;height:7px;border-radius:50%;background:#B0A08C"></span>ยังไม่ได้เชื่อมต่อ</span>
+                      <div style="font-size:10px;color:#A89A88;margin-top:6px;line-height:1.5">แอด LINE OA ของหอพักเป็นเพื่อน แล้วพิมพ์รหัสยืนยัน (เช่น 12345) แทนเลขห้อง ระบบจะเชื่อมให้อัตโนมัติ</div>
+                    </div>
+                  </sc-if>
                 </div>
                 <div style="display:flex;justify-content:flex-end">
                   <div onclick="{{ saveAdminInfo }}" style="padding:10px 22px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;cursor:pointer">บันทึกข้อมูล</div>
@@ -4770,6 +4780,13 @@ class Component extends DCLogic {
   onProfileAdmin = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminName: v } })); };
   onProfilePhone = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminPhone: v } })); };
   onProfileAdminLineUserId = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminLineUserId: v } })); };
+  // Clears the local value and opens the same PIN-confirm popup the normal
+  // save uses (per the established security model here — unlinking is
+  // still a change to this card, so it goes through the same gate).
+  disconnectAdminLine = () => {
+    this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminLineUserId: '' } }));
+    this.saveAdminInfo();
+  };
   saveProfile = async () => {
     try {
       const res = await fetch('/api/settings', {
@@ -6243,6 +6260,7 @@ class Component extends DCLogic {
       propertyProfile: s.propertyProfile,
       onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone,
       onProfileAdminLineUserId: this.onProfileAdminLineUserId, saveAdminInfo: this.saveAdminInfo,
+      adminLineConnected: !!s.propertyProfile.adminLineUserId, disconnectAdminLine: this.disconnectAdminLine,
       showAdminInfoPinModal: s.showAdminInfoPinModal, closeAdminInfoPinModal: this.closeAdminInfoPinModal,
       adminInfoPinDraft: s.adminInfoPinDraft, onAdminInfoPinDraftChange: this.onAdminInfoPinDraftChange, confirmSaveAdminInfo: this.confirmSaveAdminInfo,
       tuyaConnected: s.tuyaEnvConnected,
