@@ -593,7 +593,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="font-size:14px;font-weight:700;color:#241812;margin-bottom:2px">ใบแจ้งหนี้ที่รอชำระ ({{ pendingBillsCount }})</div>
               <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">สร้างบิลจะเพิ่มแถวที่นี่ · กดสถานะเพื่อยืนยันการชำระ เมื่อชำระแล้วแถวจะถูกนำออก</div>
               <div style="display:grid;grid-template-columns:0.5fr 1.5fr 0.9fr 1.1fr 1fr 1.2fr 1.3fr;gap:12px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#9C8B78;padding-bottom:11px;border-bottom:2px solid #EDE1CE">
-                <div>ห้อง</div><div>ผู้เช่า</div><div>ยอดรวม</div><div>วันครบกำหนด</div><div>สถานะ</div><div>จัดการใบเสร็จ</div><div style="text-align:right">ส่งข้อมูล</div>
+                <div>ห้อง</div><div>ผู้เช่า</div><div>ยอดที่ต้องชำระ</div><div>วันครบกำหนด</div><div>สถานะ</div><div>จัดการใบเสร็จ</div><div style="text-align:right">ส่งข้อมูล</div>
               </div>
               <sc-if value="{{ pendingBillsCount }}" hint-placeholder-val="{{ true }}">
                 <sc-for list="{{ pendingBills }}" as="b" hint-placeholder-count="6">
@@ -5163,7 +5163,7 @@ class Component extends DCLogic {
       const hasSlipPending = !!i.slipPending;
       return {
         id: i.id, room: i.room, tenant: i.tenant, due: i.due || '—',
-        totalDisplay: partial ? `${this.fmt(remaining)} (จาก ${this.fmt(total)})` : this.fmt(total),
+        totalDisplay: partial ? this.fmt(remaining) : this.fmt(total),
         // A pending slip takes priority over the plain overdue/awaiting-payment
         // label — it's a more specific, more actionable state ("someone
         // already tried to pay, come review it") than either of those.
