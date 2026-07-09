@@ -2717,7 +2717,7 @@ class Component extends DCLogic {
     ],
   };
 
-  fmt(n) { return '฿' + Number(n).toLocaleString('en-US'); }
+  fmt(n) { return Number(n).toLocaleString('en-US'); }
 
   componentDidMount() {
     this._onResize = () => this.setState({ viewportWidth: window.innerWidth });
@@ -5013,10 +5013,10 @@ class Component extends DCLogic {
       rentDisplay: this.fmt(selectedRoomRaw.rent),
       depositDisplay: this.fmt(selectedRoomRaw.deposit),
       dueDayLabel: selectedRoomRaw.dueDay ? ('ทุกวันที่ ' + selectedRoomRaw.dueDay) : '-',
-      waterRateLabel: '฿' + s.waterRate + '/หน่วย',
-      elecRateLabel: '฿' + s.elecRate + '/หน่วย',
-      trashRateLabel: '฿' + s.trashRate + '/เดือน',
-      internetRateLabel: '฿' + s.internetRate + '/เดือน',
+      waterRateLabel: s.waterRate + '/หน่วย',
+      elecRateLabel: s.elecRate + '/หน่วย',
+      trashRateLabel: s.trashRate + '/เดือน',
+      internetRateLabel: s.internetRate + '/เดือน',
       wifiCode: selectedRoomRaw.wifiCode || '-',
       tenantIdExpiry: selectedRoomRaw.tenantIdExpiry || '-',
       leaseDocLabel: selectedRoomRaw.leaseDocName || 'ยังไม่แนบเอกสาร',
@@ -5776,7 +5776,7 @@ class Component extends DCLogic {
       revenueExpenseChart, hasRevenueExpenseData, noRevenueExpenseData: !hasRevenueExpenseData, revenueExpenseRangeLabel,
       kpiPaidSum: this.fmt(paidSum),
       kpiExpenseSum: this.fmt(expenseTotal),
-      kpiNetDisplay: (paidSum - expenseTotal >= 0 ? '+' : '−') + this.fmt(Math.abs(paidSum - expenseTotal)).replace('฿', '฿'),
+      kpiNetDisplay: (paidSum - expenseTotal >= 0 ? '+' : '−') + this.fmt(Math.abs(paidSum - expenseTotal)),
       kpiNetPositive: paidSum - expenseTotal >= 0,
       kpiNetColor: paidSum - expenseTotal >= 0 ? '#3B7A52' : '#B24336',
       kpiNetBorder: paidSum - expenseTotal >= 0 ? '#3B7A52' : '#B24336',
@@ -5880,8 +5880,8 @@ class Component extends DCLogic {
         return {
           tenant: r.tenant || '(ยังไม่มีผู้เช่า)',
           rentDisplay: this.fmt(r.rent),
-          trashDisplay: '฿' + s.trashRate,
-          internetDisplay: '฿' + s.internetRate,
+          trashDisplay: '' + s.trashRate,
+          internetDisplay: '' + s.internetRate,
           dueDayLabel: r.dueDay ? ('ทุกวันที่ ' + r.dueDay) : '-',
         };
       })(),
@@ -5917,8 +5917,8 @@ class Component extends DCLogic {
       invElecManualBg: s.newInvoice.elecMode === 'manual' ? '#C1622D' : '#EDE4D6', invElecManualColor: s.newInvoice.elecMode === 'manual' ? '#fff' : '#7C6E5F',
       setInvWaterDevice: () => this.setInvoiceWaterMode('device'), setInvWaterManual: () => this.setInvoiceWaterMode('manual'),
       setInvElecDevice: () => this.setInvoiceElecMode('device'), setInvElecManual: () => this.setInvoiceElecMode('manual'),
-      invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? d.units + ' หน่วย × ฿' + s.waterRate : 'อุปกรณ์ไม่พร้อม'; })(),
-      invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? d.units + ' หน่วย × ฿' + s.elecRate : 'อุปกรณ์ไม่พร้อม'; })(),
+      invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? d.units + ' หน่วย × ' + s.waterRate : 'อุปกรณ์ไม่พร้อม'; })(),
+      invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? d.units + ' หน่วย × ' + s.elecRate : 'อุปกรณ์ไม่พร้อม'; })(),
 
       maintenanceView, showMaintenanceModal: s.showMaintenanceModal, newMaintenance: s.newMaintenance, openMaintenanceModal: this.openMaintenanceModal, closeMaintenanceModal: this.closeMaintenanceModal,
       onNewMaintRoomChange: this.onNewMaintRoomChange, onNewMaintIssueChange: this.onNewMaintIssueChange, submitMaintenance: this.submitMaintenance,

@@ -4,7 +4,7 @@ const path = require('path');
 const THAI_FONT = path.join(__dirname, 'fonts', 'NotoSansThai-Variable.ttf');
 
 function fmtBaht(n) {
-  return '฿' + Number(n || 0).toLocaleString('en-US');
+  return Number(n || 0).toLocaleString('en-US');
 }
 
 // Renders a simple one-page invoice as a PDF Buffer. Uses a single Thai
