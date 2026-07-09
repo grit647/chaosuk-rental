@@ -3994,10 +3994,24 @@ class Component extends DCLogic {
           ['ค่าขยะ', invoice.trash], ['ค่าอินเทอร์เน็ต', invoice.internet],
         ].filter(([, v]) => v);
         const total = rows.reduce((a, [, v]) => a + Number(v || 0), 0);
+        // Real bug a user hit: this message used to only ever show the raw
+        // bill total, even when the room's advance-payment credit had
+        // already been auto-applied to this exact invoice at creation time
+        // (server/routes/invoices.js) — the tenant would see "รวม: 1,245"
+        // and think that's what they still owe, when the actual remaining
+        // balance (shown correctly on the Bills page / "ยอดที่ต้องชำระ"
+        // column) was much less. Now shows the credit deduction and the
+        // real remaining amount whenever any credit was applied.
+        const amountPaid = invoice.amountPaid || 0;
+        const remaining = invoice.remainingDue != null ? invoice.remainingDue : Math.max(0, total - amountPaid);
+        const creditLines = amountPaid > 0
+          ? [`หักจากเงินล่วงหน้าที่ชำระไว้แล้ว: ${this.fmt(amountPaid)}`, `ยอดที่ต้องชำระจริง: ${this.fmt(remaining)}`]
+          : [];
         message = [
           'ใบแจ้งหนี้ห้อง ' + roomId + ' (' + invoice.id + ')',
           ...rows.map(([label, v]) => label + ': ' + this.fmt(v)),
           'รวม: ' + this.fmt(total),
+          ...creditLines,
           'ครบกำหนดชำระ: ' + (invoice.due || '-'),
         ].join('\n');
         // Fire-and-forget: a PDF hiccup shouldn't block the LINE message going out.

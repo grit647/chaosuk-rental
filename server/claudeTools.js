@@ -372,7 +372,8 @@ async function describeWriteTool(name, input) {
       const room = rooms.find((r) => r.id === invoice.room);
       if (room && !room.lineUserId) return `ห้อง ${invoice.room} ยังไม่ได้เชื่อมต่อ LINE — ส่งไม่ได้`;
       const total = invoice.rent + invoice.water + invoice.elec + (invoice.trash || 0) + (invoice.internet || 0);
-      return `ส่งใบแจ้งหนี้ ${invoice.id} ให้ห้อง ${invoice.room} ทาง LINE (รวม ${total.toLocaleString()} บาท) พร้อมบันทึก PDF และมาร์คว่า "ส่งแล้ว"`;
+      const remainingNote = (invoice.amountPaid || 0) > 0 ? ` — ยอดที่ต้องชำระจริงหลังหักเงินล่วงหน้า ${(invoice.remainingDue != null ? invoice.remainingDue : Math.max(0, total - invoice.amountPaid)).toLocaleString()} บาท` : '';
+      return `ส่งใบแจ้งหนี้ ${invoice.id} ให้ห้อง ${invoice.room} ทาง LINE (รวม ${total.toLocaleString()} บาท${remainingNote}) พร้อมบันทึก PDF และมาร์คว่า "ส่งแล้ว"`;
     }
     case 'update_room_meter': {
       const parts = [];
@@ -529,10 +530,21 @@ async function executeWriteTool(name, input) {
         ['ค่าขยะ', invoice.trash], ['ค่าอินเทอร์เน็ต', invoice.internet],
       ].filter(([, v]) => v);
       const total = rowsToShow.reduce((a, [, v]) => a + Number(v || 0), 0);
+      // Same bug/fix as the native "ส่งข้อมูล (LINE)" button
+      // (Rental Management.dc.html's sendReceiptLine) — a real user report:
+      // this used to always show the raw bill total even when advance-
+      // payment credit had already been auto-applied at invoice creation,
+      // misleading the tenant about what they actually still owe.
+      const amountPaid = invoice.amountPaid || 0;
+      const remaining = invoice.remainingDue != null ? invoice.remainingDue : Math.max(0, total - amountPaid);
+      const creditLines = amountPaid > 0
+        ? [`หักจากเงินล่วงหน้าที่ชำระไว้แล้ว: ${amountPaid.toLocaleString()}`, `ยอดที่ต้องชำระจริง: ${remaining.toLocaleString()}`]
+        : [];
       const message = [
         'ใบแจ้งหนี้ห้อง ' + invoice.room + ' (' + invoice.id + ')',
         ...rowsToShow.map(([label, v]) => label + ': ' + Number(v).toLocaleString()),
         'รวม: ' + total.toLocaleString(),
+        ...creditLines,
         'ครบกำหนดชำระ: ' + (invoice.due || '-'),
       ].join('\n');
       await pushMessage(room.lineUserId, message);
