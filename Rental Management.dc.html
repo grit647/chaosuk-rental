@@ -3180,8 +3180,10 @@ class Component extends DCLogic {
       contractForm: {
         room: roomId,
         rentPrice: r.rent != null ? String(r.rent) : '',
-        waterRate: String(this.state.waterRate),
-        elecRate: String(this.state.elecRate),
+        // Prefer this room's own saved rate; fall back to the property-wide
+        // default only if this room never had its own rate set yet.
+        waterRate: String(r.waterRate > 0 ? r.waterRate : this.state.waterRate),
+        elecRate: String(r.elecRate > 0 ? r.elecRate : this.state.elecRate),
         trashRate: String(this.state.trashRate),
         internetRate: String(this.state.internetRate),
         tenantFirstName: nameParts[0] || '',
@@ -3281,6 +3283,13 @@ class Component extends DCLogic {
       wifiCode: cf.wifiCode,
       dueDay: cf.dueDay,
       leaseDocName: cf.leaseDocName,
+      // Per explicit user request: water/elec rate now saves onto THIS room
+      // specifically (waterRate/elecRate columns added to the Rooms sheet),
+      // not just the property-wide default below — different rooms/
+      // contracts can have different rates, and saving one room's contract
+      // should never silently change another room's rate.
+      waterRate: Number(cf.waterRate) || undefined,
+      elecRate: Number(cf.elecRate) || undefined,
     };
     Object.keys(roomPatch).forEach(k => roomPatch[k] === undefined && delete roomPatch[k]);
     try {
@@ -4244,6 +4253,18 @@ class Component extends DCLogic {
   };
   closeInvoiceModal = () => this.setState({ showInvoiceModal: false });
 
+  // Per explicit user request: water/elec rates are per-room now (saved from
+  // the contract form onto the room's own waterRate/elecRate — see
+  // saveContractForm), not one property-wide number. A room's own rate (>0)
+  // always wins; falls back to the shared default rate (state.waterRate/
+  // elecRate, from Settings) for rooms that never had a contract-specific
+  // rate saved, so existing data keeps working unchanged.
+  roomRate(roomId, kind) {
+    const room = this.state.rooms.find(r => r.id === roomId);
+    const ownRate = room && (kind === 'water' ? room.waterRate : room.elecRate);
+    if (ownRate > 0) return ownRate;
+    return kind === 'water' ? this.state.waterRate : this.state.elecRate;
+  }
   deviceCharge(roomId, kind) {
     const room = this.state.rooms.find(r => r.id === roomId);
     if (!room) return null;
@@ -4252,17 +4273,17 @@ class Component extends DCLogic {
       const live = this.state.tuyaLiveReadings[roomId];
       if (live && live.energy != null) {
         const units = Math.max(0, live.energy - Number(room.elecPrev || 0));
-        return { units: Number(units.toFixed(2)), charge: Math.round(units * this.state.elecRate) };
+        return { units: Number(units.toFixed(2)), charge: Math.round(units * this.roomRate(roomId, 'elec')) };
       }
     }
     const dev = this.state.tuyaDevices[roomId];
     if (!dev) return null;
     if (kind === 'water') {
       const units = Math.max(0, Number(dev.waterReading) - Number(room.waterPrev || 0));
-      return { units, charge: units * this.state.waterRate };
+      return { units, charge: units * this.roomRate(roomId, 'water') };
     }
     const units = Math.max(0, Number(dev.elecReading) - Number(room.elecPrev || 0));
-    return { units, charge: units * this.state.elecRate };
+    return { units, charge: units * this.roomRate(roomId, 'elec') };
   }
   onNewInvoiceRoomChange = (e) => {
     const v = e.target.value;
@@ -4276,6 +4297,11 @@ class Component extends DCLogic {
       // reading the owner might accidentally bill against.
       if (next.waterMode === 'device') { const d = this.deviceCharge(v, 'water'); next.water = d ? String(d.charge) : '0'; }
       if (next.elecMode === 'device') { const d = this.deviceCharge(v, 'elec'); next.elec = d ? String(d.charge) : '0'; }
+      // Manual (units) mode: re-price any already-entered units against the
+      // NEWLY selected room's own rate — switching rooms shouldn't leave a
+      // Baht amount computed with the previous room's rate.
+      if (next.waterMode === 'manual' && next.waterUnits) { next.water = String(Math.round((Number(next.waterUnits) || 0) * this.roomRate(v, 'water'))); }
+      if (next.elecMode === 'manual' && next.elecUnits) { next.elec = String(Math.round((Number(next.elecUnits) || 0) * this.roomRate(v, 'elec'))); }
       return { newInvoice: next };
     });
   };
@@ -4300,11 +4326,11 @@ class Component extends DCLogic {
   // exactly how the number was derived before submitting.
   onNewInvoiceWaterUnitsChange = (e) => {
     const units = e.target.value;
-    this.setState(s => ({ newInvoice: { ...s.newInvoice, waterUnits: units, water: String(Math.round((Number(units) || 0) * s.waterRate)) } }));
+    this.setState(s => ({ newInvoice: { ...s.newInvoice, waterUnits: units, water: String(Math.round((Number(units) || 0) * this.roomRate(s.newInvoice.roomId, 'water'))) } }));
   };
   onNewInvoiceElecUnitsChange = (e) => {
     const units = e.target.value;
-    this.setState(s => ({ newInvoice: { ...s.newInvoice, elecUnits: units, elec: String(Math.round((Number(units) || 0) * s.elecRate)) } }));
+    this.setState(s => ({ newInvoice: { ...s.newInvoice, elecUnits: units, elec: String(Math.round((Number(units) || 0) * this.roomRate(s.newInvoice.roomId, 'elec'))) } }));
   };
   onNewInvoiceWaterChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, water: v } })); };
   onNewInvoiceElecChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, elec: v } })); };
@@ -5592,8 +5618,8 @@ class Component extends DCLogic {
       rentDisplay: this.fmt(selectedRoomRaw.rent),
       depositDisplay: this.fmt(selectedRoomRaw.deposit),
       dueDayLabel: selectedRoomRaw.dueDay ? ('ทุกวันที่ ' + selectedRoomRaw.dueDay) : '-',
-      waterRateLabel: s.waterRate + '/หน่วย',
-      elecRateLabel: s.elecRate + '/หน่วย',
+      waterRateLabel: this.roomRate(selectedRoomRaw.id, 'water') + '/หน่วย',
+      elecRateLabel: this.roomRate(selectedRoomRaw.id, 'elec') + '/หน่วย',
       trashRateLabel: s.trashRate + '/เดือน',
       internetRateLabel: s.internetRate + '/เดือน',
       wifiCode: selectedRoomRaw.wifiCode || '-',
@@ -6142,7 +6168,7 @@ class Component extends DCLogic {
       const base24 = Math.max(0, (Number(r.waterCurr) || 0) - r.waterPrev);
       const hrs = s.waterWindows[r.id] || 24;
       const usage = Math.round(base24 * hrs / 24);
-      const cost = usage * s.waterRate;
+      const cost = usage * this.roomRate(r.id, 'water');
       waterTotalCostNum += cost;
       return {
         id: r.id, tenant: r.tenant,
@@ -6169,7 +6195,7 @@ class Component extends DCLogic {
       } else {
         const base24 = Math.max(0, (Number(r.elecCurr) || 0) - r.elecPrev);
         usage = Math.round(base24 * hrs / 24);
-        cost = usage * s.elecRate;
+        cost = usage * this.roomRate(r.id, 'elec');
       }
       elecTotalCostNum += cost;
 
@@ -6653,16 +6679,17 @@ class Component extends DCLogic {
       invElecManualBg: s.newInvoice.elecMode === 'manual' ? '#C1622D' : '#EDE4D6', invElecManualColor: s.newInvoice.elecMode === 'manual' ? '#fff' : '#7C6E5F',
       setInvWaterDevice: () => this.setInvoiceWaterMode('device'), setInvWaterManual: () => this.setInvoiceWaterMode('manual'),
       setInvElecDevice: () => this.setInvoiceElecMode('device'), setInvElecManual: () => this.setInvoiceElecMode('manual'),
-      invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? d.units + ' หน่วย × ' + s.waterRate : 'อุปกรณ์ไม่พร้อม'; })(),
-      invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? d.units + ' หน่วย × ' + s.elecRate : 'อุปกรณ์ไม่พร้อม'; })(),
+      invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? d.units + ' หน่วย × ' + this.roomRate(s.newInvoice.roomId, 'water') : 'อุปกรณ์ไม่พร้อม'; })(),
+      invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? d.units + ' หน่วย × ' + this.roomRate(s.newInvoice.roomId, 'elec') : 'อุปกรณ์ไม่พร้อม'; })(),
       onNewInvoiceWaterUnitsChange: this.onNewInvoiceWaterUnitsChange, onNewInvoiceElecUnitsChange: this.onNewInvoiceElecUnitsChange,
       // Live "units × rate = amount" breakdown for กรอกเอง (manual) mode,
       // same idea as the device-mode hint above — per explicit user
       // request, so the owner can see exactly how the Baht figure was
       // derived from the contract's rate before submitting, instead of
-      // typing a lump sum with no visible connection to the rate.
-      invWaterManualHint: (() => { const u = Number(s.newInvoice.waterUnits) || 0; return u + ' หน่วย × ' + s.waterRate + '/หน่วย = ' + this.fmt(u * s.waterRate) + ' บาท'; })(),
-      invElecManualHint: (() => { const u = Number(s.newInvoice.elecUnits) || 0; return u + ' หน่วย × ' + s.elecRate + '/หน่วย = ' + this.fmt(u * s.elecRate) + ' บาท'; })(),
+      // typing a lump sum with no visible connection to the rate. Uses this
+      // room's own rate (roomRate), not the shared property-wide default.
+      invWaterManualHint: (() => { const u = Number(s.newInvoice.waterUnits) || 0; const rate = this.roomRate(s.newInvoice.roomId, 'water'); return u + ' หน่วย × ' + rate + '/หน่วย = ' + this.fmt(u * rate) + ' บาท'; })(),
+      invElecManualHint: (() => { const u = Number(s.newInvoice.elecUnits) || 0; const rate = this.roomRate(s.newInvoice.roomId, 'elec'); return u + ' หน่วย × ' + rate + '/หน่วย = ' + this.fmt(u * rate) + ' บาท'; })(),
       // "รายการบิล" preview — per explicit user request, show the exact
       // calculation for every line (not just the running total) right in
       // the create-invoice form, including the units×rate breakdown for
@@ -6674,8 +6701,8 @@ class Component extends DCLogic {
         const trash = s.trashRate || 0, internet = s.internetRate || 0;
         const waterUnits = s.newInvoice.waterMode === 'manual' ? Number(s.newInvoice.waterUnits) || 0 : (this.deviceCharge(s.newInvoice.roomId, 'water') || {}).units;
         const elecUnits = s.newInvoice.elecMode === 'manual' ? Number(s.newInvoice.elecUnits) || 0 : (this.deviceCharge(s.newInvoice.roomId, 'elec') || {}).units;
-        const waterCalc = waterUnits != null ? ` (${waterUnits} หน่วย × ${s.waterRate})` : '';
-        const elecCalc = elecUnits != null ? ` (${elecUnits} หน่วย × ${s.elecRate})` : '';
+        const waterCalc = waterUnits != null ? ` (${waterUnits} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'water')})` : '';
+        const elecCalc = elecUnits != null ? ` (${elecUnits} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'elec')})` : '';
         return {
           rentLine: this.fmt(rent),
           waterLine: this.fmt(water) + waterCalc,

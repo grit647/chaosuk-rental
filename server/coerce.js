@@ -29,6 +29,14 @@ function coerceRooms(rows) {
       deposit: num(r.deposit, 0),
       waterPrev: num(r.waterPrev, 0),
       elecPrev: num(r.elecPrev, 0),
+      // Per-room water/elec rate, per explicit user request: rates used to
+      // be a single property-wide value (server/routes/settings.js's
+      // waterRate/elecRate), so saving one room's contract silently changed
+      // every other room's rate too. 0 means "not set on this room" — the
+      // frontend falls back to the global default rate for rooms that
+      // never had their own rate saved (keeps old data working unchanged).
+      waterRate: num(r.waterRate, 0),
+      elecRate: num(r.elecRate, 0),
       creditBalance: num(r.creditBalance, 0),
       creditSlips,
       creditSlipCount: creditSlips.length,
