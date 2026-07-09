@@ -4371,11 +4371,18 @@ class Component extends DCLogic {
         paidDate: newStatus === 'paid' ? new Date().toISOString().slice(0, 10) : '',
       };
       if (mode === 'partial' && newStatus !== 'paid' && newDue) patch.due = newDue;
-      // ชำระเต็มจำนวน when the slip(s) sent add up to MORE than the bill —
-      // per explicit user request, the excess automatically becomes advance
-      // credit on the room (same bucket as the "บันทึกเป็นเงินล่วงหน้าแทน"
-      // button uses) instead of just being silently dropped/ignored.
-      const overpay = mode === 'full' ? Math.max(0, combined - total) : 0;
+      // ชำระเต็มจำนวน when the slip(s) sent add up to MORE than what was
+      // actually STILL OWED (not the raw bill total — a real bug: this
+      // used to compare against `total` directly, ignoring any amount
+      // already paid before this slip, e.g. advance-payment credit applied
+      // at invoice creation, so a ฿1,245 bill already ฿1,000-covered with
+      // a ฿500 slip coming in computed "overpay" as 500-1245 (negative,
+      // clamped to 0) instead of the real overpay of 500-245=255) — per
+      // explicit user request, the true excess automatically becomes
+      // advance credit on the room (same bucket as the "บันทึกเป็นเงิน
+      // ล่วงหน้าแทน" button uses) instead of being silently dropped.
+      const remainingBefore = Math.max(0, total - (inv.amountPaid || 0));
+      const overpay = mode === 'full' ? Math.max(0, combined - remainingBefore) : 0;
       const res = await fetch('/api/invoices/' + id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -5635,8 +5642,12 @@ class Component extends DCLogic {
     let resolveSlipConfirmInfo = null;
     if (resolveSlipConfirmInvoiceRaw) {
       const total = resolveSlipConfirmInvoiceRaw.rent + resolveSlipConfirmInvoiceRaw.water + resolveSlipConfirmInvoiceRaw.elec + (resolveSlipConfirmInvoiceRaw.trash || 0) + (resolveSlipConfirmInvoiceRaw.internet || 0);
+      // Same fix as billSlipQueueItems/resolveSlip — compare against what's
+      // actually still owed (after any prior amountPaid, e.g. advance
+      // credit already applied), not the raw bill total.
+      const remainingBeforeThis = Math.max(0, total - (resolveSlipConfirmInvoiceRaw.amountPaid || 0));
       const combined = resolveSlipConfirmInvoiceRaw.slipsTotal || 0;
-      const remaining = Math.max(0, total - ((resolveSlipConfirmInvoiceRaw.amountPaid || 0) + combined));
+      const remaining = Math.max(0, remainingBeforeThis - combined);
       const mode = s.resolveSlipConfirmMode;
       const titleByMode = {
         full: 'ยืนยันชำระเต็มจำนวน',
@@ -5644,11 +5655,11 @@ class Component extends DCLogic {
         credit: 'ยืนยันบันทึกเป็นเงินล่วงหน้า',
       };
       const amountByMode = {
-        full: this.fmt(total),
+        full: this.fmt(remainingBeforeThis),
         partial: this.fmt(combined),
         credit: this.fmt(combined),
       };
-      const overpay = mode === 'full' ? Math.max(0, combined - total) : 0;
+      const overpay = mode === 'full' ? Math.max(0, combined - remainingBeforeThis) : 0;
       resolveSlipConfirmInfo = {
         room: resolveSlipConfirmInvoiceRaw.room, tenant: resolveSlipConfirmInvoiceRaw.tenant,
         title: titleByMode[mode] || 'ยืนยันการทำรายการ',
@@ -5673,14 +5684,18 @@ class Component extends DCLogic {
 
     const slipReviewInvoiceRaw = s.invoices.find(i => i.id === s.slipReviewInvoiceId) || null;
     const slipReviewTotal = slipReviewInvoiceRaw ? (slipReviewInvoiceRaw.rent + slipReviewInvoiceRaw.water + slipReviewInvoiceRaw.elec + (slipReviewInvoiceRaw.trash || 0) + (slipReviewInvoiceRaw.internet || 0)) : 0;
+    // Same fix as billSlipQueueItems below — compare against what's still
+    // owed AFTER any prior amountPaid (e.g. advance credit already
+    // applied), not the raw bill total.
+    const slipReviewRemainingBefore = slipReviewInvoiceRaw ? Math.max(0, slipReviewTotal - (slipReviewInvoiceRaw.amountPaid || 0)) : 0;
     const slipReviewCombined = slipReviewInvoiceRaw ? (slipReviewInvoiceRaw.slipsTotal || 0) : 0;
-    const slipReviewPartialRemaining = slipReviewInvoiceRaw ? Math.max(0, slipReviewTotal - ((slipReviewInvoiceRaw.amountPaid || 0) + slipReviewCombined)) : 0;
-    const slipAmountMatches = slipReviewInvoiceRaw && Math.abs(slipReviewCombined - slipReviewTotal) < 1;
+    const slipReviewPartialRemaining = Math.max(0, slipReviewRemainingBefore - slipReviewCombined);
+    const slipAmountMatches = slipReviewInvoiceRaw && Math.abs(slipReviewCombined - slipReviewRemainingBefore) < 1;
     const slipReview = slipReviewInvoiceRaw ? {
       room: slipReviewInvoiceRaw.room, tenant: slipReviewInvoiceRaw.tenant,
       slipCount: slipReviewInvoiceRaw.slipCount || 0, hasMultipleSlips: (slipReviewInvoiceRaw.slipCount || 0) > 1,
       cards: buildSlipCards(slipReviewInvoiceRaw),
-      expectedTotalDisplay: this.fmt(slipReviewTotal),
+      expectedTotalDisplay: this.fmt(slipReviewRemainingBefore),
       slipAmountDisplay: this.fmt(slipReviewCombined),
       partialRemainingDisplay: this.fmt(slipReviewPartialRemaining),
       matchLabel: slipAmountMatches ? '✓ ยอดตรงกับบิล' : '⚠️ ยอดไม่ตรงกับบิล — ตรวจสอบก่อนยืนยัน',
@@ -5695,16 +5710,27 @@ class Component extends DCLogic {
     // resolution — same choices, same labels, as that modal used to have.
     const billSlipQueueItems = s.invoices.filter(i => i.slipPending).map(i => {
       const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
+      // Real bug a user hit: everything below used to compare the incoming
+      // slip(s) against the RAW bill total, ignoring any amount already
+      // paid before this slip arrived (most commonly advance-payment
+      // credit auto-applied when the invoice was created) — so a ฿1,245
+      // bill that already had ฿1,000 credit applied (remaining ฿245) would
+      // show "ยอดในบิล 1,245" for a new ฿500 slip, when what's actually
+      // still owed is only ฿245. Now every comparison uses remainingBefore
+      // (what's left BEFORE this slip), matching the "ยอดที่ต้องชำระ"
+      // column on the Bills page table.
+      const remainingBefore = Math.max(0, total - (i.amountPaid || 0));
       const combined = i.slipsTotal || 0;
-      const amountMatches = Math.abs(combined - total) < 1;
-      const partialRemaining = Math.max(0, total - ((i.amountPaid || 0) + combined));
-      // Overpayment (slip(s) add up to MORE than the bill) is a special
-      // case per explicit user request: showing "ชำระบางส่วน (คงเหลือ ฿0)"
-      // and "บันทึกเป็นเงินล่วงหน้าแทน" side by side here was confusing/
-      // risked a wrong click — only "ชำระเต็มจำนวน" makes sense, and its
-      // label now says the excess is auto-saved as credit (resolveSlip's
-      // 'full' branch handles the actual credit top-up).
-      const overpayAmount = Math.max(0, combined - total);
+      const amountMatches = Math.abs(combined - remainingBefore) < 1;
+      const partialRemaining = Math.max(0, remainingBefore - combined);
+      // Overpayment (slip(s) add up to MORE than what's actually still
+      // owed) is a special case per explicit user request: showing
+      // "ชำระบางส่วน (คงเหลือ ฿0)" and "บันทึกเป็นเงินล่วงหน้าแทน" side by
+      // side here was confusing/risked a wrong click — only "ชำระเต็ม
+      // จำนวน" makes sense, and its label now says the excess is
+      // auto-saved as credit (resolveSlip's 'full' branch handles the
+      // actual credit top-up).
+      const overpayAmount = Math.max(0, combined - remainingBefore);
       const isOverpaid = overpayAmount > 0.5;
       // Don't show ANY resolution button until every slip's amount is
       // actually known — per explicit user request, since amounts default
@@ -5721,7 +5747,7 @@ class Component extends DCLogic {
         isBillKind: true, isAdvanceKind: false, isUnmatchedKind: false,
         slipCount: i.slipCount || 0, hasMultipleSlips: (i.slipCount || 0) > 1,
         cards: cardsList, amountsKnown, amountsUnknown: !amountsKnown,
-        expectedTotalDisplay: this.fmt(total),
+        expectedTotalDisplay: this.fmt(remainingBefore),
         slipAmountDisplay: this.fmt(combined),
         partialRemainingDisplay: this.fmt(partialRemaining),
         matchLabel: amountMatches ? '✓ ยอดตรงกับบิล' : '⚠️ ยอดไม่ตรงกับบิล',
@@ -5729,8 +5755,8 @@ class Component extends DCLogic {
         isOverpaid, showAllButtons: !isOverpaid,
         overpayAmountDisplay: this.fmt(overpayAmount),
         confirmFullLabel: isOverpaid
-          ? `✓ ชำระเต็มจำนวน (${this.fmt(total)}) + เก็บส่วนเกิน ${this.fmt(overpayAmount)} เป็นเงินล่วงหน้า`
-          : `✓ ชำระเต็มจำนวน (${this.fmt(total)})`,
+          ? `✓ ชำระเต็มจำนวน (${this.fmt(remainingBefore)}) + เก็บส่วนเกิน ${this.fmt(overpayAmount)} เป็นเงินล่วงหน้า`
+          : `✓ ชำระเต็มจำนวน (${this.fmt(remainingBefore)})`,
         onConfirmFull: () => this.askResolveSlip(i.id, 'full'),
         onConfirmPartial: () => this.askResolveSlip(i.id, 'partial'),
         onConfirmAsCredit: () => this.askResolveSlip(i.id, 'credit'),
