@@ -2291,7 +2291,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       </sc-if>
                       <sc-if value="{{ q.amountsKnown }}" hint-placeholder-val="{{ true }}">
                         <div style="display:flex;flex-direction:column;gap:7px">
-                          <div onclick="{{ q.onConfirmFull }}" style="padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">{{ q.confirmFullLabel }}</div>
+                          <sc-if value="{{ q.showFullButton }}" hint-placeholder-val="{{ true }}">
+                            <div onclick="{{ q.onConfirmFull }}" style="padding:9px;border-radius:6px;background:#3B7A52;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:center">{{ q.confirmFullLabel }}</div>
+                          </sc-if>
                           <sc-if value="{{ q.showAllButtons }}" hint-placeholder-val="{{ true }}">
                             <div onclick="{{ q.onConfirmPartial }}" style="padding:9px;border-radius:6px;border:1.5px solid #C1872E;color:#B85B27;font-size:12px;font-weight:700;cursor:pointer;text-align:center">◐ ชำระบางส่วน (คงเหลือ {{ q.partialRemainingDisplay }})</div>
                             <div onclick="{{ q.onConfirmAsCredit }}" style="padding:9px;border-radius:6px;border:1.5px solid #7C6E5F;color:#7C6E5F;font-size:12px;font-weight:700;cursor:pointer;text-align:center">💰 บันทึกเป็นเงินล่วงหน้าแทน</div>
@@ -5765,6 +5767,15 @@ class Component extends DCLogic {
       // actual credit top-up).
       const overpayAmount = Math.max(0, combined - remainingBefore);
       const isOverpaid = overpayAmount > 0.5;
+      // Underpayment (slip(s) add up to LESS than what's still owed) is the
+      // mirror case of the overpayment fix above — per explicit user
+      // request, offering "ชำระเต็มจำนวน" or "บันทึกเป็นเงินล่วงหน้าแทน"
+      // next to "ชำระบางส่วน" when the money that actually arrived clearly
+      // doesn't cover the bill was misleading (those two options don't
+      // reflect what was really received). Only "ชำระบางส่วน" makes sense
+      // here; the exact-match and overpaid cases each already resolve to
+      // their own single sensible action.
+      const isUnderpaid = !isOverpaid && !amountMatches;
       // Don't show ANY resolution button until every slip's amount is
       // actually known — per explicit user request, since amounts default
       // to 0 while OCR-unreadable ("กรอกยอดเอง") slips sit unconfirmed,
@@ -5785,7 +5796,13 @@ class Component extends DCLogic {
         partialRemainingDisplay: this.fmt(partialRemaining),
         matchLabel: amountMatches ? '✓ ยอดตรงกับบิล' : '⚠️ ยอดไม่ตรงกับบิล',
         matchColor: amountMatches ? '#3B7A52' : '#B24336', matchBg: amountMatches ? '#E4EFE7' : '#FBE7E4',
-        isOverpaid, showAllButtons: !isOverpaid,
+        isOverpaid, isUnderpaid,
+        // Exact match and overpayment both resolve to a single sensible
+        // action (full-payment), so the full button only shows for those
+        // two states now — not for underpayment, where it doesn't reflect
+        // what actually arrived. Partial/credit only show when underpaid.
+        showFullButton: amountMatches || isOverpaid,
+        showAllButtons: isUnderpaid,
         overpayAmountDisplay: this.fmt(overpayAmount),
         confirmFullLabel: isOverpaid
           ? `✓ ชำระเต็มจำนวน (${this.fmt(remainingBefore)}) + เก็บส่วนเกิน ${this.fmt(overpayAmount)} เป็นเงินล่วงหน้า`
