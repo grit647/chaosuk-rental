@@ -367,7 +367,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <sc-for list="{{ recentPayments }}" as="p" hint-placeholder-count="5">
                   <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1fr 1fr 0.5fr;gap:8px;font-size:12.5px;color:#241812;padding:9px 0;border-bottom:1px solid #F0E9DC;align-items:center">
                     <div>{{ p.room }}</div><div>{{ p.tenant }}</div><div style="font-family:'IBM Plex Mono',monospace">{{ p.amountDisplay }}</div><div style="color:#7C6E5F">{{ p.date }}</div>
-                    <div onclick="{{ p.onDelete }}" style="color:#B24336;font-size:11px;cursor:pointer;text-decoration:underline;text-align:right">ลบ</div>
+                    <div onclick="{{ p.onDelete }}" style="color:#9C8B78;font-size:11px;cursor:pointer;text-decoration:underline;text-align:right">ซ่อน</div>
                   </div>
                 </sc-for>
               </div>
