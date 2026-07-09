@@ -4094,18 +4094,34 @@ class Component extends DCLogic {
   submitEditInvoice = () => this._guard('submitEditInvoice:' + this.state.editInvoice.id, async () => {
     const ei = this.state.editInvoice;
     if (!ei.id) return;
+    // Per explicit user request: if this bill's LINE message already went
+    // out to the tenant and the owner then edits it, that sent copy is now
+    // stale — reset the sent flag (server-side receiptSent AND the local
+    // room fallback) so the Bills page correctly shows it needs sending
+    // again, and let the tenant know via LINE that the bill is being
+    // reviewed/updated rather than leaving them with outdated numbers.
+    const prevInv = this.state.invoices.find(i => i.id === ei.id);
+    const wasSent = !!(prevInv && (prevInv.receiptSent || this.state.receiptsSent[prevInv.room]));
     try {
       const res = await fetch('/api/invoices/' + ei.id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rent: Number(ei.rent) || 0, water: Number(ei.water) || 0, elec: Number(ei.elec) || 0,
           trash: Number(ei.trash) || 0, internet: Number(ei.internet) || 0, due: ei.due,
+          ...(wasSent ? { receiptSent: false } : {}),
         }),
       });
       if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
       const updated = await res.json();
-      this.setState(s => ({ invoices: s.invoices.map(i => i.id === updated.id ? updated : i), showEditInvoiceModal: false }));
-      this.showAdminToast('แก้ไขใบแจ้งหนี้ห้อง ' + ei.room + ' แล้ว');
+      this.setState(s => ({
+        invoices: s.invoices.map(i => i.id === updated.id ? updated : i),
+        showEditInvoiceModal: false,
+        receiptsSent: wasSent ? Object.fromEntries(Object.entries(s.receiptsSent).filter(([k]) => k !== ei.room)) : s.receiptsSent,
+      }));
+      this.showAdminToast('แก้ไขใบแจ้งหนี้ห้อง ' + ei.room + ' แล้ว' + (wasSent ? ' — แจ้งผู้เช่าทาง LINE แล้วว่ากำลังตรวจสอบข้อมูลใหม่ ต้องส่งใบแจ้งหนี้ให้อีกครั้ง' : ''));
+      if (wasSent) {
+        this._lineSend(ei.room, `ขออภัยครับ เรากำลังตรวจสอบและปรับปรุงข้อมูลใบแจ้งหนี้ห้อง ${ei.room} ใหม่อีกครั้ง รบกวนรอรับใบแจ้งหนี้ฉบับล่าสุดสักครู่นะครับ ขอบคุณครับ 🙏`).catch(err => console.error(err));
+      }
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
   });
   askDeleteInvoice = (id) => this.setState({ showDeleteInvoiceConfirm: true, deleteInvoiceId: id });
@@ -4115,6 +4131,11 @@ class Component extends DCLogic {
     if (!id) return;
     const inv = this.state.invoices.find(i => i.id === id);
     const room = inv ? this.state.rooms.find(r => r.id === inv.room) : null;
+    // Same fix as submitEditInvoice — if this bill's LINE message had
+    // already gone out and the owner then deletes it, the tenant is left
+    // holding a bill that no longer exists. Let them know via LINE, per
+    // explicit user request.
+    const wasSent = !!(inv && (inv.receiptSent || this.state.receiptsSent[inv.room]));
     try {
       const res = await fetch('/api/invoices/' + id, { method: 'DELETE' });
       if (!res.ok) throw new Error('ลบไม่สำเร็จ');
@@ -4128,10 +4149,14 @@ class Component extends DCLogic {
         invoices: s.invoices.filter(i => i.id !== id),
         rooms: refunded > 0 && room ? s.rooms.map(r => r.id === room.id ? { ...r, creditBalance: (r.creditBalance || 0) + refunded } : r) : s.rooms,
         showDeleteInvoiceConfirm: false, deleteInvoiceId: '',
+        receiptsSent: wasSent ? Object.fromEntries(Object.entries(s.receiptsSent).filter(([k]) => k !== inv.room)) : s.receiptsSent,
       }));
-      this.showAdminToast(refunded > 0
+      this.showAdminToast((refunded > 0
         ? `ลบใบแจ้งหนี้แล้ว — คืนยอด ${this.fmt(refunded)} ที่จ่ายไปแล้วเป็นเงินล่วงหน้าให้ห้อง ${inv.room}`
-        : 'ลบใบแจ้งหนี้แล้ว');
+        : 'ลบใบแจ้งหนี้แล้ว') + (wasSent ? ' — แจ้งผู้เช่าทาง LINE แล้วว่ากำลังตรวจสอบข้อมูลใหม่' : ''));
+      if (wasSent) {
+        this._lineSend(inv.room, `ขออภัยครับ เรากำลังตรวจสอบข้อมูลใบแจ้งหนี้ห้อง ${inv.room} ใหม่อีกครั้ง รบกวนรอรับใบแจ้งหนี้ฉบับล่าสุดสักครู่นะครับ ขอบคุณครับ 🙏`).catch(err => console.error(err));
+      }
     } catch (err) {
       this.showAdminToast(err.message || 'ลบไม่สำเร็จ');
       this.setState({ showDeleteInvoiceConfirm: false, deleteInvoiceId: '' });
