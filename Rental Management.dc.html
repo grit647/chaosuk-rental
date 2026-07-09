@@ -2401,9 +2401,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <div onclick="{{ setInvWaterManual }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invWaterManualBg }};color:{{ invWaterManualColor }}">กรอกเอง</div>
                       </div>
                     </div>
-                    <input value="{{ newInvoice.water }}" onchange="{{ onNewInvoiceWaterChange }}" readonly="{{ invWaterIsDevice }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:{{ invWaterFieldBg }}">
                     <sc-if value="{{ invWaterIsDevice }}" hint-placeholder-val="{{ true }}">
+                      <input value="{{ newInvoice.water }}" readonly="{{ true }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:{{ invWaterFieldBg }}">
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">📟 {{ invWaterUnitsHint }}</div>
+                    </sc-if>
+                    <sc-if value="{{ invWaterIsDevice }}" hint-placeholder-val="{{ false }}">
+                      <input value="{{ newInvoice.waterUnits }}" onchange="{{ onNewInvoiceWaterUnitsChange }}" placeholder="หน่วยที่ใช้" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                      <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">{{ invWaterManualHint }}</div>
                     </sc-if>
                   </div>
                   <div style="flex:1">
@@ -2414,15 +2418,28 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <div onclick="{{ setInvElecManual }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invElecManualBg }};color:{{ invElecManualColor }}">กรอกเอง</div>
                       </div>
                     </div>
-                    <input value="{{ newInvoice.elec }}" onchange="{{ onNewInvoiceElecChange }}" readonly="{{ invElecIsDevice }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:{{ invElecFieldBg }}">
                     <sc-if value="{{ invElecIsDevice }}" hint-placeholder-val="{{ true }}">
+                      <input value="{{ newInvoice.elec }}" readonly="{{ true }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:{{ invElecFieldBg }}">
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">📟 {{ invElecUnitsHint }}</div>
+                    </sc-if>
+                    <sc-if value="{{ invElecIsDevice }}" hint-placeholder-val="{{ false }}">
+                      <input value="{{ newInvoice.elecUnits }}" onchange="{{ onNewInvoiceElecUnitsChange }}" placeholder="หน่วยที่ใช้" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                      <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">{{ invElecManualHint }}</div>
                     </sc-if>
                   </div>
                 </div>
                 <div>
                   <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ</div>
                   <input type="date" value="{{ newInvoice.due }}" onchange="{{ onNewInvoiceDueChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;padding:10px 12px;background:#FBF7F0;border-radius:6px">
+                  <div style="font-size:10.5px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#9C8B78;margin-bottom:2px">รายการบิล</div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่าเช่า</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ invBillPreview.rentLine }}</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่าน้ำ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ invBillPreview.waterLine }}</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่าไฟ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ invBillPreview.elecLine }}</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่าเก็บขยะ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ invBillPreview.trashLine }}</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่า Internet</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ invBillPreview.internetLine }}</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1px solid #E3D8C8;padding-top:6px;margin-top:2px"><span style="color:#241812">รวม</span><span style="font-family:'IBM Plex Mono',monospace;color:#C1622D">{{ invBillPreview.totalLine }}</span></div>
                 </div>
               </div>
               <div style="display:flex;gap:10px;margin-top:20px">
@@ -4000,9 +4017,9 @@ class Component extends DCLogic {
   onTenantSearchChange = (e) => this.setState({ tenantSearch: e.target.value, tenantCardPage: 0 });
   setBillingFilter = (f) => this.setState({ billingFilter: f });
 
-  openInvoiceModal = () => this.setState({ showInvoiceModal: true, newInvoice: { roomId: '', water: '90', elec: '550', due: '', waterMode: 'device', elecMode: 'device' } });
+  openInvoiceModal = () => this.setState({ showInvoiceModal: true, newInvoice: { roomId: '', water: '90', elec: '550', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' } });
   openInvoiceForRoom = (roomId) => {
-    const next = { roomId, water: '90', elec: '550', due: '', waterMode: 'device', elecMode: 'device' };
+    const next = { roomId, water: '90', elec: '550', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' };
     const dw = this.deviceCharge(roomId, 'water'); if (dw) next.water = String(dw.charge);
     const de = this.deviceCharge(roomId, 'elec'); if (de) next.elec = String(de.charge);
     this.setState({ showInvoiceModal: true, newInvoice: next });
@@ -4262,6 +4279,23 @@ class Component extends DCLogic {
     if (mode === 'device') { const d = this.deviceCharge(next.roomId, 'elec'); if (d) next.elec = String(d.charge); }
     return { newInvoice: next };
   });
+  // Per explicit user request: "กรอกเอง" (manual) mode used to just take a
+  // raw ค่าน้ำ/ค่าไฟ Baht amount typed straight in, with no connection to
+  // the water/elec rate set in the contract — easy to fat-finger a number
+  // that doesn't actually match "units used × contract rate". Now the
+  // manual input takes UNITS used instead, and the Baht amount is always
+  // computed live from that × the current rate (state.waterRate/elecRate,
+  // same rate the "อุปกรณ์" device mode already multiplies by — see
+  // deviceCharge below), shown right next to the input so the owner can see
+  // exactly how the number was derived before submitting.
+  onNewInvoiceWaterUnitsChange = (e) => {
+    const units = e.target.value;
+    this.setState(s => ({ newInvoice: { ...s.newInvoice, waterUnits: units, water: String(Math.round((Number(units) || 0) * s.waterRate)) } }));
+  };
+  onNewInvoiceElecUnitsChange = (e) => {
+    const units = e.target.value;
+    this.setState(s => ({ newInvoice: { ...s.newInvoice, elecUnits: units, elec: String(Math.round((Number(units) || 0) * s.elecRate)) } }));
+  };
   onNewInvoiceWaterChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, water: v } })); };
   onNewInvoiceElecChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, elec: v } })); };
   onNewInvoiceDueChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, due: v } })); };
@@ -6601,6 +6635,36 @@ class Component extends DCLogic {
       setInvElecDevice: () => this.setInvoiceElecMode('device'), setInvElecManual: () => this.setInvoiceElecMode('manual'),
       invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? d.units + ' หน่วย × ' + s.waterRate : 'อุปกรณ์ไม่พร้อม'; })(),
       invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? d.units + ' หน่วย × ' + s.elecRate : 'อุปกรณ์ไม่พร้อม'; })(),
+      onNewInvoiceWaterUnitsChange: this.onNewInvoiceWaterUnitsChange, onNewInvoiceElecUnitsChange: this.onNewInvoiceElecUnitsChange,
+      // Live "units × rate = amount" breakdown for กรอกเอง (manual) mode,
+      // same idea as the device-mode hint above — per explicit user
+      // request, so the owner can see exactly how the Baht figure was
+      // derived from the contract's rate before submitting, instead of
+      // typing a lump sum with no visible connection to the rate.
+      invWaterManualHint: (() => { const u = Number(s.newInvoice.waterUnits) || 0; return u + ' หน่วย × ' + s.waterRate + '/หน่วย = ' + this.fmt(u * s.waterRate) + ' บาท'; })(),
+      invElecManualHint: (() => { const u = Number(s.newInvoice.elecUnits) || 0; return u + ' หน่วย × ' + s.elecRate + '/หน่วย = ' + this.fmt(u * s.elecRate) + ' บาท'; })(),
+      // "รายการบิล" preview — per explicit user request, show the exact
+      // calculation for every line (not just the running total) right in
+      // the create-invoice form, including the units×rate breakdown for
+      // whichever mode (อุปกรณ์/กรอกเอง) is currently selected for water/elec.
+      invBillPreview: (() => {
+        const r = s.rooms.find(x => x.id === s.newInvoice.roomId);
+        const rent = (r && r.rent) || 0;
+        const water = Number(s.newInvoice.water) || 0, elec = Number(s.newInvoice.elec) || 0;
+        const trash = s.trashRate || 0, internet = s.internetRate || 0;
+        const waterUnits = s.newInvoice.waterMode === 'manual' ? Number(s.newInvoice.waterUnits) || 0 : (this.deviceCharge(s.newInvoice.roomId, 'water') || {}).units;
+        const elecUnits = s.newInvoice.elecMode === 'manual' ? Number(s.newInvoice.elecUnits) || 0 : (this.deviceCharge(s.newInvoice.roomId, 'elec') || {}).units;
+        const waterCalc = waterUnits != null ? ` (${waterUnits} หน่วย × ${s.waterRate})` : '';
+        const elecCalc = elecUnits != null ? ` (${elecUnits} หน่วย × ${s.elecRate})` : '';
+        return {
+          rentLine: this.fmt(rent),
+          waterLine: this.fmt(water) + waterCalc,
+          elecLine: this.fmt(elec) + elecCalc,
+          trashLine: this.fmt(trash),
+          internetLine: this.fmt(internet),
+          totalLine: this.fmt(rent + water + elec + trash + internet),
+        };
+      })(),
 
       maintenanceView, showMaintenanceModal: s.showMaintenanceModal, newMaintenance: s.newMaintenance, openMaintenanceModal: this.openMaintenanceModal, closeMaintenanceModal: this.closeMaintenanceModal,
       onNewMaintRoomChange: this.onNewMaintRoomChange, onNewMaintIssueChange: this.onNewMaintIssueChange, submitMaintenance: this.submitMaintenance,
