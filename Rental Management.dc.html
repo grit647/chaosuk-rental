@@ -4379,7 +4379,9 @@ class Component extends DCLogic {
           slipActionLoading: false,
         }));
         this.showAdminToast(`บันทึกเป็นเงินล่วงหน้า ${this.fmt(combined)} ให้ห้อง ${inv.room} แล้ว (ยอดรวมเครดิตตอนนี้ ${this.fmt(newCredit)})`);
-        this._lineSend(inv.room, `บันทึกยอด ${this.fmt(combined)} เป็นเงินที่จ่ายล่วงหน้าให้ห้อง ${inv.room} แล้วครับ จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ขอบคุณครับ 🙏`).catch(err => console.error(err));
+        // Same fix as confirmCreditSlips above — show the tenant their total
+        // remaining advance-payment balance, not just the amount just added.
+        this._lineSend(inv.room, `บันทึกยอด ${this.fmt(combined)} เป็นเงินที่จ่ายล่วงหน้าให้ห้อง ${inv.room} แล้วครับ จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ยอดเงินล่วงหน้าคงเหลือทั้งหมดตอนนี้ ${this.fmt(newCredit)} บาท ขอบคุณครับ 🙏`).catch(err => console.error(err));
         return;
       }
 
@@ -4429,7 +4431,11 @@ class Component extends DCLogic {
       if (newStatus === 'paid') {
         const overpayNote = overpay > 0 ? ` (ส่วนเกิน ${this.fmt(overpay)} บาท เก็บไว้เป็นเงินล่วงหน้าให้แล้ว)` : '';
         this.showAdminToast('ยืนยันชำระเต็มจำนวนแล้ว' + overpayNote);
-        const overpayLine = overpay > 0 ? ` ส่วนที่โอนเกินมา ${this.fmt(overpay)} บาท ระบบเก็บไว้เป็นเงินล่วงหน้าให้แล้วครับ จะหักลบให้อัตโนมัติตอนออกบิลรอบถัดไป` : '';
+        // Same as the two credit-confirmation messages above — tell the
+        // tenant their new total credit balance, not just the excess just
+        // added, so they always know their standing balance from the LINE
+        // message alone.
+        const overpayLine = overpay > 0 ? ` ส่วนที่โอนเกินมา ${this.fmt(overpay)} บาท ระบบเก็บไว้เป็นเงินล่วงหน้าให้แล้วครับ จะหักลบให้อัตโนมัติตอนออกบิลรอบถัดไป ยอดเงินล่วงหน้าคงเหลือทั้งหมดตอนนี้ ${this.fmt(newCredit)} บาท` : '';
         this._lineSend(inv.room, `ขอบคุณที่ชำระค่าเช่าห้อง ${inv.room} จำนวน ${this.fmt(total)} เรียบร้อยแล้วครับ 🙏${overpayLine}`).catch(err => console.error(err));
       } else {
         const remaining = total - newAmountPaid;
@@ -4523,7 +4529,11 @@ class Component extends DCLogic {
         showCreditReview: false, creditReviewRoomId: '', creditActionLoading: false,
       }));
       this.showAdminToast(`ยืนยันเงินล่วงหน้า ${this.fmt(addAmount)} แล้ว (ยอดรวม ${this.fmt(newBalance)})`);
-      this._lineSend(roomId, `ยืนยันรับเงินล่วงหน้า ${this.fmt(addAmount)} ของห้อง ${roomId} แล้วครับ จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ขอบคุณครับ 🙏`).catch(err => console.error(err));
+      // Per explicit user request: the tenant should see their TOTAL
+      // remaining advance-payment balance in this message, not just the
+      // amount just confirmed — otherwise they have no way to know how much
+      // credit they're sitting on without asking the owner directly.
+      this._lineSend(roomId, `ยืนยันรับเงินล่วงหน้า ${this.fmt(addAmount)} ของห้อง ${roomId} แล้วครับ จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ยอดเงินล่วงหน้าคงเหลือทั้งหมดตอนนี้ ${this.fmt(newBalance)} บาท ขอบคุณครับ 🙏`).catch(err => console.error(err));
     } catch (err) {
       this.setState({ creditActionLoading: false });
       this.showAdminToast(err.message || 'ดำเนินการไม่สำเร็จ');
