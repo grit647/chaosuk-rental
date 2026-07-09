@@ -4245,8 +4245,14 @@ class Component extends DCLogic {
     if (!Number.isFinite(amt) || amt < 0) { this.showAdminToast('กรุณาใส่ยอดเป็นตัวเลข'); return; }
     const inv = this.state.invoices.find(i => i.id === invoiceId);
     if (!inv) return;
+    const updatedSlips = (inv.slips || []).map((s2, i) => i === idx ? { ...s2, amount: amt } : s2);
+    const optimisticTotal = updatedSlips.reduce((a, s2) => a + (Number(s2.amount) || 0), 0);
+    // Update local state immediately (before the server round-trip) so the
+    // confirm button's amount label updates the instant the owner tabs out
+    // of the field, instead of waiting on a network response — per explicit
+    // user request ("กรอกจำนวนเองเด้งปุ่มยืนยันให้หน่อย").
+    this.setState(s => ({ invoices: s.invoices.map(i => i.id === invoiceId ? { ...i, slips: updatedSlips, slipsTotal: optimisticTotal } : i) }));
     try {
-      const updatedSlips = (inv.slips || []).map((s2, i) => i === idx ? { ...s2, amount: amt } : s2);
       const res = await fetch('/api/invoices/' + invoiceId, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slipsJson: JSON.stringify(updatedSlips) }),
@@ -4262,8 +4268,10 @@ class Component extends DCLogic {
     if (!Number.isFinite(amt) || amt < 0) { this.showAdminToast('กรุณาใส่ยอดเป็นตัวเลข'); return; }
     const room = this.state.rooms.find(r => r.id === roomId);
     if (!room) return;
+    const updatedSlips = (room.creditSlips || []).map((s2, i) => i === idx ? { ...s2, amount: amt } : s2);
+    const optimisticTotal = updatedSlips.reduce((a, s2) => a + (Number(s2.amount) || 0), 0);
+    this.setState(s => ({ rooms: s.rooms.map(r => r.id === roomId ? { ...r, creditSlips: updatedSlips, creditSlipsTotal: optimisticTotal } : r) }));
     try {
-      const updatedSlips = (room.creditSlips || []).map((s2, i) => i === idx ? { ...s2, amount: amt } : s2);
       const res = await fetch('/api/rooms/' + roomId, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ creditSlipsJson: JSON.stringify(updatedSlips) }),
