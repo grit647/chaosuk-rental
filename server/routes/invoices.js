@@ -101,6 +101,17 @@ router.delete('/:id', async (req, res, next) => {
     // for the next bill, same bucket advance payments already use.
     const invoices = coerceInvoices(await readTab('Invoices'));
     const invoice = invoices.find((i) => i.id === req.params.id);
+    // Accounting-integrity guard, per explicit user request: once a real
+    // tenant slip has come in against this bill — either currently awaiting
+    // review (slipPending) or already resolved as a partial payment (status
+    // 'partial' only ever comes from an actual slip resolution now, see
+    // Rental Management.dc.html's resolveSlip / server-side create logic) —
+    // block deletion entirely, even if this endpoint is hit directly instead
+    // of through the frontend's own guard (defense in depth, same pattern as
+    // the duplicate-invoice check in POST / above). Editing is unaffected.
+    if (invoice && (invoice.slipPending || invoice.status === 'partial')) {
+      return res.status(400).json({ error: 'บิลนี้มีสลิปที่ส่งเข้ามาแล้ว ไม่สามารถลบได้ (แก้ไขได้ปกติ)' });
+    }
     let refunded = 0;
     if (invoice && invoice.amountPaid > 0) {
       const rooms = coerceRooms(await readTab('Rooms'));

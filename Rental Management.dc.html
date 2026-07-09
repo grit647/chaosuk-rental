@@ -608,7 +608,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </div>
                     <div style="display:flex;align-items:center;gap:6px">
                       <span onclick="{{ b.onEditReceipt }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap">✎ แก้ไข</span>
-                      <span onclick="{{ b.onDeleteReceipt }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336;white-space:nowrap">🗑 ลบ</span>
+                      <sc-if value="{{ b.canDelete }}" hint-placeholder-val="{{ true }}">
+                        <span onclick="{{ b.onDeleteReceipt }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336;white-space:nowrap">🗑 ลบ</span>
+                      </sc-if>
                     </div>
                     <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px">
                       <sc-if value="{{ b.hasSlipPending }}" hint-placeholder-val="{{ false }}">
@@ -4138,8 +4140,11 @@ class Component extends DCLogic {
     const wasSent = !!(inv && (inv.receiptSent || this.state.receiptsSent[inv.room]));
     try {
       const res = await fetch('/api/invoices/' + id, { method: 'DELETE' });
-      if (!res.ok) throw new Error('ลบไม่สำเร็จ');
       const result = await res.json();
+      // Surface the server's specific reason when it refuses to delete (e.g.
+      // the accounting-integrity guard for bills with a slip already sent)
+      // instead of a generic failure message.
+      if (!res.ok) throw new Error(result.error || 'ลบไม่สำเร็จ');
       // The server refunds any amountPaid on the deleted invoice back to
       // the room's credit (see server/routes/invoices.js) instead of
       // letting it silently vanish — reflect that in local state + tell
@@ -5661,6 +5666,17 @@ class Component extends DCLogic {
       const hasAmountPaid = (i.amountPaid || 0) > 0;
       const sentLabel = hasLineId ? '✓ ส่งไลน์แล้ว' : '✓ บันทึกใบเสร็จแล้ว';
       const hasSlipPending = !!i.slipPending;
+      // Per explicit user request (accounting-integrity guard): once a real
+      // tenant slip has come in against this bill — either currently
+      // awaiting review, or already resolved as a partial payment (status
+      // 'partial' only ever comes from an actual slip resolution now, never
+      // from advance-credit auto-applied at creation — see
+      // server/routes/invoices.js) — deleting the bill is blocked entirely.
+      // Editing (amounts/due date) is still allowed; only the destructive
+      // delete path is disabled, since a slip is real evidence of a
+      // transaction attempt that shouldn't be able to just vanish along
+      // with the bill it was matched against.
+      const canDelete = !hasSlipPending && !partial;
       return {
         id: i.id, room: i.room, tenant: i.tenant, due: i.due || '—',
         totalDisplay: hasAmountPaid ? this.fmt(remaining) : this.fmt(total),
@@ -5685,6 +5701,7 @@ class Component extends DCLogic {
         hasSlipPending, noSlipPending: !hasSlipPending,
         onOpenSlip: () => this.openSlipReview(i.id),
         onEditReceipt: () => this.openEditInvoice(i.id),
+        canDelete, cannotDelete: !canDelete,
         onDeleteReceipt: () => this.askDeleteInvoice(i.id),
       };
     });
