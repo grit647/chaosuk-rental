@@ -78,8 +78,30 @@ router.patch('/:id', async (req, res, next) => {
 });
 
 router.delete('/:id', async (req, res, next) => {
-  try { await deleteRow('Invoices', req.params.id); res.json({ ok: true }); }
-  catch (err) { next(err); }
+  try {
+    // Real bug a user hit: deleting an invoice used to just delete the
+    // row, with no regard for amountPaid on it — any money already
+    // tracked against that bill (whether from auto-applied advance credit
+    // or a confirmed slip) simply vanished, since neither the invoice nor
+    // the room's creditBalance still remembered it existed. Since deleting
+    // the BILL doesn't mean the tenant's already-given money stops
+    // existing, refund the full amountPaid back to the room's
+    // creditBalance before removing the row — it becomes available credit
+    // for the next bill, same bucket advance payments already use.
+    const invoices = coerceInvoices(await readTab('Invoices'));
+    const invoice = invoices.find((i) => i.id === req.params.id);
+    let refunded = 0;
+    if (invoice && invoice.amountPaid > 0) {
+      const rooms = coerceRooms(await readTab('Rooms'));
+      const room = rooms.find((r) => r.id === invoice.room);
+      if (room) {
+        refunded = invoice.amountPaid;
+        await updateRow('Rooms', invoice.room, { creditBalance: (room.creditBalance || 0) + refunded });
+      }
+    }
+    await deleteRow('Invoices', req.params.id);
+    res.json({ ok: true, refundedToCredit: refunded });
+  } catch (err) { next(err); }
 });
 
 router.post('/:id/pdf', async (req, res, next) => {

@@ -1991,7 +1991,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:13px;color:#7C6E5F;margin-bottom:4px">ห้อง {{ deleteInvoiceInfo.room }} · {{ deleteInvoiceInfo.tenant }}</div>
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#241812;margin-bottom:18px">{{ deleteInvoiceInfo.totalDisplay }}</div>
               </sc-if>
-              <div style="font-size:12px;color:#B24336;margin-bottom:18px">ลบแล้วกู้คืนไม่ได้ — ใบแจ้งหนี้นี้จะหายไปจากระบบถาวร</div>
+              <div style="font-size:12px;color:#B24336;margin-bottom:18px">ลบแล้วกู้คืนไม่ได้ — ใบแจ้งหนี้นี้จะหายไปจากระบบถาวร (ถ้ามียอดที่จ่ายไปแล้ว ระบบจะคืนเป็นเงินล่วงหน้าให้ห้องนี้อัตโนมัติ ไม่หายไปไหน)</div>
               <div style="display:flex;gap:10px">
                 <div onclick="{{ closeDeleteInvoiceConfirm }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</div>
                 <div onclick="{{ confirmDeleteInvoice }}" style="flex:1.3;padding:11px;border-radius:7px;background:#B24336;color:#fff;font-size:13px;font-weight:700;cursor:pointer">ลบใบแจ้งหนี้</div>
@@ -3070,7 +3070,7 @@ class Component extends DCLogic {
     }));
     this.showAdminToast('เพิ่มประเภท "' + name + '" แล้ว');
   };
-  addCalEvent = async () => {
+  addCalEvent = () => this._guard('addCalEvent', async () => {
     const s = this.state;
     const f = s.calEventForm;
     if (!f.title.trim()) { this.showAdminToast('กรุณากรอกชื่อรายการ'); return; }
@@ -3087,15 +3087,15 @@ class Component extends DCLogic {
       }));
       this.showAdminToast('บันทึกรายการลงปฏิทินแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
-  };
-  deleteCalEvent = async (id) => {
+  });
+  deleteCalEvent = (id) => this._guard('deleteCalEvent:' + id, async () => {
     try {
       const res = await fetch('/api/calendar/' + id, { method: 'DELETE' });
       if (!res.ok) throw new Error('ลบไม่สำเร็จ');
       this.setState(s => ({ calEvents: s.calEvents.filter(e => e.id !== id) }));
       this.showAdminToast('ลบรายการแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ลบไม่สำเร็จ'); }
-  };
+  });
   openBroadcast = (msg) => this.setState({ showBroadcast: true, broadcastMsg: msg || '', broadcastSel: {}, broadcastOwner: false });
   closeBroadcast = () => this.setState({ showBroadcast: false });
   onBroadcastMsg = (e) => this.setState({ broadcastMsg: e.target.value });
@@ -3283,7 +3283,7 @@ class Component extends DCLogic {
 
   openDeleteContract = (roomId) => this.setState({ showDeleteContract: true, deleteContractRoom: roomId });
   closeDeleteContract = () => this.setState({ showDeleteContract: false, deleteContractRoom: null });
-  confirmDeleteContract = async () => {
+  confirmDeleteContract = () => this._guard('confirmDeleteContract:' + this.state.deleteContractRoom, async () => {
     const id = this.state.deleteContractRoom;
     const clearPatch = { status: 'vacant', tenant: '', phone: '', moveIn: '', contractEnd: '', wifiCode: '', dueDay: '', tenantIdImg: '', tenantIdExpiry: '', leaseDocName: '', lineQrImg: '' };
     try {
@@ -3299,9 +3299,9 @@ class Component extends DCLogic {
       }));
       this.showAdminToast('ลบสัญญาห้อง ' + id + ' แล้ว (ห้องกลับเป็นว่าง)');
     } catch (err) { this.showAdminToast(err.message || 'ลบสัญญาไม่สำเร็จ'); }
-  };
+  });
 
-  renewContract = async (roomId) => {
+  renewContract = (roomId) => this._guard('renewContract:' + roomId, async () => {
     const room = this.state.rooms.find(r => r.id === roomId);
     const newEnd = room.contractEnd.replace(/(\d{4})/, (m) => String(Number(m) + 1));
     try {
@@ -3314,7 +3314,7 @@ class Component extends DCLogic {
       this.setState(s => ({ rooms: s.rooms.map(r => r.id === roomId ? updatedRoom : r) }));
       this.showAdminToast('ต่อสัญญาห้อง ' + roomId + ' อีก 1 ปีแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ต่อสัญญาไม่สำเร็จ'); }
-  };
+  });
 
   updateWaterCurr = (roomId, value) => this.setState(s => ({ rooms: s.rooms.map(r => r.id === roomId ? { ...r, waterCurr: value } : r) }));
   updateElecCurr = (roomId, value) => this.setState(s => ({ rooms: s.rooms.map(r => r.id === roomId ? { ...r, elecCurr: value } : r) }));
@@ -3382,7 +3382,7 @@ class Component extends DCLogic {
     const v = e.target.value;
     this.setState(s => ({ meterReadings: s.meterReadings.map(m => m.key === key ? { ...m, targetRoom: v, saved: false } : m) }));
   };
-  saveMeterReading = async (key) => {
+  saveMeterReading = (key) => this._guard('saveMeterReading:' + key, async () => {
     const entry = this.state.meterReadings.find(m => m.key === key);
     if (!entry) return;
     const roomId = entry.targetRoom.trim();
@@ -3411,7 +3411,7 @@ class Component extends DCLogic {
         ? 'บันทึกมิเตอร์ห้อง ' + roomId + ' แล้ว'
         : 'บันทึกเลขฐานมิเตอร์ห้อง ' + roomId + ' ครั้งแรกแล้ว (รอบนี้ใช้ 0 หน่วย เริ่มนับจากนี้)');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
-  };
+  });
 
   onClaudeCommandInput = (e) => this.setState({ claudeCommandInput: e.target.value });
   onClaudeCommandKeyDown = (e) => { if (e.key === 'Enter') this.sendClaudeCommand(); };
@@ -3597,6 +3597,12 @@ class Component extends DCLogic {
     try { recognition.start(); } catch { /* ignore — popup stays open for manual confirm */ }
   };
   sendClaudeCommand = async () => {
+    // Simple guard-clause instead of the usual _guard() wrapper — this
+    // function is long with several internal branches/returns, and
+    // claudeCommandLoading already exists as exactly the right in-flight
+    // flag (set true at the start, false on every completion path below),
+    // so reusing it here is simpler than restructuring the whole function.
+    if (this.state.claudeCommandLoading) return;
     const message = this.state.claudeCommandInput.trim();
     const attachedImage = this.state.claudeAttachedImage;
     if (!message && !attachedImage) { this.showAdminToast('กรุณาพิมพ์คำสั่งหรือแนบรูปภาพ'); return; }
@@ -3801,7 +3807,7 @@ class Component extends DCLogic {
   // Split from the old single saveTuyaDevice — เดิมกดปุ่มเดียวบันทึกทั้งน้ำ+ไฟพร้อมกัน
   // ทั้งที่จริงๆ เป็นข้อมูลคนละก้อน (ไฟ = tuyaElecDeviceId บันทึกลง Sheet จริง, น้ำ =
   // ยังเป็น mock ในเครื่องเท่านั้น) แยกปุ่ม/handler ตามชนิดอุปกรณ์ให้ชัดเจน
-  saveTuyaElecDevice = async () => {
+  saveTuyaElecDevice = () => this._guard('saveTuyaElecDevice:' + this.state.equipSelectedRoom, async () => {
     const id = this.state.equipSelectedRoom;
     const f = this.state.tuyaForm;
     try {
@@ -3815,8 +3821,8 @@ class Component extends DCLogic {
       this.showAdminToast('บันทึกอุปกรณ์ไฟฟ้าห้อง ' + id + ' แล้ว');
       this.refreshTuyaLive();
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
-  };
-  deleteTuyaElecDevice = async () => {
+  });
+  deleteTuyaElecDevice = () => this._guard('deleteTuyaElecDevice:' + this.state.equipSelectedRoom, async () => {
     const id = this.state.equipSelectedRoom;
     try {
       const res = await fetch('/api/rooms/' + id, {
@@ -3828,7 +3834,7 @@ class Component extends DCLogic {
       this.setState(s => ({ rooms: s.rooms.map(r => r.id === id ? updatedRoom : r), tuyaForm: { ...s.tuyaForm, elecDeviceId: '' } }));
       this.showAdminToast('ลบอุปกรณ์ไฟฟ้าห้อง ' + id + ' แล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ลบไม่สำเร็จ'); }
-  };
+  });
   saveTuyaWaterDevice = () => {
     const id = this.state.equipSelectedRoom;
     const f = this.state.tuyaForm;
@@ -3860,7 +3866,7 @@ class Component extends DCLogic {
     this.setState({ showTuyaPowerConfirm: false, tuyaPowerConfirmRoom: null });
     this._setTuyaSwitch(roomId, false);
   };
-  _setTuyaSwitch = async (roomId, on) => {
+  _setTuyaSwitch = (roomId, on) => this._guard('_setTuyaSwitch:' + roomId, async () => {
     try {
       const res = await fetch('/api/tuya/switch', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -3871,7 +3877,7 @@ class Component extends DCLogic {
       this.setState(s => ({ tuyaLiveReadings: { ...s.tuyaLiveReadings, [roomId]: { ...s.tuyaLiveReadings[roomId], ...reading } } }));
       this.showAdminToast(on ? ('จ่ายไฟห้อง ' + roomId + ' แล้ว') : ('ตัดไฟห้อง ' + roomId + ' แล้ว'));
     } catch (err) { this.showAdminToast(err.message || 'สั่งงานอุปกรณ์ไม่สำเร็จ'); }
-  };
+  });
 
   openExpenseModal = () => this.setState({ showExpenseModal: true, newExpense: { category: 'ซ่อมบำรุง', desc: '', amount: '', date: '2026-07-04' } });
   closeExpenseModal = () => this.setState({ showExpenseModal: false });
@@ -3895,7 +3901,7 @@ class Component extends DCLogic {
   onExpenseDescChange = (e) => { const v = e.target.value; this.setState(s => ({ newExpense: { ...s.newExpense, desc: v } })); };
   onExpenseAmountChange = (e) => { const v = e.target.value; this.setState(s => ({ newExpense: { ...s.newExpense, amount: v } })); };
   onExpenseDateChange = (e) => { const v = e.target.value; this.setState(s => ({ newExpense: { ...s.newExpense, date: v } })); };
-  submitExpense = async () => {
+  submitExpense = () => this._guard('submitExpense', async () => {
     const s = this.state;
     const amount = Number(s.newExpense.amount) || 0;
     if (!s.newExpense.desc.trim() || amount <= 0) { this.showAdminToast('กรุณากรอกรายละเอียดและจำนวนเงิน'); return; }
@@ -3909,15 +3915,15 @@ class Component extends DCLogic {
       this.setState(st => ({ expenses: [newExpense, ...st.expenses], showExpenseModal: false }));
       this.showAdminToast('เพิ่มรายจ่ายสำเร็จ');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
-  };
-  deleteExpense = async (id) => {
+  });
+  deleteExpense = (id) => this._guard('deleteExpense:' + id, async () => {
     try {
       const res = await fetch('/api/expenses/' + id, { method: 'DELETE' });
       if (!res.ok) throw new Error('ลบไม่สำเร็จ');
       this.setState(s => ({ expenses: s.expenses.filter(e => e.id !== id) }));
       this.showAdminToast('ลบรายการแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ลบไม่สำเร็จ'); }
-  };
+  });
 
   selectRoomAndGo = (id) => this.setState({ selectedRoomId: id, activeNav: 'rooms' });
   selectRoomOnly = (id) => this.setState({ selectedRoomId: id });
@@ -4105,11 +4111,25 @@ class Component extends DCLogic {
   confirmDeleteInvoice = () => this._guard('confirmDeleteInvoice:' + this.state.deleteInvoiceId, async () => {
     const id = this.state.deleteInvoiceId;
     if (!id) return;
+    const inv = this.state.invoices.find(i => i.id === id);
+    const room = inv ? this.state.rooms.find(r => r.id === inv.room) : null;
     try {
       const res = await fetch('/api/invoices/' + id, { method: 'DELETE' });
       if (!res.ok) throw new Error('ลบไม่สำเร็จ');
-      this.setState(s => ({ invoices: s.invoices.filter(i => i.id !== id), showDeleteInvoiceConfirm: false, deleteInvoiceId: '' }));
-      this.showAdminToast('ลบใบแจ้งหนี้แล้ว');
+      const result = await res.json();
+      // The server refunds any amountPaid on the deleted invoice back to
+      // the room's credit (see server/routes/invoices.js) instead of
+      // letting it silently vanish — reflect that in local state + tell
+      // the owner it happened, since it's easy to miss otherwise.
+      const refunded = result.refundedToCredit || 0;
+      this.setState(s => ({
+        invoices: s.invoices.filter(i => i.id !== id),
+        rooms: refunded > 0 && room ? s.rooms.map(r => r.id === room.id ? { ...r, creditBalance: (r.creditBalance || 0) + refunded } : r) : s.rooms,
+        showDeleteInvoiceConfirm: false, deleteInvoiceId: '',
+      }));
+      this.showAdminToast(refunded > 0
+        ? `ลบใบแจ้งหนี้แล้ว — คืนยอด ${this.fmt(refunded)} ที่จ่ายไปแล้วเป็นเงินล่วงหน้าให้ห้อง ${inv.room}`
+        : 'ลบใบแจ้งหนี้แล้ว');
     } catch (err) {
       this.showAdminToast(err.message || 'ลบไม่สำเร็จ');
       this.setState({ showDeleteInvoiceConfirm: false, deleteInvoiceId: '' });
@@ -4682,7 +4702,7 @@ class Component extends DCLogic {
     const order = ['pending', 'inprogress', 'done'];
     this.setState(s => ({ maintenance: s.maintenance.map(m => m.id === id ? { ...m, status: order[(order.indexOf(m.status) + 1) % order.length] } : m) }));
   };
-  setMaintStatus = async (id, status) => {
+  setMaintStatus = (id, status) => this._guard('setMaintStatus:' + id, async () => {
     if (status === 'done') { this.setState({ showMaintDone: true, maintDoneId: id }); return; }
     try {
       const res = await fetch('/api/maintenance/' + id, {
@@ -4693,9 +4713,9 @@ class Component extends DCLogic {
       const updated = await res.json();
       this.setState(s => ({ maintenance: s.maintenance.map(m => m.id === id ? updated : m) }));
     } catch (err) { this.showAdminToast(err.message || 'อัปเดตไม่สำเร็จ'); }
-  };
+  });
   closeMaintDone = () => this.setState({ showMaintDone: false, maintDoneId: null });
-  confirmMaintDone = async () => {
+  confirmMaintDone = () => this._guard('confirmMaintDone:' + this.state.maintDoneId, async () => {
     const id = this.state.maintDoneId;
     try {
       const res = await fetch('/api/maintenance/' + id, { method: 'DELETE' });
@@ -4703,13 +4723,13 @@ class Component extends DCLogic {
       this.setState(s => ({ maintenance: s.maintenance.filter(m => m.id !== id), showMaintDone: false, maintDoneId: null }));
       this.showAdminToast('ปิดงานซ่อมแล้ว — นำออกจากรายการ');
     } catch (err) { this.showAdminToast(err.message || 'ปิดงานไม่สำเร็จ'); }
-  };
+  });
 
   openMaintenanceModal = () => this.setState({ showMaintenanceModal: true, newMaintenance: { roomId: '', issue: '' } });
   closeMaintenanceModal = () => this.setState({ showMaintenanceModal: false });
   onNewMaintRoomChange = (e) => { const v = e.target.value; this.setState(s => ({ newMaintenance: { ...s.newMaintenance, roomId: v } })); };
   onNewMaintIssueChange = (e) => { const v = e.target.value; this.setState(s => ({ newMaintenance: { ...s.newMaintenance, issue: v } })); };
-  submitMaintenance = async () => {
+  submitMaintenance = () => this._guard('submitMaintenance', async () => {
     const s = this.state;
     if (!s.newMaintenance.roomId || !s.newMaintenance.issue.trim()) { this.showAdminToast('กรุณากรอกข้อมูลให้ครบ'); return; }
     try {
@@ -4722,7 +4742,7 @@ class Component extends DCLogic {
       this.setState(st => ({ maintenance: [newItem, ...st.maintenance], showMaintenanceModal: false }));
       this.showAdminToast('แจ้งซ่อมสำเร็จ');
     } catch (err) { this.showAdminToast(err.message || 'แจ้งซ่อมไม่สำเร็จ'); }
-  };
+  });
 
   openRoomEdit = () => {
     const room = this.state.rooms.find(r => r.id === this.state.selectedRoomId);
@@ -4731,7 +4751,7 @@ class Component extends DCLogic {
   };
   openDeleteRoom = () => this.setState({ showDeleteRoom: true });
   closeDeleteRoom = () => this.setState({ showDeleteRoom: false });
-  confirmDeleteRoom = async () => {
+  confirmDeleteRoom = () => this._guard('confirmDeleteRoom:' + this.state.selectedRoomId, async () => {
     const id = this.state.selectedRoomId;
     const room = this.state.rooms.find(r => r.id === id);
     if (room && room.tenant) { this.showAdminToast('ห้องนี้ยังมีผู้เช่า — ลบสัญญาก่อน'); return; }
@@ -4744,7 +4764,7 @@ class Component extends DCLogic {
       });
       this.showAdminToast('ลบห้อง ' + id + ' ออกแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ลบห้องไม่สำเร็จ'); }
-  };
+  });
   openAddRoomModal = () => this.setState({ showAddRoomModal: true, newRoom: { id: '', floor: '1', rent: '', deposit: '', photos: [] } });
   closeAddRoomModal = () => this.setState({ showAddRoomModal: false });
   onNewRoomId = (e) => { const v = e.target.value; this.setState(s => ({ newRoom: { ...s.newRoom, id: v } })); };
@@ -4768,7 +4788,7 @@ class Component extends DCLogic {
     e.target.value = '';
   };
   removeNewRoomPhoto = (idx) => this.setState(s => ({ newRoom: { ...s.newRoom, photos: s.newRoom.photos.filter((_, i) => i !== idx) } }));
-  submitAddRoom = async () => {
+  submitAddRoom = () => this._guard('submitAddRoom', async () => {
     const nr = this.state.newRoom;
     const id = (nr.id || '').trim();
     if (!id) { this.showAdminToast('กรุณากรอกเลขห้อง'); return; }
@@ -4790,12 +4810,12 @@ class Component extends DCLogic {
       });
       this.showAdminToast('เพิ่มห้อง ' + id + ' แล้ว — พร้อมทำสัญญา');
     } catch (err) { this.showAdminToast(err.message || 'เพิ่มห้องไม่สำเร็จ'); }
-  };
+  });
   closeRoomEdit = () => this.setState({ showRoomEditModal: false });
   onEditTenantChange = (e) => { const v = e.target.value; this.setState(s => ({ editRoomForm: { ...s.editRoomForm, tenant: v } })); };
   onEditPhoneChange = (e) => { const v = e.target.value; this.setState(s => ({ editRoomForm: { ...s.editRoomForm, phone: v } })); };
   onEditRentChange = (e) => { const v = e.target.value; this.setState(s => ({ editRoomForm: { ...s.editRoomForm, rent: v } })); };
-  saveRoomEdit = async () => {
+  saveRoomEdit = () => this._guard('saveRoomEdit:' + this.state.selectedRoomId, async () => {
     const id = this.state.selectedRoomId;
     const form = this.state.editRoomForm;
     try {
@@ -4808,7 +4828,7 @@ class Component extends DCLogic {
       this.setState(s => ({ rooms: s.rooms.map(r => r.id === id ? updated : r), showRoomEditModal: false }));
       this.showAdminToast('บันทึกข้อมูลห้อง ' + id + ' แล้ว');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
-  };
+  });
 
   openContractModal = () => this.setState({ showContractModal: true });
   closeContractModal = () => this.setState({ showContractModal: false });
@@ -4888,7 +4908,7 @@ class Component extends DCLogic {
   // these only control WHAT gets sent, not WHO receives it (that's the
   // LINE-connection/PIN-gated card above). Disabled entirely in the UI
   // until adminLineUserId is connected — see adminNotifyLocked below.
-  toggleAdminNotify = (key) => async () => {
+  toggleAdminNotify = (key) => () => this._guard('toggleAdminNotify:' + key, async () => {
     const prev = this.state.adminNotify;
     const next = { ...prev, [key]: !prev[key] };
     this.setState({ adminNotify: next });
@@ -4902,8 +4922,8 @@ class Component extends DCLogic {
       this.setState({ adminNotify: prev });
       this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
     }
-  };
-  toggleAdminNotifyAll = async () => {
+  });
+  toggleAdminNotifyAll = () => this._guard('toggleAdminNotifyAll', async () => {
     const prev = this.state.adminNotify;
     const allOn = Object.values(prev).every(Boolean);
     const next = Object.fromEntries(Object.keys(prev).map(k => [k, !allOn]));
@@ -4918,7 +4938,7 @@ class Component extends DCLogic {
       this.setState({ adminNotify: prev });
       this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
     }
-  };
+  });
   confirmChangePin = () => this._guard('confirmChangePin', async () => {
     try {
       const res = await fetch('/api/settings/change-admin-pin', {
@@ -4930,7 +4950,7 @@ class Component extends DCLogic {
       this.showAdminToast('เปลี่ยนรหัสผ่านแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'เปลี่ยนรหัสไม่สำเร็จ'); }
   });
-  saveProfile = async () => {
+  saveProfile = () => this._guard('saveProfile', async () => {
     try {
       const res = await fetch('/api/settings', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -4939,7 +4959,7 @@ class Component extends DCLogic {
       if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
       this.showAdminToast('บันทึกข้อมูลหอพักแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
-  };
+  });
   // Split into its own button per explicit user request — separate from
   // saveProfile above (ชื่อหอพัก) even though both currently just PUT the
   // same propertyProfile object under the hood (simplest, no risk of the
@@ -5116,7 +5136,7 @@ class Component extends DCLogic {
   // calendar reminders) are actually allowed to fire — persisted server-side
   // in the Settings sheet, since the scheduler check runs independently of
   // any browser tab being open.
-  toggleClaudeAutomation = async () => {
+  toggleClaudeAutomation = () => this._guard('toggleClaudeAutomation', async () => {
     const next = !this.state.claudeAutomationEnabled;
     this.setState({ claudeAutomationEnabled: next });
     try {
@@ -5130,7 +5150,7 @@ class Component extends DCLogic {
       this.setState({ claudeAutomationEnabled: !next }); // revert on failure
       this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
     }
-  };
+  });
   loadClaudeHealth = async () => {
     try {
       const res = await fetch('/api/claude/health');
@@ -5186,7 +5206,7 @@ class Component extends DCLogic {
   // sub-tasks (e.g. a full rent-collection policy has a bill day, a reminder
   // day, an overdue-check day...) — /parse always returns an array, even for
   // a single-task result, so the confirm stage always shows a list.
-  parseRecurringCommand = async () => {
+  parseRecurringCommand = () => this._guard('parseRecurringCommand', async () => {
     const instruction = (this.state.recurringInput || '').trim();
     if (!instruction) return;
     this.setState({ recurringParseLoading: true, recurringParseError: '' });
@@ -5206,10 +5226,10 @@ class Component extends DCLogic {
     } catch (err) {
       this.setState({ recurringParseError: err.message, recurringParseLoading: false });
     }
-  };
+  });
   cancelRecurringParse = () => this.setState({ recurringParsedTasks: null, recurringParseError: '' });
 
-  confirmSaveRecurring = async () => {
+  confirmSaveRecurring = () => this._guard('confirmSaveRecurring', async () => {
     const tasks = this.state.recurringParsedTasks;
     if (!tasks || !tasks.length) return;
     this.setState({ recurringSaveLoading: true });
@@ -5226,7 +5246,7 @@ class Component extends DCLogic {
       this.setState({ recurringSaveLoading: false });
       this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
     }
-  };
+  });
 
   // Deleting a recurring task is a bit more consequential than deleting most
   // other small records here — it silently stops a running billing/reminder
@@ -5234,22 +5254,22 @@ class Component extends DCLogic {
   // "ยืนยันลบ/ยกเลิก" pair) instead of deleting on the first tap.
   askDeleteRecurringTask = (id) => this.setState({ recurringDeleteConfirmId: id });
   cancelDeleteRecurringTask = () => this.setState({ recurringDeleteConfirmId: null });
-  confirmDeleteRecurringTask = async (id) => {
+  confirmDeleteRecurringTask = (id) => this._guard('confirmDeleteRecurringTask:' + id, async () => {
     try {
       await fetch('/api/recurring-tasks/' + id, { method: 'DELETE' });
       this.setState({ recurringDeleteConfirmId: null });
       await this.loadRecurringTasks();
     } catch (err) { this.showAdminToast('ลบไม่สำเร็จ'); }
-  };
+  });
 
-  toggleRecurringActive = async (task) => {
+  toggleRecurringActive = (task) => this._guard('toggleRecurringActive:' + task.id, async () => {
     try {
       await fetch('/api/recurring-tasks/' + task.id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !task.active }),
       });
       await this.loadRecurringTasks();
     } catch (err) { this.showAdminToast('อัปเดตไม่สำเร็จ'); }
-  };
+  });
 
   logout = () => this.showAdminToast('ออกจากระบบเรียบร้อย (เดโม)');
 
