@@ -6087,18 +6087,26 @@ class Component extends DCLogic {
     // already-paid portion isn't counted as still "pending" — matches the
     // "ยอดที่ต้องชำระ" column in the pending-bills table, which shows the
     // same remaining-only figure for partial rows.
-    // Always use what's actually still owed (remainingDue), not a
-    // status === 'partial' check — a 'pending' invoice can now also have
-    // amountPaid > 0 (advance credit auto-applied at creation, see
-    // server/routes/invoices.js), and its KPI contribution needs to reflect
-    // that too. Safe for every other status: when amountPaid is 0,
-    // remainingDue just equals the full total anyway.
+    // Real bug a user hit: "ยอดที่ยังไม่ได้ชำระ" (remainingDue) is the right
+    // thing to sum for PENDING/OVERDUE bills (what's still owed), but for
+    // PAID bills it's always 0 by definition — a fully paid invoice has
+    // nothing left owing — so reusing the same "amount owed" helper for the
+    // "ชำระแล้ว" KPI card and the Dashboard's "รายรับเดือนนี้" figure made
+    // both permanently show ฿0 the moment ANY bill got marked paid,
+    // regardless of how much money actually came in. Paid invoices need
+    // their full total (the actual revenue received), not what's still owed
+    // (which is nothing). Pending/overdue still use remainingDue — a
+    // 'pending' invoice can have amountPaid > 0 (advance credit auto-applied
+    // at creation, see server/routes/invoices.js), and its KPI contribution
+    // needs to reflect that too.
     const amountOwedFor = (i) => {
       const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
       return i.remainingDue != null ? i.remainingDue : Math.max(0, total - (i.amountPaid || 0));
     };
+    const amountReceivedFor = (i) => i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
     const sumOf = (list) => list.reduce((a, i) => a + amountOwedFor(i), 0);
-    const paidSum = sumOf(paidList), pendingSum = sumOf(pendingList), overdueSum = sumOf(overdueList);
+    const paidSum = paidList.reduce((a, i) => a + amountReceivedFor(i), 0);
+    const pendingSum = sumOf(pendingList), overdueSum = sumOf(overdueList);
     const totalSum = paidSum + pendingSum + overdueSum;
 
     const billingChips = [
