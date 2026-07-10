@@ -1,4 +1,3 @@
-const fs = require('fs');
 const path = require('path');
 
 // MUST be set before sharp/libvips's SVG renderer (librsvg -> pango ->
@@ -23,12 +22,22 @@ const sharp = require('sharp');
 // choice of pdfkit over a browser: Render's free instance only has 512MB
 // RAM, and sharp/libvips is a tiny native image library, not a whole
 // Chromium process.
-const THAI_FONT_PATH = path.join(__dirname, 'fonts', 'NotoSansThai-Variable.ttf');
-const THAI_FONT_B64 = fs.readFileSync(THAI_FONT_PATH).toString('base64');
 // The font's real internal family name (confirmed via fontkit, NOT a name
-// we made up) — used both in the @font-face declaration below AND relied
-// on by fontconfig when it scans server/fonts/ per fonts.conf above, so
-// both resolution paths agree on the same name.
+// we made up) — every SVG's font-family just references this by name;
+// fontconfig resolves it to the actual file by scanning server/fonts/ per
+// fonts.conf + FONTCONFIG_PATH above.
+//
+// Deliberately NOT embedding the font as a base64 @font-face data URI
+// per-render (an earlier version of this file did) — real bug found
+// during testing: it worked for the FIRST image generated in a process's
+// lifetime but silently fell back to tofu boxes on the SECOND, even
+// though both calls were otherwise identical (same font, same family
+// name). Root cause not fully confirmed (suspected pango/harfbuzz font-
+// cache conflict from registering the same @font-face family twice in one
+// process), but relying purely on fontconfig's directory-based discovery
+// — the standard, well-tested mechanism — sidesteps it entirely, and is
+// lighter on Render's 512MB RAM besides (no more re-embedding a ~290KB
+// base64 blob into every single generated SVG).
 const THAI_FONT_FAMILY = 'Noto Sans Thai';
 
 const WIDTH = 700;
@@ -146,7 +155,6 @@ async function generateReceiptImage(invoice, room, propertyProfile, qrBuffer) {
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${totalHeight}">
     <style>
-      @font-face { font-family: '${THAI_FONT_FAMILY}'; src: url(data:font/ttf;base64,${THAI_FONT_B64}) format('truetype'); font-weight: 400 700; }
       text { font-family: '${THAI_FONT_FAMILY}', sans-serif; }
     </style>
     <rect width="${WIDTH}" height="${totalHeight}" fill="#fff"/>
@@ -229,7 +237,6 @@ async function generatePaymentCardImage(opts, propertyProfile, qrBuffer) {
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${totalHeight}">
     <style>
-      @font-face { font-family: '${THAI_FONT_FAMILY}'; src: url(data:font/ttf;base64,${THAI_FONT_B64}) format('truetype'); font-weight: 400 700; }
       text { font-family: '${THAI_FONT_FAMILY}', sans-serif; }
     </style>
     <rect width="${WIDTH}" height="${totalHeight}" fill="#fff"/>
