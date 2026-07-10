@@ -7350,7 +7350,7 @@ class Component extends DCLogic {
     // ค่าซ่อมบำรุง entries ever have one) shown per row so the owner can see
     // at a glance which expenses are tied to a specific room vs. the
     // building as a whole.
-    const categoryIcon = (cat) => ({ 'ค่าเช่าตึก': '🏢', 'ค่าซ่อมบำรุง': '🔧', 'ค่าน้ำ-ไฟ': '💡', 'ชำระเงินลงทุน': '🏦', 'อื่นๆ': '📋' }[cat] || '📌');
+    const categoryIcon = (cat) => ({ 'งบลงทุน': '📈', 'ค่าซ่อมบำรุง': '🔧', 'ค่าน้ำ-ไฟ': '💡', 'ชำระเงินลงทุน': '🏦', 'อื่นๆ': '📋' }[cat] || '📌');
     const expensesView = s.expenses.map(e => ({
       id: e.id, date: e.date, category: e.category, desc: e.desc, amountDisplay: this.fmt(e.amount),
       icon: categoryIcon(e.category),
@@ -7368,7 +7368,7 @@ class Component extends DCLogic {
     // actually used in the data" unioned with the fixed defaults. Fixes a
     // real bug where custom categories vanished on every page refresh
     // (used to live in local-only state, never persisted to the Sheet).
-    const defaultExpenseCategories = ['ค่าเช่าตึก', 'ค่าซ่อมบำรุง', 'ค่าน้ำ-ไฟ', 'ชำระเงินลงทุน', 'อื่นๆ'];
+    const defaultExpenseCategories = ['งบลงทุน', 'ค่าซ่อมบำรุง', 'ค่าน้ำ-ไฟ', 'ชำระเงินลงทุน', 'อื่นๆ'];
     const usedExpenseCategories = Array.from(new Set(s.expenses.map(e => e.category).filter(Boolean)));
     const expenseCategoryOptions = Array.from(new Set([...defaultExpenseCategories, ...usedExpenseCategories]));
     const expenseCategoryCards = expenseCategoryOptions.map(cat => ({ key: cat, label: cat, icon: categoryIcon(cat), onClick: () => this.pickExpenseCategory(cat) }));
