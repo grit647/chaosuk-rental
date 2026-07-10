@@ -910,7 +910,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div onclick="{{ openClearDataModal }}" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:7px;background:#FBF7F0;border:1px solid #EDE1CE;cursor:pointer;margin-bottom:12px">
               <div>
                 <div style="font-size:13px;font-weight:600;color:#241812">ล้างข้อมูลบางส่วน</div>
-                <div style="font-size:11px;color:#A89A88;margin-top:2px">เลือกได้ว่าจะล้างประวัติการใช้ไฟ / ใบแจ้งหนี้ / รายจ่าย / งานซ่อม / ปฏิทิน / สลิปที่ยังไม่ทราบห้อง</div>
+                <div style="font-size:11px;color:#A89A88;margin-top:2px">เลือกได้ว่าจะล้างประวัติการใช้ไฟ / ใบแจ้งหนี้ / รายจ่าย / งานซ่อม / ปฏิทิน / สลิปที่ยังไม่ทราบห้อง / บันทึกรายรับ</div>
               </div>
               <span style="color:#C1622D;font-size:13px">›</span>
             </div>
@@ -7092,6 +7092,7 @@ class Component extends DCLogic {
       { key: 'maintenance', label: 'งานซ่อมทั้งหมด' },
       { key: 'calendar', label: 'นัดหมายในปฏิทินทั้งหมด' },
       { key: 'unmatchedSlips', label: 'สลิปที่ยังไม่ทราบห้อง' },
+      { key: 'paymentLog', label: 'บันทึกรายรับ (ใช้คำนวณ "รายรับเดือนนี้")' },
     ].map(o => {
       const checked = !!s.clearDataChecks[o.key];
       return {

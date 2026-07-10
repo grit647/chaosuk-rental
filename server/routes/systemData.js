@@ -13,6 +13,10 @@ const CLEARABLE = {
   maintenance: 'Maintenance',
   calendar: 'CalendarEvents',
   unmatchedSlips: 'UnmatchedSlips',
+  // Revenue ledger (server/routes/paymentLog.js) — added alongside the
+  // other categories per explicit user request, after manually clearing
+  // it via the Sheet UI directly (no in-app way to do that before this).
+  paymentLog: 'PaymentLog',
 };
 
 // Partial clear — owner ticks which categories to wipe, confirmed by typing
@@ -44,7 +48,7 @@ router.post('/factory-reset', async (req, res, next) => {
     if (!storedPin) return res.status(400).json({ error: 'ยังไม่ได้ตั้งรหัส PIN สำหรับล้างข้อมูลทั้งหมด — ไปตั้งที่หน้าตั้งค่าก่อน' });
     if (!pin || String(pin) !== String(storedPin)) return res.status(403).json({ error: 'รหัส PIN ไม่ถูกต้อง' });
 
-    const tabs = ['Rooms', 'Invoices', 'Maintenance', 'Expenses', 'CalendarEvents', 'UnmatchedSlips', 'ElectricityLog'];
+    const tabs = ['Rooms', 'Invoices', 'Maintenance', 'Expenses', 'CalendarEvents', 'UnmatchedSlips', 'ElectricityLog', 'PaymentLog'];
     for (const t of tabs) {
       await clearTab(t);
     }
