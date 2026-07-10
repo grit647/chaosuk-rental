@@ -4641,13 +4641,28 @@ class Component extends DCLogic {
       } else {
         message = 'แจ้งใบแจ้งหนี้ห้อง ' + roomId + ' ครับ กรุณาตรวจสอบยอดชำระในระบบ';
       }
-      // Per explicit user request: attach the payment QR code (uploaded
-      // once in Settings → "ข้อมูลหอพัก") to the end of the bill, so the
-      // tenant can scan-and-pay right from the LINE chat — pushMessage
-      // (server/line.js) sends the text and image as two bubbles in the
-      // same push when both are given, which is exactly "แนบท้ายบิล".
-      const qrUrl = this.state.propertyProfile.paymentQrUrl || undefined;
-      await this._lineSend(roomId, message, qrUrl);
+      // Per explicit user request: when a payment QR is configured, send a
+      // SINGLE combined receipt image (itemized bill + QR baked into one
+      // picture, server/receiptImage.js) instead of separate text+QR
+      // bubbles — cleaner for the tenant to save/screenshot. Only invoices
+      // (the `invoice` branch above) have real line-item data to put in
+      // the image; the no-invoice fallback message always stays plain text.
+      // Any failure generating the image (e.g. Cloudinary hiccup fetching
+      // the QR) falls back to the plain itemized text with no image at all,
+      // rather than silently sending nothing.
+      const qrUrl = this.state.propertyProfile.paymentQrUrl || '';
+      let receiptImageUrl = '';
+      if (invoice && qrUrl) {
+        try {
+          const imgRes = await fetch('/api/invoices/' + invoice.id + '/receipt-image', { method: 'POST' });
+          if (imgRes.ok) receiptImageUrl = (await imgRes.json()).url;
+        } catch { /* fall through to plain text below */ }
+      }
+      if (receiptImageUrl) {
+        await this._lineSend(roomId, '', receiptImageUrl);
+      } else {
+        await this._lineSend(roomId, message);
+      }
       // Persist on the invoice itself (server-side) — not just local state —
       // so the "sent" status survives a refresh and also reflects sends
       // triggered from the Claude command box (send_invoice_reminder tool),

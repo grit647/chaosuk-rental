@@ -5,9 +5,12 @@ const path = require('path');
 const { appendRow, updateRow, deleteRow, readTab } = require('../sheets');
 const { coerceInvoices, coerceRooms, readSettings } = require('../coerce');
 const { generateInvoicePdf } = require('../pdf');
+const { generateReceiptImage } = require('../receiptImage');
 
 const INVOICE_PDF_DIR = path.join(__dirname, '..', 'uploads', 'invoices');
 fs.mkdirSync(INVOICE_PDF_DIR, { recursive: true });
+const RECEIPT_IMG_DIR = path.join(__dirname, '..', 'uploads', 'receipts');
+fs.mkdirSync(RECEIPT_IMG_DIR, { recursive: true });
 
 router.get('/', async (req, res, next) => {
   try { res.json(coerceInvoices(await readTab('Invoices'))); }
@@ -175,6 +178,39 @@ router.post('/:id/pdf', async (req, res, next) => {
 
     const url = `${req.protocol}://${req.get('host')}/uploads/invoices/${filename}`;
     res.json({ url });
+  } catch (err) { next(err); }
+});
+
+// Combined receipt-as-one-image, per explicit user request — used INSTEAD
+// of the plain-text LINE message when the owner has a payment QR uploaded
+// (see sendReceiptLine in Rental Management.dc.html), so the tenant gets a
+// single readable image with the itemized bill AND the scan-to-pay QR baked
+// into it, rather than two separate bubbles. Falls back to plain text on
+// the frontend if this endpoint errors or no QR is configured.
+router.post('/:id/receipt-image', async (req, res, next) => {
+  try {
+    const [invoices, rooms, settingsData] = await Promise.all([
+      readTab('Invoices'), readTab('Rooms'), readSettings(),
+    ]);
+    const invoice = coerceInvoices(invoices).find((i) => i.id === req.params.id);
+    if (!invoice) return res.status(404).json({ error: 'ไม่พบใบแจ้งหนี้นี้' });
+    const room = coerceRooms(rooms).find((r) => r.id === invoice.room);
+
+    let qrBuffer = null;
+    const qrUrl = settingsData.propertyProfile.paymentQrUrl;
+    if (qrUrl) {
+      try {
+        const qrRes = await fetch(qrUrl);
+        if (qrRes.ok) qrBuffer = Buffer.from(await qrRes.arrayBuffer());
+      } catch { /* QR fetch failing shouldn't block the rest of the receipt */ }
+    }
+
+    const buffer = await generateReceiptImage(invoice, room, settingsData.propertyProfile, qrBuffer);
+    const filename = invoice.id.replace(/[^a-zA-Z0-9-]/g, '_') + '-' + Date.now() + '.png';
+    fs.writeFileSync(path.join(RECEIPT_IMG_DIR, filename), buffer);
+
+    const url = `${req.protocol}://${req.get('host')}/uploads/receipts/${filename}`;
+    res.json({ url, hasQr: !!qrBuffer });
   } catch (err) { next(err); }
 });
 
