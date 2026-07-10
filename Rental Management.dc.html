@@ -2626,9 +2626,11 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </sc-if>
                     <sc-if value="{{ invWaterIsManual }}" hint-placeholder-val="{{ false }}">
                       <input value="{{ newInvoice.waterUnits }}" onchange="{{ onNewInvoiceWaterUnitsChange }}" placeholder="หน่วยปัจจุบัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
-                      <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">{{ invWaterManualHint }}</div>
                     </sc-if>
                     <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">หน่วยบิลหลังสุด: {{ invWaterLastReading }}</div>
+                    <sc-if value="{{ invWaterReadingTooLow }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10.5px;color:#B24336;font-weight:600;margin-top:4px">⚠️ ตรวจสอบใหม่ — เลขน้อยกว่าบิลก่อนหน้า</div>
+                    </sc-if>
                   </div>
                   <div style="flex:1">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
@@ -2644,9 +2646,11 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </sc-if>
                     <sc-if value="{{ invElecIsManual }}" hint-placeholder-val="{{ false }}">
                       <input value="{{ newInvoice.elecUnits }}" onchange="{{ onNewInvoiceElecUnitsChange }}" placeholder="หน่วยปัจจุบัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
-                      <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">{{ invElecManualHint }}</div>
                     </sc-if>
                     <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">หน่วยบิลหลังสุด: {{ invElecLastReading }}</div>
+                    <sc-if value="{{ invElecReadingTooLow }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10.5px;color:#B24336;font-weight:600;margin-top:4px">⚠️ ตรวจสอบใหม่ — เลขน้อยกว่าบิลก่อนหน้า</div>
+                    </sc-if>
                   </div>
                 </div>
                 <div>
@@ -7484,28 +7488,22 @@ class Component extends DCLogic {
       invWaterLastReading: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return r ? (r.waterPrev || 0) : '—'; })(),
       invElecLastReading: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return r ? (r.elecPrev || 0) : '—'; })(),
       onNewInvoiceWaterUnitsChange: this.onNewInvoiceWaterUnitsChange, onNewInvoiceElecUnitsChange: this.onNewInvoiceElecUnitsChange,
-      // Live "units × rate = amount" breakdown for กรอกเอง (manual) mode,
-      // same idea as the device-mode hint above — per explicit user
-      // request, so the owner can see exactly how the Baht figure was
-      // derived from the contract's rate before submitting, instead of
-      // typing a lump sum with no visible connection to the rate. Uses this
-      // room's own rate (roomRate), not the shared property-wide default.
-      // Shows the full derivation — last-billed reading → this reading →
-      // units used → × rate — so the owner can sanity-check the number
-      // before submitting, not just see the final Baht figure.
-      invWaterManualHint: (() => {
+      // Per explicit user request: a meter reading lower than the last
+      // bill's reading is physically impossible for a real accumulating
+      // meter (typo, wrong meter, misread digit, etc.) — flag it instead of
+      // silently accepting it (meterUnitsFromReading already clamps the
+      // resulting units-used at 0, so this only affects a visible warning,
+      // not the actual math). Only checked in "กรอกเอง" (manual) mode —
+      // device-mode readings come straight from hardware.
+      invWaterReadingTooLow: (() => {
+        if (s.newInvoice.waterMode !== 'manual' || !s.newInvoice.waterUnits) return false;
         const room = s.rooms.find(x => x.id === s.newInvoice.roomId);
-        const prev = (room && room.waterPrev) || 0;
-        const u = this.meterUnitsFromReading(s.newInvoice.roomId, 'water', s.newInvoice.waterUnits);
-        const rate = this.roomRate(s.newInvoice.roomId, 'water');
-        return `ครั้งก่อน ${prev} → ปัจจุบัน ${Number(s.newInvoice.waterUnits) || 0} = ใช้ ${u} หน่วย × ${rate}/หน่วย = ${this.fmt(u * rate)} บาท`;
+        return Number(s.newInvoice.waterUnits) < ((room && room.waterPrev) || 0);
       })(),
-      invElecManualHint: (() => {
+      invElecReadingTooLow: (() => {
+        if (s.newInvoice.elecMode !== 'manual' || !s.newInvoice.elecUnits) return false;
         const room = s.rooms.find(x => x.id === s.newInvoice.roomId);
-        const prev = (room && room.elecPrev) || 0;
-        const u = this.meterUnitsFromReading(s.newInvoice.roomId, 'elec', s.newInvoice.elecUnits);
-        const rate = this.roomRate(s.newInvoice.roomId, 'elec');
-        return `ครั้งก่อน ${prev} → ปัจจุบัน ${Number(s.newInvoice.elecUnits) || 0} = ใช้ ${u} หน่วย × ${rate}/หน่วย = ${this.fmt(u * rate)} บาท`;
+        return Number(s.newInvoice.elecUnits) < ((room && room.elecPrev) || 0);
       })(),
       // "รายการบิล" preview — per explicit user request, show the exact
       // calculation for every line (not just the running total) right in
