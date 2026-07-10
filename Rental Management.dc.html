@@ -3525,6 +3525,27 @@ class Component extends DCLogic {
     });
     if (!res.ok) throw new Error((await res.json()).error || 'ส่งไม่สำเร็จ');
   };
+  // Per explicit user request: every payment-related LINE message should go
+  // out as an image, not just the itemized billing notice (which already
+  // has its own dedicated endpoint, /api/invoices/:id/receipt-image, since
+  // it needs real line-items). This one is for the other 3 cases —
+  // advance-payment/credit confirmations and partial/full payment
+  // confirmations — which aren't always tied to one specific invoice, so
+  // the server route is stateless: this helper just describes what to
+  // draw (title/lines/highlight/optional QR) using numbers the caller
+  // already computed for the old text message, and gets back an image URL.
+  // Returns '' (not a throw) on any failure so every call site can fall
+  // back to its original plain-text message instead of sending nothing.
+  _paymentCardImage = async (opts) => {
+    try {
+      const res = await fetch('/api/payment-card-image', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(opts),
+      });
+      if (!res.ok) return '';
+      return (await res.json()).url || '';
+    } catch { return ''; }
+  };
   _uploadImageForLine = async (dataUrl) => {
     const res = await fetch('/api/uploads/image', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -5108,7 +5129,18 @@ class Component extends DCLogic {
       this.showAdminToast('ทำเครื่องหมายชำระแล้ว');
       // Thank-you notification — best-effort, doesn't block/alter the paid status either way.
       const total2 = Number(updated.rent || 0) + Number(updated.water || 0) + Number(updated.elec || 0) + Number(updated.trash || 0) + Number(updated.internet || 0);
-      this._lineSend(updated.room, 'ขอบคุณที่ชำระค่าเช่าห้อง ' + updated.room + ' จำนวน ' + this.fmt(total2) + ' เรียบร้อยแล้วครับ 🙏').catch(err => console.error(err));
+      // Per explicit user request: full-payment confirmations go out as a
+      // "thank you" image card, no QR (nothing left to pay), showing the
+      // room's remaining advance-payment credit balance if it has any —
+      // falls back to the original plain text if image generation fails.
+      const paidRoom = this.state.rooms.find(r => r.id === updated.room);
+      const paidCredit = (paidRoom && paidRoom.creditBalance) || 0;
+      const paidFallbackMsg = 'ขอบคุณที่ชำระค่าเช่าห้อง ' + updated.room + ' จำนวน ' + this.fmt(total2) + ' เรียบร้อยแล้วครับ 🙏';
+      this._paymentCardImage({
+        title: 'ขอบคุณครับ 🙏', subtitle: `ห้อง ${updated.room}`, roomId: updated.room, tenant: updated.tenant,
+        lines: [{ label: 'ยอดที่ชำระ', value: this.fmt(total2) + ' บาท' }, { label: 'สถานะ', value: 'ชำระครบถ้วนแล้ว' }],
+        highlight: paidCredit > 0 ? { label: 'ยอดเงินล่วงหน้าคงเหลือในบัญชี', value: this.fmt(paidCredit) + ' บาท' } : null,
+      }).then(url => this._lineSend(updated.room, url ? '' : paidFallbackMsg, url || undefined)).catch(err => console.error(err));
     } catch (err) { this.showAdminToast(err.message || 'อัปเดตไม่สำเร็จ'); }
   });
 
@@ -5208,7 +5240,17 @@ class Component extends DCLogic {
         this.showAdminToast(`บันทึกเป็นเงินล่วงหน้า ${this.fmt(combined)} ให้ห้อง ${inv.room} แล้ว (ยอดรวมเครดิตตอนนี้ ${this.fmt(newCredit)})`);
         // Same fix as confirmCreditSlips above — show the tenant their total
         // remaining advance-payment balance, not just the amount just added.
-        this._lineSend(inv.room, `บันทึกยอด ${this.fmt(combined)} เป็นเงินที่จ่ายล่วงหน้าให้ห้อง ${inv.room} แล้วครับ จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ยอดเงินล่วงหน้าคงเหลือทั้งหมดตอนนี้ ${this.fmt(newCredit)} บาท ขอบคุณครับ 🙏`).catch(err => console.error(err));
+        // Per explicit user request: advance-payment confirmations go out
+        // as an image card now (no QR — there's nothing to pay here, this
+        // is confirming money ALREADY received), falling back to the
+        // original plain text if image generation fails for any reason.
+        const creditFallbackMsg = `บันทึกยอด ${this.fmt(combined)} เป็นเงินที่จ่ายล่วงหน้าให้ห้อง ${inv.room} แล้วครับ จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ยอดเงินล่วงหน้าคงเหลือทั้งหมดตอนนี้ ${this.fmt(newCredit)} บาท ขอบคุณครับ 🙏`;
+        this._paymentCardImage({
+          title: 'รับเงินล่วงหน้า', subtitle: `ห้อง ${inv.room}`, roomId: inv.room, tenant: inv.tenant,
+          lines: [{ label: 'ยอดที่รับ', value: this.fmt(combined) + ' บาท' }],
+          highlight: { label: 'ยอดเงินล่วงหน้าคงเหลือทั้งหมด', value: this.fmt(newCredit) + ' บาท' },
+          footerNote: 'จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ขอบคุณครับ 🙏',
+        }).then(url => this._lineSend(inv.room, url ? '' : creditFallbackMsg, url || undefined)).catch(err => console.error(err));
         return;
       }
 
@@ -5263,12 +5305,32 @@ class Component extends DCLogic {
         // added, so they always know their standing balance from the LINE
         // message alone.
         const overpayLine = overpay > 0 ? ` ส่วนที่โอนเกินมา ${this.fmt(overpay)} บาท ระบบเก็บไว้เป็นเงินล่วงหน้าให้แล้วครับ จะหักลบให้อัตโนมัติตอนออกบิลรอบถัดไป ยอดเงินล่วงหน้าคงเหลือทั้งหมดตอนนี้ ${this.fmt(newCredit)} บาท` : '';
-        this._lineSend(inv.room, `ขอบคุณที่ชำระค่าเช่าห้อง ${inv.room} จำนวน ${this.fmt(total)} เรียบร้อยแล้วครับ 🙏${overpayLine}`).catch(err => console.error(err));
+        // Per explicit user request: full-payment confirmations go out as a
+        // "thank you" image card, no QR — falls back to plain text on failure.
+        const fullFallbackMsg = `ขอบคุณที่ชำระค่าเช่าห้อง ${inv.room} จำนวน ${this.fmt(total)} เรียบร้อยแล้วครับ 🙏${overpayLine}`;
+        this._paymentCardImage({
+          title: 'ขอบคุณครับ 🙏', subtitle: `ห้อง ${inv.room}`, roomId: inv.room, tenant: inv.tenant,
+          lines: [{ label: 'ยอดที่ชำระ', value: this.fmt(total) + ' บาท' }, { label: 'สถานะ', value: 'ชำระครบถ้วนแล้ว' }],
+          highlight: overpay > 0 ? { label: 'ยอดเงินล่วงหน้าคงเหลือในบัญชี', value: this.fmt(newCredit) + ' บาท' } : null,
+          footerNote: overpay > 0 ? `ส่วนที่โอนเกินมา ${this.fmt(overpay)} บาท เก็บไว้เป็นเงินล่วงหน้าให้แล้วครับ จะหักลบให้อัตโนมัติตอนออกบิลรอบถัดไป` : '',
+        }).then(url => this._lineSend(inv.room, url ? '' : fullFallbackMsg, url || undefined)).catch(err => console.error(err));
       } else {
         const remaining = total - newAmountPaid;
         const dueNote = patch.due ? ` กำหนดชำระส่วนที่เหลือภายในวันที่ ${patch.due}` : '';
         this.showAdminToast(`บันทึกชำระบางส่วนแล้ว คงเหลือ ${this.fmt(remaining)}`);
-        this._lineSend(inv.room, `รับทราบการชำระของห้อง ${inv.room} จำนวน ${this.fmt(combined)} แล้วครับ ยอดคงเหลือ ${this.fmt(remaining)} บาท${dueNote} ขอบคุณครับ 🙏`).catch(err => console.error(err));
+        // Per explicit user request: partial-payment confirmations go out
+        // WITH the payment QR attached (there's still a balance to pay),
+        // falling back to plain text if either the image or QR fails.
+        const partialFallbackMsg = `รับทราบการชำระของห้อง ${inv.room} จำนวน ${this.fmt(combined)} แล้วครับ ยอดคงเหลือ ${this.fmt(remaining)} บาท${dueNote} ขอบคุณครับ 🙏`;
+        this._paymentCardImage({
+          title: 'รับทราบการชำระ', subtitle: `ห้อง ${inv.room} — ชำระบางส่วน`, roomId: inv.room, tenant: inv.tenant,
+          lines: [
+            { label: 'ยอดที่ชำระรอบนี้', value: this.fmt(combined) + ' บาท' },
+            ...(patch.due ? [{ label: 'กำหนดชำระส่วนที่เหลือ', value: patch.due }] : []),
+          ],
+          highlight: { label: 'ยอดคงเหลือที่ต้องชำระ', value: this.fmt(remaining) + ' บาท' },
+          includeQr: true,
+        }).then(url => this._lineSend(inv.room, url ? '' : partialFallbackMsg, url || undefined)).catch(err => console.error(err));
       }
     } catch (err) {
       this.setState({ slipActionLoading: false });
@@ -5360,7 +5422,16 @@ class Component extends DCLogic {
       // remaining advance-payment balance in this message, not just the
       // amount just confirmed — otherwise they have no way to know how much
       // credit they're sitting on without asking the owner directly.
-      this._lineSend(roomId, `ยืนยันรับเงินล่วงหน้า ${this.fmt(addAmount)} ของห้อง ${roomId} แล้วครับ จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ยอดเงินล่วงหน้าคงเหลือทั้งหมดตอนนี้ ${this.fmt(newBalance)} บาท ขอบคุณครับ 🙏`).catch(err => console.error(err));
+      // Also per explicit user request: goes out as an image card now, no
+      // QR (confirming money already received, nothing to pay), falling
+      // back to the original plain text if image generation fails.
+      const creditSlipsFallbackMsg = `ยืนยันรับเงินล่วงหน้า ${this.fmt(addAmount)} ของห้อง ${roomId} แล้วครับ จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ยอดเงินล่วงหน้าคงเหลือทั้งหมดตอนนี้ ${this.fmt(newBalance)} บาท ขอบคุณครับ 🙏`;
+      this._paymentCardImage({
+        title: 'รับเงินล่วงหน้า', subtitle: `ห้อง ${roomId}`, roomId, tenant: room.tenant,
+        lines: [{ label: 'ยอดที่รับ', value: this.fmt(addAmount) + ' บาท' }],
+        highlight: { label: 'ยอดเงินล่วงหน้าคงเหลือทั้งหมด', value: this.fmt(newBalance) + ' บาท' },
+        footerNote: 'จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ขอบคุณครับ 🙏',
+      }).then(url => this._lineSend(roomId, url ? '' : creditSlipsFallbackMsg, url || undefined)).catch(err => console.error(err));
     } catch (err) {
       this.setState({ creditActionLoading: false });
       this.showAdminToast(err.message || 'ดำเนินการไม่สำเร็จ');

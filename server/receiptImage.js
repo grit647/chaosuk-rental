@@ -162,4 +162,87 @@ async function generateReceiptImage(invoice, room, propertyProfile, qrBuffer) {
   return img.png().toBuffer();
 }
 
-module.exports = { generateReceiptImage };
+// Generic "payment event" card — per explicit user follow-up request to
+// turn EVERY payment-related LINE message into an image, not just the
+// billing notice: covers advance-payment/credit confirmations, partial-
+// payment confirmations, and full-payment thank-you cards. One flexible
+// layout (colored title band, room/tenant, a list of label:value lines, an
+// optional highlighted box, an optional QR) instead of 3 near-duplicate
+// functions — the CALLER (server/routes/paymentCard.js) decides content
+// per the specific event type; this function only knows how to draw it.
+async function generatePaymentCardImage(opts, propertyProfile, qrBuffer) {
+  const { title, subtitle, roomId, tenant, lines = [], highlight, footerNote } = opts;
+
+  let y = PAD;
+  const parts = [];
+
+  parts.push(`<rect x="0" y="0" width="${WIDTH}" height="86" fill="${BRAND}"/>`);
+  parts.push(`<text x="${PAD}" y="40" font-size="24" font-weight="700" fill="#fff">${esc(title)}</text>`);
+  parts.push(`<text x="${PAD}" y="68" font-size="15" fill="#FBE9DD">${esc(subtitle || '')}</text>`);
+  y = 86 + 36;
+
+  if (roomId) {
+    parts.push(`<text x="${PAD}" y="${y}" font-size="16" fill="${TEXT}">ห้อง ${esc(roomId)}${tenant ? ' • ' + esc(tenant) : ''}</text>`);
+    y += 30;
+    parts.push(`<line x1="${PAD}" y1="${y}" x2="${WIDTH - PAD}" y2="${y}" stroke="${LINE}" stroke-width="1.5"/>`);
+    y += 34;
+  }
+
+  for (const l of lines) {
+    parts.push(`<text x="${PAD}" y="${y}" font-size="17" fill="${TEXT}">${esc(l.label)}</text>`);
+    parts.push(`<text x="${WIDTH - PAD}" y="${y}" font-size="17" fill="${TEXT}" text-anchor="end">${esc(l.value)}</text>`);
+    y += 32;
+  }
+
+  let highlightHeight = 0;
+  if (highlight) {
+    highlightHeight = 70;
+    y += 4;
+    parts.push(`<rect x="${PAD}" y="${y - 24}" width="${WIDTH - PAD * 2}" height="${highlightHeight}" rx="8" fill="#F1EBE0"/>`);
+    y += 4;
+    parts.push(`<text x="${PAD + 16}" y="${y}" font-size="14" fill="${MUTED}">${esc(highlight.label)}</text>`);
+    y += 30;
+    parts.push(`<text x="${PAD + 16}" y="${y}" font-size="20" font-weight="700" fill="${BRAND}">${esc(highlight.value)}</text>`);
+    y += 20;
+  }
+
+  if (footerNote) {
+    y += 20;
+    parts.push(`<text x="${PAD}" y="${y}" font-size="13" fill="${MUTED}">${esc(footerNote)}</text>`);
+    y += 10;
+  }
+
+  y += 20;
+  let qrBlockHeight = 0;
+  const QR_SIZE = 200;
+  if (qrBuffer) {
+    qrBlockHeight = QR_SIZE + 70;
+    parts.push(`<line x1="${PAD}" y1="${y}" x2="${WIDTH - PAD}" y2="${y}" stroke="${LINE}" stroke-width="1.5"/>`);
+    y += 32;
+    parts.push(`<text x="${WIDTH / 2}" y="${y}" font-size="15" font-weight="700" fill="${TEXT}" text-anchor="middle">สแกนเพื่อชำระเงิน</text>`);
+    y += 20;
+  }
+
+  const footerY = y + qrBlockHeight + 20;
+  const adminLine = [propertyProfile.adminName, propertyProfile.adminPhone].filter(Boolean).join(' • ');
+  const totalHeight = footerY + 40;
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${totalHeight}">
+    <style>
+      @font-face { font-family: '${THAI_FONT_FAMILY}'; src: url(data:font/ttf;base64,${THAI_FONT_B64}) format('truetype'); font-weight: 400 700; }
+      text { font-family: '${THAI_FONT_FAMILY}', sans-serif; }
+    </style>
+    <rect width="${WIDTH}" height="${totalHeight}" fill="#fff"/>
+    ${parts.join('\n')}
+    ${adminLine ? `<text x="${WIDTH / 2}" y="${footerY}" font-size="12" fill="${MUTED}" text-anchor="middle">${esc(adminLine)}</text>` : ''}
+  </svg>`;
+
+  let img = sharp(Buffer.from(svg));
+  if (qrBuffer) {
+    const qrResized = await sharp(qrBuffer).resize(QR_SIZE, QR_SIZE, { fit: 'contain', background: '#fff' }).png().toBuffer();
+    img = img.composite([{ input: qrResized, top: Math.round(y - 4), left: Math.round((WIDTH - QR_SIZE) / 2) }]);
+  }
+  return img.png().toBuffer();
+}
+
+module.exports = { generateReceiptImage, generatePaymentCardImage };
