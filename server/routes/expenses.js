@@ -1,11 +1,24 @@
 const express = require('express');
 const router = express.Router();
-const { appendRow, deleteRow, readTab } = require('../sheets');
+const { appendRow, updateRow, deleteRow, readTab } = require('../sheets');
 const { coerceExpenses } = require('../coerce');
 
 router.get('/', async (req, res, next) => {
   try { res.json(coerceExpenses(await readTab('Expenses'))); }
   catch (err) { next(err); }
+});
+
+// Per explicit user request: a "ซ่อน" (hide) toggle, distinct from ลบ
+// (delete) — same display-only-preference pattern already used for
+// invoices' hiddenFromDashboard. Lets the owner declutter the main list
+// (e.g. old one-off repairs) without losing the record or its amount
+// (still counts toward รายจ่ายรวมเดือนนี้ either way — hiding is purely
+// visual, never touches the totals).
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const merged = await updateRow('Expenses', req.params.id, { hidden: !!req.body.hidden });
+    res.json(coerceExpenses([merged])[0]);
+  } catch (err) { next(err); }
 });
 
 router.post('/', async (req, res, next) => {

@@ -105,7 +105,7 @@ function coerceMaintenance(rows) {
 }
 
 function coerceExpenses(rows) {
-  return rows.map((r) => ({ ...r, id: num(r.id), amount: num(r.amount, 0) }));
+  return rows.map((r) => ({ ...r, id: num(r.id), amount: num(r.amount, 0), hidden: bool(r.hidden, false) }));
 }
 
 // พนักงานหอพัก / สัญญาพนักงาน — per explicit user request for a staff

@@ -1269,12 +1269,17 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             </sc-if>
 
             <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
-              <div style="font-size:12px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;margin-bottom:10px">รายจ่ายทั่วไป</div>
-              <div style="display:grid;grid-template-columns:0.9fr 1fr 1.6fr 1fr 0.6fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+                <div style="font-size:12px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F">รายจ่ายทั่วไป</div>
+                <sc-if value="{{ hasHiddenExpenses }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ toggleShowHiddenExpenses }}" style="font-size:11.5px;color:#C1622D;font-weight:600;cursor:pointer">{{ showHiddenExpensesLabel }}</span>
+                </sc-if>
+              </div>
+              <div style="display:grid;grid-template-columns:0.9fr 1fr 1.4fr 1fr 0.8fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
                 <div>วันที่</div><div>หมวดหมู่</div><div>รายละเอียด</div><div>จำนวนเงิน</div><div></div>
               </div>
               <sc-for list="{{ expensesView }}" as="ex" hint-placeholder-count="4">
-                <div style="display:grid;grid-template-columns:0.9fr 1.2fr 1.6fr 1fr 0.6fr;gap:10px;font-size:12.5px;color:#241812;padding:11px 0;border-bottom:1px solid #F0E9DC;align-items:center">
+                <div style="display:grid;grid-template-columns:0.9fr 1.1fr 1.4fr 1fr 0.8fr;gap:10px;font-size:12.5px;color:#241812;padding:11px 0;border-bottom:1px solid #F0E9DC;align-items:center;opacity:{{ ex.rowOpacity }}">
                   <div style="color:#7C6E5F">{{ ex.date }}</div>
                   <div>
                     <div>{{ ex.icon }} {{ ex.category }}</div>
@@ -1283,7 +1288,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </sc-if>
                   </div>
                   <div>{{ ex.desc }}</div><div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ ex.amountDisplay }}</div>
-                  <div><span onclick="{{ ex.onDelete }}" style="font-size:11px;color:#B24336;font-weight:600;cursor:pointer;text-decoration:underline">ลบ</span></div>
+                  <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+                    <span onclick="{{ ex.onToggleHide }}" style="font-size:10.5px;color:#7C6E5F;font-weight:600;cursor:pointer;text-decoration:underline">{{ ex.hideLabel }}</span>
+                    <span onclick="{{ ex.onDelete }}" style="font-size:10.5px;color:#B24336;font-weight:600;cursor:pointer;text-decoration:underline">ลบ</span>
+                  </div>
                 </div>
               </sc-for>
             </div>
@@ -3305,6 +3313,10 @@ class Component extends DCLogic {
     addingCategory: false,
     newCategoryText: '',
     newExpense: { category: '', desc: '', amount: '', date: '', room: '' },
+    // "ซ่อน"/"เลิกซ่อน" toggle per expense row — off by default, so hidden
+    // items stay out of the main list until the owner explicitly reveals
+    // them via the "แสดงรายการที่ซ่อนไว้" button.
+    showHiddenExpenses: false,
     nextExpenseId: 5,
     expenses: [
       { id: 1, date: '2 ก.ค. 2569', category: 'ซ่อมบำรุง', desc: 'ซ่อมปั๊มน้ำชั้น 2', amount: 8500 },
@@ -4449,6 +4461,23 @@ class Component extends DCLogic {
       this.showAdminToast('ลบรายการแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ลบไม่สำเร็จ'); }
   });
+  // Per explicit user request: hide/unhide a row from the main list without
+  // deleting it — the amount still counts toward รายจ่ายรวมเดือนนี้ either
+  // way, this is purely a display preference (same pattern as invoices'
+  // hiddenFromDashboard).
+  toggleHideExpense = (id, currentlyHidden) => this._guard('toggleHideExpense:' + id, async () => {
+    try {
+      const res = await fetch('/api/expenses/' + id, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hidden: !currentlyHidden }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState(s => ({ expenses: s.expenses.map(e => e.id === id ? updated : e) }));
+      this.showAdminToast(updated.hidden ? 'ซ่อนรายการแล้ว' : 'เลิกซ่อนรายการแล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
+  });
+  toggleShowHiddenExpenses = () => this.setState(s => ({ showHiddenExpenses: !s.showHiddenExpenses }));
 
   selectRoomAndGo = (id) => this.setState({ selectedRoomId: id, activeNav: 'rooms' });
   selectRoomOnly = (id) => this.setState({ selectedRoomId: id });
@@ -7351,11 +7380,19 @@ class Component extends DCLogic {
     // at a glance which expenses are tied to a specific room vs. the
     // building as a whole.
     const categoryIcon = (cat) => ({ 'งบลงทุน': '📈', 'ค่าซ่อมบำรุง': '🔧', 'ค่าน้ำ-ไฟ': '💡', 'ชำระเงินลงทุน': '🏦', 'อื่นๆ': '📋' }[cat] || '📌');
-    const expensesView = s.expenses.map(e => ({
+    // Hidden rows stay out of the main list unless the owner explicitly
+    // reveals them (showHiddenExpenses) — same "declutter without losing
+    // the record" pattern as the Bills page's hiddenFromDashboard toggle.
+    const hiddenExpenseCount = s.expenses.filter(e => e.hidden).length;
+    const visibleExpenseSource = s.showHiddenExpenses ? s.expenses : s.expenses.filter(e => !e.hidden);
+    const expensesView = visibleExpenseSource.map(e => ({
       id: e.id, date: e.date, category: e.category, desc: e.desc, amountDisplay: this.fmt(e.amount),
       icon: categoryIcon(e.category),
       roomDisplay: e.room ? (e.room === 'ส่วนกลาง' ? 'ส่วนกลาง' : 'ห้อง ' + e.room) : '',
       hasRoom: !!e.room,
+      rowOpacity: e.hidden ? '0.45' : '1',
+      hideLabel: e.hidden ? 'เลิกซ่อน' : 'ซ่อน',
+      onToggleHide: () => this.toggleHideExpense(e.id, e.hidden),
       onDelete: () => this.deleteExpense(e.id),
     }));
     // Fixed default set per explicit user request (replaces the old ad-hoc
@@ -8170,6 +8207,9 @@ class Component extends DCLogic {
       equipSelWaterDot: equipSelDevice ? (equipSelDevice.waterOnline ? '#3B7A52' : '#B24336') : '#C9B79E',
       elecDeviceRows, waterDeviceRows, elecOnlineCount, waterOnlineCount, deviceTotalCount: elecDeviceRows.length,
       expensesView, expenseTotalDisplay: this.fmt(expenseTotal), expenseCategoryOptions,
+      hiddenExpenseCount, hasHiddenExpenses: hiddenExpenseCount > 0,
+      showHiddenExpenses: s.showHiddenExpenses, toggleShowHiddenExpenses: this.toggleShowHiddenExpenses,
+      showHiddenExpensesLabel: s.showHiddenExpenses ? '🙈 ซ่อนรายการที่ซ่อนไว้' : `👁️ แสดงรายการที่ซ่อนไว้ (${hiddenExpenseCount})`,
       expenseCategoryCards, isExpenseCategoryStep, isExpenseFormStep, isExpenseMaintenance,
       expenseRoomOptions: expenseRoomOptions.map(r => ({ value: r, label: r === 'ส่วนกลาง' ? 'ส่วนกลาง' : 'ห้อง ' + r })),
       backToExpenseCategoryStep: this.backToExpenseCategoryStep, onExpenseRoomChange: this.onExpenseRoomChange,
