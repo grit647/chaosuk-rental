@@ -1274,8 +1274,15 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div>วันที่</div><div>หมวดหมู่</div><div>รายละเอียด</div><div>จำนวนเงิน</div><div></div>
               </div>
               <sc-for list="{{ expensesView }}" as="ex" hint-placeholder-count="4">
-                <div style="display:grid;grid-template-columns:0.9fr 1fr 1.6fr 1fr 0.6fr;gap:10px;font-size:12.5px;color:#241812;padding:11px 0;border-bottom:1px solid #F0E9DC;align-items:center">
-                  <div style="color:#7C6E5F">{{ ex.date }}</div><div>{{ ex.category }}</div><div>{{ ex.desc }}</div><div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ ex.amountDisplay }}</div>
+                <div style="display:grid;grid-template-columns:0.9fr 1.2fr 1.6fr 1fr 0.6fr;gap:10px;font-size:12.5px;color:#241812;padding:11px 0;border-bottom:1px solid #F0E9DC;align-items:center">
+                  <div style="color:#7C6E5F">{{ ex.date }}</div>
+                  <div>
+                    <div>{{ ex.icon }} {{ ex.category }}</div>
+                    <sc-if value="{{ ex.hasRoom }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10.5px;color:#9C7A2E;margin-top:2px">📍 {{ ex.roomDisplay }}</div>
+                    </sc-if>
+                  </div>
+                  <div>{{ ex.desc }}</div><div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ ex.amountDisplay }}</div>
                   <div><span onclick="{{ ex.onDelete }}" style="font-size:11px;color:#B24336;font-weight:600;cursor:pointer;text-decoration:underline">ลบ</span></div>
                 </div>
               </sc-for>
@@ -1657,46 +1664,78 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
         </div>
 
         <sc-if value="{{ showExpenseModal }}">
-          <div onclick="{{ closeExpenseModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
-            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
-              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:16px">เพิ่มรายจ่ายใหม่</div>
-              <div style="display:flex;flex-direction:column;gap:12px">
-                <div>
-                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-                    <div style="font-size:11.5px;color:#7C6E5F">หมวดหมู่</div>
-                    <span onclick="{{ toggleAddCategory }}" style="font-size:11px;color:#C1622D;font-weight:600;cursor:pointer">+ เพิ่มหมวดหมู่</span>
-                  </div>
-                  <select value="{{ newExpense.category }}" onchange="{{ onExpenseCategoryChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
-                    <sc-for list="{{ expenseCategoryOptions }}" as="cat" hint-placeholder-count="4">
-                      <option value="{{ cat }}">{{ cat }}</option>
-                    </sc-for>
-                  </select>
+          <div onclick="{{ closeExpenseModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;box-sizing:border-box">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:22px;width:380px;max-width:100%;max-height:88vh;overflow-y:auto;box-sizing:border-box">
+              <!-- Step 1: pick a category first — per explicit user request,
+                   a card grid instead of a <select> buried at the top of one
+                   long form. Touch-friendly on mobile (big tap targets, 2
+                   columns). -->
+              <sc-if value="{{ isExpenseCategoryStep }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">เพิ่มรายจ่าย</div>
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">เลือกหมวดหมู่ก่อนครับ</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <sc-for list="{{ expenseCategoryCards }}" as="c" hint-placeholder-count="5">
+                    <div onclick="{{ c.onClick }}" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 8px;border-radius:10px;border:1.5px solid #E3D8C8;cursor:pointer;background:#FBF7F0;text-align:center">
+                      <div style="font-size:24px">{{ c.icon }}</div>
+                      <div style="font-size:12px;font-weight:600;color:#241812">{{ c.label }}</div>
+                    </div>
+                  </sc-for>
                   <sc-if value="{{ addingCategory }}" hint-placeholder-val="{{ false }}">
-                    <div style="display:flex;gap:8px;margin-top:8px">
+                    <div style="grid-column:1 / -1;display:flex;gap:8px;padding:6px;border-radius:10px;border:1.5px dashed #D8C9B4">
                       <input value="{{ newCategoryText }}" onchange="{{ onNewCategoryText }}" placeholder="ชื่อหมวดหมู่ใหม่" style="flex:1;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
-                      <div onclick="{{ confirmNewCategory }}" style="padding:9px 16px;border-radius:6px;background:#C1622D;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap">เพิ่ม</div>
+                      <div onclick="{{ confirmNewCategory }}" style="padding:9px 16px;border-radius:6px;background:#C1622D;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;display:flex;align-items:center">เพิ่ม</div>
                     </div>
                   </sc-if>
-                </div>
-                <div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รายละเอียด</div>
-                  <input value="{{ newExpense.desc }}" onchange="{{ onExpenseDescChange }}" placeholder="เช่น ซ่อมปั๊มน้ำ" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
-                </div>
-                <div style="display:flex;gap:10px">
-                  <div style="flex:1">
-                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">จำนวนเงิน</div>
-                    <input value="{{ newExpense.amount }}" onchange="{{ onExpenseAmountChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
-                  </div>
-                  <div style="flex:1">
-                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">วันที่</div>
-                    <input type="date" value="{{ newExpense.date }}" onchange="{{ onExpenseDateChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                  <div onclick="{{ toggleAddCategory }}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px 8px;border-radius:10px;border:1.5px dashed #D8C9B4;cursor:pointer;color:#7C6E5F;text-align:center">
+                    <div style="font-size:24px">➕</div>
+                    <div style="font-size:12px;font-weight:600">หมวดใหม่</div>
                   </div>
                 </div>
-              </div>
-              <div style="display:flex;gap:10px;margin-top:20px">
-                <button onclick="{{ closeExpenseModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
-                <button onclick="{{ submitExpense }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึก</button>
-              </div>
+                <div style="margin-top:18px">
+                  <button onclick="{{ closeExpenseModal }}" style="width:100%;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                </div>
+              </sc-if>
+              <!-- Step 2: the actual form, adapted per category (only
+                   ค่าซ่อมบำรุง gets the ห้อง/ส่วนกลาง field, per explicit user
+                   request — every other category is a plain amount+date+
+                   desc entry). -->
+              <sc-if value="{{ isExpenseFormStep }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+                  <span onclick="{{ backToExpenseCategoryStep }}" style="cursor:pointer;font-size:16px;color:#7C6E5F">←</span>
+                  <div style="font-size:16px;font-weight:700;color:#241812">{{ newExpense.category }}</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:12px">
+                  <sc-if value="{{ isExpenseMaintenance }}" hint-placeholder-val="{{ false }}">
+                    <div>
+                      <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ห้อง / ส่วนกลาง</div>
+                      <select value="{{ newExpense.room }}" onchange="{{ onExpenseRoomChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                        <option value="">— เลือก —</option>
+                        <sc-for list="{{ expenseRoomOptions }}" as="ro" hint-placeholder-count="4">
+                          <option value="{{ ro.value }}">{{ ro.label }}</option>
+                        </sc-for>
+                      </select>
+                    </div>
+                  </sc-if>
+                  <div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รายละเอียด</div>
+                    <input value="{{ newExpense.desc }}" onchange="{{ onExpenseDescChange }}" placeholder="เช่น ซ่อมปั๊มน้ำ" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                  </div>
+                  <div style="display:flex;gap:10px">
+                    <div style="flex:1">
+                      <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">จำนวนเงิน</div>
+                      <input value="{{ newExpense.amount }}" onchange="{{ onExpenseAmountChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                    </div>
+                    <div style="flex:1">
+                      <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">วันที่</div>
+                      <input type="date" value="{{ newExpense.date }}" onchange="{{ onExpenseDateChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                    </div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:20px">
+                  <button onclick="{{ closeExpenseModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                  <button onclick="{{ submitExpense }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึก</button>
+                </div>
+              </sc-if>
             </div>
           </div>
         </sc-if>
@@ -3258,10 +3297,14 @@ class Component extends DCLogic {
       '101': { elecName: 'TY-Meter-101', elecOnline: true, elecReading: 0, elecPower: true, waterName: 'ยังไม่เชื่อมต่ออุปกรณ์น้ำ', waterOnline: false, waterReading: 0 },
     },
     showExpenseModal: false,
-    expenseCategories: ['ซ่อมบำรุง', 'ค่าน้ำ-ไฟส่วนกลาง', 'เงินเดือนพนักงาน', 'อื่นๆ'],
+    // Category-picker step ('category' | 'form') — see openExpenseModal.
+    // The old expenseCategories array (local-only, reset on refresh) is
+    // gone — expenseCategoryOptions in renderVals computes the list fresh
+    // each time from a fixed default set + whatever's actually in the data.
+    expenseModalStep: 'category',
     addingCategory: false,
     newCategoryText: '',
-    newExpense: { category: 'ซ่อมบำรุง', desc: '', amount: '', date: '4 ก.ค. 2569' },
+    newExpense: { category: '', desc: '', amount: '', date: '', room: '' },
     nextExpenseId: 5,
     expenses: [
       { id: 1, date: '2 ก.ค. 2569', category: 'ซ่อมบำรุง', desc: 'ซ่อมปั๊มน้ำชั้น 2', amount: 8500 },
@@ -4349,28 +4392,40 @@ class Component extends DCLogic {
     } catch (err) { this.showAdminToast(err.message || 'สั่งงานอุปกรณ์ไม่สำเร็จ'); }
   });
 
-  openExpenseModal = () => this.setState({ showExpenseModal: true, newExpense: { category: 'ซ่อมบำรุง', desc: '', amount: '', date: '2026-07-04' } });
+  // Redesigned per explicit user request into a 2-step flow: pick a
+  // category first (card grid, touch-friendly on mobile), THEN see the
+  // actual form — instead of one form with a category <select> buried at
+  // the top. expenseModalStep tracks which step is showing.
+  openExpenseModal = () => this.setState({
+    showExpenseModal: true, expenseModalStep: 'category',
+    newExpense: { category: '', desc: '', amount: '', date: this._todayStr(), room: '' },
+  });
   closeExpenseModal = () => this.setState({ showExpenseModal: false });
-  onExpenseCategoryChange = (e) => { const v = e.target.value; this.setState(s => ({ newExpense: { ...s.newExpense, category: v } })); };
+  pickExpenseCategory = (cat) => this.setState(s => ({ expenseModalStep: 'form', newExpense: { ...s.newExpense, category: cat } }));
+  backToExpenseCategoryStep = () => this.setState({ expenseModalStep: 'category' });
   toggleAddCategory = () => this.setState(s => ({ addingCategory: !s.addingCategory, newCategoryText: '' }));
   onNewCategoryText = (e) => { const v = e.target.value; this.setState({ newCategoryText: v }); };
+  // No separate "save this category permanently" step needed anymore —
+  // picking/typing a category here just selects it for THIS expense; it
+  // naturally becomes a selectable card again on the next add, once a real
+  // expense row using it has been saved (see expenseCategoryOptions in
+  // renderVals — unions the fixed defaults with whatever's actually in the
+  // data).
   confirmNewCategory = () => {
     const name = (this.state.newCategoryText || '').trim();
     if (!name) { this.showAdminToast('กรุณาพิมพ์ชื่อหมวดหมู่'); return; }
-    if (this.state.expenseCategories.indexOf(name) !== -1) {
-      this.setState(s => ({ addingCategory: false, newCategoryText: '', newExpense: { ...s.newExpense, category: name } }));
-      return;
-    }
     this.setState(s => ({
-      expenseCategories: [...s.expenseCategories, name],
-      newExpense: { ...s.newExpense, category: name },
+      expenseModalStep: 'form', newExpense: { ...s.newExpense, category: name },
       addingCategory: false, newCategoryText: '',
     }));
-    this.showAdminToast('เพิ่มหมวดหมู่ "' + name + '" แล้ว');
   };
   onExpenseDescChange = (e) => { const v = e.target.value; this.setState(s => ({ newExpense: { ...s.newExpense, desc: v } })); };
   onExpenseAmountChange = (e) => { const v = e.target.value; this.setState(s => ({ newExpense: { ...s.newExpense, amount: v } })); };
   onExpenseDateChange = (e) => { const v = e.target.value; this.setState(s => ({ newExpense: { ...s.newExpense, date: v } })); };
+  // Per explicit user request: only relevant for ค่าซ่อมบำรุง — lets the
+  // owner tag a repair cost to a specific room (or "ส่วนกลาง" for shared
+  // areas), so costs can eventually be broken down per room.
+  onExpenseRoomChange = (e) => { const v = e.target.value; this.setState(s => ({ newExpense: { ...s.newExpense, room: v } })); };
   submitExpense = () => this._guard('submitExpense', async () => {
     const s = this.state;
     const amount = Number(s.newExpense.amount) || 0;
@@ -4378,7 +4433,7 @@ class Component extends DCLogic {
     try {
       const res = await fetch('/api/expenses', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: s.newExpense.date, category: s.newExpense.category, desc: s.newExpense.desc, amount }),
+        body: JSON.stringify({ date: s.newExpense.date, category: s.newExpense.category, desc: s.newExpense.desc, amount, room: s.newExpense.room || '' }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
       const newExpense = await res.json();
@@ -7281,9 +7336,50 @@ class Component extends DCLogic {
     // count; someone marked พ้นสภาพแล้ว isn't still being paid.
     const activeStaffList = s.staff.filter(st => (st.status || 'active') !== 'inactive');
     const staffPayrollTotal = activeStaffList.reduce((a, st) => a + (st.salary || 0), 0);
-    const expenseTotal = s.expenses.reduce((a, e) => a + e.amount, 0) + staffPayrollTotal;
-    const expensesView = s.expenses.map(e => ({ id: e.id, date: e.date, category: e.category, desc: e.desc, amountDisplay: this.fmt(e.amount), onDelete: () => this.deleteExpense(e.id) }));
-    const expenseCategoryOptions = s.expenseCategories;
+    // Real bug a user hit, same pattern as the Dashboard's revenue KPI
+    // before it got fixed: this used to sum EVERY expense ever recorded,
+    // not just this month's — so "รายจ่ายรวมเดือนนี้" kept growing forever
+    // instead of resetting each month. staffPayrollTotal is deliberately
+    // NOT filtered the same way — payroll has no per-item date, it's
+    // already inherently "this month's" cost by definition (current active
+    // staff × their salary).
+    const currentYm2 = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7);
+    const expensesThisMonth = s.expenses.filter(e => (e.date || '').slice(0, 7) === currentYm2);
+    const expenseTotal = expensesThisMonth.reduce((a, e) => a + e.amount, 0) + staffPayrollTotal;
+    // Per explicit user request: a small icon + the room/common tag (only
+    // ค่าซ่อมบำรุง entries ever have one) shown per row so the owner can see
+    // at a glance which expenses are tied to a specific room vs. the
+    // building as a whole.
+    const categoryIcon = (cat) => ({ 'ค่าเช่าตึก': '🏢', 'ค่าซ่อมบำรุง': '🔧', 'ค่าน้ำ-ไฟ': '💡', 'ชำระเงินลงทุน': '🏦', 'อื่นๆ': '📋' }[cat] || '📌');
+    const expensesView = s.expenses.map(e => ({
+      id: e.id, date: e.date, category: e.category, desc: e.desc, amountDisplay: this.fmt(e.amount),
+      icon: categoryIcon(e.category),
+      roomDisplay: e.room ? (e.room === 'ส่วนกลาง' ? 'ส่วนกลาง' : 'ห้อง ' + e.room) : '',
+      hasRoom: !!e.room,
+      onDelete: () => this.deleteExpense(e.id),
+    }));
+    // Fixed default set per explicit user request (replaces the old ad-hoc
+    // list) — "เงินเดือนพนักงาน" deliberately excluded, that's the separate
+    // auto-computed staffPayroll box above, never a manually-typed expense
+    // row. Custom categories the owner added via "+ หมวดใหม่" (see
+    // pickExpenseCategory/confirmNewCategory below) are NOT stored
+    // separately anywhere — once a real expense gets saved under that name,
+    // it naturally reappears here every time since it's just "categories
+    // actually used in the data" unioned with the fixed defaults. Fixes a
+    // real bug where custom categories vanished on every page refresh
+    // (used to live in local-only state, never persisted to the Sheet).
+    const defaultExpenseCategories = ['ค่าเช่าตึก', 'ค่าซ่อมบำรุง', 'ค่าน้ำ-ไฟ', 'ชำระเงินลงทุน', 'อื่นๆ'];
+    const usedExpenseCategories = Array.from(new Set(s.expenses.map(e => e.category).filter(Boolean)));
+    const expenseCategoryOptions = Array.from(new Set([...defaultExpenseCategories, ...usedExpenseCategories]));
+    const expenseCategoryCards = expenseCategoryOptions.map(cat => ({ key: cat, label: cat, icon: categoryIcon(cat), onClick: () => this.pickExpenseCategory(cat) }));
+    // Per explicit user request: only ค่าซ่อมบำรุง gets the extra ห้อง/
+    // ส่วนกลาง field — every other category stays a simple amount+date+
+    // desc entry, no room attribution (a building-rent or loan-repayment
+    // charge isn't naturally "one room's" cost the way a repair is).
+    const isExpenseMaintenance = s.newExpense.category === 'ค่าซ่อมบำรุง';
+    const expenseRoomOptions = ['ส่วนกลาง', ...s.rooms.map(r => r.id)];
+    const isExpenseCategoryStep = s.expenseModalStep === 'category';
+    const isExpenseFormStep = s.expenseModalStep === 'form';
 
     // ---- Dashboard revenue/expense-by-month chart (real data only — no fake months) ----
     const monthMap = {};
@@ -8074,6 +8170,9 @@ class Component extends DCLogic {
       equipSelWaterDot: equipSelDevice ? (equipSelDevice.waterOnline ? '#3B7A52' : '#B24336') : '#C9B79E',
       elecDeviceRows, waterDeviceRows, elecOnlineCount, waterOnlineCount, deviceTotalCount: elecDeviceRows.length,
       expensesView, expenseTotalDisplay: this.fmt(expenseTotal), expenseCategoryOptions,
+      expenseCategoryCards, isExpenseCategoryStep, isExpenseFormStep, isExpenseMaintenance,
+      expenseRoomOptions: expenseRoomOptions.map(r => ({ value: r, label: r === 'ส่วนกลาง' ? 'ส่วนกลาง' : 'ห้อง ' + r })),
+      backToExpenseCategoryStep: this.backToExpenseCategoryStep, onExpenseRoomChange: this.onExpenseRoomChange,
       // เงินเดือนพนักงาน section on the Expenses page — per explicit user
       // request that the staff feature show up here too, not just count
       // silently toward the total above.
@@ -8086,7 +8185,7 @@ class Component extends DCLogic {
         salaryDisplay: this.fmt(st.salary || 0),
       })),
       showExpenseModal: s.showExpenseModal, newExpense: s.newExpense, openExpenseModal: this.openExpenseModal, closeExpenseModal: this.closeExpenseModal,
-      onExpenseCategoryChange: this.onExpenseCategoryChange, onExpenseDescChange: this.onExpenseDescChange, onExpenseAmountChange: this.onExpenseAmountChange, onExpenseDateChange: this.onExpenseDateChange,
+      onExpenseDescChange: this.onExpenseDescChange, onExpenseAmountChange: this.onExpenseAmountChange, onExpenseDateChange: this.onExpenseDateChange,
       addingCategory: s.addingCategory, newCategoryText: s.newCategoryText, toggleAddCategory: this.toggleAddCategory, onNewCategoryText: this.onNewCategoryText, confirmNewCategory: this.confirmNewCategory, submitExpense: this.submitExpense,
       contractsView, contractsTotalCount: contractsView.length, contractsNearCount,
       contractFormActive: s.contractFormRoomId != null,

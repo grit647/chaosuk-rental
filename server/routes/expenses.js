@@ -15,7 +15,10 @@ router.post('/', async (req, res, next) => {
     if (!b.desc || !String(b.desc).trim() || amount <= 0) {
       return res.status(400).json({ error: 'กรุณากรอกรายละเอียดและจำนวนเงิน' });
     }
-    const item = { id: Date.now(), date: b.date || '', category: b.category || '', desc: b.desc, amount };
+    // room: only meaningful for ค่าซ่อมบำรุง (owner tags a repair to a
+    // specific room, or "ส่วนกลาง" for shared areas) — empty string for
+    // every other category, per explicit user request.
+    const item = { id: Date.now(), date: b.date || '', category: b.category || '', desc: b.desc, amount, room: b.room || '' };
     await appendRow('Expenses', item);
     res.json(item);
   } catch (err) { next(err); }
