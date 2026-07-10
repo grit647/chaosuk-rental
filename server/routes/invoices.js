@@ -121,16 +121,42 @@ router.delete('/:id', async (req, res, next) => {
       return res.status(400).json({ error: 'บิลนี้มีสลิปที่ส่งเข้ามาแล้ว ไม่สามารถลบได้ (แก้ไขได้ปกติ)' });
     }
     let refunded = 0;
-    if (invoice && invoice.amountPaid > 0) {
+    // Real bug a user hit: creating an invoice advances the room's
+    // waterPrev/elecPrev baseline to the reading THAT invoice was billed
+    // against (see POST / above and Rental Management.dc.html's
+    // submitInvoice), so the create-invoice form's "หน่วยบิลหลังสุด" always
+    // shows the right starting point for the NEXT bill. But deleting that
+    // invoice never undid the advance — the room stayed pointed at a
+    // reading that belonged to a bill that no longer exists, silently
+    // corrupting every future usage calculation for that room. Revert the
+    // baseline back to what this invoice recorded as ITS OWN "before"
+    // reading (waterPrevReading/elecPrevReading), but ONLY if the room's
+    // current baseline still matches what this exact invoice set it to
+    // (prevReading + units) — if it's since moved further (a newer invoice,
+    // a manual meter edit), leave it alone rather than clobbering more
+    // recent legitimate data.
+    const roomPatch = {};
+    if (invoice) {
       const rooms = coerceRooms(await readTab('Rooms'));
       const room = rooms.find((r) => r.id === invoice.room);
       if (room) {
-        refunded = invoice.amountPaid;
-        await updateRow('Rooms', invoice.room, { creditBalance: (room.creditBalance || 0) + refunded });
+        if (invoice.amountPaid > 0) {
+          refunded = invoice.amountPaid;
+          roomPatch.creditBalance = (room.creditBalance || 0) + refunded;
+        }
+        if (invoice.waterPrevReading != null && invoice.waterUnits != null) {
+          const expectedCurrent = invoice.waterPrevReading + invoice.waterUnits;
+          if (room.waterPrev === expectedCurrent) roomPatch.waterPrev = invoice.waterPrevReading;
+        }
+        if (invoice.elecPrevReading != null && invoice.elecUnits != null) {
+          const expectedCurrent = invoice.elecPrevReading + invoice.elecUnits;
+          if (room.elecPrev === expectedCurrent) roomPatch.elecPrev = invoice.elecPrevReading;
+        }
+        if (Object.keys(roomPatch).length) await updateRow('Rooms', invoice.room, roomPatch);
       }
     }
     await deleteRow('Invoices', req.params.id);
-    res.json({ ok: true, refundedToCredit: refunded });
+    res.json({ ok: true, refundedToCredit: refunded, meterReverted: !!(roomPatch.waterPrev != null || roomPatch.elecPrev != null) });
   } catch (err) { next(err); }
 });
 
