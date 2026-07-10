@@ -1541,15 +1541,51 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isStaffContracts }}" hint-placeholder-val="{{ false }}">
           <div style="display:flex;flex-direction:column">
-            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px">
-              <div style="font-size:21px;font-weight:700;color:#241812">สัญญาพนักงาน</div>
-              <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">จัดการสัญญาจ้างพนักงานหอพัก</div>
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-size:21px;font-weight:700;color:#241812">สัญญาพนักงาน</div>
+                <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">จัดการสัญญาจ้างพนักงานหอพัก · {{ staffCount }} คน</div>
+              </div>
+              <button onclick="{{ openStaffModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap">+ เพิ่มพนักงานใหม่</button>
             </div>
-            <div style="background:#FFFFFF;border-radius:8px;padding:40px 24px;text-align:center;max-width:520px">
-              <div style="font-size:32px;margin-bottom:10px">🚧</div>
-              <div style="font-size:14px;font-weight:700;color:#241812;margin-bottom:6px">กำลังพัฒนาฟีเจอร์นี้อยู่ครับ</div>
-              <div style="font-size:12.5px;color:#7C6E5F;line-height:1.6">หน้านี้จะใช้จัดการสัญญาจ้างพนักงานหอพัก (ชื่อ ตำแหน่ง เงินเดือน วันที่เริ่ม-สิ้นสุดสัญญา ฯลฯ) — เตรียมช่องเมนูไว้ให้ก่อน รายละเอียดฟีเจอร์เต็มจะตามมาครับ</div>
-            </div>
+
+            <sc-if value="{{ hasStaff }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:10px;max-width:820px">
+                <sc-for list="{{ staffList }}" as="st" hint-placeholder-count="3">
+                  <div style="background:#FFFFFF;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                      <div>
+                        <div style="font-size:14.5px;font-weight:700;color:#241812">{{ st.name }}</div>
+                        <div style="font-size:12px;color:#B85B27;font-weight:600;margin-top:2px">{{ st.position }}</div>
+                      </div>
+                      <span style="font-size:10.5px;font-weight:600;padding:4px 10px;border-radius:6px;background:{{ st.statusBg }};color:{{ st.statusColor }}">{{ st.statusLabel }}</span>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:#7C6E5F">
+                      <div>💰 เงินเดือน <span style="color:#241812;font-weight:600;font-family:'IBM Plex Mono',monospace">{{ st.salaryDisplay }}</span></div>
+                      <div>🕐 เวลาทำงาน <span style="color:#241812;font-weight:600">{{ st.workTimeDisplay }}</span></div>
+                      <div>📅 วันทำงาน <span style="color:#241812;font-weight:600">{{ st.workDaysDisplay }}</span></div>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:#7C6E5F">
+                      <div>เริ่มสัญญา <span style="color:#241812;font-weight:600">{{ st.startDateDisplay }}</span></div>
+                      <div>สิ้นสุดสัญญา <span style="color:#241812;font-weight:600">{{ st.endDateDisplay }}</span></div>
+                      <sc-if value="{{ st.phone }}" hint-placeholder-val="{{ false }}">
+                        <div>โทร <span style="color:#241812;font-weight:600;font-family:'IBM Plex Mono',monospace">{{ st.phone }}</span></div>
+                      </sc-if>
+                    </div>
+                    <sc-if value="{{ st.hasNotes }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:11.5px;color:#9C8B78;background:#FBF7F0;border-radius:6px;padding:8px 10px">📝 {{ st.notes }}</div>
+                    </sc-if>
+                    <div style="display:flex;gap:8px;margin-top:2px">
+                      <span onclick="{{ st.onEdit }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F">✎ แก้ไข</span>
+                      <span onclick="{{ st.onDelete }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336">🗑 ลบ</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noStaff }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#FFFFFF;border-radius:8px;padding:40px 24px;text-align:center;max-width:520px;color:#9C8B78;font-size:12.5px">ยังไม่มีข้อมูลพนักงาน — กด "+ เพิ่มพนักงานใหม่" เพื่อเริ่มบันทึกครับ</div>
+            </sc-if>
           </div>
           </sc-if>
 
@@ -2798,6 +2834,89 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showStaffModal }}">
+          <div onclick="{{ closeStaffModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:400px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:16px">{{ staffModalTitle }}</div>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ชื่อ-นามสกุล <span style="color:#B24336">*จำเป็น</span></div>
+                  <input value="{{ newStaff.name }}" onchange="{{ onNewStaffName }}" placeholder="เช่น สมชาย ใจดี" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                </div>
+                <div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ตำแหน่ง <span style="color:#B24336">*จำเป็น</span></div>
+                  <div style="display:flex;flex-wrap:wrap;gap:6px">
+                    <sc-for list="{{ staffPositionOptions }}" as="p" hint-placeholder-count="5">
+                      <div onclick="{{ p.onPick }}" style="font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;background:{{ p.bg }};color:{{ p.color }}">{{ p.label }}</div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เงินเดือน (บาท)</div>
+                  <input value="{{ newStaff.salary }}" onchange="{{ onNewStaffSalary }}" placeholder="15000" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                </div>
+                <div style="display:flex;gap:10px">
+                  <div style="flex:1">
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เวลาเริ่มงาน</div>
+                    <input type="time" value="{{ newStaff.workStart }}" onchange="{{ onNewStaffWorkStart }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                  </div>
+                  <div style="flex:1">
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เวลาเลิกงาน</div>
+                    <input type="time" value="{{ newStaff.workEnd }}" onchange="{{ onNewStaffWorkEnd }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">วันทำงาน</div>
+                  <input value="{{ newStaff.workDays }}" onchange="{{ onNewStaffWorkDays }}" placeholder="เช่น จันทร์-ศุกร์ หรือ ทุกวัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                </div>
+                <div style="display:flex;gap:10px">
+                  <div style="flex:1">
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เริ่มสัญญา</div>
+                    <input type="date" value="{{ newStaff.startDate }}" onchange="{{ onNewStaffStartDate }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                  </div>
+                  <div style="flex:1">
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">สิ้นสุดสัญญา</div>
+                    <input type="date" value="{{ newStaff.endDate }}" onchange="{{ onNewStaffEndDate }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                    <div style="font-size:10px;color:#A89A88;margin-top:3px">เว้นว่างได้ถ้าเป็นสัญญาไม่มีกำหนด</div>
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เบอร์โทรศัพท์</div>
+                  <input value="{{ newStaff.phone }}" onchange="{{ onNewStaffPhone }}" placeholder="08X-XXX-XXXX" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                </div>
+                <div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">สถานะ</div>
+                  <div style="display:flex;gap:6px">
+                    <div onclick="{{ setStaffActive }}" style="flex:1;text-align:center;font-size:11.5px;font-weight:600;padding:8px;border-radius:6px;cursor:pointer;background:{{ staffActiveBg }};color:{{ staffActiveColor }}">ทำงานอยู่</div>
+                    <div onclick="{{ setStaffInactive }}" style="flex:1;text-align:center;font-size:11.5px;font-weight:600;padding:8px;border-radius:6px;cursor:pointer;background:{{ staffInactiveBg }};color:{{ staffInactiveColor }}">พ้นสภาพแล้ว</div>
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">หมายเหตุ</div>
+                  <textarea value="{{ newStaff.notes }}" onchange="{{ onNewStaffNotes }}" placeholder="เช่น สวัสดิการ, เงื่อนไขพิเศษ" style="width:100%;min-height:56px;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea>
+                </div>
+              </div>
+              <div style="display:flex;gap:10px;margin-top:20px">
+                <button onclick="{{ closeStaffModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ submitStaff }}" style="flex:1.3;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">{{ staffModalSubmitLabel }}</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showDeleteStaffConfirm }}">
+          <div onclick="{{ closeDeleteStaffConfirm }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ลบข้อมูลพนักงาน</div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:18px">ลบแล้วกู้คืนไม่ได้ — ต้องการลบใช่ไหมครับ</div>
+              <div style="display:flex;gap:10px">
+                <div onclick="{{ closeDeleteStaffConfirm }}" style="flex:1;text-align:center;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</div>
+                <div onclick="{{ confirmDeleteStaff }}" style="flex:1.3;text-align:center;padding:11px;border-radius:7px;background:#B24336;color:#fff;font-size:13px;font-weight:700;cursor:pointer">ลบข้อมูล</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showMaintenanceModal }}">
           <div onclick="{{ closeMaintenanceModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
@@ -2916,6 +3035,13 @@ class Component extends DCLogic {
       { id: 6, y: 2026, m: 6, d: 28, time: '09:30', title: 'สัญญาห้อง 302 ใกล้ครบกำหนด', type: 'สัญญา' },
     ],
     unmatchedSlips: [],
+    // พนักงานหอพัก / สัญญาพนักงาน — per explicit user request.
+    staff: [],
+    showStaffModal: false,
+    editingStaffId: null,
+    newStaff: { name: '', position: '', salary: '', workStart: '', workEnd: '', workDays: '', startDate: '', endDate: '', phone: '', status: 'active', notes: '' },
+    showDeleteStaffConfirm: false,
+    deleteStaffId: null,
     showMaintenanceModal: false,
     newMaintenance: { roomId: '', issue: '' },
     settings: { emailNotif: true, smsNotif: false, autoInvoice: true, dueReminder: true, lineNotif: true },
@@ -3192,6 +3318,7 @@ class Component extends DCLogic {
         expenses: data.expenses,
         calEvents: data.calEvents,
         unmatchedSlips: data.unmatchedSlips || [],
+        staff: data.staff || [],
         propertyProfile: data.propertyProfile,
         waterRate: data.waterRate,
         elecRate: data.elecRate,
@@ -5271,6 +5398,87 @@ class Component extends DCLogic {
     } catch (err) { this.showAdminToast(err.message || 'ปิดงานไม่สำเร็จ'); }
   });
 
+  // พนักงานหอพัก / สัญญาพนักงาน CRUD — per explicit user request. One modal
+  // form handles both "เพิ่มพนักงานใหม่" and "แก้ไข" (editingStaffId null
+  // vs set decides which), same pattern as most other create/edit pairs in
+  // this file.
+  openStaffModal = () => this.setState({
+    showStaffModal: true, editingStaffId: null,
+    newStaff: { name: '', position: '', salary: '', workStart: '', workEnd: '', workDays: '', startDate: '', endDate: '', phone: '', status: 'active', notes: '' },
+  });
+  openEditStaff = (id) => {
+    const st = this.state.staff.find(x => x.id === id);
+    if (!st) return;
+    this.setState({
+      showStaffModal: true, editingStaffId: id,
+      newStaff: {
+        name: st.name || '', position: st.position || '', salary: String(st.salary || ''),
+        workStart: st.workStart || '', workEnd: st.workEnd || '', workDays: st.workDays || '',
+        startDate: st.startDate || '', endDate: st.endDate || '', phone: st.phone || '',
+        status: st.status || 'active', notes: st.notes || '',
+      },
+    });
+  };
+  closeStaffModal = () => this.setState({ showStaffModal: false, editingStaffId: null });
+  onNewStaffName = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, name: v } })); };
+  onNewStaffSalary = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, salary: v } })); };
+  onNewStaffWorkStart = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, workStart: v } })); };
+  onNewStaffWorkEnd = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, workEnd: v } })); };
+  onNewStaffWorkDays = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, workDays: v } })); };
+  onNewStaffStartDate = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, startDate: v } })); };
+  onNewStaffEndDate = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, endDate: v } })); };
+  onNewStaffPhone = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, phone: v } })); };
+  onNewStaffNotes = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, notes: v } })); };
+  setNewStaffPosition = (pos) => this.setState(s => ({ newStaff: { ...s.newStaff, position: pos } }));
+  setStaffActive = () => this.setState(s => ({ newStaff: { ...s.newStaff, status: 'active' } }));
+  setStaffInactive = () => this.setState(s => ({ newStaff: { ...s.newStaff, status: 'inactive' } }));
+  submitStaff = () => this._guard('submitStaff', async () => {
+    const s = this.state;
+    const f = s.newStaff;
+    if (!f.name.trim()) { this.showAdminToast('กรุณากรอกชื่อพนักงาน'); return; }
+    if (!f.position) { this.showAdminToast('กรุณาเลือกตำแหน่ง'); return; }
+    const payload = {
+      name: f.name, position: f.position, salary: Number(f.salary) || 0,
+      workStart: f.workStart, workEnd: f.workEnd, workDays: f.workDays,
+      startDate: f.startDate, endDate: f.endDate, phone: f.phone,
+      status: f.status, notes: f.notes,
+    };
+    try {
+      if (s.editingStaffId) {
+        const res = await fetch('/api/staff/' + s.editingStaffId, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
+        const updated = await res.json();
+        this.setState(st => ({ staff: st.staff.map(x => x.id === updated.id ? updated : x), showStaffModal: false, editingStaffId: null }));
+        this.showAdminToast('บันทึกข้อมูลพนักงาน ' + f.name + ' แล้ว');
+      } else {
+        const res = await fetch('/api/staff', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'เพิ่มพนักงานไม่สำเร็จ');
+        const created = await res.json();
+        this.setState(st => ({ staff: [created, ...st.staff], showStaffModal: false }));
+        this.showAdminToast('เพิ่มพนักงาน ' + f.name + ' แล้ว');
+      }
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
+  });
+  askDeleteStaff = (id) => this.setState({ showDeleteStaffConfirm: true, deleteStaffId: id });
+  closeDeleteStaffConfirm = () => this.setState({ showDeleteStaffConfirm: false, deleteStaffId: null });
+  confirmDeleteStaff = () => this._guard('confirmDeleteStaff:' + this.state.deleteStaffId, async () => {
+    const id = this.state.deleteStaffId;
+    if (!id) return;
+    try {
+      const res = await fetch('/api/staff/' + id, { method: 'DELETE' });
+      if (!res.ok) throw new Error('ลบไม่สำเร็จ');
+      this.setState(st => ({ staff: st.staff.filter(x => x.id !== id), showDeleteStaffConfirm: false, deleteStaffId: null }));
+      this.showAdminToast('ลบข้อมูลพนักงานแล้ว');
+    } catch (err) {
+      this.showAdminToast(err.message || 'ลบไม่สำเร็จ');
+      this.setState({ showDeleteStaffConfirm: false, deleteStaffId: null });
+    }
+  });
+
   openMaintenanceModal = () => this.setState({ showMaintenanceModal: true, newMaintenance: { roomId: '', issue: '' } });
   closeMaintenanceModal = () => this.setState({ showMaintenanceModal: false });
   onNewMaintRoomChange = (e) => { const v = e.target.value; this.setState(s => ({ newMaintenance: { ...s.newMaintenance, roomId: v } })); };
@@ -6875,10 +7083,48 @@ class Component extends DCLogic {
       goCalendar: this.goCalendar,
       isCalendar: s.activeNav === 'calendar',
       navCalendar: navStyle('calendar'),
-      // Placeholder nav entries for an upcoming staff/employee feature.
+      // สัญญาพนักงาน — per explicit user request. "พนักงานหอพัก" nav item
+      // still just reserves the menu slot (placeholder) until that page's
+      // own feature is defined; this one ("สัญญาพนักงาน") is the real thing.
       goStaffContracts: this.goStaffContracts, goStaffMembers: this.goStaffMembers,
       isStaffContracts: s.activeNav === 'staffContracts', isStaffMembers: s.activeNav === 'staffMembers',
       navStaffContracts: navStyle('staffContracts'), navStaffMembers: navStyle('staffMembers'),
+      staffCount: s.staff.length, hasStaff: s.staff.length > 0, noStaff: s.staff.length === 0,
+      staffList: s.staff.map(st => {
+        const isActive = (st.status || 'active') !== 'inactive';
+        const workTimeDisplay = (st.workStart && st.workEnd) ? (st.workStart + ' - ' + st.workEnd) : (st.workStart || st.workEnd || '—');
+        return {
+          id: st.id, name: st.name, position: st.position,
+          salaryDisplay: this.fmt(st.salary || 0),
+          workTimeDisplay, workDaysDisplay: st.workDays || '—',
+          startDateDisplay: st.startDate || '—', endDateDisplay: st.endDate || 'ไม่มีกำหนด',
+          phone: st.phone || '', notes: st.notes || '', hasNotes: !!(st.notes && st.notes.trim()),
+          statusLabel: isActive ? 'ทำงานอยู่' : 'พ้นสภาพแล้ว',
+          statusBg: isActive ? '#E4EFE7' : '#EDE4D6', statusColor: isActive ? '#3B7A52' : '#9C8B78',
+          onEdit: () => this.openEditStaff(st.id),
+          onDelete: () => this.askDeleteStaff(st.id),
+        };
+      }),
+      showStaffModal: s.showStaffModal, closeStaffModal: this.closeStaffModal,
+      newStaff: s.newStaff, openStaffModal: this.openStaffModal, submitStaff: this.submitStaff,
+      staffModalTitle: s.editingStaffId ? 'แก้ไขข้อมูลพนักงาน' : 'เพิ่มพนักงานใหม่',
+      staffModalSubmitLabel: s.editingStaffId ? 'บันทึกการแก้ไข' : 'เพิ่มพนักงาน',
+      onNewStaffName: this.onNewStaffName, onNewStaffSalary: this.onNewStaffSalary,
+      onNewStaffWorkStart: this.onNewStaffWorkStart, onNewStaffWorkEnd: this.onNewStaffWorkEnd,
+      onNewStaffWorkDays: this.onNewStaffWorkDays, onNewStaffStartDate: this.onNewStaffStartDate,
+      onNewStaffEndDate: this.onNewStaffEndDate, onNewStaffPhone: this.onNewStaffPhone, onNewStaffNotes: this.onNewStaffNotes,
+      staffPositionOptions: ['ผู้จัดการ', 'แม่บ้าน', 'รปภ.', 'ช่างซ่อมบำรุง', 'พนักงานต้อนรับ'].map(pos => ({
+        label: pos, onPick: () => this.setNewStaffPosition(pos),
+        bg: s.newStaff.position === pos ? '#C1622D' : '#EDE4D6',
+        color: s.newStaff.position === pos ? '#fff' : '#7C6E5F',
+      })),
+      setStaffActive: this.setStaffActive, setStaffInactive: this.setStaffInactive,
+      staffActiveBg: s.newStaff.status !== 'inactive' ? '#3B7A52' : '#EDE4D6',
+      staffActiveColor: s.newStaff.status !== 'inactive' ? '#fff' : '#7C6E5F',
+      staffInactiveBg: s.newStaff.status === 'inactive' ? '#B24336' : '#EDE4D6',
+      staffInactiveColor: s.newStaff.status === 'inactive' ? '#fff' : '#7C6E5F',
+      showDeleteStaffConfirm: s.showDeleteStaffConfirm, closeDeleteStaffConfirm: this.closeDeleteStaffConfirm,
+      confirmDeleteStaff: this.confirmDeleteStaff,
       calMonthLabel, calCells, calWeekdays: ['อา','จ','อ','พ','พฤ','ศ','ส'],
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,

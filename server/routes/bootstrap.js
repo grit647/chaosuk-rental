@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { readTab } = require('../sheets');
 const {
-  coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceUnmatchedSlips, readSettings,
+  coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceUnmatchedSlips, coerceStaff, readSettings,
 } = require('../coerce');
 
 // Uses allSettled (not all) on purpose: if one tab's request is briefly flaky,
@@ -10,13 +10,14 @@ const {
 // whole response (and, worse, leaving an unhandled rejection lying around).
 router.get('/', async (req, res, next) => {
   try {
-    const [rooms, invoices, maintenance, expenses, calEvents, unmatchedSlips, settingsData] = await Promise.allSettled([
+    const [rooms, invoices, maintenance, expenses, calEvents, unmatchedSlips, staff, settingsData] = await Promise.allSettled([
       readTab('Rooms').then(coerceRooms),
       readTab('Invoices').then(coerceInvoices),
       readTab('Maintenance').then(coerceMaintenance),
       readTab('Expenses').then(coerceExpenses),
       readTab('CalendarEvents').then(coerceCalendar),
       readTab('UnmatchedSlips').then(coerceUnmatchedSlips),
+      readTab('Staff').then(coerceStaff),
       readSettings(),
     ]);
 
@@ -34,6 +35,7 @@ router.get('/', async (req, res, next) => {
       expenses: pick(expenses, 'expenses', []),
       calEvents: pick(calEvents, 'calEvents', []),
       unmatchedSlips: pick(unmatchedSlips, 'unmatchedSlips', []),
+      staff: pick(staff, 'staff', []),
       ...pick(settingsData, 'settings', {
         propertyProfile: { name: '', adminName: '', adminPhone: '' },
         waterRate: 18, elecRate: 8, trashRate: 40, internetRate: 200,

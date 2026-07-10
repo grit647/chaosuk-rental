@@ -91,6 +91,17 @@ function coerceExpenses(rows) {
   return rows.map((r) => ({ ...r, id: num(r.id), amount: num(r.amount, 0) }));
 }
 
+// พนักงานหอพัก / สัญญาพนักงาน — per explicit user request for a staff
+// management feature, separate from tenant leases (Rooms tab).
+function coerceStaff(rows) {
+  return rows.map((r) => ({
+    ...r,
+    id: num(r.id),
+    salary: num(r.salary, 0),
+    status: r.status || 'active',
+  }));
+}
+
 function coerceCalendar(rows) {
   return rows.map((r) => ({ ...r, id: num(r.id), y: num(r.y), m: num(r.m), d: num(r.d) }));
 }
@@ -154,5 +165,5 @@ async function readSettings() {
 }
 
 module.exports = {
-  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, coerceUnmatchedSlips, readSettings,
+  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, coerceUnmatchedSlips, coerceStaff, readSettings,
 };

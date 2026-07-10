@@ -28,6 +28,7 @@ app.get('/login-preview.html', noCache, (req, res) => res.sendFile(path.join(ROO
 
 app.use('/api/bootstrap', require('./routes/bootstrap'));
 app.use('/api/rooms', require('./routes/rooms'));
+app.use('/api/staff', require('./routes/staff'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/maintenance', require('./routes/maintenance'));
 app.use('/api/expenses', require('./routes/expenses'));
