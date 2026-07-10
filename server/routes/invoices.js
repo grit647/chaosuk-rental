@@ -6,6 +6,7 @@ const { appendRow, updateRow, deleteRow, readTab } = require('../sheets');
 const { coerceInvoices, coerceRooms, readSettings } = require('../coerce');
 const { generateInvoicePdf } = require('../pdf');
 const { generateReceiptImage } = require('../receiptImage');
+const { isConfigured: cloudinaryConfigured, uploadBuffer: uploadToCloudinary } = require('../cloudinary');
 
 const INVOICE_PDF_DIR = path.join(__dirname, '..', 'uploads', 'invoices');
 fs.mkdirSync(INVOICE_PDF_DIR, { recursive: true });
@@ -206,10 +207,29 @@ router.post('/:id/receipt-image', async (req, res, next) => {
     }
 
     const buffer = await generateReceiptImage(invoice, room, settingsData.propertyProfile, qrBuffer);
-    const filename = invoice.id.replace(/[^a-zA-Z0-9-]/g, '_') + '-' + Date.now() + '.png';
-    fs.writeFileSync(path.join(RECEIPT_IMG_DIR, filename), buffer);
 
-    const url = `${req.protocol}://${req.get('host')}/uploads/receipts/${filename}`;
+    // Per explicit user follow-up request: the owner wants to look these
+    // back up later (bill history modal), not just fire-and-forget them to
+    // LINE — so this needs to survive a deploy. Cloudinary (same persistent
+    // store already used for slip photos and the payment QR itself), NOT
+    // the ephemeral local disk the PDF above still uses — a downloadable
+    // PDF regenerates identically from the invoice data at any time, but a
+    // deleted receipt IMAGE can't be perfectly reconstructed later (e.g. if
+    // the QR gets replaced afterward, regenerating would show the NEW QR,
+    // not the one actually sent).
+    let url;
+    if (cloudinaryConfigured()) {
+      url = await uploadToCloudinary(buffer, 'chaosuk-rental/receipts');
+    } else {
+      // Fallback so this endpoint still works in a dev environment with no
+      // Cloudinary credentials set — same ephemeral-disk trade-off as
+      // everywhere else that falls back this way.
+      const filename = invoice.id.replace(/[^a-zA-Z0-9-]/g, '_') + '-' + Date.now() + '.png';
+      fs.writeFileSync(path.join(RECEIPT_IMG_DIR, filename), buffer);
+      url = `${req.protocol}://${req.get('host')}/uploads/receipts/${filename}`;
+    }
+
+    await updateRow('Invoices', invoice.id, { receiptImageUrl: url });
     res.json({ url, hasQr: !!qrBuffer });
   } catch (err) { next(err); }
 });

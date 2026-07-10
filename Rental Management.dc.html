@@ -2587,6 +2587,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่าน้ำ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ h.waterDisplay }}</span></div>
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่าไฟ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ h.elecDisplay }}</span></div>
                       <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1px solid #E3D8C8;padding-top:5px;margin-top:2px"><span style="color:#241812">รวม</span><span style="font-family:'IBM Plex Mono',monospace;color:#C1622D">{{ h.totalDisplay }}</span></div>
+                      <sc-if value="{{ h.hasReceiptImage }}" hint-placeholder-val="{{ false }}">
+                        <a href="{{ h.receiptImageUrl }}" target="_blank" rel="noopener" style="text-align:center;font-size:11px;font-weight:600;padding:6px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;text-decoration:none;margin-top:2px">🧾 ดูใบเสร็จที่ส่งไป</a>
+                      </sc-if>
                     </div>
                   </sc-for>
                 </div>
@@ -4655,7 +4658,13 @@ class Component extends DCLogic {
       if (invoice && qrUrl) {
         try {
           const imgRes = await fetch('/api/invoices/' + invoice.id + '/receipt-image', { method: 'POST' });
-          if (imgRes.ok) receiptImageUrl = (await imgRes.json()).url;
+          if (imgRes.ok) {
+            receiptImageUrl = (await imgRes.json()).url;
+            // The server already saved this onto the invoice row (Sheet) —
+            // mirror it into local state too so the bill-history modal can
+            // show a "ดูใบเสร็จที่ส่งไป" link without needing a page refresh.
+            this.setState(s => ({ invoices: s.invoices.map(i => i.id === invoice.id ? { ...i, receiptImageUrl } : i) }));
+          }
         } catch { /* fall through to plain text below */ }
       }
       if (receiptImageUrl) {
@@ -7524,6 +7533,11 @@ class Component extends DCLogic {
             waterDisplay: this.fmt(i.water) + (waterUnitsEst != null ? ` (≈${waterUnitsEst} หน่วย)` : ''),
             elecDisplay: this.fmt(i.elec) + (elecUnitsEst != null ? ` (≈${elecUnitsEst} หน่วย)` : ''),
             totalDisplay: this.fmt(total),
+            // Only bills sent via the combined-image path (server/receiptImage.js,
+            // requires a payment QR to be configured — see sendReceiptLine)
+            // have this; plain-text-only sends have nothing to look back at.
+            receiptImageUrl: i.receiptImageUrl || '',
+            hasReceiptImage: !!i.receiptImageUrl,
           };
         });
       })(),

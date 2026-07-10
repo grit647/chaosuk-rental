@@ -90,6 +90,12 @@ function coerceInvoices(rows) {
       elecUnits: r.elecUnits === '' || r.elecUnits == null ? null : num(r.elecUnits, null),
       waterPrevReading: r.waterPrevReading === '' || r.waterPrevReading == null ? null : num(r.waterPrevReading, null),
       elecPrevReading: r.elecPrevReading === '' || r.elecPrevReading == null ? null : num(r.elecPrevReading, null),
+      // The combined receipt-as-one-image actually sent via LINE (see
+      // server/receiptImage.js + sendReceiptLine in Rental Management.dc.html)
+      // — saved here so the owner can look it back up later (bill history
+      // modal), since the image itself is only generated fresh at send time
+      // and would otherwise be lost the moment the LINE push completes.
+      receiptImageUrl: r.receiptImageUrl || '',
     };
   });
 }
