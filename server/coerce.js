@@ -150,6 +150,11 @@ async function readSettings() {
       // straight to the owner's LINE, separate from the tenant-facing
       // messaging that already exists via server/line.js.
       adminLineUserId: map.adminLineUserId || '',
+      // QR code for tenants to scan-and-pay — per explicit user request,
+      // stored on Cloudinary (see server/cloudinary.js) so it survives
+      // deploys, unlike the ephemeral local-disk uploads used for one-off
+      // slip photos. Attached to the end of every outgoing LINE bill.
+      paymentQrUrl: map.paymentQrUrl || '',
     },
     waterRate: num(map.waterRate, 18),
     elecRate: num(map.elecRate, 8),

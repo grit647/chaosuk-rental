@@ -53,4 +53,26 @@ router.post('/image', (req, res) => {
   }
 });
 
+// QR code for tenants to scan-and-pay — per explicit user request. Unlike
+// the ephemeral local-disk endpoint above (fine for one-off slip photos
+// LINE fetches within seconds), this is a persistent asset reused for
+// every bill going forward, so it needs to survive deploys — uploaded to
+// Cloudinary instead, same persistent-storage mechanism already used for
+// slip photos (see server/cloudinary.js).
+router.post('/payment-qr', async (req, res) => {
+  try {
+    if (!cloudinaryConfigured()) {
+      return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่าระบบเก็บรูปถาวร (Cloudinary) กรุณาติดต่อผู้ดูแลระบบ' });
+    }
+    const { dataUrl } = req.body;
+    const match = /^data:(image\/\w+);base64,(.+)$/.exec(dataUrl || '');
+    if (!match) return res.status(400).json({ error: 'รูปภาพไม่ถูกต้อง' });
+    const buffer = Buffer.from(match[2], 'base64');
+    const url = await uploadToCloudinary(buffer, 'chaosuk-rental/payment-qr');
+    res.json({ url });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'อัปโหลดรูปไม่สำเร็จ' });
+  }
+});
+
 module.exports = router;

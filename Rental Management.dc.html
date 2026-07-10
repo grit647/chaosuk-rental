@@ -716,6 +716,26 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </div>
                   </sc-if>
                 </div>
+                <div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">QR ชำระเงิน (แนบท้ายบิลที่ส่งให้ผู้เช่าทาง LINE)</div>
+                  <sc-if value="{{ hasPaymentQr }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;align-items:center;gap:12px;background:#F1EBE0;border-radius:7px;padding:10px 14px">
+                      <img src="{{ propertyProfile.paymentQrUrl }}" style="width:56px;height:56px;border-radius:6px;object-fit:cover;border:1px solid #E3D8C8;background:#fff">
+                      <div style="flex:1;font-size:11.5px;color:#3B7A52;font-weight:600">✓ อัปโหลดแล้ว — ใช้ QR นี้แนบทุกบิลที่ส่งครับ</div>
+                      <label style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;background:#fff">
+                        แก้ไข
+                        <input type="file" accept="image/*" onchange="{{ onUploadPaymentQr }}" style="display:none">
+                      </label>
+                      <span onclick="{{ removePaymentQr }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336;background:#fff">ลบ</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ noPaymentQr }}" hint-placeholder-val="{{ true }}">
+                    <label style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:7px;border:1.5px dashed #D8C9B4;cursor:pointer;color:#7C6E5F;font-size:12.5px;font-weight:600">
+                      {{ paymentQrUploadLabel }}
+                      <input type="file" accept="image/*" onchange="{{ onUploadPaymentQr }}" style="display:none">
+                    </label>
+                  </sc-if>
+                </div>
                 <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
                   <div onclick="{{ openChangePinModal }}" title="ตั้งค่ารหัสผ่าน" style="width:38px;height:38px;border-radius:7px;border:1px solid #E3D8C8;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px">⚙️</div>
                   <div onclick="{{ saveAdminInfo }}" style="padding:10px 22px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;cursor:pointer">บันทึกข้อมูล</div>
@@ -3170,7 +3190,8 @@ class Component extends DCLogic {
     lineConn: { channelId: '', channelSecret: '', accessToken: '', connected: false },
     lineEnvConnected: false,
     sheetEnvConnected: false,
-    propertyProfile: { name: 'หอพักเช่าสุข', adminName: 'คุณสมหมาย ผู้จัดการ', adminPhone: '081-000-0000' },
+    propertyProfile: { name: 'หอพักเช่าสุข', adminName: 'คุณสมหมาย ผู้จัดการ', adminPhone: '081-000-0000', paymentQrUrl: '' },
+    paymentQrUploading: false,
     tenantTokens: {},
     phoneMode: {},
     connData: {},
@@ -4608,7 +4629,13 @@ class Component extends DCLogic {
       } else {
         message = 'แจ้งใบแจ้งหนี้ห้อง ' + roomId + ' ครับ กรุณาตรวจสอบยอดชำระในระบบ';
       }
-      await this._lineSend(roomId, message);
+      // Per explicit user request: attach the payment QR code (uploaded
+      // once in Settings → "ข้อมูลหอพัก") to the end of the bill, so the
+      // tenant can scan-and-pay right from the LINE chat — pushMessage
+      // (server/line.js) sends the text and image as two bubbles in the
+      // same push when both are given, which is exactly "แนบท้ายบิล".
+      const qrUrl = this.state.propertyProfile.paymentQrUrl || undefined;
+      await this._lineSend(roomId, message, qrUrl);
       // Persist on the invoice itself (server-side) — not just local state —
       // so the "sent" status survives a refresh and also reflects sends
       // triggered from the Claude command box (send_invoice_reminder tool),
@@ -5857,6 +5884,49 @@ class Component extends DCLogic {
   // to this whole card requires typing a PIN first (server-verified in
   // POST /api/settings/verify-admin-pin, defaults to "12345" until the
   // owner sets their own via adminEditPin).
+  // QR ชำระเงิน — per explicit user request, a single image the owner
+  // uploads once in Settings, attached to the end of every outgoing LINE
+  // bill (see sendReceiptLine) so the tenant can scan-and-pay right from
+  // the chat. Uploads/deletes are their own immediate action (not gated
+  // behind the "บันทึกข้อมูล" PIN flow below) — this is a standalone
+  // upload widget, not part of the admin-info form.
+  onUploadPaymentQr = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    this._downscaleImage(f, 900, async (dataUrl) => {
+      if (!dataUrl) { this.showAdminToast('อ่านรูปภาพไม่สำเร็จ'); return; }
+      this.setState({ paymentQrUploading: true });
+      try {
+        const res = await fetch('/api/uploads/payment-qr', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataUrl }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'อัปโหลดไม่สำเร็จ');
+        const putRes = await fetch('/api/settings', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ propertyProfile: { ...this.state.propertyProfile, paymentQrUrl: data.url } }),
+        });
+        if (!putRes.ok) throw new Error('บันทึกไม่สำเร็จ');
+        this.setState(s => ({ propertyProfile: { ...s.propertyProfile, paymentQrUrl: data.url }, paymentQrUploading: false }));
+        this.showAdminToast('อัปโหลด QR ชำระเงินแล้ว');
+      } catch (err) {
+        this.setState({ paymentQrUploading: false });
+        this.showAdminToast(err.message || 'อัปโหลดไม่สำเร็จ');
+      }
+    });
+    e.target.value = '';
+  };
+  removePaymentQr = () => this._guard('removePaymentQr', async () => {
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ propertyProfile: { ...this.state.propertyProfile, paymentQrUrl: '' } }),
+      });
+      if (!res.ok) throw new Error('ลบไม่สำเร็จ');
+      this.setState(s => ({ propertyProfile: { ...s.propertyProfile, paymentQrUrl: '' } }));
+      this.showAdminToast('ลบ QR ชำระเงินแล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'ลบไม่สำเร็จ'); }
+  });
   saveAdminInfo = () => this.setState({ showAdminInfoPinModal: true, adminInfoPinDraft: '' });
   closeAdminInfoPinModal = () => this.setState({ showAdminInfoPinModal: false, adminInfoPinDraft: '' });
   onAdminInfoPinDraftChange = (e) => this.setState({ adminInfoPinDraft: e.target.value });
@@ -7642,6 +7712,9 @@ class Component extends DCLogic {
       onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone,
       onProfileAdminLineUserId: this.onProfileAdminLineUserId, saveAdminInfo: this.saveAdminInfo,
       adminLineConnected: !!s.propertyProfile.adminLineUserId, adminLineNotConnected: !s.propertyProfile.adminLineUserId, disconnectAdminLine: this.disconnectAdminLine,
+      hasPaymentQr: !!s.propertyProfile.paymentQrUrl, noPaymentQr: !s.propertyProfile.paymentQrUrl,
+      onUploadPaymentQr: this.onUploadPaymentQr, removePaymentQr: this.removePaymentQr,
+      paymentQrUploadLabel: s.paymentQrUploading ? 'กำลังอัปโหลด...' : '📷 อัปโหลด QR ชำระเงิน',
       adminNotifyOptions, adminNotifyLocked, adminNotifyUnlocked: !adminNotifyLocked, adminNotifyAllOn,
       adminNotifyAllBg: adminNotifyAllOn ? '#C1622D' : '#E3D8C8', adminNotifyAllKnobLeft: adminNotifyAllOn ? '22px' : '2px',
       toggleAdminNotifyAll: adminNotifyLocked ? null : this.toggleAdminNotifyAll,
