@@ -729,14 +729,18 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <span onclick="{{ paymentQrDeleteAction }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336;background:#fff">{{ paymentQrDeleteLabel }}</span>
                     </div>
                   </sc-if>
-                  <sc-if value="{{ paymentQrNoPreview }}" hint-placeholder-val="{{ true }}">
+                  <sc-if value="{{ paymentQrRemovePendingOnly }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;align-items:center;gap:12px;background:#F7EAE3;border-radius:7px;padding:10px 14px">
+                      <img src="{{ propertyProfile.paymentQrUrl }}" style="width:56px;height:56px;border-radius:6px;object-fit:cover;border:1px solid #E3B7AC;background:#fff;opacity:0.45;filter:grayscale(60%)">
+                      <div style="flex:1;font-size:11.5px;font-weight:600;color:#B85B27">🗑️ จะลบ QR นี้ — ยังไม่ลบจริงจนกว่าจะกด "บันทึกข้อมูล" และยืนยันรหัส PIN</div>
+                      <span onclick="{{ cancelPaymentQrDraft }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;background:#fff">ยกเลิกการลบ</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ paymentQrTrulyEmpty }}" hint-placeholder-val="{{ true }}">
                     <label style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:7px;border:1.5px dashed #D8C9B4;cursor:pointer;color:#7C6E5F;font-size:12.5px;font-weight:600">
                       📷 อัปโหลด QR ชำระเงิน
                       <input type="file" accept="image/*" onchange="{{ onUploadPaymentQr }}" style="display:none">
                     </label>
-                    <sc-if value="{{ paymentQrRemovePendingOnly }}" hint-placeholder-val="{{ false }}">
-                      <div style="font-size:10.5px;color:#B85B27;margin-top:4px">จะลบ QR เดิมเมื่อกด "บันทึกข้อมูล"</div>
-                    </sc-if>
                   </sc-if>
                 </div>
                 <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
@@ -7716,13 +7720,18 @@ class Component extends DCLogic {
       onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone,
       onProfileAdminLineUserId: this.onProfileAdminLineUserId, saveAdminInfo: this.saveAdminInfo,
       adminLineConnected: !!s.propertyProfile.adminLineUserId, adminLineNotConnected: !s.propertyProfile.adminLineUserId, disconnectAdminLine: this.disconnectAdminLine,
-      // Three genuinely distinct states (not one reused condition) — a
-      // pending draft (just picked, not saved), an existing saved QR, or
-      // nothing at all. See onUploadPaymentQr/removePaymentQr/
-      // confirmSaveAdminInfo for why this is staged rather than immediate.
+      // Three genuinely distinct, mutually-exclusive states (not one
+      // condition reused) — a pending draft (just picked, not saved), a
+      // pending removal (marked for delete, old image still there until
+      // confirmed — shown dimmed with a "ยกเลิกการลบ" undo, so it doesn't
+      // LOOK like an immediate delete), an existing saved QR with neither
+      // pending, or genuinely nothing at all. See onUploadPaymentQr/
+      // removePaymentQr/confirmSaveAdminInfo for why changes are staged
+      // rather than applied immediately (must go through the PIN-gated
+      // "บันทึกข้อมูล" save, per explicit user request).
       paymentQrHasPreview: !!(s.paymentQrDraft || (!s.paymentQrRemovePending && s.propertyProfile.paymentQrUrl)),
-      paymentQrNoPreview: !(s.paymentQrDraft || (!s.paymentQrRemovePending && s.propertyProfile.paymentQrUrl)),
-      paymentQrRemovePendingOnly: s.paymentQrRemovePending && !s.paymentQrDraft,
+      paymentQrRemovePendingOnly: !!(s.paymentQrRemovePending && !s.paymentQrDraft),
+      paymentQrTrulyEmpty: !s.paymentQrDraft && !s.paymentQrRemovePending && !s.propertyProfile.paymentQrUrl,
       paymentQrPreviewUrl: s.paymentQrDraft || (!s.paymentQrRemovePending ? s.propertyProfile.paymentQrUrl : ''),
       paymentQrStatusLabel: s.paymentQrDraft ? '🕐 รูปใหม่ — ยังไม่บันทึก กด "บันทึกข้อมูล" เพื่อยืนยัน' : '✓ อัปโหลดแล้ว — ใช้ QR นี้แนบทุกบิลที่ส่งครับ',
       paymentQrStatusColor: s.paymentQrDraft ? '#B85B27' : '#3B7A52',
