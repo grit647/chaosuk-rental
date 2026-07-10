@@ -13,6 +13,9 @@ router.post('/', async (req, res, next) => {
     const b = req.body;
     if (!b.name || !String(b.name).trim()) return res.status(400).json({ error: 'กรุณากรอกชื่อพนักงาน' });
     if (!b.position || !String(b.position).trim()) return res.status(400).json({ error: 'กรุณาเลือกตำแหน่ง' });
+    // Per explicit user request: วันที่รับเงินเดือน is required — payroll
+    // data the owner said must exist before a staff record can be saved.
+    if (!b.payDay || !String(b.payDay).trim()) return res.status(400).json({ error: 'กรุณากรอกวันที่รับเงินเดือน' });
     const staff = {
       id: Date.now(),
       name: b.name,
@@ -26,6 +29,8 @@ router.post('/', async (req, res, next) => {
       phone: b.phone || '',
       status: b.status || 'active',
       notes: b.notes || '',
+      payDay: b.payDay,
+      lineUserId: b.lineUserId || '',
     };
     await appendRow('Staff', staff);
     res.json(staff);

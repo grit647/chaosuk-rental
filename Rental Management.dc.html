@@ -1215,11 +1215,34 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
               <button onclick="{{ openExpenseModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">+ เพิ่มรายจ่าย</button>
             </div>
-            <div style="background:#FFFFFF;border-top:3px solid #B24336;border-radius:8px;padding:16px;box-sizing:border-box;max-width:260px;margin-bottom:18px">
-              <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">รายจ่ายรวมเดือนนี้</div>
-              <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#241812">{{ expenseTotalDisplay }}</div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px">
+              <div style="background:#FFFFFF;border-top:3px solid #B24336;border-radius:8px;padding:16px;box-sizing:border-box;max-width:260px;flex:1;min-width:200px">
+                <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">รายจ่ายรวมเดือนนี้</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#241812">{{ expenseTotalDisplay }}</div>
+                <div style="font-size:10.5px;color:#A89A88;margin-top:4px">รวมรายจ่ายทั่วไป + เงินเดือนพนักงาน</div>
+              </div>
+              <div style="background:#FFFFFF;border-top:3px solid #B85B27;border-radius:8px;padding:16px;box-sizing:border-box;max-width:260px;flex:1;min-width:200px">
+                <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">เงินเดือนพนักงาน ({{ staffPayrollCount }} คน)</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#241812">{{ staffPayrollTotalDisplay }}</div>
+              </div>
             </div>
+
+            <sc-if value="{{ hasStaffPayroll }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;margin-bottom:18px">
+                <div style="font-size:12px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#B85B27;margin-bottom:10px">เงินเดือนพนักงาน (นับรวมในรายจ่ายเดือนนี้)</div>
+                <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
+                  <div>ชื่อ</div><div>ตำแหน่ง</div><div>รับเงินเดือน</div><div>จำนวนเงิน</div>
+                </div>
+                <sc-for list="{{ staffPayrollRows }}" as="pr" hint-placeholder-count="3">
+                  <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:10px;font-size:12.5px;color:#241812;padding:11px 0;border-bottom:1px solid #F0E9DC;align-items:center">
+                    <div>{{ pr.name }}</div><div style="color:#7C6E5F">{{ pr.position }}</div><div style="color:#7C6E5F">{{ pr.payDayDisplay }}</div><div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ pr.salaryDisplay }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
             <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
+              <div style="font-size:12px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;margin-bottom:10px">รายจ่ายทั่วไป</div>
               <div style="display:grid;grid-template-columns:0.9fr 1fr 1.6fr 1fr 0.6fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
                 <div>วันที่</div><div>หมวดหมู่</div><div>รายละเอียด</div><div>จำนวนเงิน</div><div></div>
               </div>
@@ -1562,6 +1585,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </div>
                     <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:#7C6E5F">
                       <div>💰 เงินเดือน <span style="color:#241812;font-weight:600;font-family:'IBM Plex Mono',monospace">{{ st.salaryDisplay }}</span></div>
+                      <div>💳 รับเงินเดือน <span style="color:#241812;font-weight:600">{{ st.payDayDisplay }}</span></div>
                       <div>🕐 เวลาทำงาน <span style="color:#241812;font-weight:600">{{ st.workTimeDisplay }}</span></div>
                       <div>📅 วันทำงาน <span style="color:#241812;font-weight:600">{{ st.workDaysDisplay }}</span></div>
                     </div>
@@ -2851,9 +2875,15 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </sc-for>
                   </div>
                 </div>
-                <div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เงินเดือน (บาท)</div>
-                  <input value="{{ newStaff.salary }}" onchange="{{ onNewStaffSalary }}" placeholder="15000" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                <div style="display:flex;gap:10px">
+                  <div style="flex:1">
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เงินเดือน (บาท)</div>
+                    <input value="{{ newStaff.salary }}" onchange="{{ onNewStaffSalary }}" placeholder="15000" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  </div>
+                  <div style="flex:1">
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">วันที่รับเงินเดือน <span style="color:#B24336">*จำเป็น</span></div>
+                    <input value="{{ newStaff.payDay }}" onchange="{{ onNewStaffPayDay }}" placeholder="เช่น 25 (ทุกวันที่ 25)" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  </div>
                 </div>
                 <div style="display:flex;gap:10px">
                   <div style="flex:1">
@@ -3039,7 +3069,7 @@ class Component extends DCLogic {
     staff: [],
     showStaffModal: false,
     editingStaffId: null,
-    newStaff: { name: '', position: '', salary: '', workStart: '', workEnd: '', workDays: '', startDate: '', endDate: '', phone: '', status: 'active', notes: '' },
+    newStaff: { name: '', position: '', salary: '', workStart: '', workEnd: '', workDays: '', startDate: '', endDate: '', phone: '', status: 'active', notes: '', payDay: '' },
     showDeleteStaffConfirm: false,
     deleteStaffId: null,
     showMaintenanceModal: false,
@@ -5404,7 +5434,7 @@ class Component extends DCLogic {
   // this file.
   openStaffModal = () => this.setState({
     showStaffModal: true, editingStaffId: null,
-    newStaff: { name: '', position: '', salary: '', workStart: '', workEnd: '', workDays: '', startDate: '', endDate: '', phone: '', status: 'active', notes: '' },
+    newStaff: { name: '', position: '', salary: '', workStart: '', workEnd: '', workDays: '', startDate: '', endDate: '', phone: '', status: 'active', notes: '', payDay: '' },
   });
   openEditStaff = (id) => {
     const st = this.state.staff.find(x => x.id === id);
@@ -5415,13 +5445,14 @@ class Component extends DCLogic {
         name: st.name || '', position: st.position || '', salary: String(st.salary || ''),
         workStart: st.workStart || '', workEnd: st.workEnd || '', workDays: st.workDays || '',
         startDate: st.startDate || '', endDate: st.endDate || '', phone: st.phone || '',
-        status: st.status || 'active', notes: st.notes || '',
+        status: st.status || 'active', notes: st.notes || '', payDay: st.payDay || '',
       },
     });
   };
   closeStaffModal = () => this.setState({ showStaffModal: false, editingStaffId: null });
   onNewStaffName = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, name: v } })); };
   onNewStaffSalary = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, salary: v } })); };
+  onNewStaffPayDay = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, payDay: v } })); };
   onNewStaffWorkStart = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, workStart: v } })); };
   onNewStaffWorkEnd = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, workEnd: v } })); };
   onNewStaffWorkDays = (e) => { const v = e.target.value; this.setState(s => ({ newStaff: { ...s.newStaff, workDays: v } })); };
@@ -5437,11 +5468,15 @@ class Component extends DCLogic {
     const f = s.newStaff;
     if (!f.name.trim()) { this.showAdminToast('กรุณากรอกชื่อพนักงาน'); return; }
     if (!f.position) { this.showAdminToast('กรุณาเลือกตำแหน่ง'); return; }
+    // Per explicit user request: วันที่รับเงินเดือน is important payroll
+    // data that must exist before saving, same treatment as the required
+    // กำหนดชำระ on invoices.
+    if (!f.payDay || !String(f.payDay).trim()) { this.showAdminToast('กรุณากรอกวันที่รับเงินเดือน'); return; }
     const payload = {
       name: f.name, position: f.position, salary: Number(f.salary) || 0,
       workStart: f.workStart, workEnd: f.workEnd, workDays: f.workDays,
       startDate: f.startDate, endDate: f.endDate, phone: f.phone,
-      status: f.status, notes: f.notes,
+      status: f.status, notes: f.notes, payDay: f.payDay,
     };
     try {
       if (s.editingStaffId) {
@@ -6896,7 +6931,15 @@ class Component extends DCLogic {
       { name: 'กล้องวงจรปิด 8 จุด', location: 'รอบอาคาร', statusLabel: 'ปกติ', statusBg: '#3B7A52' },
     ];
 
-    const expenseTotal = s.expenses.reduce((a, e) => a + e.amount, 0);
+    // Per explicit user request: active staff salaries are a real recurring
+    // cost and now count toward total monthly expenses (รายจ่ายรวมเดือนนี้,
+    // and the Dashboard's กำไรสุทธิ calc which subtracts this from revenue)
+    // — same real-money treatment as anything logged in the Expenses tab,
+    // even though payroll lives in its own Staff tab. Only active staff
+    // count; someone marked พ้นสภาพแล้ว isn't still being paid.
+    const activeStaffList = s.staff.filter(st => (st.status || 'active') !== 'inactive');
+    const staffPayrollTotal = activeStaffList.reduce((a, st) => a + (st.salary || 0), 0);
+    const expenseTotal = s.expenses.reduce((a, e) => a + e.amount, 0) + staffPayrollTotal;
     const expensesView = s.expenses.map(e => ({ id: e.id, date: e.date, category: e.category, desc: e.desc, amountDisplay: this.fmt(e.amount), onDelete: () => this.deleteExpense(e.id) }));
     const expenseCategoryOptions = s.expenseCategories;
 
@@ -7096,6 +7139,7 @@ class Component extends DCLogic {
         return {
           id: st.id, name: st.name, position: st.position,
           salaryDisplay: this.fmt(st.salary || 0),
+          payDayDisplay: st.payDay ? ('ทุกวันที่ ' + st.payDay) : '—',
           workTimeDisplay, workDaysDisplay: st.workDays || '—',
           startDateDisplay: st.startDate || '—', endDateDisplay: st.endDate || 'ไม่มีกำหนด',
           phone: st.phone || '', notes: st.notes || '', hasNotes: !!(st.notes && st.notes.trim()),
@@ -7109,7 +7153,7 @@ class Component extends DCLogic {
       newStaff: s.newStaff, openStaffModal: this.openStaffModal, submitStaff: this.submitStaff,
       staffModalTitle: s.editingStaffId ? 'แก้ไขข้อมูลพนักงาน' : 'เพิ่มพนักงานใหม่',
       staffModalSubmitLabel: s.editingStaffId ? 'บันทึกการแก้ไข' : 'เพิ่มพนักงาน',
-      onNewStaffName: this.onNewStaffName, onNewStaffSalary: this.onNewStaffSalary,
+      onNewStaffName: this.onNewStaffName, onNewStaffSalary: this.onNewStaffSalary, onNewStaffPayDay: this.onNewStaffPayDay,
       onNewStaffWorkStart: this.onNewStaffWorkStart, onNewStaffWorkEnd: this.onNewStaffWorkEnd,
       onNewStaffWorkDays: this.onNewStaffWorkDays, onNewStaffStartDate: this.onNewStaffStartDate,
       onNewStaffEndDate: this.onNewStaffEndDate, onNewStaffPhone: this.onNewStaffPhone, onNewStaffNotes: this.onNewStaffNotes,
@@ -7668,6 +7712,17 @@ class Component extends DCLogic {
       equipSelWaterDot: equipSelDevice ? (equipSelDevice.waterOnline ? '#3B7A52' : '#B24336') : '#C9B79E',
       elecDeviceRows, waterDeviceRows, elecOnlineCount, waterOnlineCount, deviceTotalCount: elecDeviceRows.length,
       expensesView, expenseTotalDisplay: this.fmt(expenseTotal), expenseCategoryOptions,
+      // เงินเดือนพนักงาน section on the Expenses page — per explicit user
+      // request that the staff feature show up here too, not just count
+      // silently toward the total above.
+      staffPayrollCount: activeStaffList.length,
+      staffPayrollTotalDisplay: this.fmt(staffPayrollTotal),
+      hasStaffPayroll: activeStaffList.length > 0,
+      staffPayrollRows: activeStaffList.map(st => ({
+        name: st.name, position: st.position,
+        payDayDisplay: st.payDay ? ('ทุกวันที่ ' + st.payDay) : '—',
+        salaryDisplay: this.fmt(st.salary || 0),
+      })),
       showExpenseModal: s.showExpenseModal, newExpense: s.newExpense, openExpenseModal: this.openExpenseModal, closeExpenseModal: this.closeExpenseModal,
       onExpenseCategoryChange: this.onExpenseCategoryChange, onExpenseDescChange: this.onExpenseDescChange, onExpenseAmountChange: this.onExpenseAmountChange, onExpenseDateChange: this.onExpenseDateChange,
       addingCategory: s.addingCategory, newCategoryText: s.newCategoryText, toggleAddCategory: this.toggleAddCategory, onNewCategoryText: this.onNewCategoryText, confirmNewCategory: this.confirmNewCategory, submitExpense: this.submitExpense,

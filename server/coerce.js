@@ -92,13 +92,19 @@ function coerceExpenses(rows) {
 }
 
 // พนักงานหอพัก / สัญญาพนักงาน — per explicit user request for a staff
-// management feature, separate from tenant leases (Rooms tab).
+// management feature, separate from tenant leases (Rooms tab). payDay =
+// day-of-month salary is paid (required — see server/routes/staff.js).
+// lineUserId reserved for a future LINE-linking feature for staff
+// notifications, same idea as Rooms' own lineUserId — owner added the
+// column proactively even though nothing writes to it yet.
 function coerceStaff(rows) {
   return rows.map((r) => ({
     ...r,
     id: num(r.id),
     salary: num(r.salary, 0),
     status: r.status || 'active',
+    payDay: r.payDay || '',
+    lineUserId: r.lineUserId || '',
   }));
 }
 
