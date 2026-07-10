@@ -4588,8 +4588,8 @@ class Component extends DCLogic {
         // cross-check their own meter — only shown when this invoice
         // actually has it recorded.
         const prevReadingLines = [];
-        if (invoice.waterPrevReading != null) prevReadingLines.push(`หน่วยน้ำบิลก่อนหน้า: ${invoice.waterPrevReading}`);
-        if (invoice.elecPrevReading != null) prevReadingLines.push(`หน่วยไฟบิลก่อนหน้า: ${invoice.elecPrevReading}`);
+        if (invoice.waterPrevReading != null) prevReadingLines.push(`หน่วยมิเตอร์น้ำบิลก่อนหน้า: ${invoice.waterPrevReading}`);
+        if (invoice.elecPrevReading != null) prevReadingLines.push(`หน่วยมิเตอร์ไฟบิลก่อนหน้า: ${invoice.elecPrevReading}`);
         message = [
           'ใบแจ้งหนี้ห้อง ' + roomId + ' (' + invoice.id + ')',
           ...rows,
