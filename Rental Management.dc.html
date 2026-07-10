@@ -614,6 +614,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <sc-if value="{{ b.cannotModify }}" hint-placeholder-val="{{ false }}">
                         <span style="font-size:10.5px;color:#9C8B78;white-space:nowrap">ชำระเงินแล้ว — แก้ไข/ลบไม่ได้</span>
                       </sc-if>
+                      <span onclick="{{ b.onOpenHistory }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap">📋 ประวัติ</span>
                     </div>
                     <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px">
                       <sc-if value="{{ b.hasSlipPending }}" hint-placeholder-val="{{ false }}">
@@ -2443,6 +2444,35 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showBillHistory }}">
+          <div onclick="{{ closeBillHistory }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:380px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ประวัติบิลย้อนหลัง ห้อง {{ billHistoryRoomId }}</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">3 บิลล่าสุด — หน่วยน้ำ/ไฟเป็นค่าประมาณจากอัตราปัจจุบันของห้องนี้</div>
+              <sc-if value="{{ hasBillHistory }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <sc-for list="{{ billHistoryItems }}" as="h" hint-placeholder-count="3">
+                    <div style="padding:12px;border-radius:8px;background:#FBF7F0;display:flex;flex-direction:column;gap:5px">
+                      <div style="display:flex;justify-content:space-between;align-items:center">
+                        <div style="font-size:12.5px;font-weight:700;color:#241812">{{ h.id }}</div>
+                        <span style="font-size:10px;font-weight:600;padding:3px 8px;border-radius:5px;background:{{ h.statusBg }};color:{{ h.statusColor }}">{{ h.statusLabel }}</span>
+                      </div>
+                      <div style="font-size:11px;color:#7C6E5F">กำหนดชำระ {{ h.due }}</div>
+                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่าน้ำ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ h.waterDisplay }}</span></div>
+                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่าไฟ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ h.elecDisplay }}</span></div>
+                      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1px solid #E3D8C8;padding-top:5px;margin-top:2px"><span style="color:#241812">รวม</span><span style="font-family:'IBM Plex Mono',monospace;color:#C1622D">{{ h.totalDisplay }}</span></div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ noBillHistory }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:14px;border-radius:8px;background:#FBF7F0;color:#9C8B78;font-size:12.5px;text-align:center">ห้องนี้ยังไม่มีประวัติบิลก่อนหน้าครับ</div>
+              </sc-if>
+              <div onclick="{{ closeBillHistory }}" style="margin-top:16px;padding:9px;border-radius:6px;border:1px solid #E3D8C8;color:#9C8B78;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ปิด</div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showInvoiceModal }}">
           <div onclick="{{ closeInvoiceModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
@@ -2800,6 +2830,11 @@ class Component extends DCLogic {
     bulkInvoiceDue: '',
     bulkInvoiceDrafts: {},
     bulkInvoiceLoading: false,
+    // Per-room billing history card ("ประวัติ" button in the pending-bills
+    // table) — per explicit user request, to look back at recent water/elec
+    // units without leaving the Bills page.
+    showBillHistory: false,
+    billHistoryRoomId: '',
     showRoomEditModal: false,
     editRoomForm: { tenant: '', phone: '', rent: '' },
     showAddRoomModal: false,
@@ -4128,6 +4163,17 @@ class Component extends DCLogic {
   // placeholder numbers from early testing that looked like a real reading
   // once "อุปกรณ์" mode was selected with no device ready. Defaulting to
   // '0' means an unready device honestly shows 0 instead of a fake number.
+  // Per explicit user request: quick read-only history card next to the
+  // "ลบ" button in the pending-bills table, showing the last 3 bills for
+  // that room so the owner can eyeball recent water/elec usage without
+  // navigating away. See billHistoryItems in renderVals() for how the
+  // units are estimated (invoices only ever stored the Baht charge, not
+  // units used, so this divides by the room's CURRENT rate — an
+  // approximation, not an exact historical figure, since a room's rate can
+  // change over time and old bills don't remember what rate was in effect
+  // when they were created).
+  openBillHistory = (roomId) => this.setState({ showBillHistory: true, billHistoryRoomId: roomId });
+  closeBillHistory = () => this.setState({ showBillHistory: false, billHistoryRoomId: '' });
   openInvoiceModeModal = () => this.setState({ showInvoiceModeModal: true });
   closeInvoiceModeModal = () => this.setState({ showInvoiceModeModal: false });
   chooseSingleInvoiceMode = () => {
@@ -6068,6 +6114,7 @@ class Component extends DCLogic {
         onEditReceipt: () => this.openEditInvoice(i.id),
         canModify, cannotModify: !canModify,
         onDeleteReceipt: () => this.askDeleteInvoice(i.id),
+        onOpenHistory: () => this.openBillHistory(i.room),
       };
     });
     const pendingBillsCount = pendingBills.length;
@@ -6859,6 +6906,41 @@ class Component extends DCLogic {
       confirmRejectUnmatchedSlip: this.confirmRejectUnmatchedSlip,
       showEditCreditModal: s.showEditCreditModal, editCreditRoomId: s.editCreditRoomId, editCreditDraft: s.editCreditDraft,
       closeEditCreditModal: this.closeEditCreditModal, onEditCreditDraftChange: this.onEditCreditDraftChange, saveEditCredit: this.saveEditCredit,
+      showBillHistory: s.showBillHistory, closeBillHistory: this.closeBillHistory,
+      billHistoryRoomId: s.billHistoryRoomId,
+      billHistoryItems: (() => {
+        if (!s.billHistoryRoomId) return [];
+        const roomInvoices = s.invoices.filter(i => i.room === s.billHistoryRoomId);
+        // Invoice ids are 'INV-<room>-<Date.now()>' — the trailing number is
+        // a real creation timestamp, used here to sort newest-first since
+        // invoices have no dedicated createdAt field of their own.
+        const sorted = roomInvoices.slice().sort((a, b) => {
+          const ta = Number((a.id || '').split('-').pop()) || 0;
+          const tb = Number((b.id || '').split('-').pop()) || 0;
+          return tb - ta;
+        });
+        const waterRate = this.roomRate(s.billHistoryRoomId, 'water');
+        const elecRate = this.roomRate(s.billHistoryRoomId, 'elec');
+        return sorted.slice(0, 3).map(i => {
+          const meta = invMeta(i.status);
+          const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
+          // Units aren't stored on the invoice itself (only the Baht
+          // charge) — estimated here by dividing back through this room's
+          // CURRENT rate, so it's approximate if the rate changed since
+          // this bill was issued, not an exact historical reading.
+          const waterUnitsEst = waterRate > 0 ? Math.round((i.water / waterRate) * 10) / 10 : null;
+          const elecUnitsEst = elecRate > 0 ? Math.round((i.elec / elecRate) * 10) / 10 : null;
+          return {
+            id: i.id, due: i.due || '—',
+            statusLabel: meta.label, statusBg: meta.bg, statusColor: '#fff',
+            waterDisplay: this.fmt(i.water) + (waterUnitsEst != null ? ` (≈${waterUnitsEst} หน่วย)` : ''),
+            elecDisplay: this.fmt(i.elec) + (elecUnitsEst != null ? ` (≈${elecUnitsEst} หน่วย)` : ''),
+            totalDisplay: this.fmt(total),
+          };
+        });
+      })(),
+      hasBillHistory: (() => s.invoices.filter(i => i.room === s.billHistoryRoomId).length > 0)(),
+      noBillHistory: (() => s.invoices.filter(i => i.room === s.billHistoryRoomId).length === 0)(),
       showInvoiceModal: s.showInvoiceModal, closeInvoiceModal: this.closeInvoiceModal,
       newInvoice: s.newInvoice, roomSelectOptions, invoiceRoomSelectOptions,
       showBulkInvoiceModal: s.showBulkInvoiceModal, closeBulkInvoiceModal: this.closeBulkInvoiceModal,
