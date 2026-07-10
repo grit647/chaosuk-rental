@@ -4469,10 +4469,22 @@ class Component extends DCLogic {
       if (!room) continue;
       const draft = s.bulkInvoiceDrafts[roomId] || {};
       const water = Number(draft.water) || 0, elec = Number(draft.elec) || 0;
+      // Same units/prevReading capture as submitInvoice, per room.
+      const waterUnitsForBill = draft.waterMode === 'device'
+        ? (this.deviceCharge(roomId, 'water') || {}).units ?? null
+        : this.meterUnitsFromReading(roomId, 'water', draft.waterUnits);
+      const elecUnitsForBill = draft.elecMode === 'device'
+        ? (this.deviceCharge(roomId, 'elec') || {}).units ?? null
+        : this.meterUnitsFromReading(roomId, 'elec', draft.elecUnits);
+      const waterPrevReading = room.waterPrev || 0;
+      const elecPrevReading = room.elecPrev || 0;
       try {
         const res = await fetch('/api/invoices', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ room: room.id, tenant: room.tenant, rent: room.rent, water, elec, trash: s.trashRate, internet: s.internetRate, due: s.bulkInvoiceDue }),
+          body: JSON.stringify({
+            room: room.id, tenant: room.tenant, rent: room.rent, water, elec, trash: s.trashRate, internet: s.internetRate, due: s.bulkInvoiceDue,
+            waterUnits: waterUnitsForBill, elecUnits: elecUnitsForBill, waterPrevReading, elecPrevReading,
+          }),
         });
         if (!res.ok) throw new Error((await res.json()).error || 'สร้างไม่สำเร็จ');
         const newInv = await res.json();
@@ -4538,11 +4550,26 @@ class Component extends DCLogic {
     try {
       let message;
       if (invoice) {
+        // Per explicit user request: show ค่าน้ำ/ค่าไฟ with a "(X หน่วย ×
+        // อัตรา)" breakdown when this invoice actually has units recorded
+        // (waterUnits/elecUnits — frozen at creation time, see
+        // coerceInvoices), same detail level shown in the create-invoice
+        // form's own "รายการบิล" preview. Falls back to a plain amount if
+        // this invoice predates that field (older bills won't have it).
+        const rate = (kind) => this.roomRate(roomId, kind);
+        const lineFor = (label, amount, units, kind) => {
+          if (amount == null) return null;
+          const detail = units != null ? ` (${units} หน่วย × ${rate(kind)})` : '';
+          return label + ': ' + this.fmt(amount) + detail;
+        };
         const rows = [
-          ['ค่าเช่า', invoice.rent], ['ค่าน้ำ', invoice.water], ['ค่าไฟ', invoice.elec],
-          ['ค่าขยะ', invoice.trash], ['ค่าอินเทอร์เน็ต', invoice.internet],
-        ].filter(([, v]) => v);
-        const total = rows.reduce((a, [, v]) => a + Number(v || 0), 0);
+          lineFor('ค่าเช่า', invoice.rent, null, null),
+          lineFor('ค่าน้ำ', invoice.water, invoice.waterUnits, 'water'),
+          lineFor('ค่าไฟ', invoice.elec, invoice.elecUnits, 'elec'),
+          lineFor('ค่าขยะ', invoice.trash, null, null),
+          lineFor('ค่าอินเทอร์เน็ต', invoice.internet, null, null),
+        ].filter(Boolean);
+        const total = invoice.rent + invoice.water + invoice.elec + (invoice.trash || 0) + (invoice.internet || 0);
         // Real bug a user hit: this message used to only ever show the raw
         // bill total, even when the room's advance-payment credit had
         // already been auto-applied to this exact invoice at creation time
@@ -4556,11 +4583,19 @@ class Component extends DCLogic {
         const creditLines = amountPaid > 0
           ? [`หักจากเงินล่วงหน้าที่ชำระไว้แล้ว: ${this.fmt(amountPaid)}`, `ยอดที่ต้องชำระจริง: ${this.fmt(remaining)}`]
           : [];
+        // Per explicit user request: also tell the tenant the reading from
+        // their PREVIOUS bill (before this one) for water/elec, so they can
+        // cross-check their own meter — only shown when this invoice
+        // actually has it recorded.
+        const prevReadingLines = [];
+        if (invoice.waterPrevReading != null) prevReadingLines.push(`หน่วยน้ำบิลก่อนหน้า: ${invoice.waterPrevReading}`);
+        if (invoice.elecPrevReading != null) prevReadingLines.push(`หน่วยไฟบิลก่อนหน้า: ${invoice.elecPrevReading}`);
         message = [
           'ใบแจ้งหนี้ห้อง ' + roomId + ' (' + invoice.id + ')',
-          ...rows.map(([label, v]) => label + ': ' + this.fmt(v)),
+          ...rows,
           'รวม: ' + this.fmt(total),
           ...creditLines,
+          ...prevReadingLines,
           'ครบกำหนดชำระ: ' + (invoice.due || '-'),
         ].join('\n');
         // Fire-and-forget: a PDF hiccup shouldn't block the LINE message going out.
@@ -4882,10 +4917,25 @@ class Component extends DCLogic {
     const elec = Number(s.newInvoice.elec) || 0;
     const trash = Number(s.trashRate) || 0;
     const internet = Number(s.internetRate) || 0;
+    // Captured BEFORE creation so the receipt can later show "X หน่วย ×
+    // rate" and the previous bill's reading — see coerceInvoices' comment.
+    // Device mode reads real units from deviceCharge; manual mode uses
+    // meterUnitsFromReading (same math already driving the Baht amount).
+    const waterUnitsForBill = s.newInvoice.waterMode === 'device'
+      ? (this.deviceCharge(room.id, 'water') || {}).units ?? null
+      : this.meterUnitsFromReading(room.id, 'water', s.newInvoice.waterUnits);
+    const elecUnitsForBill = s.newInvoice.elecMode === 'device'
+      ? (this.deviceCharge(room.id, 'elec') || {}).units ?? null
+      : this.meterUnitsFromReading(room.id, 'elec', s.newInvoice.elecUnits);
+    const waterPrevReading = room.waterPrev || 0;
+    const elecPrevReading = room.elecPrev || 0;
     try {
       const res = await fetch('/api/invoices', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room: room.id, tenant: room.tenant, rent: room.rent, water, elec, trash, internet, due: s.newInvoice.due }),
+        body: JSON.stringify({
+          room: room.id, tenant: room.tenant, rent: room.rent, water, elec, trash, internet, due: s.newInvoice.due,
+          waterUnits: waterUnitsForBill, elecUnits: elecUnitsForBill, waterPrevReading, elecPrevReading,
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'สร้างใบแจ้งหนี้ไม่สำเร็จ');
       const newInv = await res.json();

@@ -65,6 +65,14 @@ router.post('/', async (req, res, next) => {
       status,
       paidDate: status === 'paid' ? new Date().toISOString().slice(0, 10) : '',
       amountPaid: applied,
+      // Frozen at creation time so the LINE receipt can show "X หน่วย ×
+      // rate" and the previous bill's reading no matter when it's actually
+      // sent — see coerceInvoices' comment on why these can't just be
+      // recomputed from the room's current waterPrev/elecPrev later.
+      waterUnits: b.waterUnits != null ? Number(b.waterUnits) : '',
+      elecUnits: b.elecUnits != null ? Number(b.elecUnits) : '',
+      waterPrevReading: b.waterPrevReading != null ? Number(b.waterPrevReading) : '',
+      elecPrevReading: b.elecPrevReading != null ? Number(b.elecPrevReading) : '',
     };
     await appendRow('Invoices', invoice);
     if (applied > 0) {

@@ -79,6 +79,17 @@ function coerceInvoices(rows) {
       // got the full-delete confirm popup and clarified they only wanted
       // to declutter that one widget, not remove real bill data.
       hiddenFromDashboard: bool(r.hiddenFromDashboard, false),
+      // Per explicit user request: the LINE receipt message needs to show
+      // "X หน่วย × rate" for water/elec and the previous bill's reading —
+      // neither survives past invoice-creation time otherwise, since the
+      // room's own waterPrev/elecPrev baseline gets overwritten to THIS
+      // bill's reading immediately on creation (submitInvoice). Captured
+      // once at creation and frozen on the invoice itself so it stays
+      // accurate no matter when the receipt is actually sent afterward.
+      waterUnits: r.waterUnits === '' || r.waterUnits == null ? null : num(r.waterUnits, null),
+      elecUnits: r.elecUnits === '' || r.elecUnits == null ? null : num(r.elecUnits, null),
+      waterPrevReading: r.waterPrevReading === '' || r.waterPrevReading == null ? null : num(r.waterPrevReading, null),
+      elecPrevReading: r.elecPrevReading === '' || r.elecPrevReading == null ? null : num(r.elecPrevReading, null),
     };
   });
 }
