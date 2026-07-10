@@ -55,6 +55,15 @@ function fmt(n) {
   return (Number(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
 }
 
+// Per explicit user request: every image sent should show the date it was
+// generated/sent on, not just its content. Bangkok-local (matches
+// _todayStr() in Rental Management.dc.html and server/routes/
+// paymentLog.js's date field) so it lines up with what the owner
+// considers "today" rather than drifting near midnight UTC.
+function todayStr() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+}
+
 // Builds the full receipt as a single PNG buffer. `qrBuffer` (already-
 // fetched, decoded image bytes) is optional — if given, it's composited at
 // the bottom of the canvas; if not, the receipt just ends after the due
@@ -93,6 +102,7 @@ async function generateReceiptImage(invoice, room, propertyProfile, qrBuffer) {
   parts.push(`<rect x="0" y="0" width="${WIDTH}" height="86" fill="${BRAND}"/>`);
   parts.push(`<text x="${PAD}" y="40" font-size="26" font-weight="700" fill="#fff">${esc(propertyProfile.name || 'ใบแจ้งหนี้')}</text>`);
   parts.push(`<text x="${PAD}" y="68" font-size="15" fill="#FBE9DD">ใบแจ้งหนี้ห้อง ${esc(invoice.room)} • ${esc(invoice.id)}</text>`);
+  parts.push(`<text x="${WIDTH - PAD}" y="68" font-size="13" fill="#FBE9DD" text-anchor="end">วันที่ ${todayStr()}</text>`);
   y = 86 + 36;
 
   parts.push(`<text x="${PAD}" y="${y}" font-size="16" fill="${TEXT}">ผู้เช่า: ${esc(invoice.tenant || '-')}</text>`);
@@ -187,6 +197,7 @@ async function generatePaymentCardImage(opts, propertyProfile, qrBuffer) {
   parts.push(`<rect x="0" y="0" width="${WIDTH}" height="86" fill="${BRAND}"/>`);
   parts.push(`<text x="${PAD}" y="40" font-size="24" font-weight="700" fill="#fff">${esc(title)}</text>`);
   parts.push(`<text x="${PAD}" y="68" font-size="15" fill="#FBE9DD">${esc(subtitle || '')}</text>`);
+  parts.push(`<text x="${WIDTH - PAD}" y="68" font-size="13" fill="#FBE9DD" text-anchor="end">วันที่ ${todayStr()}</text>`);
   y = 86 + 36;
 
   if (roomId) {

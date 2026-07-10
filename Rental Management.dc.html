@@ -4578,7 +4578,18 @@ class Component extends DCLogic {
           const creditAfter = Math.max(0, creditBefore - creditApplied);
           roomCreditUpdates[roomId] = creditAfter;
           if (creditAfter > 0) {
-            this._lineSend(roomId, `ตัดยอดเงินล่วงหน้าของห้อง ${roomId} ไปชำระบิลใหม่ (${newInv.id}) จำนวน ${this.fmt(creditApplied)} บาทแล้วครับ ยอดเงินล่วงหน้าคงเหลือ ${this.fmt(creditAfter)} บาท ขอบคุณครับ 🙏`).catch(err => console.error(err));
+            // Per explicit user follow-up request: this notice also goes
+            // out as an image card now (rounding out ALL payment-related
+            // LINE messages, not just the 4 originally named cases). No
+            // NEW _logPayment call here — this is money that was already
+            // logged as revenue when the credit first arrived (confirmCreditSlips/
+            // resolveSlip credit mode), just being moved onto this new bill.
+            const creditDeductFallback = `ตัดยอดเงินล่วงหน้าของห้อง ${roomId} ไปชำระบิลใหม่ (${newInv.id}) จำนวน ${this.fmt(creditApplied)} บาทแล้วครับ ยอดเงินล่วงหน้าคงเหลือ ${this.fmt(creditAfter)} บาท ขอบคุณครับ 🙏`;
+            this._paymentCardImage({
+              title: 'หักเงินล่วงหน้า', subtitle: `ห้อง ${roomId} — ใช้ชำระบิลใหม่`, roomId, tenant: room.tenant,
+              lines: [{ label: 'บิลที่นำไปชำระ', value: newInv.id }, { label: 'ยอดที่หัก', value: this.fmt(creditApplied) + ' บาท' }],
+              highlight: { label: 'ยอดเงินล่วงหน้าคงเหลือ', value: this.fmt(creditAfter) + ' บาท' },
+            }).then(url => this._lineSend(roomId, url ? '' : creditDeductFallback, url || undefined)).catch(err => console.error(err));
           }
         }
         // Same waterPrev/elecPrev baseline reset as submitInvoice — device
@@ -5126,7 +5137,16 @@ class Component extends DCLogic {
         const creditAfter = Math.max(0, creditBefore - creditApplied);
         this.setState(st => ({ rooms: st.rooms.map(r => r.id === room.id ? { ...r, creditBalance: creditAfter } : r) }));
         if (creditAfter > 0) {
-          this._lineSend(room.id, `ตัดยอดเงินล่วงหน้าของห้อง ${room.id} ไปชำระบิลใหม่ (${newInv.id}) จำนวน ${this.fmt(creditApplied)} บาทแล้วครับ ยอดเงินล่วงหน้าคงเหลือ ${this.fmt(creditAfter)} บาท ขอบคุณครับ 🙏`).catch(err => console.error(err));
+          // Per explicit user follow-up request: same image-card treatment
+          // as the bulk-invoice version of this notice above. No NEW
+          // _logPayment call — this money was already logged as revenue
+          // when the credit first arrived, this is just moving it onto a bill.
+          const creditDeductFallback2 = `ตัดยอดเงินล่วงหน้าของห้อง ${room.id} ไปชำระบิลใหม่ (${newInv.id}) จำนวน ${this.fmt(creditApplied)} บาทแล้วครับ ยอดเงินล่วงหน้าคงเหลือ ${this.fmt(creditAfter)} บาท ขอบคุณครับ 🙏`;
+          this._paymentCardImage({
+            title: 'หักเงินล่วงหน้า', subtitle: `ห้อง ${room.id} — ใช้ชำระบิลใหม่`, roomId: room.id, tenant: room.tenant,
+            lines: [{ label: 'บิลที่นำไปชำระ', value: newInv.id }, { label: 'ยอดที่หัก', value: this.fmt(creditApplied) + ' บาท' }],
+            highlight: { label: 'ยอดเงินล่วงหน้าคงเหลือ', value: this.fmt(creditAfter) + ' บาท' },
+          }).then(url => this._lineSend(room.id, url ? '' : creditDeductFallback2, url || undefined)).catch(err => console.error(err));
         }
       }
     } catch (err) { this.showAdminToast(err.message || 'สร้างใบแจ้งหนี้ไม่สำเร็จ'); }
