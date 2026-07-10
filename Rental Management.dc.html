@@ -3098,6 +3098,11 @@ class Component extends DCLogic {
     unmatchedSlips: [],
     // พนักงานหอพัก / สัญญาพนักงาน — per explicit user request.
     staff: [],
+    // Append-only "money actually received" ledger — see server/routes/
+    // paymentLog.js for why this exists (Dashboard revenue was missing
+    // advance-payment credit and partial payments, both real money that
+    // never touched an invoice's status).
+    paymentLog: [],
     showStaffModal: false,
     editingStaffId: null,
     newStaff: { name: '', position: '', salary: '', workStart: '', workEnd: '', workDays: '', startDate: '', endDate: '', phone: '', status: 'active', notes: '', payDay: '' },
@@ -3386,6 +3391,7 @@ class Component extends DCLogic {
         calEvents: data.calEvents,
         unmatchedSlips: data.unmatchedSlips || [],
         staff: data.staff || [],
+        paymentLog: data.paymentLog || [],
         propertyProfile: data.propertyProfile,
         waterRate: data.waterRate,
         elecRate: data.elecRate,
@@ -3545,6 +3551,24 @@ class Component extends DCLogic {
       if (!res.ok) return '';
       return (await res.json()).url || '';
     } catch { return ''; }
+  };
+  // Real accounting bug the owner caught: the Dashboard's "รายรับเดือนนี้"
+  // only summed invoices marked 'paid' — advance-payment credit and
+  // partial payments are real money received but never showed up there.
+  // Call this with the amount NEWLY received in one specific action
+  // (never the invoice's running total, to avoid double-counting money
+  // already logged earlier — e.g. advance credit auto-applied to a bill
+  // at creation time was already logged when the credit first arrived).
+  // Fire-and-forget on the network call, but updates local state
+  // optimistically so the Dashboard reflects it immediately.
+  _logPayment = (room, amount, type, note) => {
+    if (!room || !(amount > 0)) return;
+    fetch('/api/payment-log', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room, amount, type, note }),
+    }).then(res => res.ok ? res.json() : null).then(entry => {
+      if (entry) this.setState(s => ({ paymentLog: [...s.paymentLog, entry] }));
+    }).catch(err => console.error(err));
   };
   _uploadImageForLine = async (dataUrl) => {
     const res = await fetch('/api/uploads/image', {
@@ -5136,6 +5160,12 @@ class Component extends DCLogic {
       const paidRoom = this.state.rooms.find(r => r.id === updated.room);
       const paidCredit = (paidRoom && paidRoom.creditBalance) || 0;
       const paidFallbackMsg = 'ขอบคุณที่ชำระค่าเช่าห้อง ' + updated.room + ' จำนวน ' + this.fmt(total2) + ' เรียบร้อยแล้วครับ 🙏';
+      // Log only the NEWLY received amount — this action sets amountPaid to
+      // the FULL total regardless of what it was before, so if credit was
+      // already applied at invoice creation (already logged when that
+      // credit first arrived), only the remaining delta is genuinely new
+      // money for the Dashboard's "รายรับเดือนนี้" to count.
+      this._logPayment(updated.room, Math.max(0, total2 - (inv ? (inv.amountPaid || 0) : 0)), 'invoice_full', 'ทำเครื่องหมายชำระแล้ว ' + id);
       this._paymentCardImage({
         title: 'ขอบคุณครับ 🙏', subtitle: `ห้อง ${updated.room}`, roomId: updated.room, tenant: updated.tenant,
         lines: [{ label: 'ยอดที่ชำระ', value: this.fmt(total2) + ' บาท' }, { label: 'สถานะ', value: 'ชำระครบถ้วนแล้ว' }],
@@ -5251,6 +5281,7 @@ class Component extends DCLogic {
           highlight: { label: 'ยอดเงินล่วงหน้าคงเหลือทั้งหมด', value: this.fmt(newCredit) + ' บาท' },
           footerNote: 'จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ขอบคุณครับ 🙏',
         }).then(url => this._lineSend(inv.room, url ? '' : creditFallbackMsg, url || undefined)).catch(err => console.error(err));
+        this._logPayment(inv.room, combined, 'credit', 'บันทึกเป็นเงินล่วงหน้า (จากสลิป) ' + id);
         return;
       }
 
@@ -5314,6 +5345,12 @@ class Component extends DCLogic {
           highlight: overpay > 0 ? { label: 'ยอดเงินล่วงหน้าคงเหลือในบัญชี', value: this.fmt(newCredit) + ' บาท' } : null,
           footerNote: overpay > 0 ? `ส่วนที่โอนเกินมา ${this.fmt(overpay)} บาท เก็บไว้เป็นเงินล่วงหน้าให้แล้วครับ จะหักลบให้อัตโนมัติตอนออกบิลรอบถัดไป` : '',
         }).then(url => this._lineSend(inv.room, url ? '' : fullFallbackMsg, url || undefined)).catch(err => console.error(err));
+        // `combined` (not `total`) is the right figure here — it's exactly
+        // the new money that arrived in THIS action (covers whatever was
+        // still owed on the bill, plus any overpay that became credit),
+        // never double-counting money already logged earlier (e.g. credit
+        // applied to this bill at creation time).
+        this._logPayment(inv.room, combined, 'invoice_full', 'ยืนยันชำระเต็มจำนวน ' + id);
       } else {
         const remaining = total - newAmountPaid;
         const dueNote = patch.due ? ` กำหนดชำระส่วนที่เหลือภายในวันที่ ${patch.due}` : '';
@@ -5331,6 +5368,7 @@ class Component extends DCLogic {
           highlight: { label: 'ยอดคงเหลือที่ต้องชำระ', value: this.fmt(remaining) + ' บาท' },
           includeQr: true,
         }).then(url => this._lineSend(inv.room, url ? '' : partialFallbackMsg, url || undefined)).catch(err => console.error(err));
+        this._logPayment(inv.room, combined, 'invoice_partial', 'บันทึกชำระบางส่วน ' + id);
       }
     } catch (err) {
       this.setState({ slipActionLoading: false });
@@ -5432,6 +5470,7 @@ class Component extends DCLogic {
         highlight: { label: 'ยอดเงินล่วงหน้าคงเหลือทั้งหมด', value: this.fmt(newBalance) + ' บาท' },
         footerNote: 'จะนำไปหักลบให้อัตโนมัติตอนออกบิลรอบถัดไปครับ ขอบคุณครับ 🙏',
       }).then(url => this._lineSend(roomId, url ? '' : creditSlipsFallbackMsg, url || undefined)).catch(err => console.error(err));
+      this._logPayment(roomId, addAmount, 'credit', 'ยืนยันเงินล่วงหน้า (จากคิวรอตรวจสอบ)');
     } catch (err) {
       this.setState({ creditActionLoading: false });
       this.showAdminToast(err.message || 'ดำเนินการไม่สำเร็จ');
@@ -6639,6 +6678,24 @@ class Component extends DCLogic {
     const pendingSum = sumOf(pendingList), overdueSum = sumOf(overdueList);
     const totalSum = paidSum + pendingSum + overdueSum;
 
+    // Real accounting bug the owner caught: paidSum above (still used for
+    // the Bills page's "ชำระแล้ว" KPI — a bill-STATUS view, left as-is) only
+    // ever summed invoices with status 'paid', so it silently missed
+    // advance-payment credit (never tied to an invoice at all) AND partial
+    // payments (invoice stays 'partial', never counted here either) — both
+    // real money that actually arrived. The Dashboard's "รายรับเดือนนี้" is
+    // a MONEY view, not a bill-status view, so it sources from paymentLog
+    // (server/routes/paymentLog.js) instead — an append-only ledger of
+    // every payment event, logged at the moment money actually arrives
+    // (see _logPayment's call sites: markInvoicePaid, resolveSlip,
+    // confirmCreditSlips). Filtered to the current Bangkok-local month so
+    // it doesn't just keep growing forever as more months of history pile up.
+    const nowBkk = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+    const currentYm = nowBkk.slice(0, 7);
+    const dashMonthRevenue = (s.paymentLog || [])
+      .filter(p => (p.date || '').slice(0, 7) === currentYm)
+      .reduce((a, p) => a + (p.amount || 0), 0);
+
     const billingChips = [
       { key: 'all', label: 'รวมเดือนนี้', count: s.invoices.length, sumDisplay: this.fmt(totalSum), accent: '#241812' },
       { key: 'paid', label: 'ชำระแล้ว', count: paidList.length, sumDisplay: this.fmt(paidSum), accent: '#3B7A52' },
@@ -7453,14 +7510,14 @@ class Component extends DCLogic {
       isContracts: s.activeNav === 'contracts',
 
       revenueExpenseChart, hasRevenueExpenseData, noRevenueExpenseData: !hasRevenueExpenseData, revenueExpenseRangeLabel,
-      kpiPaidSum: this.fmt(paidSum),
+      kpiPaidSum: this.fmt(dashMonthRevenue),
       kpiExpenseSum: this.fmt(expenseTotal),
-      kpiNetDisplay: (paidSum - expenseTotal >= 0 ? '+' : '−') + this.fmt(Math.abs(paidSum - expenseTotal)),
-      kpiNetPositive: paidSum - expenseTotal >= 0,
-      kpiNetColor: paidSum - expenseTotal >= 0 ? '#3B7A52' : '#B24336',
-      kpiNetBorder: paidSum - expenseTotal >= 0 ? '#3B7A52' : '#B24336',
-      kpiNetLabel: paidSum - expenseTotal >= 0 ? 'กำไรสุทธิเดือนนี้' : 'ขาดทุนสุทธิเดือนนี้',
-      kpiNetHint: paidSum - expenseTotal >= 0 ? 'รายรับมากกว่ารายจ่าย' : 'รายจ่ายมากกว่ารายรับ',
+      kpiNetDisplay: (dashMonthRevenue - expenseTotal >= 0 ? '+' : '−') + this.fmt(Math.abs(dashMonthRevenue - expenseTotal)),
+      kpiNetPositive: dashMonthRevenue - expenseTotal >= 0,
+      kpiNetColor: dashMonthRevenue - expenseTotal >= 0 ? '#3B7A52' : '#B24336',
+      kpiNetBorder: dashMonthRevenue - expenseTotal >= 0 ? '#3B7A52' : '#B24336',
+      kpiNetLabel: dashMonthRevenue - expenseTotal >= 0 ? 'กำไรสุทธิเดือนนี้' : 'ขาดทุนสุทธิเดือนนี้',
+      kpiNetHint: dashMonthRevenue - expenseTotal >= 0 ? 'รายรับมากกว่ารายจ่าย' : 'รายจ่ายมากกว่ารายรับ',
       kpiVacantFraction: s.rooms.filter(r => r.status === 'vacant').length + ' / ' + s.rooms.length,
       kpiOverdueCount: overdueList.length + ' ห้อง',
       kpiOverdueSum: 'รวม ' + this.fmt(overdueSum),

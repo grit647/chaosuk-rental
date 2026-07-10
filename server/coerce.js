@@ -133,6 +133,14 @@ function coerceUnmatchedSlips(rows) {
   return rows.map((r) => ({ ...r, amount: r.amount === '' || r.amount == null ? null : num(r.amount, null) }));
 }
 
+// See server/routes/paymentLog.js for what this ledger is for and why it
+// exists (fixes the Dashboard's "รายรับเดือนนี้" missing advance-payment
+// credit and partial payments — both real money that never touched an
+// invoice's status).
+function coercePaymentLog(rows) {
+  return rows.map((r) => ({ ...r, amount: num(r.amount, 0) }));
+}
+
 function coerceRecurringTasks(rows) {
   return rows.map((r) => ({
     ...r,
@@ -193,5 +201,5 @@ async function readSettings() {
 }
 
 module.exports = {
-  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, coerceUnmatchedSlips, coerceStaff, readSettings,
+  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, coerceUnmatchedSlips, coerceStaff, coercePaymentLog, readSettings,
 };

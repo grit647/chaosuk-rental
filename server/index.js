@@ -43,6 +43,7 @@ app.use('/api/unmatched-slips', require('./routes/unmatchedSlips'));
 app.use('/api/system-data', require('./routes/systemData'));
 app.use('/api/scheduler', require('./routes/scheduler'));
 app.use('/api/payment-card-image', require('./routes/paymentCard'));
+app.use('/api/payment-log', require('./routes/paymentLog'));
 
 app.use((err, req, res, next) => {
   console.error(err);
