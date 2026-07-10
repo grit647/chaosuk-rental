@@ -2490,6 +2490,11 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </sc-for>
                   </select>
                 </div>
+                <sc-if value="{{ hasNewInvoiceRoomSelected }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;justify-content:flex-end">
+                    <span onclick="{{ openHistoryForNewInvoiceRoom }}" style="font-size:10px;font-weight:600;padding:4px 9px;border-radius:5px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap">📋 ประวัติบิล</span>
+                  </div>
+                </sc-if>
                 <sc-if value="{{ newInvoiceHasCredit }}" hint-placeholder-val="{{ false }}">
                   <div style="display:flex;justify-content:space-between;align-items:center;background:#F5EFE2;border:1px solid #E3D2A8;border-radius:8px;padding:10px 14px">
                     <div>
@@ -7024,6 +7029,11 @@ class Component extends DCLogic {
       newInvoiceCreditAmount: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return (r && r.creditBalance) || 0; })(),
       newInvoiceCreditDisplay: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return this.fmt((r && r.creditBalance) || 0); })(),
       newInvoiceHasCredit: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return !!(r && r.creditBalance > 0); })(),
+      // Same "📋 ประวัติบิล" button/data as the Bills page and Tenants page
+      // — per explicit user request, reusing openBillHistory/
+      // billHistoryItems here too instead of a third separate copy.
+      hasNewInvoiceRoomSelected: !!s.newInvoice.roomId,
+      openHistoryForNewInvoiceRoom: () => this.openBillHistory(s.newInvoice.roomId),
       // Live running total for the bill being built — recomputes every time
       // ค่าน้ำ/ค่าไฟ change (this whole renderVals block re-runs on any
       // setState, so no extra wiring needed), per explicit user request to
