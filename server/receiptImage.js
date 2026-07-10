@@ -1,5 +1,18 @@
 const fs = require('fs');
 const path = require('path');
+
+// MUST be set before sharp/libvips's SVG renderer (librsvg -> pango ->
+// fontconfig) does any real work — real bug hit on first deploy: this
+// exact code rendered Thai text perfectly on a local Windows dev machine,
+// but every Thai character came out as a tofu box on Render's Linux
+// instance, because that instance has no Thai-capable font installed
+// system-wide and fontconfig had nothing to fall back to. Pointing
+// FONTCONFIG_PATH at server/fonts/ (which has its own fonts.conf + the
+// bundled Noto Sans Thai file already downloaded for pdf.js) makes
+// fontconfig discover and use that font instead of whatever (if anything)
+// the OS has installed.
+process.env.FONTCONFIG_PATH = path.join(__dirname, 'fonts');
+
 const sharp = require('sharp');
 
 // Combined receipt-as-one-image, per explicit user request — an alternative
@@ -12,6 +25,11 @@ const sharp = require('sharp');
 // Chromium process.
 const THAI_FONT_PATH = path.join(__dirname, 'fonts', 'NotoSansThai-Variable.ttf');
 const THAI_FONT_B64 = fs.readFileSync(THAI_FONT_PATH).toString('base64');
+// The font's real internal family name (confirmed via fontkit, NOT a name
+// we made up) — used both in the @font-face declaration below AND relied
+// on by fontconfig when it scans server/fonts/ per fonts.conf above, so
+// both resolution paths agree on the same name.
+const THAI_FONT_FAMILY = 'Noto Sans Thai';
 
 const WIDTH = 700;
 const PAD = 40;
@@ -128,8 +146,8 @@ async function generateReceiptImage(invoice, room, propertyProfile, qrBuffer) {
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${totalHeight}">
     <style>
-      @font-face { font-family: 'NotoThai'; src: url(data:font/ttf;base64,${THAI_FONT_B64}) format('truetype'); font-weight: 400 700; }
-      text { font-family: 'NotoThai'; }
+      @font-face { font-family: '${THAI_FONT_FAMILY}'; src: url(data:font/ttf;base64,${THAI_FONT_B64}) format('truetype'); font-weight: 400 700; }
+      text { font-family: '${THAI_FONT_FAMILY}', sans-serif; }
     </style>
     <rect width="${WIDTH}" height="${totalHeight}" fill="#fff"/>
     ${parts.join('\n')}
