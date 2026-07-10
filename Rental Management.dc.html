@@ -533,6 +533,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <span style="font-size:16px;font-weight:700;color:#241812">ห้อง {{ selectedTenant.room }} · {{ selectedTenant.name }}</span>
                     <span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:5px;background:{{ selectedTenant.connBg }};color:{{ selectedTenant.connColor }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ selectedTenant.connDot }}"></span>{{ selectedTenant.connLabel }}</span>
                   </div>
+                  <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+                    <span onclick="{{ selectedTenant.onOpenHistory }}" style="font-size:10px;font-weight:600;padding:4px 9px;border-radius:5px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap">📋 ประวัติบิล</span>
+                  </div>
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
                     <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#241812">{{ selectedTenant.phone }}</span>
                     <a href="{{ selectedTenant.telHref }}" onclick="{{ selectedTenant.onCall }}" style="display:inline-flex;align-items:center;justify-content:center;color:#C1622D;text-decoration:none;font-size:16px" title="โทร">📞</a>
@@ -5966,6 +5969,11 @@ class Component extends DCLogic {
         // server the next time a bill is issued for this room.
         creditAmount: r.creditBalance || 0, creditDisplay: this.fmt(r.creditBalance || 0), hasCredit: !!(r.creditBalance > 0),
         onEditCredit: (e) => { e.stopPropagation(); this.openEditCredit(r.id); },
+        // Same bill-history card as the "📋 ประวัติ" button on the Bills
+        // page pending-bills table (openBillHistory/billHistoryItems) —
+        // per explicit user request, reusing the same modal/data here so
+        // there's one shared source instead of a second copy.
+        onOpenHistory: (e) => { e.stopPropagation(); this.openBillHistory(r.id); },
       };
     });
     tenantsFiltered.forEach(t => {
