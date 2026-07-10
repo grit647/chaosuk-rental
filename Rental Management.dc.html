@@ -3561,8 +3561,14 @@ class Component extends DCLogic {
   // at creation time was already logged when the credit first arrived).
   // Fire-and-forget on the network call, but updates local state
   // optimistically so the Dashboard reflects it immediately.
+  // Allows negative amounts too (not just amount > 0) — needed for
+  // saveEditCredit below, where a manual downward correction to a room's
+  // credit balance needs to net OUT of the Dashboard's revenue total, not
+  // just be silently ignored. Every other call site only ever passes a
+  // positive amount (real money that just arrived), so this stays a no-op
+  // for those.
   _logPayment = (room, amount, type, note) => {
-    if (!room || !(amount > 0)) return;
+    if (!room || !amount || !Number.isFinite(amount)) return;
     fetch('/api/payment-log', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ room, amount, type, note }),
@@ -5535,6 +5541,17 @@ class Component extends DCLogic {
     const roomId = this.state.editCreditRoomId;
     const amt = Number(this.state.editCreditDraft);
     if (!roomId || !Number.isFinite(amt) || amt < 0) { this.showAdminToast('กรุณาใส่ยอดเป็นตัวเลข'); return; }
+    // Real bug a user hit: manually correcting a room's credit balance here
+    // (e.g. fixing a double-confirmed slip, or a typo) never touched the
+    // Dashboard's revenue ledger (paymentLog) at all — so an owner who
+    // corrected a mistaken ฿1,000 down to the real ฿500 still saw ฿1,000
+    // counted as "รายรับเดือนนี้" forever, with no way to fix it except
+    // editing the Google Sheet directly. Log the DELTA (new − old), which
+    // can be negative — _logPayment/paymentLog now both allow that — so a
+    // downward correction nets OUT of the Dashboard sum instead of being
+    // silently ignored.
+    const roomBefore = this.state.rooms.find(r => r.id === roomId);
+    const before = (roomBefore && roomBefore.creditBalance) || 0;
     try {
       const res = await fetch('/api/rooms/' + roomId, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -5544,6 +5561,7 @@ class Component extends DCLogic {
       const updated = await res.json();
       this.setState(s => ({ rooms: s.rooms.map(r => r.id === roomId ? updated : r), showEditCreditModal: false, editCreditRoomId: '', editCreditDraft: '' }));
       this.showAdminToast('แก้ไขยอดเงินล่วงหน้าห้อง ' + roomId + ' เป็น ' + this.fmt(amt) + ' แล้ว');
+      this._logPayment(roomId, amt - before, 'adjustment', 'แก้ไขยอดเงินล่วงหน้าด้วยตนเอง (' + this.fmt(before) + ' → ' + this.fmt(amt) + ')');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
   });
 

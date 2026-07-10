@@ -29,7 +29,12 @@ router.post('/', async (req, res, next) => {
   try {
     const b = req.body;
     const amount = Number(b.amount) || 0;
-    if (!b.room || amount <= 0) return res.status(400).json({ error: 'กรุณาระบุห้องและจำนวนเงิน' });
+    // Negative amounts are allowed — needed for manual downward
+    // corrections to a room's advance-payment credit balance (see
+    // saveEditCredit in Rental Management.dc.html), which need to net OUT
+    // of the Dashboard's revenue sum, not just be silently dropped. Zero
+    // is still rejected — a no-op event isn't worth a ledger row.
+    if (!b.room || !amount || !Number.isFinite(amount)) return res.status(400).json({ error: 'กรุณาระบุห้องและจำนวนเงิน' });
     const entry = {
       id: 'PAY-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
       // Bangkok-local date, not server/UTC time — same reasoning as
