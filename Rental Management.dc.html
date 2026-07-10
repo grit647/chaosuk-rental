@@ -4791,7 +4791,7 @@ class Component extends DCLogic {
           'รวม: ' + this.fmt(total),
           ...creditLines,
           ...prevReadingLines,
-          'ครบกำหนดชำระ: ' + (invoice.due || '-'),
+          'ครบกำหนดชำระ: ' + (invoice.due ? this._fmtDateTh(invoice.due) : '-'),
         ].join('\n');
         // Fire-and-forget: a PDF hiccup shouldn't block the LINE message going out.
         fetch('/api/invoices/' + invoice.id + '/pdf', { method: 'POST' }).catch(err => console.error(err));
@@ -5071,6 +5071,16 @@ class Component extends DCLogic {
   // per explicit user request that กำหนดชำระ can never be backdated.
   _todayStr() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+  }
+  // Per explicit user request: every date shown IN a sent bill/receipt/LINE
+  // message (not admin-facing form fields, which stay ISO — that's what
+  // <input type="date"> requires) displays as วัน/เดือน/ปี. Mirrors
+  // formatDateTh in server/receiptImage.js — same conversion, kept
+  // separate since this file and that one don't share a module.
+  _fmtDateTh(iso) {
+    if (!iso || typeof iso !== 'string') return iso || '';
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
   }
   deviceCharge(roomId, kind) {
     const room = this.state.rooms.find(r => r.id === roomId);
@@ -5488,7 +5498,7 @@ class Component extends DCLogic {
         this._logPayment(inv.room, combined, 'invoice_full', 'ยืนยันชำระเต็มจำนวน ' + id);
       } else {
         const remaining = total - newAmountPaid;
-        const dueNote = patch.due ? ` กำหนดชำระส่วนที่เหลือภายในวันที่ ${patch.due}` : '';
+        const dueNote = patch.due ? ` กำหนดชำระส่วนที่เหลือภายในวันที่ ${this._fmtDateTh(patch.due)}` : '';
         this.showAdminToast(`บันทึกชำระบางส่วนแล้ว คงเหลือ ${this.fmt(remaining)}`);
         // Per explicit user request: partial-payment confirmations go out
         // WITH the payment QR attached (there's still a balance to pay),
@@ -5498,7 +5508,7 @@ class Component extends DCLogic {
           title: 'รับทราบการชำระ', subtitle: `ห้อง ${inv.room} — ชำระบางส่วน`, roomId: inv.room, tenant: inv.tenant,
           lines: [
             { label: 'ยอดที่ชำระรอบนี้', value: this.fmt(combined) + ' บาท' },
-            ...(patch.due ? [{ label: 'กำหนดชำระส่วนที่เหลือ', value: patch.due }] : []),
+            ...(patch.due ? [{ label: 'กำหนดชำระส่วนที่เหลือ', value: this._fmtDateTh(patch.due) }] : []),
           ],
           highlight: { label: 'ยอดคงเหลือที่ต้องชำระ', value: this.fmt(remaining) + ' บาท' },
           includeQr: true,

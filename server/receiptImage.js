@@ -64,6 +64,18 @@ function todayStr() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
 }
 
+// Per explicit user request: every date shown IN a sent bill/receipt
+// (not admin-facing form inputs, which stay ISO since that's what
+// <input type="date"> requires) displays as วัน/เดือน/ปี — converts the
+// app's internal 'YYYY-MM-DD' storage format to 'DD/MM/YYYY' for display
+// only. Falls back to the raw string unchanged if it doesn't look like
+// ISO (defensive — never want a formatting bug to make a date vanish).
+function formatDateTh(iso) {
+  if (!iso || typeof iso !== 'string') return iso || '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+}
+
 // Builds the full receipt as a single PNG buffer. `qrBuffer` (already-
 // fetched, decoded image bytes) is optional — if given, it's composited at
 // the bottom of the canvas; if not, the receipt just ends after the due
@@ -102,7 +114,7 @@ async function generateReceiptImage(invoice, room, propertyProfile, qrBuffer) {
   parts.push(`<rect x="0" y="0" width="${WIDTH}" height="86" fill="${BRAND}"/>`);
   parts.push(`<text x="${PAD}" y="40" font-size="26" font-weight="700" fill="#fff">${esc(propertyProfile.name || 'ใบแจ้งหนี้')}</text>`);
   parts.push(`<text x="${PAD}" y="68" font-size="15" fill="#FBE9DD">ใบแจ้งหนี้ห้อง ${esc(invoice.room)} • ${esc(invoice.id)}</text>`);
-  parts.push(`<text x="${WIDTH - PAD}" y="68" font-size="13" fill="#FBE9DD" text-anchor="end">วันที่ ${todayStr()}</text>`);
+  parts.push(`<text x="${WIDTH - PAD}" y="68" font-size="13" fill="#FBE9DD" text-anchor="end">วันที่ ${formatDateTh(todayStr())}</text>`);
   y = 86 + 36;
 
   parts.push(`<text x="${PAD}" y="${y}" font-size="16" fill="${TEXT}">ผู้เช่า: ${esc(invoice.tenant || '-')}</text>`);
@@ -146,7 +158,7 @@ async function generateReceiptImage(invoice, room, propertyProfile, qrBuffer) {
   }
 
   y += 10;
-  parts.push(`<text x="${PAD}" y="${y}" font-size="16" font-weight="700" fill="#B24336">ครบกำหนดชำระ: ${esc(invoice.due || '-')}</text>`);
+  parts.push(`<text x="${PAD}" y="${y}" font-size="16" font-weight="700" fill="#B24336">ครบกำหนดชำระ: ${esc(invoice.due ? formatDateTh(invoice.due) : '-')}</text>`);
   y += 36;
 
   let qrBlockHeight = 0;
@@ -197,7 +209,7 @@ async function generatePaymentCardImage(opts, propertyProfile, qrBuffer) {
   parts.push(`<rect x="0" y="0" width="${WIDTH}" height="86" fill="${BRAND}"/>`);
   parts.push(`<text x="${PAD}" y="40" font-size="24" font-weight="700" fill="#fff">${esc(title)}</text>`);
   parts.push(`<text x="${PAD}" y="68" font-size="15" fill="#FBE9DD">${esc(subtitle || '')}</text>`);
-  parts.push(`<text x="${WIDTH - PAD}" y="68" font-size="13" fill="#FBE9DD" text-anchor="end">วันที่ ${todayStr()}</text>`);
+  parts.push(`<text x="${WIDTH - PAD}" y="68" font-size="13" fill="#FBE9DD" text-anchor="end">วันที่ ${formatDateTh(todayStr())}</text>`);
   y = 86 + 36;
 
   if (roomId) {
