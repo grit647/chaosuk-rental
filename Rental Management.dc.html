@@ -368,14 +368,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
             <div class="split-row" style="display:flex;gap:14px">
               <div class="split-col" style="flex:1.3;background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
-                <div style="font-size:14px;font-weight:600;color:#241812;margin-bottom:12px">การชำระเงินล่าสุด</div>
-                <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1fr 1fr 0.5fr;gap:8px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:8px;border-bottom:1px solid #E3D8C8">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+                  <div style="font-size:14px;font-weight:600;color:#241812">การชำระเงินล่าสุด</div>
+                  <sc-if value="{{ hasHiddenRecentPayments }}" hint-placeholder-val="{{ false }}">
+                    <span onclick="{{ toggleShowHiddenRecentPayments }}" style="font-size:11px;color:#C1622D;font-weight:600;cursor:pointer">{{ showHiddenRecentPaymentsLabel }}</span>
+                  </sc-if>
+                </div>
+                <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1fr 1fr 0.6fr;gap:8px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:8px;border-bottom:1px solid #E3D8C8">
                   <div>ห้อง</div><div>ผู้เช่า</div><div>จำนวนเงิน</div><div>วันที่</div><div></div>
                 </div>
                 <sc-for list="{{ recentPayments }}" as="p" hint-placeholder-count="5">
-                  <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1fr 1fr 0.5fr;gap:8px;font-size:12.5px;color:#241812;padding:9px 0;border-bottom:1px solid #F0E9DC;align-items:center">
+                  <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1fr 1fr 0.6fr;gap:8px;font-size:12.5px;color:#241812;padding:9px 0;border-bottom:1px solid #F0E9DC;align-items:center;opacity:{{ p.rowOpacity }}">
                     <div>{{ p.room }}</div><div>{{ p.tenant }}</div><div style="font-family:'IBM Plex Mono',monospace">{{ p.amountDisplay }}</div><div style="color:#7C6E5F">{{ p.date }}</div>
-                    <div onclick="{{ p.onDelete }}" style="color:#9C8B78;font-size:11px;cursor:pointer;text-decoration:underline;text-align:right">ซ่อน</div>
+                    <div onclick="{{ p.onToggleHide }}" style="color:#9C8B78;font-size:11px;cursor:pointer;text-decoration:underline;text-align:right">{{ p.hideLabel }}</div>
                   </div>
                 </sc-for>
               </div>
@@ -3317,6 +3322,9 @@ class Component extends DCLogic {
     // items stay out of the main list until the owner explicitly reveals
     // them via the "แสดงรายการที่ซ่อนไว้" button.
     showHiddenExpenses: false,
+    // Same hide/unhide-toggle pattern, for the Dashboard's "การชำระเงินล่าสุด"
+    // widget (hiddenFromDashboard on invoices).
+    showHiddenRecentPayments: false,
     nextExpenseId: 5,
     expenses: [
       { id: 1, date: '2 ก.ค. 2569', category: 'ซ่อมบำรุง', desc: 'ซ่อมปั๊มน้ำชั้น 2', amount: 8500 },
@@ -4857,6 +4865,23 @@ class Component extends DCLogic {
       this.setState(s => ({ invoices: s.invoices.map(i => i.id === id ? updated : i) }));
     } catch (err) { this.showAdminToast(err.message || 'ซ่อนรายการไม่สำเร็จ'); }
   });
+  // Per explicit user request: a way to actually SEE and reverse a hidden
+  // entry, mirroring the same toggle just added to the Expenses page —
+  // before this, hiddenFromDashboard was a one-way trip with no in-app way
+  // to undo it short of editing the Sheet directly.
+  unhideFromRecentPayments = (id) => this._guard('unhideFromRecentPayments:' + id, async () => {
+    try {
+      const res = await fetch('/api/invoices/' + id, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hiddenFromDashboard: false }),
+      });
+      if (!res.ok) throw new Error('เลิกซ่อนรายการไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState(s => ({ invoices: s.invoices.map(i => i.id === id ? updated : i) }));
+      this.showAdminToast('เลิกซ่อนรายการแล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'เลิกซ่อนรายการไม่สำเร็จ'); }
+  });
+  toggleShowHiddenRecentPayments = () => this.setState(s => ({ showHiddenRecentPayments: !s.showHiddenRecentPayments }));
 
   // Receipt (invoice) management — edit charges/due date directly, or
   // delete a bill entirely — added per explicit user request for accurate
@@ -7701,16 +7726,26 @@ class Component extends DCLogic {
       prevDashRoomPage: this.prevDashRoomPage, nextDashRoomPage: this.nextDashRoomPage,
       prevDashRoomCount, nextDashRoomCount, hasPrevDashRoomPage, hasNextDashRoomPage, noPrevDashRoomPage: !hasPrevDashRoomPage,
       onDashTouchStart: this.onDashTouchStart, onDashTouchEnd: this.onDashTouchEnd,
-      // "ลบ" only hides an entry from THIS widget (hiddenFromDashboard) —
+      // "ซ่อน" only hides an entry from THIS widget (hiddenFromDashboard) —
       // per explicit user clarification, it must never delete the actual
       // invoice/bill (that's what the Bills page's separate ลบ button is
-      // for, with its own heavier confirm-before-delete popup).
-      recentPayments: paidList.filter(i => !i.hiddenFromDashboard).slice(-5).reverse().map(i => ({
+      // for, with its own heavier confirm-before-delete popup). Per a
+      // follow-up request, also added a "แสดงรายการที่ซ่อนไว้" toggle so a
+      // hidden entry isn't a one-way trip — same pattern as the Expenses
+      // page's hide/unhide feature.
+      hiddenRecentPaymentsCount: paidList.filter(i => i.hiddenFromDashboard).length,
+      hasHiddenRecentPayments: paidList.some(i => i.hiddenFromDashboard),
+      showHiddenRecentPayments: s.showHiddenRecentPayments,
+      toggleShowHiddenRecentPayments: this.toggleShowHiddenRecentPayments,
+      showHiddenRecentPaymentsLabel: s.showHiddenRecentPayments ? '🙈 ซ่อนรายการที่ซ่อนไว้' : `👁️ แสดงรายการที่ซ่อนไว้ (${paidList.filter(i => i.hiddenFromDashboard).length})`,
+      recentPayments: (s.showHiddenRecentPayments ? paidList : paidList.filter(i => !i.hiddenFromDashboard)).slice(-5).reverse().map(i => ({
         id: i.id, room: i.room, tenant: i.tenant,
         // Was missing trash/internet — same accounting-audit bug as sumOf
         // above, understating every amount shown in this widget.
         amountDisplay: this.fmt(i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0)), date: i.paidDate,
-        onDelete: () => this.hideFromRecentPayments(i.id),
+        hideLabel: i.hiddenFromDashboard ? 'เลิกซ่อน' : 'ซ่อน',
+        rowOpacity: i.hiddenFromDashboard ? '0.45' : '1',
+        onToggleHide: i.hiddenFromDashboard ? (() => this.unhideFromRecentPayments(i.id)) : (() => this.hideFromRecentPayments(i.id)),
       })),
       maintenanceWidgetItems,
       openInvoiceModal: this.openInvoiceModal,
