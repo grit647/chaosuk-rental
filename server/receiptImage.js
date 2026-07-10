@@ -87,10 +87,19 @@ async function generateReceiptImage(invoice, room, propertyProfile, qrBuffer) {
     const own = kind === 'water' ? room.waterRate : room.elecRate;
     return own > 0 ? own : (kind === 'water' ? 18 : 8);
   };
+  // Per explicit user request: when a room's minimum-charge floor
+  // (ค่าดูแลมิเตอร์) made the actual billed amount higher than the raw
+  // units×rate calc, say so plainly instead of showing a breakdown that
+  // wouldn't actually add up to the billed amount.
+  const minNoteFor = (amount, units, kind) => {
+    if (units == null) return null;
+    const raw = Math.round(units * rate(kind));
+    return amount > raw ? 'ค่าดูแลมิเตอร์ขั้นต่ำ' : `${units} หน่วย × ${rate(kind)}`;
+  };
   const rows = [
     { label: 'ค่าเช่า', amount: invoice.rent, detail: null },
-    { label: 'ค่าน้ำ', amount: invoice.water, detail: invoice.waterUnits != null ? `${invoice.waterUnits} หน่วย × ${rate('water')}` : null },
-    { label: 'ค่าไฟ', amount: invoice.elec, detail: invoice.elecUnits != null ? `${invoice.elecUnits} หน่วย × ${rate('elec')}` : null },
+    { label: 'ค่าน้ำ', amount: invoice.water, detail: minNoteFor(invoice.water, invoice.waterUnits, 'water') },
+    { label: 'ค่าไฟ', amount: invoice.elec, detail: minNoteFor(invoice.elec, invoice.elecUnits, 'elec') },
     { label: 'ค่าขยะ', amount: invoice.trash, detail: null },
     { label: 'ค่าอินเทอร์เน็ต', amount: invoice.internet, detail: null },
   ].filter((r) => r.amount != null && r.amount !== '');

@@ -1386,7 +1386,16 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่า Internet / เดือน (บาท)</div>
                     <input value="{{ cf.internetRate }}" onchange="{{ onCfInternet }}" placeholder="200" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   </div>
+                  <div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าน้ำขั้นต่ำ / เดือน (บาท)</div>
+                    <input value="{{ cf.waterMinRate }}" onchange="{{ onCfWaterMin }}" placeholder="ไม่มีขั้นต่ำ" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  </div>
+                  <div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าไฟขั้นต่ำ / เดือน (บาท)</div>
+                    <input value="{{ cf.elecMinRate }}" onchange="{{ onCfElecMin }}" placeholder="ไม่มีขั้นต่ำ" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  </div>
                 </div>
+                <div style="font-size:10.5px;color:#9C8B78;margin-top:10px">ถ้าคิดค่าน้ำ/ไฟตามหน่วยที่ใช้จริงแล้วต่ำกว่าอัตราขั้นต่ำที่ตั้งไว้ ระบบจะออกบิลที่อัตราขั้นต่ำแทน (แสดงเป็นค่าดูแลมิเตอร์ในใบเสร็จ) — ปล่อยว่างถ้าไม่ต้องการอัตราขั้นต่ำ</div>
               </div>
 
               <!-- SECTION: tenant -->
@@ -3674,6 +3683,10 @@ class Component extends DCLogic {
         // default only if this room never had its own rate set yet.
         waterRate: String(r.waterRate > 0 ? r.waterRate : this.state.waterRate),
         elecRate: String(r.elecRate > 0 ? r.elecRate : this.state.elecRate),
+        // No property-wide fallback here (unlike waterRate/elecRate above)
+        // — 0/blank genuinely means "no minimum," not "not set yet."
+        waterMinRate: r.waterMinRate > 0 ? String(r.waterMinRate) : '',
+        elecMinRate: r.elecMinRate > 0 ? String(r.elecMinRate) : '',
         trashRate: String(this.state.trashRate),
         internetRate: String(this.state.internetRate),
         tenantFirstName: nameParts[0] || '',
@@ -3701,6 +3714,13 @@ class Component extends DCLogic {
   onCfRent = (e) => this._cf('rentPrice', e.target.value);
   onCfWater = (e) => this._cf('waterRate', e.target.value);
   onCfElec = (e) => this._cf('elecRate', e.target.value);
+  // Per explicit user request: a minimum monthly charge — if the usage-
+  // based calc (units × rate) comes out lower than this, the bill charges
+  // the minimum instead (see roomMinRate/deviceCharge/
+  // onNewInvoiceWaterUnitsChange below for where this actually gets
+  // applied at billing time). 0/blank = no minimum for this room.
+  onCfWaterMin = (e) => this._cf('waterMinRate', e.target.value);
+  onCfElecMin = (e) => this._cf('elecMinRate', e.target.value);
   onCfTrash = (e) => this._cf('trashRate', e.target.value);
   onCfInternet = (e) => this._cf('internetRate', e.target.value);
   onCfFirstName = (e) => this._cf('tenantFirstName', e.target.value);
@@ -3780,6 +3800,12 @@ class Component extends DCLogic {
       // should never silently change another room's rate.
       waterRate: Number(cf.waterRate) || undefined,
       elecRate: Number(cf.elecRate) || undefined,
+      // Per explicit user request: minimum monthly charge (ค่าดูแลมิเตอร์
+      // floor) — always per-room only, no property-wide fallback/default
+      // the way waterRate/elecRate above has, since "no minimum" (0) is a
+      // perfectly normal, common setting.
+      waterMinRate: cf.waterMinRate === '' || cf.waterMinRate == null ? 0 : Number(cf.waterMinRate) || 0,
+      elecMinRate: cf.elecMinRate === '' || cf.elecMinRate == null ? 0 : Number(cf.elecMinRate) || 0,
     };
     Object.keys(roomPatch).forEach(k => roomPatch[k] === undefined && delete roomPatch[k]);
     try {
@@ -4614,14 +4640,16 @@ class Component extends DCLogic {
     const reading = e.target.value;
     this.setState(s => {
       const u = this.meterUnitsFromReading(roomId, 'water', reading);
-      return { bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], waterUnits: reading, water: String(Math.round(u * this.roomRate(roomId, 'water'))) } } };
+      const { charge } = this._applyMinCharge(roomId, 'water', Math.round(u * this.roomRate(roomId, 'water')));
+      return { bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], waterUnits: reading, water: String(charge) } } };
     });
   };
   onBulkInvoiceElecUnitsChange = (roomId) => (e) => {
     const reading = e.target.value;
     this.setState(s => {
       const u = this.meterUnitsFromReading(roomId, 'elec', reading);
-      return { bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], elecUnits: reading, elec: String(Math.round(u * this.roomRate(roomId, 'elec'))) } } };
+      const { charge } = this._applyMinCharge(roomId, 'elec', Math.round(u * this.roomRate(roomId, 'elec')));
+      return { bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], elecUnits: reading, elec: String(charge) } } };
     });
   };
   onBulkInvoiceDueChange = (e) => this.setState({ bulkInvoiceDue: e.target.value });
@@ -4749,7 +4777,14 @@ class Component extends DCLogic {
         const rate = (kind) => this.roomRate(roomId, kind);
         const lineFor = (label, amount, units, kind) => {
           if (amount == null) return null;
-          const detail = units != null ? ` (${units} หน่วย × ${rate(kind)})` : '';
+          // Per explicit user request: when the room's minimum-charge floor
+          // (ค่าดูแลมิเตอร์) kicked in — the usage-based calc came out lower
+          // than the minimum, so the bill charged the minimum instead —
+          // note that plainly instead of showing a units×rate breakdown
+          // that wouldn't actually add up to the billed amount.
+          const rawCharge = units != null ? Math.round(units * rate(kind)) : null;
+          const minApplied = kind && rawCharge != null && amount > rawCharge;
+          const detail = minApplied ? ' (ค่าดูแลมิเตอร์ขั้นต่ำ)' : (units != null ? ` (${units} หน่วย × ${rate(kind)})` : '');
           return label + ': ' + this.fmt(amount) + detail;
         };
         const rows = [
@@ -5052,6 +5087,14 @@ class Component extends DCLogic {
     if (ownRate > 0) return ownRate;
     return kind === 'water' ? this.state.waterRate : this.state.elecRate;
   }
+  // Per explicit user request: minimum monthly charge (ค่าดูแลมิเตอร์) —
+  // always per-room, no property-wide fallback (unlike roomRate above; "no
+  // minimum" is a perfectly normal setting, not a "not configured yet"
+  // gap to fall back from). 0 = no minimum.
+  roomMinRate(roomId, kind) {
+    const room = this.state.rooms.find(r => r.id === roomId);
+    return (room && (kind === 'water' ? room.waterMinRate : room.elecMinRate)) || 0;
+  }
   // Per explicit user request: "กรอกเอง" (manual) water/elec entry now
   // takes the CURRENT meter reading (หน่วยปัจจุบัน), not units used
   // directly — usage = current reading − the reading from this room's last
@@ -5082,6 +5125,16 @@ class Component extends DCLogic {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
     return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
   }
+  // Applies the room's minimum monthly charge (per explicit user request)
+  // on top of a raw units×rate calc — returns both the final charge AND
+  // whether the minimum actually kicked in, so callers (invoice creation,
+  // the receipt/LINE message detail text) can show a "(ค่าดูแลมิเตอร์ขั้นต่ำ)"
+  // note when it did.
+  _applyMinCharge(roomId, kind, rawCharge) {
+    const minRate = this.roomMinRate(roomId, kind);
+    if (minRate > 0 && rawCharge < minRate) return { charge: minRate, minApplied: true };
+    return { charge: rawCharge, minApplied: false };
+  }
   deviceCharge(roomId, kind) {
     const room = this.state.rooms.find(r => r.id === roomId);
     if (!room) return null;
@@ -5090,17 +5143,20 @@ class Component extends DCLogic {
       const live = this.state.tuyaLiveReadings[roomId];
       if (live && live.energy != null) {
         const units = Math.max(0, live.energy - Number(room.elecPrev || 0));
-        return { units: Number(units.toFixed(2)), charge: Math.round(units * this.roomRate(roomId, 'elec')) };
+        const { charge, minApplied } = this._applyMinCharge(roomId, 'elec', Math.round(units * this.roomRate(roomId, 'elec')));
+        return { units: Number(units.toFixed(2)), charge, minApplied };
       }
     }
     const dev = this.state.tuyaDevices[roomId];
     if (!dev) return null;
     if (kind === 'water') {
       const units = Math.max(0, Number(dev.waterReading) - Number(room.waterPrev || 0));
-      return { units, charge: units * this.roomRate(roomId, 'water') };
+      const { charge, minApplied } = this._applyMinCharge(roomId, 'water', units * this.roomRate(roomId, 'water'));
+      return { units, charge, minApplied };
     }
     const units = Math.max(0, Number(dev.elecReading) - Number(room.elecPrev || 0));
-    return { units, charge: units * this.roomRate(roomId, 'elec') };
+    const { charge, minApplied } = this._applyMinCharge(roomId, 'elec', units * this.roomRate(roomId, 'elec'));
+    return { units, charge, minApplied };
   }
   onNewInvoiceRoomChange = (e) => {
     const v = e.target.value;
@@ -5118,8 +5174,8 @@ class Component extends DCLogic {
       // selected room's own rate AND own last-billed reading (waterPrev/
       // elecPrev) — switching rooms shouldn't leave a Baht amount computed
       // against the previous room's rate or baseline.
-      if (next.waterMode === 'manual' && next.waterUnits) { const u = this.meterUnitsFromReading(v, 'water', next.waterUnits); next.water = String(Math.round(u * this.roomRate(v, 'water'))); }
-      if (next.elecMode === 'manual' && next.elecUnits) { const u = this.meterUnitsFromReading(v, 'elec', next.elecUnits); next.elec = String(Math.round(u * this.roomRate(v, 'elec'))); }
+      if (next.waterMode === 'manual' && next.waterUnits) { const u = this.meterUnitsFromReading(v, 'water', next.waterUnits); next.water = String(this._applyMinCharge(v, 'water', Math.round(u * this.roomRate(v, 'water'))).charge); }
+      if (next.elecMode === 'manual' && next.elecUnits) { const u = this.meterUnitsFromReading(v, 'elec', next.elecUnits); next.elec = String(this._applyMinCharge(v, 'elec', Math.round(u * this.roomRate(v, 'elec'))).charge); }
       return { newInvoice: next };
     });
   };
@@ -5143,14 +5199,16 @@ class Component extends DCLogic {
     const reading = e.target.value;
     this.setState(s => {
       const units = this.meterUnitsFromReading(s.newInvoice.roomId, 'water', reading);
-      return { newInvoice: { ...s.newInvoice, waterUnits: reading, water: String(Math.round(units * this.roomRate(s.newInvoice.roomId, 'water'))) } };
+      const { charge } = this._applyMinCharge(s.newInvoice.roomId, 'water', Math.round(units * this.roomRate(s.newInvoice.roomId, 'water')));
+      return { newInvoice: { ...s.newInvoice, waterUnits: reading, water: String(charge) } };
     });
   };
   onNewInvoiceElecUnitsChange = (e) => {
     const reading = e.target.value;
     this.setState(s => {
       const units = this.meterUnitsFromReading(s.newInvoice.roomId, 'elec', reading);
-      return { newInvoice: { ...s.newInvoice, elecUnits: reading, elec: String(Math.round(units * this.roomRate(s.newInvoice.roomId, 'elec'))) } };
+      const { charge } = this._applyMinCharge(s.newInvoice.roomId, 'elec', Math.round(units * this.roomRate(s.newInvoice.roomId, 'elec')));
+      return { newInvoice: { ...s.newInvoice, elecUnits: reading, elec: String(charge) } };
     });
   };
   onNewInvoiceWaterChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, water: v } })); };
@@ -8284,6 +8342,7 @@ class Component extends DCLogic {
       saveContractForm: this.saveContractForm,
       onCfRoom: this.onCfRoom, onCfRent: this.onCfRent,
       onCfWater: this.onCfWater, onCfElec: this.onCfElec, onCfTrash: this.onCfTrash, onCfInternet: this.onCfInternet,
+      onCfWaterMin: this.onCfWaterMin, onCfElecMin: this.onCfElecMin,
       onCfFirstName: this.onCfFirstName, onCfLastName: this.onCfLastName, onCfPhone: this.onCfPhone,
       onCfTenantId: this.onCfTenantId, onCfTenantExpiry: this.onCfTenantExpiry,
       onCfOwnerId: this.onCfOwnerId, onCfOwnerExpiry: this.onCfOwnerExpiry,

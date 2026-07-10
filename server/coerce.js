@@ -37,6 +37,13 @@ function coerceRooms(rows) {
       // never had their own rate saved (keeps old data working unchanged).
       waterRate: num(r.waterRate, 0),
       elecRate: num(r.elecRate, 0),
+      // Minimum monthly charge per explicit user request — if a tenant's
+      // actual usage-based charge (units × rate) comes out lower than
+      // this, the bill charges the minimum instead (framed to the tenant
+      // as ค่าดูแลมิเตอร์ — a meter-maintenance floor, not a real usage
+      // number). 0 means "no minimum set" for this room.
+      waterMinRate: num(r.waterMinRate, 0),
+      elecMinRate: num(r.elecMinRate, 0),
       creditBalance: num(r.creditBalance, 0),
       creditSlips,
       creditSlipCount: creditSlips.length,
