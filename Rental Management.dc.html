@@ -2404,7 +2404,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                             <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">📟 {{ b.waterDeviceHint }}</div>
                           </sc-if>
                           <sc-if value="{{ b.isWaterManual }}" hint-placeholder-val="{{ false }}">
-                            <input value="{{ b.waterUnits }}" onchange="{{ b.onWaterUnitsChange }}" placeholder="หน่วยที่ใช้" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                            <input value="{{ b.waterUnits }}" onchange="{{ b.onWaterUnitsChange }}" placeholder="หน่วยปัจจุบัน" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                             <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">{{ b.waterManualHint }}</div>
                           </sc-if>
                         </div>
@@ -2421,7 +2421,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                             <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">📟 {{ b.elecDeviceHint }}</div>
                           </sc-if>
                           <sc-if value="{{ b.isElecManual }}" hint-placeholder-val="{{ false }}">
-                            <input value="{{ b.elecUnits }}" onchange="{{ b.onElecUnitsChange }}" placeholder="หน่วยที่ใช้" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                            <input value="{{ b.elecUnits }}" onchange="{{ b.onElecUnitsChange }}" placeholder="หน่วยปัจจุบัน" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                             <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">{{ b.elecManualHint }}</div>
                           </sc-if>
                         </div>
@@ -2431,8 +2431,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </sc-for>
                 </div>
                 <div style="margin-top:14px">
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ (ใช้ร่วมกันทุกห้อง)</div>
-                  <input type="date" value="{{ bulkInvoiceDue }}" onchange="{{ onBulkInvoiceDueChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ (ใช้ร่วมกันทุกห้อง) <span style="color:#B24336">*จำเป็น</span></div>
+                  <input type="date" value="{{ bulkInvoiceDue }}" onchange="{{ onBulkInvoiceDueChange }}" min="{{ todayDateStr }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
                 </div>
                 <div style="display:flex;gap:10px;margin-top:16px">
                   <button onclick="{{ closeBulkInvoiceModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
@@ -2534,7 +2534,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">📟 {{ invWaterUnitsHint }}</div>
                     </sc-if>
                     <sc-if value="{{ invWaterIsManual }}" hint-placeholder-val="{{ false }}">
-                      <input value="{{ newInvoice.waterUnits }}" onchange="{{ onNewInvoiceWaterUnitsChange }}" placeholder="หน่วยที่ใช้" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                      <input value="{{ newInvoice.waterUnits }}" onchange="{{ onNewInvoiceWaterUnitsChange }}" placeholder="หน่วยปัจจุบัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">{{ invWaterManualHint }}</div>
                     </sc-if>
                   </div>
@@ -2551,14 +2551,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">📟 {{ invElecUnitsHint }}</div>
                     </sc-if>
                     <sc-if value="{{ invElecIsManual }}" hint-placeholder-val="{{ false }}">
-                      <input value="{{ newInvoice.elecUnits }}" onchange="{{ onNewInvoiceElecUnitsChange }}" placeholder="หน่วยที่ใช้" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                      <input value="{{ newInvoice.elecUnits }}" onchange="{{ onNewInvoiceElecUnitsChange }}" placeholder="หน่วยปัจจุบัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">{{ invElecManualHint }}</div>
                     </sc-if>
                   </div>
                 </div>
                 <div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ</div>
-                  <input type="date" value="{{ newInvoice.due }}" onchange="{{ onNewInvoiceDueChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ <span style="color:#B24336">*จำเป็น</span></div>
+                  <input type="date" value="{{ newInvoice.due }}" onchange="{{ onNewInvoiceDueChange }}" min="{{ todayDateStr }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
                 </div>
                 <div style="display:flex;flex-direction:column;gap:6px;padding:10px 12px;background:#FBF7F0;border-radius:6px">
                   <div style="font-size:10.5px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#9C8B78;margin-bottom:2px">รายการบิล</div>
@@ -4219,22 +4219,32 @@ class Component extends DCLogic {
   setBulkWaterMode = (roomId, mode) => this.setState(s => {
     const draft = { ...s.bulkInvoiceDrafts[roomId], waterMode: mode };
     if (mode === 'device') { const d = this.deviceCharge(roomId, 'water'); draft.water = d ? String(d.charge) : '0'; }
-    else { draft.water = String(Math.round((Number(draft.waterUnits) || 0) * this.roomRate(roomId, 'water'))); }
+    else { const u = this.meterUnitsFromReading(roomId, 'water', draft.waterUnits); draft.water = String(Math.round(u * this.roomRate(roomId, 'water'))); }
     return { bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: draft } };
   });
   setBulkElecMode = (roomId, mode) => this.setState(s => {
     const draft = { ...s.bulkInvoiceDrafts[roomId], elecMode: mode };
     if (mode === 'device') { const d = this.deviceCharge(roomId, 'elec'); draft.elec = d ? String(d.charge) : '0'; }
-    else { draft.elec = String(Math.round((Number(draft.elecUnits) || 0) * this.roomRate(roomId, 'elec'))); }
+    else { const u = this.meterUnitsFromReading(roomId, 'elec', draft.elecUnits); draft.elec = String(Math.round(u * this.roomRate(roomId, 'elec'))); }
     return { bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: draft } };
   });
+  // Same current-reading semantics as the single-invoice form's
+  // onNewInvoiceWaterUnitsChange/onNewInvoiceElecUnitsChange — see that
+  // comment for why (meterUnitsFromReading subtracts this room's own
+  // waterPrev/elecPrev baseline).
   onBulkInvoiceWaterUnitsChange = (roomId) => (e) => {
-    const units = e.target.value;
-    this.setState(s => ({ bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], waterUnits: units, water: String(Math.round((Number(units) || 0) * this.roomRate(roomId, 'water'))) } } }));
+    const reading = e.target.value;
+    this.setState(s => {
+      const u = this.meterUnitsFromReading(roomId, 'water', reading);
+      return { bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], waterUnits: reading, water: String(Math.round(u * this.roomRate(roomId, 'water'))) } } };
+    });
   };
   onBulkInvoiceElecUnitsChange = (roomId) => (e) => {
-    const units = e.target.value;
-    this.setState(s => ({ bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], elecUnits: units, elec: String(Math.round((Number(units) || 0) * this.roomRate(roomId, 'elec'))) } } }));
+    const reading = e.target.value;
+    this.setState(s => {
+      const u = this.meterUnitsFromReading(roomId, 'elec', reading);
+      return { bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], elecUnits: reading, elec: String(Math.round(u * this.roomRate(roomId, 'elec'))) } } };
+    });
   };
   onBulkInvoiceDueChange = (e) => this.setState({ bulkInvoiceDue: e.target.value });
   // Loops POST /api/invoices per room SEQUENTIALLY (not Promise.all) so the
@@ -4246,11 +4256,15 @@ class Component extends DCLogic {
     const s = this.state;
     const roomIds = Object.keys(s.bulkInvoiceDrafts);
     if (!roomIds.length) return;
+    // Same กำหนดชำระ requirement as submitInvoice, per explicit user
+    // request — applies once to the whole shared batch date.
+    if (!s.bulkInvoiceDue) { this.showAdminToast('กรุณาเลือกวันครบกำหนดชำระก่อนสร้างบิล'); return; }
+    if (s.bulkInvoiceDue < this._todayStr()) { this.showAdminToast('วันครบกำหนดชำระเลือกวันย้อนหลังไม่ได้'); return; }
     this.setState({ bulkInvoiceLoading: true });
     let successCount = 0, failCount = 0;
     const newInvoices = [];
     const roomCreditUpdates = {};
-    const elecPrevUpdates = {};
+    const roomPrevUpdates = {};
     for (const roomId of roomIds) {
       const room = s.rooms.find(r => r.id === roomId);
       if (!room) continue;
@@ -4275,24 +4289,31 @@ class Component extends DCLogic {
             this._lineSend(roomId, `ตัดยอดเงินล่วงหน้าของห้อง ${roomId} ไปชำระบิลใหม่ (${newInv.id}) จำนวน ${this.fmt(creditApplied)} บาทแล้วครับ ยอดเงินล่วงหน้าคงเหลือ ${this.fmt(creditAfter)} บาท ขอบคุณครับ 🙏`).catch(err => console.error(err));
           }
         }
-        // Same elecPrev baseline reset as submitInvoice's device-mode path —
-        // any room with a real linked device gets its usage counter reset
-        // for the next billing cycle, since a fresh bill for it just went out.
+        // Same waterPrev/elecPrev baseline reset as submitInvoice — device
+        // mode uses the live Tuya reading, manual mode uses whatever
+        // current-reading number was entered for this room's row.
+        const prevPatch = {};
         if (room.tuyaElecDeviceId) {
           const live = s.tuyaLiveReadings[roomId];
-          if (live && live.energy != null) elecPrevUpdates[roomId] = live.energy;
+          if (live && live.energy != null) prevPatch.elecPrev = live.energy;
+        } else if (draft.elecMode === 'manual' && draft.elecUnits) {
+          prevPatch.elecPrev = Number(draft.elecUnits) || 0;
         }
+        if (draft.waterMode === 'manual' && draft.waterUnits) {
+          prevPatch.waterPrev = Number(draft.waterUnits) || 0;
+        }
+        if (Object.keys(prevPatch).length) roomPrevUpdates[roomId] = prevPatch;
       } catch (err) {
         failCount++;
         console.error('bulk invoice failed for room', roomId, err);
       }
     }
-    // Fire-and-forget the elecPrev resets — non-fatal if one hiccups, same
-    // as submitInvoice's own comment on this exact pattern.
-    Object.entries(elecPrevUpdates).forEach(([roomId, energy]) => {
+    // Fire-and-forget the prev resets — non-fatal if one hiccups, same as
+    // submitInvoice's own comment on this exact pattern.
+    Object.entries(roomPrevUpdates).forEach(([roomId, patch]) => {
       fetch('/api/rooms/' + roomId, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ elecPrev: energy }),
+        body: JSON.stringify(patch),
       }).then(r => r.ok ? r.json() : null).then(updatedRoom => {
         if (updatedRoom) this.setState(st => ({ rooms: st.rooms.map(r => r.id === roomId ? updatedRoom : r) }));
       }).catch(() => {});
@@ -4541,6 +4562,26 @@ class Component extends DCLogic {
     if (ownRate > 0) return ownRate;
     return kind === 'water' ? this.state.waterRate : this.state.elecRate;
   }
+  // Per explicit user request: "กรอกเอง" (manual) water/elec entry now
+  // takes the CURRENT meter reading (หน่วยปัจจุบัน), not units used
+  // directly — usage = current reading − the reading from this room's last
+  // bill (room.waterPrev/elecPrev, the same baseline field the Tuya
+  // device-mode path already uses and resets after every bill; see
+  // deviceCharge and the elecPrev-reset code in submitInvoice/
+  // submitBulkInvoice). Clamped at 0 so a lower/equal reading (typo, meter
+  // reset, etc.) never produces a negative bill.
+  meterUnitsFromReading(roomId, kind, currentReading) {
+    const room = this.state.rooms.find(r => r.id === roomId);
+    const prev = (room && (kind === 'water' ? room.waterPrev : room.elecPrev)) || 0;
+    return Math.max(0, (Number(currentReading) || 0) - prev);
+  }
+  // Bangkok-local "today" as YYYY-MM-DD — used both as the <input type=date>
+  // min attribute (blocks picking a past date via the calendar UI) and as a
+  // defensive re-check before saving (see submitInvoice/submitBulkInvoice),
+  // per explicit user request that กำหนดชำระ can never be backdated.
+  _todayStr() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+  }
   deviceCharge(roomId, kind) {
     const room = this.state.rooms.find(r => r.id === roomId);
     if (!room) return null;
@@ -4573,11 +4614,12 @@ class Component extends DCLogic {
       // reading the owner might accidentally bill against.
       if (next.waterMode === 'device') { const d = this.deviceCharge(v, 'water'); next.water = d ? String(d.charge) : '0'; }
       if (next.elecMode === 'device') { const d = this.deviceCharge(v, 'elec'); next.elec = d ? String(d.charge) : '0'; }
-      // Manual (units) mode: re-price any already-entered units against the
-      // NEWLY selected room's own rate — switching rooms shouldn't leave a
-      // Baht amount computed with the previous room's rate.
-      if (next.waterMode === 'manual' && next.waterUnits) { next.water = String(Math.round((Number(next.waterUnits) || 0) * this.roomRate(v, 'water'))); }
-      if (next.elecMode === 'manual' && next.elecUnits) { next.elec = String(Math.round((Number(next.elecUnits) || 0) * this.roomRate(v, 'elec'))); }
+      // Manual mode: re-derive units-used and price against the NEWLY
+      // selected room's own rate AND own last-billed reading (waterPrev/
+      // elecPrev) — switching rooms shouldn't leave a Baht amount computed
+      // against the previous room's rate or baseline.
+      if (next.waterMode === 'manual' && next.waterUnits) { const u = this.meterUnitsFromReading(v, 'water', next.waterUnits); next.water = String(Math.round(u * this.roomRate(v, 'water'))); }
+      if (next.elecMode === 'manual' && next.elecUnits) { const u = this.meterUnitsFromReading(v, 'elec', next.elecUnits); next.elec = String(Math.round(u * this.roomRate(v, 'elec'))); }
       return { newInvoice: next };
     });
   };
@@ -4591,22 +4633,25 @@ class Component extends DCLogic {
     if (mode === 'device') { const d = this.deviceCharge(next.roomId, 'elec'); next.elec = d ? String(d.charge) : '0'; }
     return { newInvoice: next };
   });
-  // Per explicit user request: "กรอกเอง" (manual) mode used to just take a
-  // raw ค่าน้ำ/ค่าไฟ Baht amount typed straight in, with no connection to
-  // the water/elec rate set in the contract — easy to fat-finger a number
-  // that doesn't actually match "units used × contract rate". Now the
-  // manual input takes UNITS used instead, and the Baht amount is always
-  // computed live from that × the current rate (state.waterRate/elecRate,
-  // same rate the "อุปกรณ์" device mode already multiplies by — see
-  // deviceCharge below), shown right next to the input so the owner can see
-  // exactly how the number was derived before submitting.
+  // Per explicit user request: "กรอกเอง" (manual) mode's input is the
+  // CURRENT meter reading (newInvoice.waterUnits/elecUnits — field names
+  // kept as-is to avoid a wider rename, but the VALUE they hold is now a
+  // reading, not units-used directly). Units used = reading − this room's
+  // last-billed reading (meterUnitsFromReading, via room.waterPrev/
+  // elecPrev), then × this room's own contract rate (roomRate).
   onNewInvoiceWaterUnitsChange = (e) => {
-    const units = e.target.value;
-    this.setState(s => ({ newInvoice: { ...s.newInvoice, waterUnits: units, water: String(Math.round((Number(units) || 0) * this.roomRate(s.newInvoice.roomId, 'water'))) } }));
+    const reading = e.target.value;
+    this.setState(s => {
+      const units = this.meterUnitsFromReading(s.newInvoice.roomId, 'water', reading);
+      return { newInvoice: { ...s.newInvoice, waterUnits: reading, water: String(Math.round(units * this.roomRate(s.newInvoice.roomId, 'water'))) } };
+    });
   };
   onNewInvoiceElecUnitsChange = (e) => {
-    const units = e.target.value;
-    this.setState(s => ({ newInvoice: { ...s.newInvoice, elecUnits: units, elec: String(Math.round((Number(units) || 0) * this.roomRate(s.newInvoice.roomId, 'elec'))) } }));
+    const reading = e.target.value;
+    this.setState(s => {
+      const units = this.meterUnitsFromReading(s.newInvoice.roomId, 'elec', reading);
+      return { newInvoice: { ...s.newInvoice, elecUnits: reading, elec: String(Math.round(units * this.roomRate(s.newInvoice.roomId, 'elec'))) } };
+    });
   };
   onNewInvoiceWaterChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, water: v } })); };
   onNewInvoiceElecChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, elec: v } })); };
@@ -4615,6 +4660,13 @@ class Component extends DCLogic {
   submitInvoice = () => this._guard('submitInvoice', async () => {
     const s = this.state;
     if (!s.newInvoice.roomId) { this.showAdminToast('กรุณาเลือกห้อง'); return; }
+    // Per explicit user request: กำหนดชำระ is now required before saving,
+    // and can't be a date already in the past (the date input's own min
+    // attribute — see renderVals()'s todayDateStr — blocks picking one via
+    // the calendar UI, this is the defensive re-check in case a past date
+    // ends up in state some other way, e.g. typed directly).
+    if (!s.newInvoice.due) { this.showAdminToast('กรุณาเลือกวันครบกำหนดชำระก่อนสร้างบิล'); return; }
+    if (s.newInvoice.due < this._todayStr()) { this.showAdminToast('วันครบกำหนดชำระเลือกวันย้อนหลังไม่ได้'); return; }
     // Block issuing a second bill for a room that already has one
     // outstanding — per explicit user request after noticing duplicate
     // bills could stack up for the same room. The server also enforces
@@ -4638,22 +4690,36 @@ class Component extends DCLogic {
       });
       if (!res.ok) throw new Error((await res.json()).error || 'สร้างใบแจ้งหนี้ไม่สำเร็จ');
       const newInv = await res.json();
-      // Reset the elec baseline to the current cumulative Tuya reading so next
-      // cycle's usage calc starts fresh from here, not double-counting.
+      // Reset the water/elec baseline (waterPrev/elecPrev) to whatever
+      // reading this bill was actually billed against, so next cycle's
+      // usage calc (both อุปกรณ์ device mode AND กรอกเอง manual mode) starts
+      // fresh from here instead of double-counting the same units again.
+      // Device mode: use the live cumulative Tuya reading. Manual mode: use
+      // the current-reading number the owner just typed in
+      // (meterUnitsFromReading already subtracted the OLD prev from it to
+      // get the billed units, so the entered reading itself becomes the
+      // new prev).
+      const prevPatch = {};
       if (s.newInvoice.elecMode === 'device' && room.tuyaElecDeviceId) {
         const live = s.tuyaLiveReadings[room.id];
-        if (live && live.energy != null) {
-          try {
-            const rres = await fetch('/api/rooms/' + room.id, {
-              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ elecPrev: live.energy }),
-            });
-            if (rres.ok) {
-              const updatedRoom = await rres.json();
-              this.setState(st => ({ rooms: st.rooms.map(r => r.id === room.id ? updatedRoom : r) }));
-            }
-          } catch { /* non-fatal — invoice already saved either way */ }
-        }
+        if (live && live.energy != null) prevPatch.elecPrev = live.energy;
+      } else if (s.newInvoice.elecMode === 'manual' && s.newInvoice.elecUnits) {
+        prevPatch.elecPrev = Number(s.newInvoice.elecUnits) || 0;
+      }
+      if (s.newInvoice.waterMode === 'manual' && s.newInvoice.waterUnits) {
+        prevPatch.waterPrev = Number(s.newInvoice.waterUnits) || 0;
+      }
+      if (Object.keys(prevPatch).length) {
+        try {
+          const rres = await fetch('/api/rooms/' + room.id, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(prevPatch),
+          });
+          if (rres.ok) {
+            const updatedRoom = await rres.json();
+            this.setState(st => ({ rooms: st.rooms.map(r => r.id === room.id ? updatedRoom : r) }));
+          }
+        } catch { /* non-fatal — invoice already saved either way */ }
       }
       // Real bug a user hit: receiptsSent is a room-keyed LOCAL flag (see
       // sendReceiptLine/openSaveReceipt below) meant as a belt-and-suspenders
@@ -6958,6 +7024,9 @@ class Component extends DCLogic {
       newInvoice: s.newInvoice, roomSelectOptions, invoiceRoomSelectOptions,
       showBulkInvoiceModal: s.showBulkInvoiceModal, closeBulkInvoiceModal: this.closeBulkInvoiceModal,
       bulkInvoiceDue: s.bulkInvoiceDue, onBulkInvoiceDueChange: this.onBulkInvoiceDueChange,
+      // Blocks picking a past date in both the single- and bulk-invoice
+      // กำหนดชำระ date pickers, per explicit user request.
+      todayDateStr: this._todayStr(),
       submitBulkInvoice: this.submitBulkInvoice,
       bulkInvoiceSubmitLabel: s.bulkInvoiceLoading ? 'กำลังบันทึก...' : `สร้างใบแจ้งหนี้ทั้งหมด (${Object.keys(s.bulkInvoiceDrafts).length} ห้อง)`,
       // Per-room draft rows for the bulk modal — recomputed live every
@@ -6979,7 +7048,8 @@ class Component extends DCLogic {
         const isElecDevice = draft.elecMode !== 'manual', isElecManual = draft.elecMode === 'manual';
         const dw = this.deviceCharge(roomId, 'water'), de = this.deviceCharge(roomId, 'elec');
         const waterRate = this.roomRate(roomId, 'water'), elecRate = this.roomRate(roomId, 'elec');
-        const waterUnitsNum = Number(draft.waterUnits) || 0, elecUnitsNum = Number(draft.elecUnits) || 0;
+        const waterUnitsUsed = this.meterUnitsFromReading(roomId, 'water', draft.waterUnits);
+        const elecUnitsUsed = this.meterUnitsFromReading(roomId, 'elec', draft.elecUnits);
         return {
           room: room.id, tenant: room.tenant,
           water: draft.water, elec: draft.elec,
@@ -6989,8 +7059,10 @@ class Component extends DCLogic {
           isWaterDevice, isWaterManual, isElecDevice, isElecManual,
           waterDeviceHint: dw ? dw.units + ' หน่วย × ' + waterRate : 'อุปกรณ์ไม่พร้อม',
           elecDeviceHint: de ? de.units + ' หน่วย × ' + elecRate : 'อุปกรณ์ไม่พร้อม',
-          waterManualHint: waterUnitsNum + ' หน่วย × ' + waterRate + '/หน่วย = ' + this.fmt(waterUnitsNum * waterRate) + ' บาท',
-          elecManualHint: elecUnitsNum + ' หน่วย × ' + elecRate + '/หน่วย = ' + this.fmt(elecUnitsNum * elecRate) + ' บาท',
+          // Same "ครั้งก่อน → ปัจจุบัน = ใช้ X หน่วย" derivation as the
+          // single-invoice form's invWaterManualHint/invElecManualHint.
+          waterManualHint: `ครั้งก่อน ${room.waterPrev || 0} → ปัจจุบัน ${Number(draft.waterUnits) || 0} = ใช้ ${waterUnitsUsed} หน่วย × ${waterRate}/หน่วย = ${this.fmt(waterUnitsUsed * waterRate)} บาท`,
+          elecManualHint: `ครั้งก่อน ${room.elecPrev || 0} → ปัจจุบัน ${Number(draft.elecUnits) || 0} = ใช้ ${elecUnitsUsed} หน่วย × ${elecRate}/หน่วย = ${this.fmt(elecUnitsUsed * elecRate)} บาท`,
           waterDeviceBg: isWaterDevice ? '#C1622D' : '#EDE4D6', waterDeviceColor: isWaterDevice ? '#fff' : '#7C6E5F',
           waterManualBg: isWaterManual ? '#C1622D' : '#EDE4D6', waterManualColor: isWaterManual ? '#fff' : '#7C6E5F',
           elecDeviceBg: isElecDevice ? '#C1622D' : '#EDE4D6', elecDeviceColor: isElecDevice ? '#fff' : '#7C6E5F',
@@ -7075,8 +7147,23 @@ class Component extends DCLogic {
       // derived from the contract's rate before submitting, instead of
       // typing a lump sum with no visible connection to the rate. Uses this
       // room's own rate (roomRate), not the shared property-wide default.
-      invWaterManualHint: (() => { const u = Number(s.newInvoice.waterUnits) || 0; const rate = this.roomRate(s.newInvoice.roomId, 'water'); return u + ' หน่วย × ' + rate + '/หน่วย = ' + this.fmt(u * rate) + ' บาท'; })(),
-      invElecManualHint: (() => { const u = Number(s.newInvoice.elecUnits) || 0; const rate = this.roomRate(s.newInvoice.roomId, 'elec'); return u + ' หน่วย × ' + rate + '/หน่วย = ' + this.fmt(u * rate) + ' บาท'; })(),
+      // Shows the full derivation — last-billed reading → this reading →
+      // units used → × rate — so the owner can sanity-check the number
+      // before submitting, not just see the final Baht figure.
+      invWaterManualHint: (() => {
+        const room = s.rooms.find(x => x.id === s.newInvoice.roomId);
+        const prev = (room && room.waterPrev) || 0;
+        const u = this.meterUnitsFromReading(s.newInvoice.roomId, 'water', s.newInvoice.waterUnits);
+        const rate = this.roomRate(s.newInvoice.roomId, 'water');
+        return `ครั้งก่อน ${prev} → ปัจจุบัน ${Number(s.newInvoice.waterUnits) || 0} = ใช้ ${u} หน่วย × ${rate}/หน่วย = ${this.fmt(u * rate)} บาท`;
+      })(),
+      invElecManualHint: (() => {
+        const room = s.rooms.find(x => x.id === s.newInvoice.roomId);
+        const prev = (room && room.elecPrev) || 0;
+        const u = this.meterUnitsFromReading(s.newInvoice.roomId, 'elec', s.newInvoice.elecUnits);
+        const rate = this.roomRate(s.newInvoice.roomId, 'elec');
+        return `ครั้งก่อน ${prev} → ปัจจุบัน ${Number(s.newInvoice.elecUnits) || 0} = ใช้ ${u} หน่วย × ${rate}/หน่วย = ${this.fmt(u * rate)} บาท`;
+      })(),
       // "รายการบิล" preview — per explicit user request, show the exact
       // calculation for every line (not just the running total) right in
       // the create-invoice form, including the units×rate breakdown for
@@ -7086,8 +7173,8 @@ class Component extends DCLogic {
         const rent = (r && r.rent) || 0;
         const water = Number(s.newInvoice.water) || 0, elec = Number(s.newInvoice.elec) || 0;
         const trash = s.trashRate || 0, internet = s.internetRate || 0;
-        const waterUnits = s.newInvoice.waterMode === 'manual' ? Number(s.newInvoice.waterUnits) || 0 : (this.deviceCharge(s.newInvoice.roomId, 'water') || {}).units;
-        const elecUnits = s.newInvoice.elecMode === 'manual' ? Number(s.newInvoice.elecUnits) || 0 : (this.deviceCharge(s.newInvoice.roomId, 'elec') || {}).units;
+        const waterUnits = s.newInvoice.waterMode === 'manual' ? this.meterUnitsFromReading(s.newInvoice.roomId, 'water', s.newInvoice.waterUnits) : (this.deviceCharge(s.newInvoice.roomId, 'water') || {}).units;
+        const elecUnits = s.newInvoice.elecMode === 'manual' ? this.meterUnitsFromReading(s.newInvoice.roomId, 'elec', s.newInvoice.elecUnits) : (this.deviceCharge(s.newInvoice.roomId, 'elec') || {}).units;
         const waterCalc = waterUnits != null ? ` (${waterUnits} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'water')})` : '';
         const elecCalc = elecUnits != null ? ` (${elecUnits} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'elec')})` : '';
         return {
