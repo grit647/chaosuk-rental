@@ -173,7 +173,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             </div>
             <div onclick="{{ goTenants }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navTenants.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navTenants.dot }}"></div>
-              <span style="font-size:13.5px;color:{{ navTenants.color }};font-weight:{{ navTenants.weight }}">ผู้เช่า/พนักงาน</span>
+              <span style="font-size:13.5px;color:{{ navTenants.color }};font-weight:{{ navTenants.weight }}">ผู้เช่า</span>
             </div>
             <div onclick="{{ goBilling }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navBilling.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navBilling.dot }}"></div>
@@ -207,11 +207,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             </div>
             <div onclick="{{ goContracts }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navContract.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navContract.dot }}"></div>
-              <span style="font-size:13.5px;color:{{ navContract.color }};font-weight:{{ navContract.weight }}">สัญญาเช่าห้อง/พนักงาน</span>
+              <span style="font-size:13.5px;color:{{ navContract.color }};font-weight:{{ navContract.weight }}">สัญญาเช่า</span>
             </div>
             <div onclick="{{ goCalendar }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navCalendar.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navCalendar.dot }}"></div>
               <span style="font-size:13.5px;color:{{ navCalendar.color }};font-weight:{{ navCalendar.weight }}">ปฏิทิน</span>
+            </div>
+            <div onclick="{{ goStaffContracts }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navStaffContracts.bg }}">
+              <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navStaffContracts.dot }}"></div>
+              <span style="font-size:13.5px;color:{{ navStaffContracts.color }};font-weight:{{ navStaffContracts.weight }}">สัญญาพนักงาน</span>
+            </div>
+            <div onclick="{{ goStaffMembers }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navStaffMembers.bg }}">
+              <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navStaffMembers.dot }}"></div>
+              <span style="font-size:13.5px;color:{{ navStaffMembers.color }};font-weight:{{ navStaffMembers.weight }}">พนักงานหอพัก</span>
             </div>
             <div onclick="{{ goSettings }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navSettings.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navSettings.dot }}"></div>
@@ -1527,6 +1535,34 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </sc-if>
                 </div>
               </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ isStaffContracts }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px">
+              <div style="font-size:21px;font-weight:700;color:#241812">สัญญาพนักงาน</div>
+              <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">จัดการสัญญาจ้างพนักงานหอพัก</div>
+            </div>
+            <div style="background:#FFFFFF;border-radius:8px;padding:40px 24px;text-align:center;max-width:520px">
+              <div style="font-size:32px;margin-bottom:10px">🚧</div>
+              <div style="font-size:14px;font-weight:700;color:#241812;margin-bottom:6px">กำลังพัฒนาฟีเจอร์นี้อยู่ครับ</div>
+              <div style="font-size:12.5px;color:#7C6E5F;line-height:1.6">หน้านี้จะใช้จัดการสัญญาจ้างพนักงานหอพัก (ชื่อ ตำแหน่ง เงินเดือน วันที่เริ่ม-สิ้นสุดสัญญา ฯลฯ) — เตรียมช่องเมนูไว้ให้ก่อน รายละเอียดฟีเจอร์เต็มจะตามมาครับ</div>
+            </div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ isStaffMembers }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column">
+            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px">
+              <div style="font-size:21px;font-weight:700;color:#241812">พนักงานหอพัก</div>
+              <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">รายชื่อและข้อมูลพนักงานหอพักทั้งหมด</div>
+            </div>
+            <div style="background:#FFFFFF;border-radius:8px;padding:40px 24px;text-align:center;max-width:520px">
+              <div style="font-size:32px;margin-bottom:10px">🚧</div>
+              <div style="font-size:14px;font-weight:700;color:#241812;margin-bottom:6px">กำลังพัฒนาฟีเจอร์นี้อยู่ครับ</div>
+              <div style="font-size:12.5px;color:#7C6E5F;line-height:1.6">หน้านี้จะใช้ดูรายชื่อ/ข้อมูลพนักงานหอพักทั้งหมด — เตรียมช่องเมนูไว้ให้ก่อน รายละเอียดฟีเจอร์เต็มจะตามมาครับ</div>
             </div>
           </div>
           </sc-if>
@@ -3214,6 +3250,11 @@ class Component extends DCLogic {
   goExpenses = () => this._nav({ activeNav: 'expenses' });
   goContracts = () => this._nav({ activeNav: 'contracts', contractFormRoomId: null });
   goCalendar = () => this._nav({ activeNav: 'calendar' });
+  // Placeholder nav entries for an upcoming staff/employee feature, per
+  // explicit user request — pages just show a "กำลังพัฒนา" (under
+  // development) placeholder for now, no real data/backend behind them yet.
+  goStaffContracts = () => this._nav({ activeNav: 'staffContracts' });
+  goStaffMembers = () => this._nav({ activeNav: 'staffMembers' });
 
   calPrevMonth = () => this.setState(s => {
     let m = s.calMonth - 1, y = s.calYear;
@@ -6834,6 +6875,10 @@ class Component extends DCLogic {
       goCalendar: this.goCalendar,
       isCalendar: s.activeNav === 'calendar',
       navCalendar: navStyle('calendar'),
+      // Placeholder nav entries for an upcoming staff/employee feature.
+      goStaffContracts: this.goStaffContracts, goStaffMembers: this.goStaffMembers,
+      isStaffContracts: s.activeNav === 'staffContracts', isStaffMembers: s.activeNav === 'staffMembers',
+      navStaffContracts: navStyle('staffContracts'), navStaffMembers: navStyle('staffMembers'),
       calMonthLabel, calCells, calWeekdays: ['อา','จ','อ','พ','พฤ','ศ','ส'],
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,
