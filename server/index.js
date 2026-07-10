@@ -21,6 +21,10 @@ app.get('/', noCache, (req, res) => res.sendFile(path.join(ROOT, 'Rental Managem
 app.get('/support.js', noCache, (req, res) => res.sendFile(path.join(ROOT, 'support.js')));
 app.get('/doc-page.js', noCache, (req, res) => res.sendFile(path.join(ROOT, 'doc-page.js')));
 app.get('/Lease Agreement - Room 302.dc.html', noCache, (req, res) => res.sendFile(path.join(ROOT, 'Lease Agreement - Room 302.dc.html')));
+// Static design mockup only — per explicit user request to preview what a
+// future multi-tenant login/signup page could look like. Pure HTML/CSS/JS,
+// no backend wiring, not linked from anywhere in the real app's nav.
+app.get('/login-preview.html', noCache, (req, res) => res.sendFile(path.join(ROOT, 'login-preview.html')));
 
 app.use('/api/bootstrap', require('./routes/bootstrap'));
 app.use('/api/rooms', require('./routes/rooms'));

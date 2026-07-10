@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>เช่าสุข — ตัวอย่างหน้า Login/สมัครสมาชิก (ตัวอย่างเท่านั้น)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    background: #F7F1E6;
+    color: #241812;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .banner {
+    position: fixed; top: 0; left: 0; right: 0;
+    background: #B85B27; color: #fff; text-align: center;
+    font-size: 12.5px; font-weight: 600; padding: 8px 12px; z-index: 999;
+  }
+  .wrap { width: 100%; max-width: 420px; margin-top: 36px; }
+  .logo-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px; }
+  .logo-badge {
+    width: 38px; height: 38px; border-radius: 10px; background: #C1622D;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 17px;
+  }
+  .logo-text { font-size: 20px; font-weight: 700; color: #241812; }
+  .tagline { text-align: center; font-size: 12.5px; color: #9C8B78; margin-bottom: 28px; }
+
+  .card {
+    background: #FFFFFF; border-radius: 14px; padding: 28px 26px;
+    box-shadow: 0 8px 28px rgba(36,24,18,0.08);
+  }
+
+  .tabs {
+    display: flex; gap: 4px; background: #F7F2E9; border-radius: 8px;
+    padding: 3px; margin-bottom: 22px;
+  }
+  .tab {
+    flex: 1; text-align: center; padding: 9px; border-radius: 6px;
+    font-size: 13px; font-weight: 600; cursor: pointer; color: #7C6E5F;
+    transition: background .15s, color .15s;
+  }
+  .tab.active { background: #C1622D; color: #fff; }
+
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block; font-size: 11.5px; font-weight: 600; color: #7C6E5F;
+    margin-bottom: 5px;
+  }
+  .field .req { color: #B24336; }
+  .field input, .field select {
+    width: 100%; padding: 10px 12px; border-radius: 7px;
+    border: 1px solid #E3D8C8; font-size: 13px; font-family: inherit;
+    background: #fff; color: #241812;
+  }
+  .field input:focus, .field select:focus {
+    outline: none; border-color: #C1622D;
+  }
+  .field .hint { font-size: 10.5px; color: #A89A88; margin-top: 4px; }
+
+  .row2 { display: flex; gap: 10px; }
+  .row2 .field { flex: 1; }
+
+  .pw-wrap { position: relative; }
+  .pw-toggle {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; color: #9C8B78; cursor: pointer; user-select: none;
+  }
+
+  .check-row {
+    display: flex; align-items: flex-start; gap: 8px; margin: 16px 0;
+    font-size: 11.5px; color: #7C6E5F; line-height: 1.5;
+  }
+  .check-row input { margin-top: 2px; accent-color: #C1622D; }
+  .check-row a { color: #C1622D; text-decoration: underline; }
+
+  .submit-btn {
+    width: 100%; padding: 12px; border-radius: 8px; border: none;
+    background: #C1622D; color: #fff; font-size: 14px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+  }
+  .submit-btn:hover { background: #A9531F; }
+
+  .divider {
+    display: flex; align-items: center; gap: 10px; margin: 18px 0;
+    font-size: 11px; color: #B0A08C;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1; height: 1px; background: #EDE4D6;
+  }
+
+  .oauth-row { display: flex; gap: 10px; margin-bottom: 4px; }
+  .oauth-btn {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 10px; border-radius: 7px; border: 1px solid #E3D8C8;
+    background: #fff; font-size: 12.5px; font-weight: 600; color: #241812;
+    cursor: pointer;
+  }
+
+  .forgot-row { text-align: right; margin: -6px 0 16px; }
+  .forgot-row a { font-size: 11.5px; color: #C1622D; text-decoration: none; }
+
+  .switch-note {
+    text-align: center; font-size: 12px; color: #7C6E5F; margin-top: 18px;
+  }
+  .switch-note a { color: #C1622D; font-weight: 600; text-decoration: none; cursor: pointer; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .section-label {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    color: #B85B27; margin: 18px 0 10px;
+  }
+  .section-label:first-of-type { margin-top: 0; }
+
+  .footer-note {
+    text-align: center; font-size: 10.5px; color: #B0A08C; margin-top: 22px; line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+  <div class="banner">🧪 ตัวอย่างหน้าจอเท่านั้น — ยังไม่เชื่อมต่อระบบจริง กดปุ่มใดๆ จะไม่มีผลอะไรเกิดขึ้น</div>
+
+  <div class="wrap">
+    <div class="logo-row">
+      <div class="logo-badge">ช</div>
+      <div class="logo-text">เช่าสุข</div>
+    </div>
+    <div class="tagline">ระบบจัดการหอพัก/อพาร์ทเมนท์ครบวงจร</div>
+
+    <div class="card">
+      <div class="tabs">
+        <div class="tab active" onclick="showPanel('login')" id="tabLogin">เข้าสู่ระบบ</div>
+        <div class="tab" onclick="showPanel('signup')" id="tabSignup">สมัครสมาชิกใหม่</div>
+      </div>
+
+      <!-- ============ LOGIN PANEL ============ -->
+      <div class="panel active" id="panelLogin">
+        <div class="field">
+          <label>อีเมล <span class="req">*</span></label>
+          <input type="email" placeholder="you@example.com">
+        </div>
+        <div class="field">
+          <label>รหัสผ่าน <span class="req">*</span></label>
+          <div class="pw-wrap">
+            <input type="password" placeholder="••••••••" id="pwLogin">
+            <span class="pw-toggle" onclick="togglePw('pwLogin', this)">แสดง</span>
+          </div>
+        </div>
+        <div class="forgot-row"><a href="#" onclick="return false">ลืมรหัสผ่าน?</a></div>
+        <button class="submit-btn" onclick="return false">เข้าสู่ระบบ</button>
+
+        <div class="divider">หรือ</div>
+        <div class="oauth-row">
+          <div class="oauth-btn">🔵 Google</div>
+          <div class="oauth-btn">💬 LINE</div>
+        </div>
+
+        <div class="switch-note">ยังไม่มีบัญชี? <a onclick="showPanel('signup')">สมัครสมาชิกใหม่</a></div>
+      </div>
+
+      <!-- ============ SIGNUP PANEL ============ -->
+      <div class="panel" id="panelSignup">
+
+        <div class="section-label">ข้อมูลผู้ดูแลระบบ (เจ้าของ/ผู้จัดการ)</div>
+        <div class="row2">
+          <div class="field">
+            <label>ชื่อ <span class="req">*</span></label>
+            <input type="text" placeholder="ต้น">
+          </div>
+          <div class="field">
+            <label>นามสกุล <span class="req">*</span></label>
+            <input type="text" placeholder="ใจดี">
+          </div>
+        </div>
+        <div class="field">
+          <label>อีเมล <span class="req">*</span></label>
+          <input type="email" placeholder="you@example.com">
+          <div class="hint">ใช้สำหรับเข้าสู่ระบบและรับการแจ้งเตือนสำคัญ</div>
+        </div>
+        <div class="field">
+          <label>เบอร์โทรศัพท์ <span class="req">*</span></label>
+          <input type="tel" placeholder="08X-XXX-XXXX">
+        </div>
+
+        <div class="section-label">ข้อมูลหอพัก/อพาร์ทเมนท์</div>
+        <div class="field">
+          <label>ชื่อหอพัก/อพาร์ทเมนท์ <span class="req">*</span></label>
+          <input type="text" placeholder="เช่น หอพักสุขใจ">
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>จำนวนห้องโดยประมาณ <span class="req">*</span></label>
+            <select>
+              <option>1–10 ห้อง</option>
+              <option>11–30 ห้อง</option>
+              <option>31–60 ห้อง</option>
+              <option>60+ ห้อง</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>จังหวัด</label>
+            <input type="text" placeholder="เช่น กรุงเทพฯ">
+          </div>
+        </div>
+
+        <div class="section-label">ตั้งรหัสผ่าน</div>
+        <div class="field">
+          <label>รหัสผ่าน <span class="req">*</span></label>
+          <div class="pw-wrap">
+            <input type="password" placeholder="อย่างน้อย 8 ตัวอักษร" id="pwSignup">
+            <span class="pw-toggle" onclick="togglePw('pwSignup', this)">แสดง</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>ยืนยันรหัสผ่าน <span class="req">*</span></label>
+          <div class="pw-wrap">
+            <input type="password" placeholder="พิมพ์รหัสผ่านอีกครั้ง" id="pwSignup2">
+            <span class="pw-toggle" onclick="togglePw('pwSignup2', this)">แสดง</span>
+          </div>
+        </div>
+
+        <div class="check-row">
+          <input type="checkbox" id="agreeTerms">
+          <label for="agreeTerms">ฉันยอมรับ <a href="#" onclick="return false">ข้อตกลงการใช้งาน</a> และ <a href="#" onclick="return false">นโยบายความเป็นส่วนตัว (PDPA)</a> — เนื่องจากระบบนี้จะจัดเก็บข้อมูลส่วนตัวของผู้เช่าในหอพักของท่าน (เช่น รูปบัตรประชาชน เบอร์โทร)</label>
+        </div>
+        <div class="check-row">
+          <input type="checkbox" id="agreeMarketing">
+          <label for="agreeMarketing">รับข่าวสารและอัปเดตฟีเจอร์ใหม่ทางอีเมล (ไม่บังคับ)</label>
+        </div>
+
+        <button class="submit-btn" onclick="return false">สร้างบัญชีใหม่</button>
+
+        <div class="switch-note">มีบัญชีอยู่แล้ว? <a onclick="showPanel('login')">เข้าสู่ระบบ</a></div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      หน้านี้เป็นตัวอย่าง (mockup) เพื่อพิจารณาการออกแบบเท่านั้น<br>
+      ยังไม่เชื่อมต่อกับระบบสมาชิก/ฐานข้อมูลจริงของเช่าสุข
+    </div>
+  </div>
+
+<script>
+  function showPanel(name) {
+    document.getElementById('panelLogin').classList.toggle('active', name === 'login');
+    document.getElementById('panelSignup').classList.toggle('active', name === 'signup');
+    document.getElementById('tabLogin').classList.toggle('active', name === 'login');
+    document.getElementById('tabSignup').classList.toggle('active', name === 'signup');
+  }
+  function togglePw(id, el) {
+    const input = document.getElementById(id);
+    if (input.type === 'password') { input.type = 'text'; el.textContent = 'ซ่อน'; }
+    else { input.type = 'password'; el.textContent = 'แสดง'; }
+  }
+</script>
+</body>
+</html>
