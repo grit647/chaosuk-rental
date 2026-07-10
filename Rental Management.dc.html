@@ -2586,11 +2586,6 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </sc-for>
                   </select>
                 </div>
-                <sc-if value="{{ hasNewInvoiceRoomSelected }}" hint-placeholder-val="{{ false }}">
-                  <div style="display:flex;justify-content:flex-end">
-                    <span onclick="{{ openHistoryForNewInvoiceRoom }}" style="font-size:10px;font-weight:600;padding:4px 9px;border-radius:5px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap">📋 ประวัติบิล</span>
-                  </div>
-                </sc-if>
                 <sc-if value="{{ newInvoiceHasCredit }}" hint-placeholder-val="{{ false }}">
                   <div style="display:flex;justify-content:space-between;align-items:center;background:#F5EFE2;border:1px solid #E3D2A8;border-radius:8px;padding:10px 14px">
                     <div>
@@ -2633,6 +2628,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <input value="{{ newInvoice.waterUnits }}" onchange="{{ onNewInvoiceWaterUnitsChange }}" placeholder="หน่วยปัจจุบัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">{{ invWaterManualHint }}</div>
                     </sc-if>
+                    <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">หน่วยบิลหลังสุด: {{ invWaterLastReading }}</div>
                   </div>
                   <div style="flex:1">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
@@ -2650,6 +2646,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <input value="{{ newInvoice.elecUnits }}" onchange="{{ onNewInvoiceElecUnitsChange }}" placeholder="หน่วยปัจจุบัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">{{ invElecManualHint }}</div>
                     </sc-if>
+                    <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">หน่วยบิลหลังสุด: {{ invElecLastReading }}</div>
                   </div>
                 </div>
                 <div>
@@ -7444,11 +7441,6 @@ class Component extends DCLogic {
       newInvoiceCreditAmount: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return (r && r.creditBalance) || 0; })(),
       newInvoiceCreditDisplay: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return this.fmt((r && r.creditBalance) || 0); })(),
       newInvoiceHasCredit: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return !!(r && r.creditBalance > 0); })(),
-      // Same "📋 ประวัติบิล" button/data as the Bills page and Tenants page
-      // — per explicit user request, reusing openBillHistory/
-      // billHistoryItems here too instead of a third separate copy.
-      hasNewInvoiceRoomSelected: !!s.newInvoice.roomId,
-      openHistoryForNewInvoiceRoom: () => this.openBillHistory(s.newInvoice.roomId),
       // Live running total for the bill being built — recomputes every time
       // ค่าน้ำ/ค่าไฟ change (this whole renderVals block re-runs on any
       // setState, so no extra wiring needed), per explicit user request to
@@ -7483,6 +7475,14 @@ class Component extends DCLogic {
       setInvElecDevice: () => this.setInvoiceElecMode('device'), setInvElecManual: () => this.setInvoiceElecMode('manual'),
       invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? d.units + ' หน่วย × ' + this.roomRate(s.newInvoice.roomId, 'water') : 'อุปกรณ์ไม่พร้อม'; })(),
       invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? d.units + ' หน่วย × ' + this.roomRate(s.newInvoice.roomId, 'elec') : 'อุปกรณ์ไม่พร้อม'; })(),
+      // Per explicit user request: a simple always-visible reference line
+      // (not a popup/history modal, which they found overlapped awkwardly)
+      // showing the water/elec reading from this room's LAST bill —
+      // room.waterPrev/elecPrev, the exact baseline every usage calc on
+      // this page subtracts from — so the owner can eyeball-check a new
+      // reading against it before submitting.
+      invWaterLastReading: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return r ? (r.waterPrev || 0) : '—'; })(),
+      invElecLastReading: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return r ? (r.elecPrev || 0) : '—'; })(),
       onNewInvoiceWaterUnitsChange: this.onNewInvoiceWaterUnitsChange, onNewInvoiceElecUnitsChange: this.onNewInvoiceElecUnitsChange,
       // Live "units × rate = amount" breakdown for กรอกเอง (manual) mode,
       // same idea as the device-mode hint above — per explicit user
