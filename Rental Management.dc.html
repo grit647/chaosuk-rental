@@ -4584,12 +4584,17 @@ class Component extends DCLogic {
           ? [`หักจากเงินล่วงหน้าที่ชำระไว้แล้ว: ${this.fmt(amountPaid)}`, `ยอดที่ต้องชำระจริง: ${this.fmt(remaining)}`]
           : [];
         // Per explicit user request: also tell the tenant the reading from
-        // their PREVIOUS bill (before this one) for water/elec, so they can
-        // cross-check their own meter — only shown when this invoice
-        // actually has it recorded.
+        // their PREVIOUS bill (before this one), AND the reading this bill
+        // was actually issued/billed against — for water/elec each — so
+        // they can cross-check their own meter against both ends of the
+        // billing period. "ที่ออกบิล" (billed reading) = prev reading +
+        // units used this cycle — no extra data needed, both pieces are
+        // already frozen on the invoice.
         const prevReadingLines = [];
         if (invoice.waterPrevReading != null) prevReadingLines.push(`หน่วยมิเตอร์น้ำบิลก่อนหน้า: ${invoice.waterPrevReading}`);
+        if (invoice.waterPrevReading != null && invoice.waterUnits != null) prevReadingLines.push(`หน่วยมิเตอร์น้ำที่ออกบิล: ${invoice.waterPrevReading + invoice.waterUnits}`);
         if (invoice.elecPrevReading != null) prevReadingLines.push(`หน่วยมิเตอร์ไฟบิลก่อนหน้า: ${invoice.elecPrevReading}`);
+        if (invoice.elecPrevReading != null && invoice.elecUnits != null) prevReadingLines.push(`หน่วยมิเตอร์ไฟที่ออกบิล: ${invoice.elecPrevReading + invoice.elecUnits}`);
         message = [
           'ใบแจ้งหนี้ห้อง ' + roomId + ' (' + invoice.id + ')',
           ...rows,
