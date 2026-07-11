@@ -4065,7 +4065,7 @@ class Component extends DCLogic {
     Object.keys(roomPatch).forEach(k => roomPatch[k] === undefined && delete roomPatch[k]);
     try {
       const [roomRes] = await Promise.all([
-        fetch('/api/rooms/' + id, {
+        fetch('/api/rooms/' + encodeURIComponent(id), {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(roomPatch),
         }),
@@ -4113,7 +4113,7 @@ class Component extends DCLogic {
     const id = this.state.deleteContractRoom;
     const clearPatch = { status: 'vacant', tenant: '', phone: '', moveIn: '', contractEnd: '', wifiCode: '', dueDay: '', tenantIdImg: '', tenantIdExpiry: '', leaseDocName: '', lineQrImg: '' };
     try {
-      const res = await fetch('/api/rooms/' + id, {
+      const res = await fetch('/api/rooms/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(clearPatch),
       });
@@ -4131,7 +4131,7 @@ class Component extends DCLogic {
     const room = this.state.rooms.find(r => r.id === roomId);
     const newEnd = room.contractEnd.replace(/(\d{4})/, (m) => String(Number(m) + 1));
     try {
-      const res = await fetch('/api/rooms/' + roomId, {
+      const res = await fetch('/api/rooms/' + encodeURIComponent(roomId), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contractEnd: newEnd }),
       });
@@ -4223,7 +4223,7 @@ class Component extends DCLogic {
       ? { waterCurr: entry.reading }
       : { waterCurr: entry.reading, waterPrev: entry.reading };
     try {
-      const res = await fetch('/api/rooms/' + roomId, {
+      const res = await fetch('/api/rooms/' + encodeURIComponent(roomId), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       });
@@ -4637,7 +4637,7 @@ class Component extends DCLogic {
     const id = this.state.equipSelectedRoom;
     const f = this.state.tuyaForm;
     try {
-      const res = await fetch('/api/rooms/' + id, {
+      const res = await fetch('/api/rooms/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tuyaElecDeviceId: f.elecDeviceId }),
       });
@@ -4651,7 +4651,7 @@ class Component extends DCLogic {
   deleteTuyaElecDevice = () => this._guard('deleteTuyaElecDevice:' + this.state.equipSelectedRoom, async () => {
     const id = this.state.equipSelectedRoom;
     try {
-      const res = await fetch('/api/rooms/' + id, {
+      const res = await fetch('/api/rooms/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tuyaElecDeviceId: '' }),
       });
@@ -5007,7 +5007,7 @@ class Component extends DCLogic {
     // Fire-and-forget the prev resets — non-fatal if one hiccups, same as
     // submitInvoice's own comment on this exact pattern.
     Object.entries(roomPrevUpdates).forEach(([roomId, patch]) => {
-      fetch('/api/rooms/' + roomId, {
+      fetch('/api/rooms/' + encodeURIComponent(roomId), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       }).then(r => r.ok ? r.json() : null).then(updatedRoom => {
@@ -5551,7 +5551,7 @@ class Component extends DCLogic {
       }
       if (Object.keys(prevPatch).length) {
         try {
-          const rres = await fetch('/api/rooms/' + room.id, {
+          const rres = await fetch('/api/rooms/' + encodeURIComponent(room.id), {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(prevPatch),
           });
@@ -5724,7 +5724,7 @@ class Component extends DCLogic {
         const room = this.state.rooms.find(r => r.id === inv.room);
         const currentCredit = (room && room.creditBalance) || 0;
         const newCredit = currentCredit + combined;
-        await fetch('/api/rooms/' + inv.room, {
+        await fetch('/api/rooms/' + encodeURIComponent(inv.room), {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ creditBalance: newCredit }),
         });
@@ -5788,7 +5788,7 @@ class Component extends DCLogic {
         const room = this.state.rooms.find(r => r.id === inv.room);
         const currentCredit = (room && room.creditBalance) || 0;
         newCredit = currentCredit + overpay;
-        await fetch('/api/rooms/' + inv.room, {
+        await fetch('/api/rooms/' + encodeURIComponent(inv.room), {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ creditBalance: newCredit }),
         });
@@ -5915,7 +5915,7 @@ class Component extends DCLogic {
     try {
       const addAmount = room.creditSlipsTotal || 0;
       const newBalance = (room.creditBalance || 0) + addAmount;
-      const res = await fetch('/api/rooms/' + roomId, {
+      const res = await fetch('/api/rooms/' + encodeURIComponent(roomId), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ creditBalance: newBalance, creditSlipsJson: '[]' }),
       });
@@ -5951,7 +5951,7 @@ class Component extends DCLogic {
     if (!room) return;
     try {
       const remaining = (room.creditSlips || []).filter((_, i) => i !== idx);
-      const res = await fetch('/api/rooms/' + roomId, {
+      const res = await fetch('/api/rooms/' + encodeURIComponent(roomId), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ creditSlipsJson: JSON.stringify(remaining) }),
       });
@@ -5997,7 +5997,7 @@ class Component extends DCLogic {
     const roomBefore = this.state.rooms.find(r => r.id === roomId);
     const before = (roomBefore && roomBefore.creditBalance) || 0;
     try {
-      const res = await fetch('/api/rooms/' + roomId, {
+      const res = await fetch('/api/rooms/' + encodeURIComponent(roomId), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ creditBalance: amt }),
       });
@@ -6049,7 +6049,7 @@ class Component extends DCLogic {
     const optimisticTotal = updatedSlips.reduce((a, s2) => a + (Number(s2.amount) || 0), 0);
     this.setState(s => ({ rooms: s.rooms.map(r => r.id === roomId ? { ...r, creditSlips: updatedSlips, creditSlipsTotal: optimisticTotal } : r) }));
     try {
-      const res = await fetch('/api/rooms/' + roomId, {
+      const res = await fetch('/api/rooms/' + encodeURIComponent(roomId), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ creditSlipsJson: JSON.stringify(updatedSlips) }),
       });
@@ -6279,7 +6279,7 @@ class Component extends DCLogic {
     const room = this.state.rooms.find(r => r.id === id);
     if (room && room.tenant) { this.showAdminToast('ห้องนี้ยังมีผู้เช่า — ลบสัญญาก่อน'); return; }
     try {
-      const res = await fetch('/api/rooms/' + id, { method: 'DELETE' });
+      const res = await fetch('/api/rooms/' + encodeURIComponent(id), { method: 'DELETE' });
       if (!res.ok) throw new Error('ลบห้องไม่สำเร็จ');
       this.setState(s => {
         const rooms = s.rooms.filter(r => r.id !== id);
@@ -6359,7 +6359,7 @@ class Component extends DCLogic {
           return;
         }
       }
-      const res = await fetch('/api/rooms/' + id, {
+      const res = await fetch('/api/rooms/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenant: form.tenant, phone: form.phone, rent: Number(form.rent) || undefined }),
       });
