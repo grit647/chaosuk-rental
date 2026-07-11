@@ -111,6 +111,13 @@ router.post('/select-building', async (req, res, next) => {
       target = users.find((u) => u.customerSheetId === customerSheetId);
     }
     if (!target) return res.status(403).json({ error: 'ตึกนี้ไม่ได้เป็นของบัญชีนี้' });
+    // Per explicit user request: a paused/suspended building (see
+    // server/routes/settings.js's toggle-building-status — for a
+    // monthly-subscription customer who hasn't paid, say) can't be
+    // entered until reactivated — the row and all its data stay intact,
+    // just not selectable. Login itself still succeeds (an owner with
+    // other active buildings shouldn't be locked out entirely).
+    if (target.status === 'suspended') return res.status(403).json({ error: 'ตึกนี้ถูกพักการใช้งานชั่วคราว กรุณาติดต่อผู้ดูแลระบบ' });
 
     const newSession = { ...session, customerSheetId: target.customerSheetId, role: target.role, roomId: target.roomId || null, staffId: target.staffId || null };
     setSessionCookie(res, newSession);
@@ -131,7 +138,7 @@ async function resolveBuildingNames(rows, session) {
       const settings = await runWithSheetId(u.customerSheetId, () => readSettings());
       if (settings.propertyProfile && settings.propertyProfile.name) name = settings.propertyProfile.name;
     } catch { /* fall back to the generic label above */ }
-    return { customerSheetId: u.customerSheetId, name, isActive: u.customerSheetId === session.customerSheetId };
+    return { customerSheetId: u.customerSheetId, name, isActive: u.customerSheetId === session.customerSheetId, status: u.status || 'active' };
   }));
 }
 

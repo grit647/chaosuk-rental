@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { readTab, updateRow, appendRow } = require('../sheets');
+const { readTab, updateRow, appendRow, deleteRow } = require('../sheets');
 const { readSettings } = require('../coerce');
 const { runWithSheetId } = require('../requestContext');
 const { cloneSchemaToNewSheet } = require('../setupBuilding');
@@ -144,7 +144,7 @@ router.post('/add-building', async (req, res, next) => {
     }
 
     await runWithSheetId(DIRECTORY_SHEET_ID, () => appendRow('Users', {
-      ownerId, phone, pin: effectivePin, role: 'owner', customerSheetId, roomId: '', staffId: '',
+      ownerId, phone, pin: effectivePin, role: 'owner', customerSheetId, roomId: '', staffId: '', status: 'active',
     }));
 
     // One-time bootstrap only (NOT an ongoing sync) — a brand-new building
@@ -157,6 +157,48 @@ router.post('/add-building', async (req, res, next) => {
     await runWithSheetId(customerSheetId, () => upsertKV('adminEditPin', effectivePin));
 
     res.json({ ok: true, reusedExistingOwner, ownerId });
+  } catch (err) { next(err); }
+});
+
+// Per explicit user request: lets the platform admin pause/reactivate a
+// building — for a monthly-subscription customer who hasn't paid, say —
+// without deleting anything. A suspended building's row and its Google
+// Sheet data both stay completely intact; only server/routes/auth.js's
+// select-building refuses to let anyone open it while suspended.
+router.post('/toggle-building-status', async (req, res, next) => {
+  try {
+    if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
+    if (!(await isPlatformAdminReq(req))) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
+    const { customerSheetId } = req.body;
+    if (!customerSheetId) return res.status(400).json({ error: 'ต้องระบุตึกที่ต้องการเปลี่ยนสถานะ' });
+    // Never let the platform admin lock themselves out of their own
+    // account this way — pausing is meant for customer buildings only.
+    if (customerSheetId === process.env.GOOGLE_SHEET_ID) return res.status(400).json({ error: 'ไม่สามารถพักการใช้งานบัญชีแพลตฟอร์มเองได้' });
+
+    const rows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+    const row = rows.find((u) => u.customerSheetId === customerSheetId);
+    if (!row) return res.status(404).json({ error: 'ไม่พบตึกนี้ในสมุดรายชื่อกลาง' });
+    const newStatus = row.status === 'suspended' ? 'active' : 'suspended';
+    await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', customerSheetId, { status: newStatus }, 'customerSheetId'));
+    res.json({ ok: true, status: newStatus });
+  } catch (err) { next(err); }
+});
+
+// Per explicit user request: removes a building's LOGIN ROW from the
+// master directory only — its Google Sheet and all the data in it are
+// completely untouched, this just revokes the ability to log into it.
+// (Deliberately not a real Google Sheet deletion — that's a much bigger,
+// harder-to-undo action the owner didn't ask for here.)
+router.post('/delete-building', async (req, res, next) => {
+  try {
+    if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
+    if (!(await isPlatformAdminReq(req))) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
+    const { customerSheetId } = req.body;
+    if (!customerSheetId) return res.status(400).json({ error: 'ต้องระบุตึกที่ต้องการลบ' });
+    if (customerSheetId === process.env.GOOGLE_SHEET_ID) return res.status(400).json({ error: 'ไม่สามารถลบบัญชีแพลตฟอร์มเองได้' });
+
+    await runWithSheetId(DIRECTORY_SHEET_ID, () => deleteRow('Users', customerSheetId, 'customerSheetId'));
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 
