@@ -592,6 +592,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#241812">{{ selectedTenant.phone }}</span>
                     <a href="{{ selectedTenant.telHref }}" onclick="{{ selectedTenant.onCall }}" style="display:inline-flex;align-items:center;justify-content:center;color:#C1622D;text-decoration:none;font-size:16px" title="โทร">📞</a>
                   </div>
+                  <sc-if value="{{ selectedTenant.hasUsageData }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;flex-direction:column;gap:6px;background:#FBF7F0;border:1px solid #EDE1CE;border-radius:8px;padding:10px 12px;margin-bottom:14px">
+                      <div style="font-size:10.5px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F">การใช้งานรอบนี้ (นับจากบิลล่าสุด)</div>
+                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">💧 น้ำ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812;font-weight:600">{{ selectedTenant.waterUsageLabel }}</span></div>
+                      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">⚡ ไฟ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812;font-weight:600">{{ selectedTenant.elecUsageLabel }}</span></div>
+                    </div>
+                  </sc-if>
                   <sc-if value="{{ selectedTenant.hasCredit }}" hint-placeholder-val="{{ false }}">
                     <div style="display:flex;justify-content:space-between;align-items:center;background:#F5EFE2;border:1px solid #E3D2A8;border-radius:8px;padding:9px 12px;margin-bottom:14px">
                       <div style="font-size:11px;color:#9C7A2E;font-weight:600">💰 ยอดเงินล่วงหน้าคงเหลือ</div>
@@ -7238,6 +7245,20 @@ class Component extends DCLogic {
         // there's one shared source instead of a second copy.
         onOpenHistory: (e) => { e.stopPropagation(); this.openBillHistory(r.id); },
       };
+    });
+    // Per explicit user request: the tenant card shows live water/elec
+    // usage + the CURRENT amount owed for this billing cycle so far —
+    // same math as the invoice form and Electricity Usage report
+    // (deviceCharge: units since this room's last-billed reading × rate),
+    // computed here rather than duplicated, so all three stay consistent.
+    // Rooms without a linked Tuya device (deviceCharge returns null) show
+    // "อุปกรณ์ไม่พร้อม" — same fallback text used elsewhere for this case.
+    tenantsFiltered.forEach(t => {
+      const dw = this.deviceCharge(t.room, 'water');
+      const de = this.deviceCharge(t.room, 'elec');
+      t.waterUsageLabel = dw ? `${dw.units} หน่วย × ${this.roomRate(t.room, 'water')} = ${this.fmt(dw.charge)}` : 'อุปกรณ์ไม่พร้อม';
+      t.elecUsageLabel = de ? `${de.units} หน่วย × ${this.roomRate(t.room, 'elec')} = ${this.fmt(de.charge)}` : 'อุปกรณ์ไม่พร้อม';
+      t.hasUsageData = !!(dw || de);
     });
     tenantsFiltered.forEach(t => {
       t.connLabel = t.connFilled ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ';
