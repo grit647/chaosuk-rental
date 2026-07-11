@@ -29,7 +29,19 @@ async function updateSettingKV(key, value) {
 router.get('/status', async (req, res, next) => {
   try {
     const creds = await readIntegrationCredentials();
-    res.json({ connected: isConfigured(creds.line) });
+    // Real bug a customer hit: a brand-new multi-tenant customer with NO
+    // LINE credentials of their own was shown "เชื่อมต่อแล้ว" — because
+    // line.js's resolveCreds() falls back to the SHARED server/.env values
+    // (คุณต้น's own LINE OA) whenever no override is given, which is
+    // correct for คุณต้น's own no-login usage but wrong once someone is
+    // logged in via the multi-tenant system: it made it look like THEIR
+    // LINE OA was connected when it was actually silently using someone
+    // else's. Once a session has its own customerSheetId, only THIS
+    // customer's own saved credentials count — no falling back to the
+    // shared server ones for the status check.
+    const sessionScoped = !!(req.session && req.session.customerSheetId);
+    const connected = sessionScoped ? !!creds.line && isConfigured(creds.line) : isConfigured(creds.line);
+    res.json({ connected });
   } catch (err) { next(err); }
 });
 
@@ -295,10 +307,17 @@ router.post('/send', async (req, res, next) => {
   try {
     // Resolves THIS customer's own LINE credentials (from whichever Sheet
     // the current request/session is scoped to) if they've set any via
-    // the Settings gear-icon form, otherwise falls back to server/.env
-    // exactly as before — see server/line.js's resolveCreds().
+    // the Settings gear-icon form, otherwise falls back to server/.env —
+    // but ONLY when there's no multi-tenant session at all (คุณต้น's own
+    // usage). A logged-in customer with no credentials of their own must
+    // NOT silently fall back and send through คุณต้น's real LINE OA —
+    // that would actually deliver a message from the wrong account, not
+    // just show a wrong status badge. See the matching fix + comment on
+    // GET /status above for the read-only version of this same bug.
     const creds = await readIntegrationCredentials();
-    if (!isConfigured(creds.line)) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า LINE (ใส่ Token/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
+    const sessionScoped = !!(req.session && req.session.customerSheetId);
+    const lineConfigured = sessionScoped ? !!creds.line && isConfigured(creds.line) : isConfigured(creds.line);
+    if (!lineConfigured) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า LINE (ใส่ Token/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
     const { roomId, message, imageUrl } = req.body;
     if (!roomId || (!message || !String(message).trim()) && !imageUrl) {
       return res.status(400).json({ error: 'กรุณาระบุห้องและข้อความหรือรูปภาพ' });

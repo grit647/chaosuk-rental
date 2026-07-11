@@ -936,7 +936,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:10px">ดึงสถานะอุปกรณ์ไฟฟ้าแบบเรียลไทม์ (V/A/W) จาก Tuya Cloud</div>
               <div style="display:flex;flex-direction:column;gap:10px">
-                <div style="font-size:12px;color:#7C6E5F">กด ⚙️ ด้านบนเพื่อกรอก Access ID/Secret ของบัญชี Tuya ของคุณเอง (ต้องยืนยันรหัส PIN) — ถ้ายังไม่ได้กรอก ระบบจะใช้ค่าเริ่มต้นของเซิร์ฟเวอร์แทน</div>
+                <div style="font-size:12px;color:#7C6E5F">กด ⚙️ ด้านบนเพื่อกรอก Access ID/Secret ของบัญชี Tuya ของคุณเอง (ต้องยืนยันรหัส PIN) — ถ้ายังไม่ได้กรอก จะขึ้น "ยังไม่ได้เชื่อมต่อ" จนกว่าจะตั้งค่าของตัวเอง (บัญชีหลักของเจ้าของแอปเท่านั้นที่ใช้ค่าเริ่มต้นของเซิร์ฟเวอร์ได้)</div>
                 <div style="font-size:12px;color:{{ tuyaStatusColor }};font-weight:600">{{ tuyaEnvStatusLabel }}</div>
               </div>
             </div>
@@ -952,7 +952,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:18px">เชื่อม LINE OA เพื่อส่งแจ้งเตือนบิลและกำหนดชำระให้ผู้เช่าผ่าน LINE (Messaging API)</div>
               <div style="display:flex;flex-direction:column;gap:10px">
-                <div style="font-size:12px;color:#7C6E5F">กด ⚙️ ด้านบนเพื่อกรอก Channel Access Token/Secret ของ LINE OA ของคุณเอง (ต้องยืนยันรหัส PIN) — ถ้ายังไม่ได้กรอก ระบบจะใช้ค่าเริ่มต้นของเซิร์ฟเวอร์แทน (หมายเหตุ: การรับข้อความเข้า เช่น สลิป/เชื่อมห้อง ยังใช้ LINE OA ของเซิร์ฟเวอร์กลางเท่านั้นในตอนนี้)</div>
+                <div style="font-size:12px;color:#7C6E5F">กด ⚙️ ด้านบนเพื่อกรอก Channel Access Token/Secret ของ LINE OA ของคุณเอง (ต้องยืนยันรหัส PIN) — ถ้ายังไม่ได้กรอก จะขึ้น "ยังไม่ได้เชื่อมต่อ" จนกว่าจะตั้งค่าของตัวเอง (บัญชีหลักของเจ้าของแอปเท่านั้นที่ใช้ค่าเริ่มต้นของเซิร์ฟเวอร์ได้ — หมายเหตุ: การรับข้อความเข้า เช่น สลิป/เชื่อมห้อง ยังใช้ LINE OA ของเซิร์ฟเวอร์กลางเท่านั้นในตอนนี้)</div>
                 <div style="font-size:12px;color:{{ lineStatusColor }};font-weight:600">{{ lineEnvStatusLabel }}</div>
               </div>
             </div>

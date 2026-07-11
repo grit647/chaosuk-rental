@@ -15,9 +15,24 @@ const { readIntegrationCredentials } = require('../coerce');
 const lastLoggedAt = new Map();
 const LOG_INTERVAL_MS = 60 * 60 * 1000;
 
+// Real bug a customer hit: a brand-new multi-tenant customer with no Tuya
+// credentials of their own was shown "เชื่อมต่อแล้ว" and could have pulled
+// live device data — because tuya.js's resolveCreds() falls back to the
+// SHARED server/.env values (คุณต้น's own Tuya Cloud project) whenever no
+// override is given, which is correct for คุณต้น's own no-login usage but
+// wrong once someone is logged in via the multi-tenant system: it would
+// silently show/act on someone ELSE's real devices under this customer's
+// login. Once a session has its own customerSheetId, only THIS customer's
+// own saved credentials count — no falling back to the shared server ones.
+function isConfiguredForRequest(req, tuyaCreds) {
+  const sessionScoped = !!(req.session && req.session.customerSheetId);
+  if (sessionScoped) return !!tuyaCreds && isConfigured(tuyaCreds);
+  return isConfigured(tuyaCreds);
+}
+
 router.get('/health', async (req, res) => {
   const creds = await readIntegrationCredentials();
-  if (!isConfigured(creds.tuya)) return res.json({ connected: false });
+  if (!isConfiguredForRequest(req, creds.tuya)) return res.json({ connected: false });
   try {
     await listDevices(creds.tuya); // exercises the full auth + signing flow
     res.json({ connected: true });
@@ -29,7 +44,7 @@ router.get('/health', async (req, res) => {
 router.get('/devices', async (req, res, next) => {
   try {
     const creds = await readIntegrationCredentials();
-    if (!isConfigured(creds.tuya)) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Tuya (ใส่ Access ID/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
+    if (!isConfiguredForRequest(req, creds.tuya)) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Tuya (ใส่ Access ID/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
     res.json(await listDevices(creds.tuya));
   } catch (err) { next(err); }
 });
@@ -37,7 +52,7 @@ router.get('/devices', async (req, res, next) => {
 router.get('/status', async (req, res, next) => {
   try {
     const creds = await readIntegrationCredentials();
-    if (!isConfigured(creds.tuya)) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Tuya (ใส่ Access ID/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
+    if (!isConfiguredForRequest(req, creds.tuya)) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Tuya (ใส่ Access ID/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
     const rooms = await readTab('Rooms');
     const linked = rooms.filter((r) => r.tuyaElecDeviceId);
     const entries = await Promise.all(linked.map(async (r) => {
@@ -75,7 +90,7 @@ router.get('/status', async (req, res, next) => {
 router.post('/switch', async (req, res, next) => {
   try {
     const creds = await readIntegrationCredentials();
-    if (!isConfigured(creds.tuya)) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Tuya (ใส่ Access ID/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
+    if (!isConfiguredForRequest(req, creds.tuya)) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Tuya (ใส่ Access ID/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
     const { roomId, on } = req.body;
     if (!roomId || typeof on !== 'boolean') return res.status(400).json({ error: 'ต้องระบุห้องและสถานะเปิด/ปิด' });
     const rooms = await readTab('Rooms');
