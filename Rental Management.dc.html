@@ -984,7 +984,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <span style="font-size:16px">🧩</span>
               <div style="font-size:15px;font-weight:700;color:#241812">จัดการเมนูฟีเจอร์</div>
             </div>
-            <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">เปิด/ปิดเมนูบางส่วนในแถบซ้าย — เหมาะสำหรับกรณีไม่ได้ใช้งานฟีเจอร์นั้นๆ เมนูที่ปิดจะหายจากแถบซ้าย แต่กลับมาเปิดใหม่ได้เสมอจากตรงนี้ (ต้องใส่รหัสยืนยันเหมือนการ์ด "ข้อมูลหอพัก")</div>
+            <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">เปิด/ปิดเมนูบางส่วนในแถบซ้าย — เหมาะสำหรับกรณีไม่ได้ใช้งานฟีเจอร์นั้นๆ เมนูที่ปิดจะหายจากแถบซ้าย แต่กลับมาเปิดใหม่ได้เสมอจากตรงนี้ (ต้องใส่รหัสยืนยันของแพลตฟอร์ม — ติดต่อผู้ดูแลแพลตฟอร์มถ้าต้องการเปลี่ยน)</div>
             <div style="display:flex;flex-direction:column;gap:8px">
               <sc-for list="{{ featureToggleRows }}" as="f" hint-placeholder-count="5">
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:7px;background:#FBF7F0;border:1px solid #EDE1CE">
@@ -2392,7 +2392,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           <div onclick="{{ closeFeatureTogglePinModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
               <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ยืนยันรหัสก่อนเปลี่ยน</div>
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">การเปิด/ปิดเมนูฟีเจอร์ต้องใส่รหัสยืนยันก่อนทุกครั้ง (รหัสเดียวกับที่ใช้บันทึกการ์ด "ข้อมูลหอพัก")</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">การเปิด/ปิดเมนูฟีเจอร์ต้องใส่รหัสยืนยันของแพลตฟอร์มก่อนทุกครั้ง (คนละรหัสกับที่ใช้บันทึกการ์ด "ข้อมูลหอพัก" — ติดต่อผู้ดูแลแพลตฟอร์มถ้าต้องการเปลี่ยนฟีเจอร์ที่เปิดใช้งาน)</div>
               <input type="password" value="{{ featureTogglePinDraft }}" onchange="{{ onFeatureTogglePinDraft }}" placeholder="รหัสยืนยัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
               <div style="display:flex;gap:10px;margin-top:20px">
                 <button onclick="{{ closeFeatureTogglePinModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
@@ -6605,7 +6605,13 @@ class Component extends DCLogic {
     const key = this.state.featureToggleTarget;
     if (!key) return;
     try {
-      const verifyRes = await fetch('/api/settings/verify-admin-pin', {
+      // Per explicit user request: enabling/disabling whole feature
+      // sections is a PLATFORM decision, not something each customer
+      // should self-service — checks against the platform admin PIN
+      // (server/routes/settings.js's verify-platform-pin, a hardcoded
+      // server-side constant), NOT this customer's own adminEditPin/login
+      // PIN the way saving the "ข้อมูลหอพัก" card does.
+      const verifyRes = await fetch('/api/settings/verify-platform-pin', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin: this.state.featureTogglePinDraft }),
       });

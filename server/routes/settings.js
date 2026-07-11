@@ -66,6 +66,20 @@ router.get('/', async (req, res, next) => {
 // edit. Defaults to "12345" if the owner hasn't set their own value yet
 // (via PUT / with adminEditPin) — asked for by name as the initial value,
 // with an explicit note to change it to something less guessable later.
+// Per explicit user request: turning whole feature sections on/off (การใช้
+// น้ำ/ไฟ, Set อุปกรณ์, สัญญาพนักงาน, พนักงานหอพัก) is a PLATFORM-level
+// decision, not something each customer should be able to self-service —
+// unlike adminEditPin (which every customer sets/owns themselves), this
+// checks against the SAME hardcoded platform constant as the admin-PIN
+// recovery code, known only to คุณต้น/the platform admin. Never touches
+// the Sheet at all, so there's nothing here for a customer to read or
+// override even if they inspected their own Sheet.
+router.post('/verify-platform-pin', (req, res) => {
+  const { pin } = req.body;
+  if (!pin || String(pin) !== MASTER_RECOVERY_PIN) return res.status(403).json({ error: 'รหัสไม่ถูกต้อง' });
+  res.json({ ok: true });
+});
+
 router.post('/verify-admin-pin', async (req, res, next) => {
   try {
     const { pin } = req.body;
