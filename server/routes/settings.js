@@ -4,10 +4,14 @@ const { readTab, updateRow, appendRow } = require('../sheets');
 const { readSettings } = require('../coerce');
 const { runWithSheetId } = require('../requestContext');
 const { cloneSchemaToNewSheet } = require('../setupBuilding');
-const { genOwnerId } = require('./auth');
+const { genOwnerId, isPlatformAdminSession } = require('./auth');
 
-function isPlatformAdminReq(req) {
-  return !!(req.session && req.session.customerSheetId && req.session.customerSheetId === process.env.GOOGLE_SHEET_ID);
+// Ownership-based (see auth.js's isPlatformAdminSession) — stays true
+// even while the platform admin is browsing another customer's building
+// (e.g. mid-setup for a new one), not just when their OWN building
+// happens to be the active one.
+async function isPlatformAdminReq(req) {
+  return isPlatformAdminSession(req.session);
 }
 
 // Master multi-tenant login directory (see server/routes/auth.js) — a
@@ -83,7 +87,7 @@ router.post('/verify-platform-pin', (req, res) => {
 // as everything else in this file (cookie-based, not just "guessed the
 // URL" obscurity).
 router.get('/setup-building-stream', async (req, res) => {
-  if (!isPlatformAdminReq(req)) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
+  if (!(await isPlatformAdminReq(req))) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
   const targetSheetId = req.query.sheetId;
   if (!targetSheetId) return res.status(400).json({ error: 'ต้องระบุ sheetId' });
 
@@ -104,7 +108,7 @@ router.get('/setup-building-stream', async (req, res) => {
 router.post('/add-building', async (req, res, next) => {
   try {
     if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
-    if (!isPlatformAdminReq(req)) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
+    if (!(await isPlatformAdminReq(req))) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
 
     const { phone, pin, customerSheetId } = req.body;
     if (!phone || !pin || !customerSheetId) return res.status(400).json({ error: 'กรุณากรอกเบอร์โทร รหัสผ่าน และ Sheet ID ให้ครบ' });

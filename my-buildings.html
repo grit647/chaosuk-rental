@@ -79,8 +79,6 @@
   </div>
 
 <script>
-  let allBuildings = [];
-
   async function init() {
     const contentEl = document.getElementById('content');
     try {
@@ -94,30 +92,45 @@
       const listRes = await fetch('/api/auth/my-buildings');
       if (!listRes.ok) throw new Error('โหลดรายชื่อตึกไม่สำเร็จ');
       const data = await listRes.json();
-      allBuildings = data.buildings || [];
 
-      renderContent();
+      renderContent(data);
     } catch (e) {
       contentEl.className = 'err';
       contentEl.textContent = 'โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้งครับ';
     }
   }
 
-  function renderContent() {
-    const contentEl = document.getElementById('content');
-    contentEl.className = '';
-    const cards = allBuildings.map((b) => (
-      '<div class="building-card' + (b.isActive ? ' active' : '') + '" onclick="selectBuilding(\'' + b.customerSheetId.replace(/'/g, "\\'") + '\')">' +
+  function buildCard(b) {
+    return '<div class="building-card' + (b.isActive ? ' active' : '') + '" onclick="selectBuilding(\'' + b.customerSheetId.replace(/'/g, "\\'") + '\')">' +
         '<div class="building-icon">🏢</div>' +
         '<div><div class="building-name">' + escapeHtml(b.name) + '</div><div class="building-sub">แตะเพื่อเข้าจัดการ</div></div>' +
         '<span class="arrow">›</span>' +
-      '</div>'
-    )).join('');
-    contentEl.innerHTML =
-      '<div class="list">' + cards +
+      '</div>';
+  }
+
+  function renderContent(myBuildings) {
+    const contentEl = document.getElementById('content');
+    contentEl.className = '';
+    const cards = (myBuildings.buildings || []).map(buildCard).join('');
+    let html = '<div class="list">' + cards +
         '<a class="add-building" href="/contact-us">＋ เพิ่มตึกใหม่ / เพิ่มโครงการใหม่</a>' +
-      '</div>' +
-      '<div class="footer-links"><span onclick="openPinModal()">เปลี่ยนรหัสเข้าสู่ระบบ</span><a href="/api/auth/logout-link">ออกจากระบบ</a></div>';
+      '</div>';
+
+    // Per explicit user request: platform-admin-only section — lets
+    // คุณต้น jump into ANY building (e.g. a brand-new one right after
+    // "+ เพิ่มตึกใหม่") to configure it before handing the real login
+    // over to that customer. Only ever present in the response for the
+    // platform's own account — never sent to a regular customer.
+    if (Array.isArray(myBuildings.allBuildings)) {
+      const otherCards = myBuildings.allBuildings
+        .filter((b) => !(myBuildings.buildings || []).some((m) => m.customerSheetId === b.customerSheetId))
+        .map(buildCard).join('');
+      html += '<div style="font-size:10.5px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#B85B27;margin:22px 0 10px">🔧 ทุกตึกในระบบ (Server only)</div>' +
+        '<div class="list">' + (otherCards || '<div class="loading" style="padding:10px 0">ยังไม่มีตึกอื่นในระบบ</div>') + '</div>';
+    }
+
+    html += '<div class="footer-links"><span onclick="openPinModal()">เปลี่ยนรหัสเข้าสู่ระบบ</span><a href="/api/auth/logout-link">ออกจากระบบ</a></div>';
+    contentEl.innerHTML = html;
   }
 
   async function selectBuilding(customerSheetId) {
