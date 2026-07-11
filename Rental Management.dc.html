@@ -2469,20 +2469,42 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
         </sc-if>
 
         <sc-if value="{{ showAddBuildingModal }}">
-          <div onclick="{{ closeAddBuildingModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
+          <div style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:380px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
-              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">เพิ่มตึกใหม่</div>
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">เพิ่มแถวลูกค้าใหม่ในสมุดรายชื่อกลาง — เบอร์โทร+รหัสนี้จะให้ลูกค้าใช้ล็อกอินครั้งแรก (ลูกค้าเปลี่ยนเป็นรหัสของตัวเองได้ทีหลัง) ต้องสร้าง Google Sheet ของตึกนี้ (clone-schema) ให้เสร็จก่อน</div>
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เบอร์โทรลูกค้า</div>
-              <input type="text" value="{{ addBuildingDraft.phone }}" onchange="{{ onAddBuildingPhone }}" placeholder="08x-xxx-xxxx" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:12px">
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รหัสผ่านชั่วคราว (อย่างน้อย 4 ตัวอักษร)</div>
-              <input type="text" value="{{ addBuildingDraft.pin }}" onchange="{{ onAddBuildingPin }}" placeholder="เช่น 445566" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:12px">
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Google Sheet ID ของตึกนี้</div>
-              <input type="text" value="{{ addBuildingDraft.customerSheetId }}" onchange="{{ onAddBuildingSheetId }}" placeholder="วางจาก URL ของ Sheet" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
-              <div style="display:flex;gap:10px;margin-top:20px">
-                <button onclick="{{ closeAddBuildingModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
-                <button onclick="{{ submitAddBuilding }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">เพิ่มตึกใหม่</button>
-              </div>
+              <sc-if value="{{ addBuildingIdle }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">เพิ่มตึกใหม่</div>
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">ระบบจะสร้างโครงสร้าง (แท็บ+หัวคอลัมน์) ในชีตนี้ให้เหมือนของคุณต้นอัตโนมัติ แล้วเพิ่มแถวลูกค้าในสมุดรายชื่อกลางให้เลย — เบอร์โทร+รหัสด้านล่างจะให้ลูกค้าใช้ล็อกอินครั้งแรก (เปลี่ยนเป็นของตัวเองได้ทีหลัง) ⚠️ ต้องสร้าง Google Sheet เปล่าไว้ล่วงหน้าและแชร์ให้ service account แล้วเท่านั้น</div>
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เบอร์โทรลูกค้า</div>
+                <input type="text" value="{{ addBuildingDraft.phone }}" onchange="{{ onAddBuildingPhone }}" placeholder="08x-xxx-xxxx" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:12px">
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รหัสผ่านชั่วคราว (อย่างน้อย 4 ตัวอักษร)</div>
+                <input type="text" value="{{ addBuildingDraft.pin }}" onchange="{{ onAddBuildingPin }}" placeholder="เช่น 445566" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:12px">
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Google Sheet ID ของตึกนี้ (ชีตเปล่า สร้างไว้แล้ว)</div>
+                <input type="text" value="{{ addBuildingDraft.customerSheetId }}" onchange="{{ onAddBuildingSheetId }}" placeholder="วางจาก URL ของ Sheet" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                <div style="display:flex;gap:10px;margin-top:20px">
+                  <button onclick="{{ closeAddBuildingModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                  <button onclick="{{ submitAddBuilding }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">🏗️ เริ่มสร้างตึกใหม่</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ addBuildingRunning }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:16px">🏗️ กำลังสร้างตึกใหม่...</div>
+                <div style="background:#F1EBE0;border-radius:8px;height:14px;overflow:hidden;margin-bottom:10px">
+                  <div style="background:#C1622D;height:100%;width:{{ addBuildingPercentStr }};transition:width 0.3s"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:11.5px;color:#9C8B78;margin-bottom:14px">
+                  <span>{{ addBuildingProgress.message }}</span>
+                  <span style="font-weight:700;color:#C1622D;flex-shrink:0;margin-left:8px">{{ addBuildingProgress.percent }}%</span>
+                </div>
+                <div style="font-size:10.5px;color:#B0A08C;text-align:center">อย่าปิดหน้าต่างนี้จนกว่าจะเสร็จนะครับ...</div>
+              </sc-if>
+              <sc-if value="{{ addBuildingErrored }}" hint-placeholder-val="{{ false }}">
+                <div style="width:52px;height:52px;border-radius:50%;background:#F5E1DC;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px">⚠️</div>
+                <div style="font-size:16px;font-weight:700;color:#B24336;margin-bottom:8px;text-align:center">สร้างตึกใหม่ไม่สำเร็จ</div>
+                <div style="font-size:12px;color:#7C6E5F;text-align:center;margin-bottom:20px">{{ addBuildingProgress.error }}</div>
+                <div style="display:flex;gap:10px">
+                  <button onclick="{{ closeAddBuildingModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ปิด</button>
+                  <button onclick="{{ retryAddBuilding }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ลองใหม่</button>
+                </div>
+              </sc-if>
             </div>
           </div>
         </sc-if>
@@ -3492,6 +3514,10 @@ class Component extends DCLogic {
     // form in Settings (see loadAuthSession / authSession.isPlatformAdmin).
     showAddBuildingModal: false,
     addBuildingDraft: { phone: '', pin: '', customerSheetId: '' },
+    // Per explicit user request: live progress bar while cloning the new
+    // building's Google Sheet schema (see submitAddBuilding + the
+    // setup-building-stream SSE endpoint) instead of a silent wait.
+    addBuildingProgress: { active: false, percent: 0, message: '', error: '' },
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -3679,29 +3705,63 @@ class Component extends DCLogic {
   // hand-edit the Directory Sheet each time a new customer's Google
   // Sheet is set up (that part — cloning the schema — still has to be
   // done manually first, see prototype-auth/clone-schema.js).
-  openAddBuildingModal = () => this.setState({ showAddBuildingModal: true, addBuildingDraft: { phone: '', pin: '', customerSheetId: '' } });
+  openAddBuildingModal = () => this.setState({ showAddBuildingModal: true, addBuildingDraft: { phone: '', pin: '', customerSheetId: '' }, addBuildingProgress: { active: false, percent: 0, message: '', error: '' } });
   closeAddBuildingModal = () => this.setState({ showAddBuildingModal: false });
   onAddBuildingPhone = (e) => this.setState(s => ({ addBuildingDraft: { ...s.addBuildingDraft, phone: e.target.value } }));
   onAddBuildingPin = (e) => this.setState(s => ({ addBuildingDraft: { ...s.addBuildingDraft, pin: e.target.value } }));
   onAddBuildingSheetId = (e) => this.setState(s => ({ addBuildingDraft: { ...s.addBuildingDraft, customerSheetId: e.target.value } }));
-  submitAddBuilding = () => this._guard('submitAddBuilding', async () => {
+  // Per explicit user request: one click does BOTH steps — clones the new
+  // building's Google Sheet schema (live progress bar, via Server-Sent
+  // Events) AND adds its login row to the master directory, instead of
+  // needing someone to run a script by hand first. Runs the clone FIRST;
+  // only adds the directory row once the clone genuinely finishes, so a
+  // failed/partial clone never leaves a "logs in but has no tabs" building.
+  submitAddBuilding = () => this._guard('submitAddBuilding', () => {
     const d = this.state.addBuildingDraft;
     if (!d.phone.trim() || !d.pin.trim() || !d.customerSheetId.trim()) {
       this.showAdminToast('กรุณากรอกเบอร์โทร รหัสผ่าน และ Sheet ID ให้ครบ', 'error');
       return;
     }
-    try {
-      const res = await fetch('/api/settings/add-building', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: d.phone.trim(), pin: d.pin.trim(), customerSheetId: d.customerSheetId.trim() }),
-      });
+    const sheetId = d.customerSheetId.trim();
+    this.setState({ addBuildingProgress: { active: true, percent: 0, message: 'กำลังเริ่มต้น...', error: '' } });
+    const es = new EventSource('/api/settings/setup-building-stream?sheetId=' + encodeURIComponent(sheetId));
+    es.onmessage = async (evt) => {
       let data;
-      try { data = await res.json(); } catch { data = {}; }
-      if (!res.ok) throw new Error(data.error || 'เพิ่มตึกใหม่ไม่สำเร็จ');
-      this.setState({ showAddBuildingModal: false, addBuildingDraft: { phone: '', pin: '', customerSheetId: '' } });
-      this.showAdminToast('เพิ่มตึกใหม่ในสมุดรายชื่อกลางแล้ว ✓', 'success');
-    } catch (err) { this.showAdminToast(err.message || 'เพิ่มตึกใหม่ไม่สำเร็จ', 'error'); }
+      try { data = JSON.parse(evt.data); } catch { return; }
+      if (data.phase === 'error') {
+        es.close();
+        this.setState(s => ({ addBuildingProgress: { ...s.addBuildingProgress, active: false, error: data.message || 'สร้างโครงสร้างชีตไม่สำเร็จ' } }));
+        return;
+      }
+      const percent = data.total ? Math.round(((data.index || 0) / data.total) * 100) : (this.state.addBuildingProgress.percent || 0);
+      this.setState({ addBuildingProgress: { active: true, percent, message: data.message || '', error: '' } });
+      if (data.phase === 'complete') {
+        es.close();
+        // Schema clone done — now add the directory login row.
+        try {
+          const res = await fetch('/api/settings/add-building', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: d.phone.trim(), pin: d.pin.trim(), customerSheetId: sheetId }),
+          });
+          let resData;
+          try { resData = await res.json(); } catch { resData = {}; }
+          if (!res.ok) throw new Error(resData.error || 'เพิ่มแถวในสมุดรายชื่อกลางไม่สำเร็จ');
+          this.setState({
+            showAddBuildingModal: false, addBuildingDraft: { phone: '', pin: '', customerSheetId: '' },
+            addBuildingProgress: { active: false, percent: 0, message: '', error: '' },
+          });
+          this.showAdminToast('เพิ่มตึกใหม่สำเร็จ ✓ พร้อมให้ลูกค้าล็อกอินได้เลย', 'success');
+        } catch (err) {
+          this.setState(s => ({ addBuildingProgress: { ...s.addBuildingProgress, active: false, error: err.message || 'เพิ่มแถวในสมุดรายชื่อกลางไม่สำเร็จ' } }));
+        }
+      }
+    };
+    es.onerror = () => {
+      es.close();
+      this.setState(s => (s.addBuildingProgress.active ? { addBuildingProgress: { ...s.addBuildingProgress, active: false, error: 'การเชื่อมต่อขาดหาย ลองใหม่อีกครั้งครับ' } } : {}));
+    };
   });
+  retryAddBuilding = () => this.setState({ addBuildingProgress: { active: false, percent: 0, message: '', error: '' } });
   loadTuyaDevices = async () => {
     try {
       const res = await fetch('/api/tuya/devices');
@@ -8683,7 +8743,12 @@ class Component extends DCLogic {
       isPlatformAdmin: !!(s.authSession && s.authSession.isPlatformAdmin),
       showAddBuildingModal: s.showAddBuildingModal, openAddBuildingModal: this.openAddBuildingModal, closeAddBuildingModal: this.closeAddBuildingModal,
       addBuildingDraft: s.addBuildingDraft, onAddBuildingPhone: this.onAddBuildingPhone, onAddBuildingPin: this.onAddBuildingPin, onAddBuildingSheetId: this.onAddBuildingSheetId,
-      submitAddBuilding: this.submitAddBuilding,
+      submitAddBuilding: this.submitAddBuilding, retryAddBuilding: this.retryAddBuilding,
+      addBuildingProgress: s.addBuildingProgress,
+      addBuildingIdle: !s.addBuildingProgress.active && !s.addBuildingProgress.error,
+      addBuildingRunning: s.addBuildingProgress.active,
+      addBuildingErrored: !s.addBuildingProgress.active && !!s.addBuildingProgress.error,
+      addBuildingPercentStr: s.addBuildingProgress.percent + '%',
       adminLineConnected: !!s.propertyProfile.adminLineUserId, adminLineNotConnected: !s.propertyProfile.adminLineUserId, disconnectAdminLine: this.disconnectAdminLine,
       // Three genuinely distinct, mutually-exclusive states (not one
       // condition reused) — a pending draft (just picked, not saved), a

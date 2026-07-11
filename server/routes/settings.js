@@ -3,6 +3,11 @@ const router = express.Router();
 const { readTab, updateRow, appendRow } = require('../sheets');
 const { readSettings } = require('../coerce');
 const { runWithSheetId } = require('../requestContext');
+const { cloneSchemaToNewSheet } = require('../setupBuilding');
+
+function isPlatformAdminReq(req) {
+  return !!(req.session && req.session.customerSheetId && req.session.customerSheetId === process.env.GOOGLE_SHEET_ID);
+}
 
 // Master multi-tenant login directory (see server/routes/auth.js) — a
 // separate Sheet from any customer's own data. Only set once the
@@ -88,11 +93,39 @@ router.post('/verify-platform-pin', (req, res) => {
 // is set up. The Google Sheet itself still has to be created manually
 // first (see prototype-auth/clone-schema.js) — this only automates the
 // "add the login row" step of that process.
+// Streams live progress (Server-Sent Events) while cloning the schema
+// (tab names + header rows) from คุณต้น's real production Sheet onto a
+// brand-new customer's Sheet — per explicit user request, so the "+
+// เพิ่มตึกใหม่" flow shows a real progress bar instead of a silent wait
+// while ~2 dozen sequential Google Sheets API calls run. GET (not POST)
+// because the browser's native EventSource API only supports GET —
+// acceptable here since this is an in-house admin tool, not a public
+// endpoint, and it's still gated behind the same platform-admin check
+// as everything else in this file (cookie-based, not just "guessed the
+// URL" obscurity).
+router.get('/setup-building-stream', async (req, res) => {
+  if (!isPlatformAdminReq(req)) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
+  const targetSheetId = req.query.sheetId;
+  if (!targetSheetId) return res.status(400).json({ error: 'ต้องระบุ sheetId' });
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+  try {
+    await cloneSchemaToNewSheet(targetSheetId, send);
+  } catch (err) {
+    send({ phase: 'error', message: err.message });
+  }
+  res.end();
+});
+
 router.post('/add-building', async (req, res, next) => {
   try {
     if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
-    const isPlatformAdmin = !!(req.session && req.session.customerSheetId && req.session.customerSheetId === process.env.GOOGLE_SHEET_ID);
-    if (!isPlatformAdmin) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
+    if (!isPlatformAdminReq(req)) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
 
     const { phone, pin, customerSheetId } = req.body;
     if (!phone || !pin || !customerSheetId) return res.status(400).json({ error: 'กรุณากรอกเบอร์โทร รหัสผ่าน และ Sheet ID ให้ครบ' });
