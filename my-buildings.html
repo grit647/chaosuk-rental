@@ -27,6 +27,7 @@
     border: 1.5px solid transparent; text-decoration: none; color: inherit;
   }
   .building-card:hover { border-color: #C1622D; }
+  .building-card.active { border-color: #3B7A52; }
   .building-icon { width: 42px; height: 42px; border-radius: 10px; background: #F1EBE0; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
   .building-name { font-size: 14.5px; font-weight: 700; }
   .building-sub { font-size: 11px; color: #9C8B78; margin-top: 2px; }
@@ -40,8 +41,20 @@
   .add-building:hover { border-color: #C1622D; color: #C1622D; }
   .loading, .err { text-align: center; font-size: 12.5px; color: #9C8B78; padding: 20px; }
   .err { color: #B24336; }
-  .logout-link { text-align: center; margin-top: 20px; font-size: 11.5px; }
-  .logout-link a { color: #9C8B78; text-decoration: underline; }
+  .footer-links { display: flex; justify-content: center; gap: 18px; margin-top: 20px; font-size: 11.5px; }
+  .footer-links a, .footer-links span { color: #9C8B78; text-decoration: underline; cursor: pointer; }
+  /* Change-login-PIN modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(36,24,18,0.45); display: none; align-items: center; justify-content: center; z-index: 50; }
+  .modal-overlay.show { display: flex; }
+  .modal-card { background: #fff; border-radius: 12px; padding: 24px; width: 340px; max-width: 92vw; box-sizing: border-box; }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-card label { display: block; font-size: 11.5px; font-weight: 600; color: #7C6E5F; margin-bottom: 5px; }
+  .modal-card input { width: 100%; padding: 9px; border-radius: 6px; border: 1px solid #E3D8C8; font-size: 12.5px; font-family: inherit; box-sizing: border-box; }
+  .modal-btn-row { display: flex; gap: 10px; margin-top: 16px; }
+  .modal-btn-row button { flex: 1; padding: 10px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .btn-cancel { background: none; border: 1px solid #E3D8C8; color: #241812; }
+  .btn-confirm { background: #C1622D; border: none; color: #fff; }
+  .modal-err { font-size: 11.5px; color: #B24336; margin-top: 8px; display: none; }
 </style>
 </head>
 <body>
@@ -51,52 +64,113 @@
     <div id="content" class="loading">กำลังโหลด...</div>
   </div>
 
+  <div class="modal-overlay" id="pinModalOverlay">
+    <div class="modal-card">
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px">เปลี่ยนรหัสเข้าสู่ระบบ</div>
+      <div style="font-size:11px;color:#7C6E5F;margin-bottom:16px">รหัสนี้ใช้ล็อกอินเข้าดูทุกตึกของคุณ (คู่กับเบอร์โทร) — เปลี่ยนแล้วมีผลกับทุกตึกที่คุณดูแล ไม่เกี่ยวกับรหัสความปลอดภัยภายในของแต่ละตึก</div>
+      <div class="field"><label>รหัสเดิม</label><input type="password" id="oldPin" autocomplete="off"></div>
+      <div class="field"><label>รหัสใหม่ (อย่างน้อย 4 ตัวอักษร)</label><input type="password" id="newPin" autocomplete="off"></div>
+      <div class="modal-err" id="pinModalErr"></div>
+      <div class="modal-btn-row">
+        <button class="btn-cancel" onclick="closePinModal()">ยกเลิก</button>
+        <button class="btn-confirm" id="pinModalConfirm" onclick="submitChangeLoginPin()">เปลี่ยนรหัส</button>
+      </div>
+    </div>
+  </div>
+
 <script>
+  let allBuildings = [];
+
   async function init() {
     const contentEl = document.getElementById('content');
     try {
       const meRes = await fetch('/api/auth/me');
       const me = await meRes.json();
-      // No valid session (or a role this page doesn't apply to) — send
-      // back to login instead of showing an empty/broken picker.
       if (!me || me.role !== 'owner') {
         window.location.href = '/login';
         return;
       }
-      // propertyProfile.name comes from /api/settings, which — thanks to
-      // the session cookie already resolving every request to THIS
-      // customer's own Sheet (see server/requestContext.js) — returns
-      // this specific building's data, not any other customer's.
-      let buildingName = 'ตึกของคุณ';
-      try {
-        const settingsRes = await fetch('/api/settings');
-        if (settingsRes.ok) {
-          const settings = await settingsRes.json();
-          if (settings.propertyProfile && settings.propertyProfile.name) buildingName = settings.propertyProfile.name;
-        }
-      } catch (e) { /* fall back to the generic label above */ }
 
-      contentEl.className = '';
-      contentEl.innerHTML =
-        '<div class="list">' +
-          '<a class="building-card" href="/">' +
-            '<div class="building-icon">🏢</div>' +
-            '<div><div class="building-name">' + escapeHtml(buildingName) + '</div><div class="building-sub">แตะเพื่อเข้าจัดการ</div></div>' +
-            '<span class="arrow">›</span>' +
-          '</a>' +
-          // Per explicit user request: every owner sees a way to add
-          // another building/project — for now this points to the same
-          // "contact us, coming soon" placeholder as the login page's
-          // signup link, since self-service multi-building creation
-          // isn't built yet.
-          '<a class="add-building" href="/contact-us">＋ เพิ่มตึกใหม่ / เพิ่มโครงการใหม่</a>' +
-        '</div>' +
-        '<div class="logout-link"><a href="/api/auth/logout-link">ออกจากระบบ</a></div>';
+      const listRes = await fetch('/api/auth/my-buildings');
+      if (!listRes.ok) throw new Error('โหลดรายชื่อตึกไม่สำเร็จ');
+      const data = await listRes.json();
+      allBuildings = data.buildings || [];
+
+      renderContent();
     } catch (e) {
       contentEl.className = 'err';
       contentEl.textContent = 'โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้งครับ';
     }
   }
+
+  function renderContent() {
+    const contentEl = document.getElementById('content');
+    contentEl.className = '';
+    const cards = allBuildings.map((b) => (
+      '<div class="building-card' + (b.isActive ? ' active' : '') + '" onclick="selectBuilding(\'' + b.customerSheetId.replace(/'/g, "\\'") + '\')">' +
+        '<div class="building-icon">🏢</div>' +
+        '<div><div class="building-name">' + escapeHtml(b.name) + '</div><div class="building-sub">แตะเพื่อเข้าจัดการ</div></div>' +
+        '<span class="arrow">›</span>' +
+      '</div>'
+    )).join('');
+    contentEl.innerHTML =
+      '<div class="list">' + cards +
+        '<a class="add-building" href="/contact-us">＋ เพิ่มตึกใหม่ / เพิ่มโครงการใหม่</a>' +
+      '</div>' +
+      '<div class="footer-links"><span onclick="openPinModal()">เปลี่ยนรหัสเข้าสู่ระบบ</span><a href="/api/auth/logout-link">ออกจากระบบ</a></div>';
+  }
+
+  async function selectBuilding(customerSheetId) {
+    try {
+      const res = await fetch('/api/auth/select-building', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerSheetId }),
+      });
+      if (!res.ok) throw new Error();
+      window.location.href = '/';
+    } catch (e) {
+      alert('เข้าตึกนี้ไม่สำเร็จ ลองใหม่อีกครั้งครับ');
+    }
+  }
+
+  function openPinModal() {
+    document.getElementById('oldPin').value = '';
+    document.getElementById('newPin').value = '';
+    document.getElementById('pinModalErr').style.display = 'none';
+    document.getElementById('pinModalOverlay').classList.add('show');
+  }
+  function closePinModal() {
+    document.getElementById('pinModalOverlay').classList.remove('show');
+  }
+  async function submitChangeLoginPin() {
+    const oldPin = document.getElementById('oldPin').value.trim();
+    const newPin = document.getElementById('newPin').value.trim();
+    const errEl = document.getElementById('pinModalErr');
+    const btn = document.getElementById('pinModalConfirm');
+    errEl.style.display = 'none';
+    if (!oldPin || !newPin) {
+      errEl.textContent = 'กรุณากรอกรหัสเดิมและรหัสใหม่';
+      errEl.style.display = 'block';
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/auth/change-login-pin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldPin, newPin }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'เปลี่ยนรหัสไม่สำเร็จ');
+      closePinModal();
+      alert('เปลี่ยนรหัสเข้าสู่ระบบแล้ว (มีผลกับ ' + data.buildingsUpdated + ' ตึก) — ใช้รหัสใหม่ตอนล็อกอินครั้งถัดไปนะครับ');
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function escapeHtml(s) {
     const d = document.createElement('div');
     d.textContent = s;

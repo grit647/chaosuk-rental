@@ -4,6 +4,7 @@ const { readTab, updateRow, appendRow } = require('../sheets');
 const { readSettings } = require('../coerce');
 const { runWithSheetId } = require('../requestContext');
 const { cloneSchemaToNewSheet } = require('../setupBuilding');
+const { genOwnerId } = require('./auth');
 
 function isPlatformAdminReq(req) {
   return !!(req.session && req.session.customerSheetId && req.session.customerSheetId === process.env.GOOGLE_SHEET_ID);
@@ -36,28 +37,6 @@ async function upsertKV(key, value) {
   } else {
     await appendRow('Settings', { key, value: val });
   }
-}
-
-// Real bug hit by a brand-new customer: they logged in with their directory
-// PIN (e.g. "112233") for the first time, then tried to use that SAME PIN
-// to confirm saving the "ข้อมูลหอพัก" card — but their customer Sheet is
-// fresh (schema-cloned, empty Settings tab), so adminEditPin had never been
-// set and still defaulted to "12345", rejecting their login PIN as "wrong".
-// The PIN-syncing in change-admin-pin below only takes effect the FIRST
-// TIME someone actively changes their admin PIN — it doesn't retroactively
-// help a customer who's never done that yet. Fix: also accept the
-// session's own login PIN (looked up fresh from the directory) as valid,
-// everywhere the admin PIN is checked — matching what customers are told
-// ("this is the same PIN as your login") from their very first login,
-// not just after their first PIN change.
-async function getSessionLoginPin(req) {
-  const sessionSheetId = req.session && req.session.customerSheetId;
-  if (!DIRECTORY_SHEET_ID || !sessionSheetId) return null;
-  try {
-    const directoryRows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
-    const row = directoryRows.find((u) => u.customerSheetId === sessionSheetId);
-    return row ? row.pin : null;
-  } catch { return null; }
 }
 
 router.get('/', async (req, res, next) => {
@@ -132,20 +111,48 @@ router.post('/add-building', async (req, res, next) => {
     if (String(pin).length < 4) return res.status(400).json({ error: 'รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร' });
 
     const directoryRows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
-    // Same global PIN-uniqueness rule as change-admin-pin — one PIN can
-    // only ever belong to one building across the whole directory, so
-    // login can always tell which building a (phone, pin) pair means.
-    if (directoryRows.some((u) => String(u.pin) === String(pin))) {
-      return res.status(409).json({ error: 'รหัสผ่านนี้มีตึกอื่นใช้อยู่แล้ว กรุณาตั้งรหัสอื่น' });
-    }
     if (directoryRows.some((u) => u.customerSheetId === customerSheetId)) {
       return res.status(409).json({ error: 'Sheet ID นี้มีอยู่ในสมุดรายชื่อกลางแล้ว (ตึกนี้เพิ่มไปแล้วหรือเปล่า?)' });
     }
 
+    // Per explicit user request (multi-building-per-owner design): if this
+    // phone already owns another building, this new one joins the SAME
+    // owner — reuse their existing ownerId AND existing login PIN
+    // (whatever was typed into the form is ignored in that case, so the
+    // owner's one login always stays consistent across every building of
+    // theirs, no manual syncing needed). A genuinely new phone gets a
+    // fresh ownerId and uses the PIN typed in, which only needs to be
+    // unique against OTHER owners (a different owner reusing the same PIN
+    // string is fine — login always matches phone+pin together).
+    const existingOwnerRow = directoryRows.find((u) => u.phone === phone);
+    let ownerId, effectivePin, reusedExistingOwner;
+    if (existingOwnerRow) {
+      if (!existingOwnerRow.ownerId) return res.status(500).json({ error: `เบอร์นี้มีแถวเก่าที่ยังไม่มี ownerId (ต้องรัน migrate-add-owner-id.js ก่อน)` });
+      ownerId = existingOwnerRow.ownerId;
+      effectivePin = existingOwnerRow.pin;
+      reusedExistingOwner = true;
+    } else {
+      const pinTakenByOtherOwner = directoryRows.some((u) => String(u.pin) === String(pin));
+      if (pinTakenByOtherOwner) return res.status(409).json({ error: 'รหัสผ่านนี้มีเจ้าของอื่นใช้อยู่แล้ว กรุณาตั้งรหัสอื่น' });
+      ownerId = genOwnerId();
+      effectivePin = pin;
+      reusedExistingOwner = false;
+    }
+
     await runWithSheetId(DIRECTORY_SHEET_ID, () => appendRow('Users', {
-      phone, pin, role: 'owner', customerSheetId, roomId: '', staffId: '',
+      ownerId, phone, pin: effectivePin, role: 'owner', customerSheetId, roomId: '', staffId: '',
     }));
-    res.json({ ok: true });
+
+    // One-time bootstrap only (NOT an ongoing sync) — a brand-new building
+    // starts with adminEditPin defaulted to "12345", which would leave the
+    // owner unable to confirm-save their own "ข้อมูลหอพัก" card without
+    // knowing that default. Seed it to match the login PIN they were just
+    // given so their first save works with the PIN they already know —
+    // completely independent from that point on (per explicit user
+    // correction: adminEditPin and the login PIN never sync after this).
+    await runWithSheetId(customerSheetId, () => upsertKV('adminEditPin', effectivePin));
+
+    res.json({ ok: true, reusedExistingOwner, ownerId });
   } catch (err) { next(err); }
 });
 
@@ -155,15 +162,19 @@ router.post('/verify-admin-pin', async (req, res, next) => {
     const rows = await readTab('Settings');
     const row = rows.find((r) => r.key === 'adminEditPin');
     const storedPin = row ? row.value : '12345';
-    const loginPin = await getSessionLoginPin(req);
-    const valid = pin && (String(pin) === String(storedPin) || (loginPin != null && String(pin) === String(loginPin)));
-    if (!valid) return res.status(403).json({ error: 'รหัสไม่ถูกต้อง' });
+    if (!pin || String(pin) !== String(storedPin)) return res.status(403).json({ error: 'รหัสไม่ถูกต้อง' });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
 
 // Change the admin-card edit PIN — requires the current PIN (or the
 // permanent master recovery code) before allowing a new one to be set.
+// Per explicit user correction: this is THIS BUILDING'S OWN security PIN
+// only — fully independent from the multi-building LOGIN PIN (see
+// server/routes/auth.js's change-login-pin). An earlier version of this
+// route synced the two together; that was a design mistake corrected
+// mid-session — a building's adminEditPin and the owner's login PIN are
+// now two completely separate concepts that never touch each other.
 router.post('/change-admin-pin', async (req, res, next) => {
   try {
     const { oldPin, newPin } = req.body;
@@ -171,53 +182,10 @@ router.post('/change-admin-pin', async (req, res, next) => {
     const rows = await readTab('Settings');
     const row = rows.find((r) => r.key === 'adminEditPin');
     const storedPin = row ? row.value : '12345';
-    const loginPin = await getSessionLoginPin(req);
-    const oldPinValid = oldPin && (String(oldPin) === String(storedPin) || String(oldPin) === MASTER_RECOVERY_PIN || (loginPin != null && String(oldPin) === String(loginPin)));
+    const oldPinValid = oldPin && (String(oldPin) === String(storedPin) || String(oldPin) === MASTER_RECOVERY_PIN);
     if (!oldPinValid) return res.status(403).json({ error: 'รหัสเดิมไม่ถูกต้อง' });
-
-    // Per explicit user request: this same PIN doubles as the multi-tenant
-    // LOGIN PIN (master "directory" Users sheet, server/routes/auth.js).
-    // One person can own several buildings under the SAME phone number —
-    // login resolves by matching (phone, pin) TOGETHER — so if two
-    // buildings under one phone ever shared a PIN, login couldn't tell
-    // which building to open. Enforce the new PIN is unique across the
-    // WHOLE directory (every building, not just ones sharing this phone —
-    // simplest rule that can never collide) before allowing the change,
-    // except against this customer's own existing row (keeping the PIN you
-    // already have is always fine). Only applies once logged in via the
-    // multi-tenant system (req.session.customerSheetId set) — คุณต้น's own
-    // current no-login usage has no directory row yet, so this is a no-op
-    // for him and nothing changes about his existing flow.
-    const sessionSheetId = req.session && req.session.customerSheetId;
-    if (DIRECTORY_SHEET_ID && sessionSheetId) {
-      const directoryRows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
-      const taken = directoryRows.find((u) => String(u.pin) === String(newPin) && u.customerSheetId !== sessionSheetId);
-      if (taken) return res.status(409).json({ error: 'รหัสนี้มีผู้ใช้งานแล้วโดยตึกอื่น กรุณาตั้งรหัสอื่นครับ' });
-    }
-
     await upsertKV('adminEditPin', newPin);
-
-    // Sync the new PIN into this customer's own directory row too, so the
-    // login PIN always matches the admin PIN just set above. Deliberately
-    // NOT allowed to fail the whole request — the important write above
-    // (this customer's own adminEditPin) already succeeded by this point;
-    // if the directory sync hiccups (a second, separate Sheets API call,
-    // more exposed to a transient error), the owner should still see
-    // "changed successfully" rather than a confusing failure for a save
-    // that partially went through. Logged server-side so a persistent
-    // failure here is still visible to us, just not surfaced as a customer-
-    // facing error for what is, from their side, a successful PIN change.
-    let directorySyncFailed = false;
-    if (DIRECTORY_SHEET_ID && sessionSheetId) {
-      try {
-        await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', sessionSheetId, { pin: newPin }, 'customerSheetId'));
-      } catch (syncErr) {
-        directorySyncFailed = true;
-        console.error('[settings] directory PIN sync failed for', sessionSheetId, syncErr.message);
-      }
-    }
-
-    res.json({ ok: true, directorySyncFailed });
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

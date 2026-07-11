@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { readTab } = require('../sheets');
+const crypto = require('crypto');
+const { readTab, updateRow } = require('../sheets');
 const { runWithSheetId } = require('../requestContext');
 const { getSession, setSessionCookie, clearSessionCookie } = require('../auth');
+const { readSettings } = require('../coerce');
 
 // The "เช่าสุข - สมุดรายชื่อกลาง (ทดลอง)" sheet — completely separate from
 // any customer's own data Sheet. Maps phone+PIN -> role + which
@@ -10,6 +12,20 @@ const { getSession, setSessionCookie, clearSessionCookie } = require('../auth');
 // user request, prototyped and verified against real data (see
 // prototype-auth/) before wiring in here.
 const DIRECTORY_SHEET_ID = process.env.GOOGLE_DIRECTORY_SHEET_ID;
+
+// Per explicit user request (multi-building-per-owner redesign): one
+// person ("เจ้าของ") can own several buildings, all reachable with ONE
+// shared login. `ownerId` (added by prototype-auth/migrate-add-owner-id.js)
+// is the grouping key — every directory row belonging to the same owner
+// shares the same ownerId, independent of phone/customerSheetId, so
+// changing a phone number or adding a new building never breaks the
+// grouping. NOT the same thing as a building's own adminEditPin (its
+// in-app confirm-before-save PIN) or buildingKeyId (its reference label)
+// — those stay fully independent per building, per explicit correction
+// from the owner mid-design.
+function genOwnerId() {
+  return 'OWNER-' + crypto.randomBytes(6).toString('hex');
+}
 
 // PINs are compared in plain text here — same accepted trade-off already
 // documented in CLAUDE.md for this app's other PIN gates (dataResetPin,
@@ -28,14 +44,110 @@ router.post('/login', async (req, res, next) => {
     const match = users.find((u) => u.phone === phone && u.pin === pin);
     if (!match) return res.status(401).json({ error: 'เบอร์โทรหรือรหัสผ่านไม่ถูกต้อง' });
 
+    // Every building sharing this owner's ownerId — the session starts
+    // with the FIRST one active (arbitrary but stable pick: array order
+    // from the Sheet) and /my-buildings lets the owner switch to any
+    // other one they have (POST /select-building below).
+    const ownedBuildings = match.ownerId
+      ? users.filter((u) => u.ownerId === match.ownerId)
+      : [match]; // rows migrated/created before ownerId existed — treat as owning just themselves
+
     const session = {
+      ownerId: match.ownerId || null,
       role: match.role,
       customerSheetId: match.customerSheetId || null,
       roomId: match.roomId || null,
       staffId: match.staffId || null,
     };
     setSessionCookie(res, session);
-    res.json({ ok: true, ...session });
+    res.json({ ok: true, ...session, buildingCount: ownedBuildings.length });
+  } catch (err) { next(err); }
+});
+
+// Per explicit user request: lets an owner with multiple buildings (same
+// ownerId) switch which one the session is actively scoped to — called
+// from /my-buildings when picking a building card. Re-verifies the
+// target customerSheetId genuinely belongs to THIS session's ownerId
+// server-side (never trusts the client blindly) before switching, so a
+// tampered request can't hop into a building that isn't this owner's.
+router.post('/select-building', async (req, res, next) => {
+  try {
+    const session = getSession(req);
+    if (!session || !session.ownerId) return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบก่อน' });
+    const { customerSheetId } = req.body;
+    if (!customerSheetId) return res.status(400).json({ error: 'ต้องระบุตึกที่ต้องการเข้า' });
+    if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
+
+    const users = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+    const target = users.find((u) => u.ownerId === session.ownerId && u.customerSheetId === customerSheetId);
+    if (!target) return res.status(403).json({ error: 'ตึกนี้ไม่ได้เป็นของบัญชีนี้' });
+
+    const newSession = { ...session, customerSheetId: target.customerSheetId, role: target.role, roomId: target.roomId || null, staffId: target.staffId || null };
+    setSessionCookie(res, newSession);
+    res.json({ ok: true, ...newSession });
+  } catch (err) { next(err); }
+});
+
+// Per explicit user request: powers the /my-buildings picker — every
+// building sharing the current session's ownerId, each resolved to its
+// own display name (reads propertyProfile.name FROM that specific
+// building's own Sheet, via runWithSheetId scoping each lookup — a
+// small N+1 read, acceptable for the realistically small number of
+// buildings one owner has).
+router.get('/my-buildings', async (req, res, next) => {
+  try {
+    const session = getSession(req);
+    if (!session) return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบก่อน' });
+    if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
+
+    const users = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+    const owned = session.ownerId
+      ? users.filter((u) => u.ownerId === session.ownerId && u.customerSheetId)
+      : users.filter((u) => u.customerSheetId === session.customerSheetId);
+
+    const buildings = await Promise.all(owned.map(async (u) => {
+      let name = 'ตึกของคุณ';
+      try {
+        const settings = await runWithSheetId(u.customerSheetId, () => readSettings());
+        if (settings.propertyProfile && settings.propertyProfile.name) name = settings.propertyProfile.name;
+      } catch { /* fall back to the generic label above */ }
+      return { customerSheetId: u.customerSheetId, name, isActive: u.customerSheetId === session.customerSheetId };
+    }));
+    res.json({ buildings });
+  } catch (err) { next(err); }
+});
+
+// Per explicit user request: the shared LOGIN PIN for this owner's
+// account (the "keycard" — separate from any single building's own
+// adminEditPin, see server/routes/settings.js's change-admin-pin for
+// that unrelated one). Updates EVERY directory row sharing this
+// session's ownerId at once, so all of the owner's buildings keep using
+// the same login PIN — that's the whole point of grouping by ownerId.
+router.post('/change-login-pin', async (req, res, next) => {
+  try {
+    const session = getSession(req);
+    if (!session || !session.ownerId) return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบก่อน' });
+    if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
+    const { oldPin, newPin } = req.body;
+    if (!newPin || String(newPin).length < 4) return res.status(400).json({ error: 'กรุณาตั้งรหัสใหม่อย่างน้อย 4 ตัวอักษร' });
+
+    const users = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+    const ownedRows = users.filter((u) => u.ownerId === session.ownerId);
+    if (!ownedRows.length) return res.status(404).json({ error: 'ไม่พบบัญชีนี้ในสมุดรายชื่อกลาง' });
+    const currentPin = ownedRows[0].pin;
+    if (!oldPin || String(oldPin) !== String(currentPin)) return res.status(403).json({ error: 'รหัสเดิมไม่ถูกต้อง' });
+
+    // Different OWNERS must not collide on the same PIN (login matches by
+    // phone+pin together, so this only matters cross-owner — another row
+    // belonging to THIS SAME owner already using newPin is a non-issue,
+    // it's what we're about to set them all to anyway).
+    const takenByOtherOwner = users.some((u) => u.ownerId !== session.ownerId && String(u.pin) === String(newPin));
+    if (takenByOtherOwner) return res.status(409).json({ error: 'รหัสนี้มีบัญชีอื่นใช้งานอยู่แล้ว กรุณาตั้งรหัสอื่นครับ' });
+
+    await Promise.all(ownedRows.map((u) =>
+      runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', u.customerSheetId, { pin: newPin }, 'customerSheetId'))
+    ));
+    res.json({ ok: true, buildingsUpdated: ownedRows.length });
   } catch (err) { next(err); }
 });
 
@@ -68,3 +180,4 @@ router.get('/me', (req, res) => {
 });
 
 module.exports = router;
+module.exports.genOwnerId = genOwnerId;
