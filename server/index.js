@@ -38,7 +38,26 @@ app.use((req, res, next) => {
 // Never let browsers cache these — every deploy changes the app logic, and a
 // stale cached copy would silently keep showing old behavior/data forever.
 const noCache = (req, res, next) => { res.set('Cache-Control', 'no-store, no-cache, must-revalidate'); next(); };
-app.get('/', noCache, (req, res) => res.sendFile(path.join(ROOT, 'Rental Management.dc.html')));
+
+// Per explicit user request: the main app page used to be reachable by
+// ANYONE who knew the URL, with zero login wall — คุณต้น's own real data
+// (rooms/tenants/bills) was fully visible to anyone, session or not. Now
+// requires a valid session (customerSheetId set) or bounces to /login.
+// คุณต้น's own login row was added to the directory Sheet using his
+// existing "ข้อมูลหอพัก" card PIN + phone (0820798793), so his own login
+// works exactly the same as before this change — no new PIN to remember.
+// Scope note: this only gates the PAGE — /api/* endpoints are NOT gated
+// here, since some (LINE's incoming webhook, the GitHub Actions scheduler
+// ping) are called by external services that can never carry a browser
+// session cookie. Locking those down needs a different mechanism (e.g. a
+// shared secret per endpoint) — a separate follow-up if wanted, not
+// covered by this change.
+const requireLogin = (req, res, next) => {
+  const hasSession = !!(req.session && req.session.customerSheetId);
+  if (!hasSession) return res.redirect('/login');
+  next();
+};
+app.get('/', noCache, requireLogin, (req, res) => res.sendFile(path.join(ROOT, 'Rental Management.dc.html')));
 app.get('/support.js', noCache, (req, res) => res.sendFile(path.join(ROOT, 'support.js')));
 app.get('/doc-page.js', noCache, (req, res) => res.sendFile(path.join(ROOT, 'doc-page.js')));
 app.get('/Lease Agreement - Room 302.dc.html', noCache, (req, res) => res.sendFile(path.join(ROOT, 'Lease Agreement - Room 302.dc.html')));
