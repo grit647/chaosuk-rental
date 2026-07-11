@@ -1482,6 +1482,17 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                 </div>
                 <div style="font-size:10.5px;color:#9C8B78;margin-top:10px">ถ้าคิดค่าน้ำ/ไฟตามหน่วยที่ใช้จริงแล้วต่ำกว่าอัตราขั้นต่ำที่ตั้งไว้ ระบบจะออกบิลที่อัตราขั้นต่ำแทน (แสดงเป็นค่าดูแลมิเตอร์ในใบเสร็จ) — ปล่อยว่างถ้าไม่ต้องการอัตราขั้นต่ำ</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">
+                  <div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เลขมิเตอร์น้ำเริ่มต้น (หน่วย)</div>
+                    <input value="{{ cf.waterMeterStart }}" onchange="{{ onCfWaterMeterStart }}" placeholder="เช่น 1179" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  </div>
+                  <div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เลขมิเตอร์ไฟเริ่มต้น (หน่วย)</div>
+                    <input value="{{ cf.elecMeterStart }}" onchange="{{ onCfElecMeterStart }}" placeholder="เช่น 4200" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  </div>
+                </div>
+                <div style="font-size:10.5px;color:#9C8B78;margin-top:6px">เลขที่มิเตอร์จริงอ่านได้วันที่ผู้เช่าเข้าอยู่/เริ่มสัญญา — ใช้เป็นจุดเริ่มคำนวณหน่วยที่ใช้ของบิลแรก (ถ้าปล่อยว่าง บิลแรกอาจคำนวณหน่วยผิดเพราะไม่มีเลขก่อนหน้าให้เทียบ) ห้องที่เคยออกบิลแล้วไม่ต้องแก้ตรงนี้อีก ระบบจะอัปเดตให้เองทุกครั้งที่ออกบิลใหม่</div>
               </div>
 
               <!-- SECTION: tenant -->
@@ -3282,6 +3293,7 @@ class Component extends DCLogic {
     contractFormRoomId: null,
     contractForm: {
       rentPrice: '', waterRate: '', elecRate: '', trashRate: '', internetRate: '',
+      waterMeterStart: '', elecMeterStart: '',
       tenantFirstName: '', tenantLastName: '', phone: '',
       tenantIdImg: '', tenantIdExpiry: '', ownerIdImg: '', ownerIdExpiry: '',
       wifiCode: '', dueDay: '', startDate: '', endDate: '', leaseDocName: '',
@@ -3899,6 +3911,17 @@ class Component extends DCLogic {
         // — 0/blank genuinely means "no minimum," not "not set yet."
         waterMinRate: r.waterMinRate > 0 ? String(r.waterMinRate) : '',
         elecMinRate: r.elecMinRate > 0 ? String(r.elecMinRate) : '',
+        // Per explicit user request: a room's very first bill has nothing
+        // to compare against (waterPrev/elecPrev both start at 0), so
+        // without a real starting reading the first invoice would bill for
+        // the FULL current meter number as "usage" — e.g. a meter already
+        // at 1179 would look like 1179 units used overnight. Lets the
+        // owner set the actual reading standing on the meter the day the
+        // tenant moves in / the contract starts, per room per contract
+        // (every room's physical meter reads differently, confirmed with
+        // the owner). Blank means "not set yet," not "starts at 0."
+        waterMeterStart: r.waterPrev > 0 ? String(r.waterPrev) : '',
+        elecMeterStart: r.elecPrev > 0 ? String(r.elecPrev) : '',
         trashRate: String(this.state.trashRate),
         internetRate: String(this.state.internetRate),
         tenantFirstName: nameParts[0] || '',
@@ -3933,6 +3956,8 @@ class Component extends DCLogic {
   // applied at billing time). 0/blank = no minimum for this room.
   onCfWaterMin = (e) => this._cf('waterMinRate', e.target.value);
   onCfElecMin = (e) => this._cf('elecMinRate', e.target.value);
+  onCfWaterMeterStart = (e) => this._cf('waterMeterStart', e.target.value);
+  onCfElecMeterStart = (e) => this._cf('elecMeterStart', e.target.value);
   onCfTrash = (e) => this._cf('trashRate', e.target.value);
   onCfInternet = (e) => this._cf('internetRate', e.target.value);
   onCfFirstName = (e) => this._cf('tenantFirstName', e.target.value);
@@ -4018,6 +4043,15 @@ class Component extends DCLogic {
       // perfectly normal, common setting.
       waterMinRate: cf.waterMinRate === '' || cf.waterMinRate == null ? 0 : Number(cf.waterMinRate) || 0,
       elecMinRate: cf.elecMinRate === '' || cf.elecMinRate == null ? 0 : Number(cf.elecMinRate) || 0,
+      // Per explicit user request: starting meter reading, per room per
+      // contract (every room's physical meter reads differently — this is
+      // NOT a global rate). Only sent when the owner actually typed a
+      // value — leaving it blank means "don't touch waterPrev/elecPrev,"
+      // so re-saving an existing contract (e.g. to renew/edit other
+      // fields) never accidentally resets an already-billed room's real
+      // baseline back to blank/0.
+      waterPrev: cf.waterMeterStart !== '' ? Number(cf.waterMeterStart) || 0 : undefined,
+      elecPrev: cf.elecMeterStart !== '' ? Number(cf.elecMeterStart) || 0 : undefined,
     };
     Object.keys(roomPatch).forEach(k => roomPatch[k] === undefined && delete roomPatch[k]);
     try {
@@ -8739,6 +8773,7 @@ class Component extends DCLogic {
       onCfRoom: this.onCfRoom, onCfRent: this.onCfRent,
       onCfWater: this.onCfWater, onCfElec: this.onCfElec, onCfTrash: this.onCfTrash, onCfInternet: this.onCfInternet,
       onCfWaterMin: this.onCfWaterMin, onCfElecMin: this.onCfElecMin,
+      onCfWaterMeterStart: this.onCfWaterMeterStart, onCfElecMeterStart: this.onCfElecMeterStart,
       onCfFirstName: this.onCfFirstName, onCfLastName: this.onCfLastName, onCfPhone: this.onCfPhone,
       onCfTenantId: this.onCfTenantId, onCfTenantExpiry: this.onCfTenantExpiry,
       onCfOwnerId: this.onCfOwnerId, onCfOwnerExpiry: this.onCfOwnerExpiry,
