@@ -2395,7 +2395,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <input type="text" value="{{ lineCredDraft.channelSecret }}" onchange="{{ onLineCredChannelSecret }}" placeholder="Channel Secret" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
               <div style="display:flex;gap:10px;margin-top:20px">
                 <button onclick="{{ closeLineCredModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
-                <button onclick="{{ saveLineCred }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึก</button>
+                <button onclick="{{ saveLineCred }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึกและเชื่อมต่อ</button>
               </div>
             </div>
           </div>
@@ -2414,7 +2414,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <input type="text" value="{{ tuyaCredDraft.apiBase }}" onchange="{{ onTuyaCredApiBase }}" placeholder="https://openapi.tuyaus.com" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
               <div style="display:flex;gap:10px;margin-top:20px">
                 <button onclick="{{ closeTuyaCredModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
-                <button onclick="{{ saveTuyaCred }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึก</button>
+                <button onclick="{{ saveTuyaCred }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึกและเชื่อมต่อ</button>
               </div>
             </div>
           </div>
@@ -6624,9 +6624,21 @@ class Component extends DCLogic {
         hasLineCredentials: updated.hasLineCredentials, hasTuyaCredentials: updated.hasTuyaCredentials,
         lineCredDraft: { accessToken: '', channelSecret: '' }, tuyaCredDraft: { accessId: '', accessSecret: '', apiBase: '' },
       });
-      this.showAdminToast(target === 'line' ? 'บันทึกการเชื่อมต่อ LINE แล้ว' : 'บันทึกการเชื่อมต่อ Tuya แล้ว');
-      // Refresh so the connection-status badges reflect the just-saved credentials immediately.
+      // Refresh the "hasCredentials" flags right away, then actually TEST
+      // the connection (not just confirm it saved) — per explicit user
+      // feedback, "บันทึก" alone didn't tell them whether the Token/
+      // Secret they typed actually WORK, only that something got written
+      // to the Sheet. /api/tuya/health and /api/line/status both make a
+      // real live call (list devices / check config), so the toast here
+      // reports the true result, not just "saved".
       this.loadFromServer();
+      if (target === 'line') {
+        const connected = await this.loadLineStatus();
+        this.showAdminToast(connected ? 'เชื่อมต่อ LINE สำเร็จ ✓' : 'บันทึกรหัสแล้ว แต่เชื่อมต่อ LINE ไม่สำเร็จ — ตรวจสอบ Token/Secret อีกครั้งครับ', connected ? 'success' : 'error');
+      } else {
+        const connected = await this.loadTuyaHealth();
+        this.showAdminToast(connected ? 'เชื่อมต่อ Tuya สำเร็จ ✓' : 'บันทึกรหัสแล้ว แต่เชื่อมต่อ Tuya ไม่สำเร็จ — ตรวจสอบ Access ID/Secret อีกครั้งครับ', connected ? 'success' : 'error');
+      }
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
   });
 
@@ -6755,20 +6767,28 @@ class Component extends DCLogic {
     } catch (err) { this.showAdminToast(err.message || 'ส่ง LINE ไม่สำเร็จ'); }
   };
 
+  // Returns the connected boolean too (not just setState) so callers that
+  // need the fresh result right away (e.g. confirmSaveIntegrationCred's
+  // "did the credential I just typed actually work?" toast) don't have to
+  // assume setState already landed synchronously.
   loadTuyaHealth = async () => {
     try {
       const res = await fetch('/api/tuya/health');
       const data = await res.json();
-      this.setState({ tuyaEnvConnected: !!data.connected });
-    } catch (err) { console.error(err); }
+      const connected = !!data.connected;
+      this.setState({ tuyaEnvConnected: connected });
+      return connected;
+    } catch (err) { console.error(err); return false; }
   };
 
   loadLineStatus = async () => {
     try {
       const res = await fetch('/api/line/status');
       const data = await res.json();
-      this.setState({ lineEnvConnected: !!data.connected });
-    } catch (err) { console.error(err); }
+      const connected = !!data.connected;
+      this.setState({ lineEnvConnected: connected });
+      return connected;
+    } catch (err) { console.error(err); return false; }
   };
   // This now gates whether scheduled LINE sends (from the command box or
   // calendar reminders) are actually allowed to fire — persisted server-side
