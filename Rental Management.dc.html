@@ -182,6 +182,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <span style="margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#B24336;color:#fff;font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace">{{ slipQueueCount }}</span>
               </sc-if>
             </div>
+            <div onclick="{{ goContracts }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navContract.bg }}">
+              <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navContract.dot }}"></div>
+              <span style="font-size:13.5px;color:{{ navContract.color }};font-weight:{{ navContract.weight }}">สัญญาเช่า</span>
+            </div>
+            <div onclick="{{ goExpenses }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navExpense.bg }}">
+              <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navExpense.dot }}"></div>
+              <span style="font-size:13.5px;color:{{ navExpense.color }};font-weight:{{ navExpense.weight }}">บัญชีรายจ่าย</span>
+            </div>
             <div onclick="{{ goMaintenance }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navMaint.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navMaint.dot }}"></div>
               <span style="font-size:13.5px;color:{{ navMaint.color }};font-weight:{{ navMaint.weight }}">แจ้งซ่อม</span>
@@ -189,38 +197,61 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <span style="margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#B24336;color:#fff;font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace">{{ openMaintCount }}</span>
               </sc-if>
             </div>
-            <div onclick="{{ goWaterReport }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navWater.bg }}">
-              <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navWater.dot }}"></div>
-              <span style="font-size:13.5px;color:{{ navWater.color }};font-weight:{{ navWater.weight }}">การใช้น้ำประปา</span>
-            </div>
-            <div onclick="{{ goElecReport }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navElec.bg }}">
-              <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navElec.dot }}"></div>
-              <span style="font-size:13.5px;color:{{ navElec.color }};font-weight:{{ navElec.weight }}">การใช้ไฟฟ้า</span>
-            </div>
-            <div onclick="{{ goEquipment }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navEquip.bg }}">
-              <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navEquip.dot }}"></div>
-              <span style="font-size:13.5px;color:{{ navEquip.color }};font-weight:{{ navEquip.weight }}">Set อุปกรณ์</span>
-            </div>
-            <div onclick="{{ goExpenses }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navExpense.bg }}">
-              <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navExpense.dot }}"></div>
-              <span style="font-size:13.5px;color:{{ navExpense.color }};font-weight:{{ navExpense.weight }}">บัญชีรายจ่าย</span>
-            </div>
-            <div onclick="{{ goContracts }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navContract.bg }}">
-              <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navContract.dot }}"></div>
-              <span style="font-size:13.5px;color:{{ navContract.color }};font-weight:{{ navContract.weight }}">สัญญาเช่า</span>
-            </div>
             <div onclick="{{ goCalendar }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navCalendar.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navCalendar.dot }}"></div>
               <span style="font-size:13.5px;color:{{ navCalendar.color }};font-weight:{{ navCalendar.weight }}">ปฏิทิน</span>
             </div>
-            <div onclick="{{ goStaffContracts }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navStaffContracts.bg }}">
-              <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navStaffContracts.dot }}"></div>
-              <span style="font-size:13.5px;color:{{ navStaffContracts.color }};font-weight:{{ navStaffContracts.weight }}">สัญญาพนักงาน</span>
-            </div>
-            <div onclick="{{ goStaffMembers }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navStaffMembers.bg }}">
-              <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navStaffMembers.dot }}"></div>
-              <span style="font-size:13.5px;color:{{ navStaffMembers.color }};font-weight:{{ navStaffMembers.weight }}">พนักงานหอพัก</span>
-            </div>
+            <!-- Per explicit user request: 5 toggleable feature nav items
+                 below, each with a small gear icon in front to open/close
+                 that section (PIN-gated, same PIN as ข้อมูลหอพัก card) —
+                 hidden entirely from this sidebar when off; see the
+                 "จัดการเมนูฟีเจอร์" card in Settings for the always-visible
+                 recovery path back to re-enabling one. -->
+            <sc-if value="{{ featuresEnabled.water }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span onclick="{{ onGearWater }}" title="เปิด/ปิดฟีเจอร์นี้" style="cursor:pointer;font-size:12px;padding:4px;flex-shrink:0;opacity:0.6">⚙️</span>
+                <div onclick="{{ goWaterReport }}" style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navWater.bg }}">
+                  <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navWater.dot }}"></div>
+                  <span style="font-size:13.5px;color:{{ navWater.color }};font-weight:{{ navWater.weight }}">การใช้น้ำประปา</span>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ featuresEnabled.elec }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span onclick="{{ onGearElec }}" title="เปิด/ปิดฟีเจอร์นี้" style="cursor:pointer;font-size:12px;padding:4px;flex-shrink:0;opacity:0.6">⚙️</span>
+                <div onclick="{{ goElecReport }}" style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navElec.bg }}">
+                  <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navElec.dot }}"></div>
+                  <span style="font-size:13.5px;color:{{ navElec.color }};font-weight:{{ navElec.weight }}">การใช้ไฟฟ้า</span>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ featuresEnabled.equipment }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span onclick="{{ onGearEquipment }}" title="เปิด/ปิดฟีเจอร์นี้" style="cursor:pointer;font-size:12px;padding:4px;flex-shrink:0;opacity:0.6">⚙️</span>
+                <div onclick="{{ goEquipment }}" style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navEquip.bg }}">
+                  <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navEquip.dot }}"></div>
+                  <span style="font-size:13.5px;color:{{ navEquip.color }};font-weight:{{ navEquip.weight }}">Set อุปกรณ์</span>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ featuresEnabled.staffContracts }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span onclick="{{ onGearStaffContracts }}" title="เปิด/ปิดฟีเจอร์นี้" style="cursor:pointer;font-size:12px;padding:4px;flex-shrink:0;opacity:0.6">⚙️</span>
+                <div onclick="{{ goStaffContracts }}" style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navStaffContracts.bg }}">
+                  <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navStaffContracts.dot }}"></div>
+                  <span style="font-size:13.5px;color:{{ navStaffContracts.color }};font-weight:{{ navStaffContracts.weight }}">สัญญาพนักงาน</span>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ featuresEnabled.staffMembers }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span onclick="{{ onGearStaffMembers }}" title="เปิด/ปิดฟีเจอร์นี้" style="cursor:pointer;font-size:12px;padding:4px;flex-shrink:0;opacity:0.6">⚙️</span>
+                <div onclick="{{ goStaffMembers }}" style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navStaffMembers.bg }}">
+                  <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navStaffMembers.dot }}"></div>
+                  <span style="font-size:13.5px;color:{{ navStaffMembers.color }};font-weight:{{ navStaffMembers.weight }}">พนักงานหอพัก</span>
+                </div>
+              </div>
+            </sc-if>
             <div onclick="{{ goSettings }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navSettings.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navSettings.dot }}"></div>
               <span style="font-size:13.5px;color:{{ navSettings.color }};font-weight:{{ navSettings.weight }}">ตั้งค่า</span>
@@ -902,6 +933,25 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;flex-direction:column;gap:10px">
                 <div style="font-size:12px;color:{{ sheetStatusColor }};font-weight:600">{{ sheetEnvStatusLabel }}</div>
               </div>
+            </div>
+          </div>
+
+          <div style="background:#FFFFFF;border-radius:8px;padding:24px;box-sizing:border-box;max-width:560px;margin-top:16px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+              <span style="font-size:16px">🧩</span>
+              <div style="font-size:15px;font-weight:700;color:#241812">จัดการเมนูฟีเจอร์</div>
+            </div>
+            <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">เปิด/ปิดเมนูบางส่วนในแถบซ้าย — เหมาะสำหรับกรณีไม่ได้ใช้งานฟีเจอร์นั้นๆ เมนูที่ปิดจะหายจากแถบซ้าย แต่กลับมาเปิดใหม่ได้เสมอจากตรงนี้ (ต้องใส่รหัสยืนยันเหมือนการ์ด "ข้อมูลหอพัก")</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <sc-for list="{{ featureToggleRows }}" as="f" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:7px;background:#FBF7F0;border:1px solid #EDE1CE">
+                  <div>
+                    <div style="font-size:13px;font-weight:600;color:#241812">{{ f.label }}</div>
+                    <div style="font-size:11px;font-weight:600;color:{{ f.statusColor }};margin-top:2px">{{ f.statusLabel }}</div>
+                  </div>
+                  <span onclick="{{ f.onToggle }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:6px;cursor:pointer;border:1px solid #E3D8C8;color:#7C6E5F;background:#fff">{{ f.toggleLabel }}</span>
+                </div>
+              </sc-for>
             </div>
           </div>
 
@@ -2284,6 +2334,20 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showFeatureTogglePinModal }}">
+          <div onclick="{{ closeFeatureTogglePinModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ยืนยันรหัสก่อนเปลี่ยน</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">การเปิด/ปิดเมนูฟีเจอร์ต้องใส่รหัสยืนยันก่อนทุกครั้ง (รหัสเดียวกับที่ใช้บันทึกการ์ด "ข้อมูลหอพัก")</div>
+              <input type="password" value="{{ featureTogglePinDraft }}" onchange="{{ onFeatureTogglePinDraft }}" placeholder="รหัสยืนยัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+              <div style="display:flex;gap:10px;margin-top:20px">
+                <button onclick="{{ closeFeatureTogglePinModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ confirmToggleFeature }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยืนยัน</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showChangePinModal }}">
           <div onclick="{{ closeChangePinModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
@@ -3246,6 +3310,19 @@ class Component extends DCLogic {
       taskFailure: false, slipPending: false, overdueBill: false,
       unmatchedSlip: false, maintenance: false, leaseExpiring: false,
     },
+    // Per explicit user request: lets the owner turn whole nav sections
+    // on/off (e.g. selling to a customer building that doesn't use Tuya
+    // devices or has no staff to track). All default true so nothing
+    // changes until the owner deliberately toggles one off.
+    featuresEnabled: {
+      water: true, elec: true, equipment: true, staffContracts: true, staffMembers: true,
+    },
+    // PIN modal shared by every feature toggle (gear icon in the sidebar,
+    // or the "จัดการเมนูฟีเจอร์" card in Settings) — featureToggleTarget
+    // records WHICH feature key is being flipped when the PIN is confirmed.
+    showFeatureTogglePinModal: false,
+    featureTogglePinDraft: '',
+    featureToggleTarget: '',
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -3473,6 +3550,7 @@ class Component extends DCLogic {
         claudeAutomationEnabled: !!data.claudeAutomationEnabled,
         hasDataResetPin: !!data.hasDataResetPin,
         adminNotify: data.adminNotify || s.adminNotify,
+        featuresEnabled: data.featuresEnabled || s.featuresEnabled,
         sheetEnvConnected: true,
       }));
     } catch (err) {
@@ -6303,6 +6381,53 @@ class Component extends DCLogic {
       this.showAdminToast('บันทึกข้อมูลผู้ดูแลแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
   });
+  // Per explicit user request: gear icon next to 5 specific nav items
+  // (การใช้น้ำประปา/การใช้ไฟฟ้า/Set อุปกรณ์/สัญญาพนักงาน/พนักงานหอพัก) — lets
+  // the owner turn a whole feature section on/off, e.g. when reselling this
+  // app to a building that doesn't need Tuya devices or has no staff to
+  // track. Gated behind the SAME admin PIN as the ข้อมูลหอพัก card (POST
+  // /api/settings/verify-admin-pin) — one shared modal, `featureToggleTarget`
+  // records which key gets flipped. Also reachable from the "จัดการเมนูฟีเจอร์"
+  // card in Settings — the one place that's never itself hideable, so a
+  // feature turned off from the sidebar's gear icon is never a dead end.
+  askToggleFeature = (key) => this.setState({ showFeatureTogglePinModal: true, featureTogglePinDraft: '', featureToggleTarget: key });
+  // Sidebar gear icons — stopPropagation so clicking the gear doesn't also
+  // trigger the parent nav item's "go to page" click.
+  onGearWater = (e) => { e.stopPropagation(); this.askToggleFeature('water'); };
+  onGearElec = (e) => { e.stopPropagation(); this.askToggleFeature('elec'); };
+  onGearEquipment = (e) => { e.stopPropagation(); this.askToggleFeature('equipment'); };
+  onGearStaffContracts = (e) => { e.stopPropagation(); this.askToggleFeature('staffContracts'); };
+  onGearStaffMembers = (e) => { e.stopPropagation(); this.askToggleFeature('staffMembers'); };
+  closeFeatureTogglePinModal = () => this.setState({ showFeatureTogglePinModal: false, featureTogglePinDraft: '', featureToggleTarget: '' });
+  onFeatureTogglePinDraft = (e) => this.setState({ featureTogglePinDraft: e.target.value });
+  confirmToggleFeature = () => this._guard('confirmToggleFeature', async () => {
+    const key = this.state.featureToggleTarget;
+    if (!key) return;
+    try {
+      const verifyRes = await fetch('/api/settings/verify-admin-pin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: this.state.featureTogglePinDraft }),
+      });
+      if (!verifyRes.ok) throw new Error((await verifyRes.json()).error || 'รหัสไม่ถูกต้อง');
+      const nextEnabled = { ...this.state.featuresEnabled, [key]: !this.state.featuresEnabled[key] };
+      const res = await fetch('/api/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ featuresEnabled: nextEnabled }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      // If the page currently open IS the one just turned off, bounce to
+      // the dashboard — staying on a now-hidden page with no way back to
+      // it via the sidebar would strand the owner there.
+      const navKeyForFeature = { water: 'water', elec: 'elec', equipment: 'equipment', staffContracts: 'staffContracts', staffMembers: 'staffMembers' };
+      const shouldRedirect = !nextEnabled[key] && this.state.activeNav === navKeyForFeature[key];
+      this.setState({
+        featuresEnabled: nextEnabled,
+        showFeatureTogglePinModal: false, featureTogglePinDraft: '', featureToggleTarget: '',
+        activeNav: shouldRedirect ? 'dashboard' : this.state.activeNav,
+      });
+      this.showAdminToast(nextEnabled[key] ? 'เปิดใช้งานฟีเจอร์แล้ว' : 'ปิดใช้งานฟีเจอร์แล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'ดำเนินการไม่สำเร็จ'); }
+  });
 
   // "ล้างข้อมูล" system-data feature — per explicit user request for a
   // checkbox-based way to wipe specific categories of recorded data
@@ -8179,6 +8304,27 @@ class Component extends DCLogic {
       confirmChangePin: this.confirmChangePin,
       showAdminInfoPinModal: s.showAdminInfoPinModal, closeAdminInfoPinModal: this.closeAdminInfoPinModal,
       adminInfoPinDraft: s.adminInfoPinDraft, onAdminInfoPinDraftChange: this.onAdminInfoPinDraftChange, confirmSaveAdminInfo: this.confirmSaveAdminInfo,
+      // Per explicit user request: sidebar gear icons + the always-visible
+      // "จัดการเมนูฟีเจอร์" card in Settings (see featureToggleRows below)
+      // share this same state/modal.
+      featuresEnabled: s.featuresEnabled,
+      onGearWater: this.onGearWater, onGearElec: this.onGearElec, onGearEquipment: this.onGearEquipment,
+      onGearStaffContracts: this.onGearStaffContracts, onGearStaffMembers: this.onGearStaffMembers,
+      showFeatureTogglePinModal: s.showFeatureTogglePinModal, closeFeatureTogglePinModal: this.closeFeatureTogglePinModal,
+      featureTogglePinDraft: s.featureTogglePinDraft, onFeatureTogglePinDraft: this.onFeatureTogglePinDraft, confirmToggleFeature: this.confirmToggleFeature,
+      featureToggleRows: [
+        { key: 'water', label: 'การใช้น้ำประปา', enabled: s.featuresEnabled.water },
+        { key: 'elec', label: 'การใช้ไฟฟ้า', enabled: s.featuresEnabled.elec },
+        { key: 'equipment', label: 'Set อุปกรณ์', enabled: s.featuresEnabled.equipment },
+        { key: 'staffContracts', label: 'สัญญาพนักงาน', enabled: s.featuresEnabled.staffContracts },
+        { key: 'staffMembers', label: 'พนักงานหอพัก', enabled: s.featuresEnabled.staffMembers },
+      ].map(f => ({
+        ...f,
+        statusLabel: f.enabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน',
+        statusColor: f.enabled ? '#3B7A52' : '#9C8B78',
+        toggleLabel: f.enabled ? 'ปิด' : 'เปิด',
+        onToggle: () => this.askToggleFeature(f.key),
+      })),
       tuyaConnected: s.tuyaEnvConnected,
       tuyaStatusLabel: s.tuyaEnvConnected ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ',
       tuyaStatusBg: s.tuyaEnvConnected ? '#E4EFE7' : '#EDE4D6',

@@ -93,6 +93,13 @@ router.put('/', async (req, res, next) => {
       notifyUnmatchedSlip: b.adminNotify && b.adminNotify.unmatchedSlip,
       notifyMaintenance: b.adminNotify && b.adminNotify.maintenance,
       notifyLeaseExpiring: b.adminNotify && b.adminNotify.leaseExpiring,
+      // Per explicit user request: toggle whole nav sections on/off, PIN-
+      // gated the same way as everything else in this route.
+      featureWaterEnabled: b.featuresEnabled && b.featuresEnabled.water,
+      featureElecEnabled: b.featuresEnabled && b.featuresEnabled.elec,
+      featureEquipmentEnabled: b.featuresEnabled && b.featuresEnabled.equipment,
+      featureStaffContractsEnabled: b.featuresEnabled && b.featuresEnabled.staffContracts,
+      featureStaffMembersEnabled: b.featuresEnabled && b.featuresEnabled.staffMembers,
     };
     const entries = Object.entries(kv).filter(([, v]) => v !== undefined);
     for (const [k, v] of entries) {

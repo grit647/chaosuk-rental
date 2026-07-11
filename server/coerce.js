@@ -204,6 +204,19 @@ async function readSettings() {
       maintenance: bool(map.notifyMaintenance, false),
       leaseExpiring: bool(map.notifyLeaseExpiring, false),
     },
+    // Per explicit user request: lets the owner turn whole nav sections
+    // on/off (e.g. selling this app to another building that doesn't use
+    // Tuya devices or has no staff to track) — gated behind the same admin
+    // PIN as the ข้อมูลหอพัก card (POST /api/settings/verify-admin-pin).
+    // All default TRUE (on) so nothing changes for the current owner, who
+    // already actively uses every one of these.
+    featuresEnabled: {
+      water: bool(map.featureWaterEnabled, true),
+      elec: bool(map.featureElecEnabled, true),
+      equipment: bool(map.featureEquipmentEnabled, true),
+      staffContracts: bool(map.featureStaffContractsEnabled, true),
+      staffMembers: bool(map.featureStaffMembersEnabled, true),
+    },
   };
 }
 
