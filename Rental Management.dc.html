@@ -6492,10 +6492,20 @@ class Component extends DCLogic {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ oldPin: this.state.changePinOldDraft, newPin: this.state.changePinNewDraft }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || 'เปลี่ยนรหัสไม่สำเร็จ');
+      if (!res.ok) {
+        // Same defensive handling as saveContractForm — this route makes
+        // TWO sequential Sheets API calls across two different Sheets
+        // (this customer's own + the login directory), so it's slower
+        // than most saves and more exposed to a transient Render/Sheets
+        // hiccup returning something that isn't JSON.
+        let msg = 'เปลี่ยนรหัสไม่สำเร็จ';
+        try { msg = (await res.json()).error || msg; }
+        catch { msg = 'เปลี่ยนรหัสไม่สำเร็จ (เซิร์ฟเวอร์ไม่ตอบสนอง ลองใหม่อีกครั้ง)'; }
+        throw new Error(msg);
+      }
       this.setState({ showChangePinModal: false, changePinOldDraft: '', changePinNewDraft: '' });
-      this.showAdminToast('เปลี่ยนรหัสผ่านแล้ว');
-    } catch (err) { this.showAdminToast(err.message || 'เปลี่ยนรหัสไม่สำเร็จ'); }
+      this.showAdminToast('เปลี่ยนรหัสผ่านแล้ว ✓', 'success');
+    } catch (err) { this.showAdminToast(err.message || 'เปลี่ยนรหัสไม่สำเร็จ', 'error'); }
   });
   saveProfile = () => this._guard('saveProfile', async () => {
     try {

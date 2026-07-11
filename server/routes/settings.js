@@ -129,12 +129,26 @@ router.post('/change-admin-pin', async (req, res, next) => {
     await upsertKV('adminEditPin', newPin);
 
     // Sync the new PIN into this customer's own directory row too, so the
-    // login PIN always matches the admin PIN just set above.
+    // login PIN always matches the admin PIN just set above. Deliberately
+    // NOT allowed to fail the whole request — the important write above
+    // (this customer's own adminEditPin) already succeeded by this point;
+    // if the directory sync hiccups (a second, separate Sheets API call,
+    // more exposed to a transient error), the owner should still see
+    // "changed successfully" rather than a confusing failure for a save
+    // that partially went through. Logged server-side so a persistent
+    // failure here is still visible to us, just not surfaced as a customer-
+    // facing error for what is, from their side, a successful PIN change.
+    let directorySyncFailed = false;
     if (DIRECTORY_SHEET_ID && sessionSheetId) {
-      await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', sessionSheetId, { pin: newPin }, 'customerSheetId'));
+      try {
+        await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', sessionSheetId, { pin: newPin }, 'customerSheetId'));
+      } catch (syncErr) {
+        directorySyncFailed = true;
+        console.error('[settings] directory PIN sync failed for', sessionSheetId, syncErr.message);
+      }
     }
 
-    res.json({ ok: true });
+    res.json({ ok: true, directorySyncFailed });
   } catch (err) { next(err); }
 });
 
@@ -197,10 +211,15 @@ router.put('/', async (req, res, next) => {
     // the "ผู้ดูแลหอพัก" card's phone — per explicit user request, so a
     // customer who updates their contact phone here doesn't get locked out
     // of login (which looks up by phone+PIN together). Same no-op-for-
-    // คุณต้น reasoning as the PIN sync above.
+    // คุณต้น reasoning as the PIN sync above. Also best-effort/non-fatal —
+    // see change-admin-pin's matching comment above for why.
     const sessionSheetId = req.session && req.session.customerSheetId;
     if (DIRECTORY_SHEET_ID && sessionSheetId && kv.adminPhone !== undefined) {
-      await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', sessionSheetId, { phone: kv.adminPhone }, 'customerSheetId'));
+      try {
+        await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', sessionSheetId, { phone: kv.adminPhone }, 'customerSheetId'));
+      } catch (syncErr) {
+        console.error('[settings] directory phone sync failed for', sessionSheetId, syncErr.message);
+      }
     }
 
     res.json(await readSettings());
