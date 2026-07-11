@@ -8748,7 +8748,15 @@ class Component extends DCLogic {
       buildingKeyIdDisplay: s.propertyProfile.buildingKeyId || 'ยังไม่ได้ตั้งค่า',
       onProfileAdminLineUserId: this.onProfileAdminLineUserId, saveAdminInfo: this.saveAdminInfo,
       adminInfoLocked: s.adminInfoLocked, adminInfoUnlocked: !s.adminInfoLocked, unlockAdminInfo: this.unlockAdminInfo,
-      viewingOtherAccount: !!(s.authSession && s.authSession.customerSheetId), logoutToOwnAccount: this.logoutToOwnAccount,
+      // Per explicit user request (real bug hit): login is now mandatory
+      // for everyone including คุณต้น, so "a session exists" is no longer
+      // a reliable "you're viewing someone else's data" signal — his own
+      // normal session has one too. Only show this badge when he's the
+      // platform admin AND has switched into a building that ISN'T his
+      // own (see /api/auth/me's isOwnBuildingActive) — never for a
+      // regular customer's own login, and never for คุณต้น's own building.
+      viewingOtherAccount: !!(s.authSession && s.authSession.isPlatformAdmin && !s.authSession.isOwnBuildingActive),
+      logoutToOwnAccount: this.logoutToOwnAccount,
       // Per explicit user request: "+ เพิ่มตึกใหม่" card in Settings, only
       // ever shown to the platform's own account.
       isPlatformAdmin: !!(s.authSession && s.authSession.isPlatformAdmin),

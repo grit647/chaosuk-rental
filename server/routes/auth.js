@@ -231,7 +231,16 @@ router.get('/me', async (req, res) => {
   // Ownership-based (see isPlatformAdminSession) so this stays true even
   // while the admin is browsing another customer's building.
   const isPlatformAdmin = await isPlatformAdminSession(session);
-  res.json({ ...session, isPlatformAdmin });
+  // Per explicit user request (real bug hit): whether the CURRENTLY
+  // ACTIVE building is the platform's own — needed to correctly show/hide
+  // the sidebar's "กำลังดูข้อมูลของ..." warning badge. Login is now
+  // mandatory for everyone including คุณต้น, so a session existing at all
+  // is no longer a reliable "you're viewing someone else's data" signal
+  // (his own session always has one too) — the badge should only ever
+  // appear when the platform admin has switched INTO another customer's
+  // building, never for his own or for a regular customer's own login.
+  const isOwnBuildingActive = session.customerSheetId === process.env.GOOGLE_SHEET_ID;
+  res.json({ ...session, isPlatformAdmin, isOwnBuildingActive });
 });
 
 module.exports = router;
