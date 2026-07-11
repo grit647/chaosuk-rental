@@ -210,8 +210,17 @@
   // Per explicit user request: removes the LOGIN ROW only — the
   // building's Google Sheet and everything in it stay completely
   // untouched, this just revokes the ability to log into it.
+  // Per explicit user request: also moves the actual Google Sheet to
+  // Trash (recoverable ~30 days from Google Drive, NOT permanent) —
+  // deliberately not a hard delete, so a misclick can still be undone.
   async function deleteBuilding(customerSheetId) {
-    if (!confirm('ลบตึกนี้ออกจากสมุดรายชื่อกลาง? (ข้อมูลจริงใน Google Sheet จะไม่ถูกลบ แค่เข้าผ่านระบบ login ไม่ได้อีก)')) return;
+    // Real limitation found: the service account only has Editor access
+    // to each customer's Sheet (whoever created it stays the actual
+    // owner) — Google Drive requires FILE OWNERSHIP to trash a file via
+    // the API, so this step can fail depending on how the Sheet was
+    // shared. Confirmation text below sets that expectation up front
+    // instead of promising something that isn't always possible.
+    if (!confirm('ลบตึกนี้? จะเกิดขึ้นทันที:\n1. ลบสิทธิ์ login ออกจากสมุดรายชื่อกลาง (แน่นอน)\n\nระบบจะพยายามย้าย Google Sheet ไปถังขยะให้ด้วย แต่อาจทำไม่ได้ถ้า service account ไม่ใช่เจ้าของไฟล์ (กรณีนี้ต้องไปลบเอง)')) return;
     try {
       const res = await fetch('/api/settings/delete-building', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -219,6 +228,11 @@
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'ลบไม่สำเร็จ');
+      if (data.sheetTrashed) {
+        alert('ลบสำเร็จ — ย้าย Google Sheet ไปถังขยะแล้ว (กู้คืนได้ใน Google Drive ภายใน ~30 วัน)');
+      } else {
+        alert('ลบสิทธิ์ login สำเร็จแล้ว แต่ย้าย Google Sheet ไปถังขยะไม่สำเร็จ (' + (data.trashError || 'ไม่ทราบสาเหตุ') + ') — รบกวนลบ Sheet เองใน Google Drive ถ้าต้องการ');
+      }
       init();
     } catch (e) {
       alert(e.message || 'ลบไม่สำเร็จ');

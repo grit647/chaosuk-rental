@@ -4,6 +4,7 @@ const { readTab, updateRow, appendRow, deleteRow } = require('../sheets');
 const { readSettings } = require('../coerce');
 const { runWithSheetId } = require('../requestContext');
 const { cloneSchemaToNewSheet } = require('../setupBuilding');
+const { trashSheet } = require('../googleDrive');
 const { genOwnerId, isPlatformAdminSession } = require('./auth');
 
 // Ownership-based (see auth.js's isPlatformAdminSession) — stays true
@@ -259,7 +260,24 @@ router.post('/delete-building', async (req, res, next) => {
     if (customerSheetId === process.env.GOOGLE_SHEET_ID) return res.status(400).json({ error: 'ไม่สามารถลบบัญชีแพลตฟอร์มเองได้' });
 
     await runWithSheetId(DIRECTORY_SHEET_ID, () => deleteRow('Users', customerSheetId, 'customerSheetId'));
-    res.json({ ok: true });
+
+    // Per explicit user request: also move the building's actual Google
+    // Sheet to Trash (recoverable ~30 days) — NOT a permanent delete.
+    // Best-effort: the login row is already gone by this point (the more
+    // important half of "delete" already succeeded), so a Drive API
+    // hiccup here shouldn't be reported as a failure — just flagged back
+    // so the admin knows to check/trash it manually if needed.
+    let sheetTrashed = false;
+    let trashError = null;
+    try {
+      await trashSheet(customerSheetId);
+      sheetTrashed = true;
+    } catch (err) {
+      trashError = err.message;
+      console.error('[settings] trashSheet failed for', customerSheetId, err.message);
+    }
+
+    res.json({ ok: true, sheetTrashed, trashError });
   } catch (err) { next(err); }
 });
 
