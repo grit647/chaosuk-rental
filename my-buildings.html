@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>เช่าสุข — ตึกของคุณ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    background: #F7F1E6; color: #241812;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .wrap { width: 100%; max-width: 420px; }
+  .logo-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px; }
+  .logo-badge { width: 38px; height: 38px; border-radius: 10px; background: #C1622D; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 17px; }
+  .logo-text { font-size: 20px; font-weight: 700; }
+  .tagline { text-align: center; font-size: 12.5px; color: #9C8B78; margin-bottom: 24px; }
+  .list { display: flex; flex-direction: column; gap: 12px; }
+  .building-card {
+    background: #FFFFFF; border-radius: 12px; padding: 18px 20px;
+    box-shadow: 0 6px 20px rgba(36,24,18,0.06); cursor: pointer;
+    display: flex; align-items: center; gap: 14px;
+    border: 1.5px solid transparent; text-decoration: none; color: inherit;
+  }
+  .building-card:hover { border-color: #C1622D; }
+  .building-icon { width: 42px; height: 42px; border-radius: 10px; background: #F1EBE0; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .building-name { font-size: 14.5px; font-weight: 700; }
+  .building-sub { font-size: 11px; color: #9C8B78; margin-top: 2px; }
+  .arrow { margin-left: auto; color: #C1622D; font-size: 16px; }
+  .add-building {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 16px; border-radius: 12px; border: 1.5px dashed #D8C9B4;
+    color: #7C6E5F; font-size: 13px; font-weight: 600; text-decoration: none;
+    margin-top: 4px;
+  }
+  .add-building:hover { border-color: #C1622D; color: #C1622D; }
+  .loading, .err { text-align: center; font-size: 12.5px; color: #9C8B78; padding: 20px; }
+  .err { color: #B24336; }
+  .logout-link { text-align: center; margin-top: 20px; font-size: 11.5px; }
+  .logout-link a { color: #9C8B78; text-decoration: underline; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo-row"><div class="logo-badge">ช</div><div class="logo-text">เช่าสุข</div></div>
+    <div class="tagline">เลือกตึกที่ต้องการจัดการ</div>
+    <div id="content" class="loading">กำลังโหลด...</div>
+  </div>
+
+<script>
+  async function init() {
+    const contentEl = document.getElementById('content');
+    try {
+      const meRes = await fetch('/api/auth/me');
+      const me = await meRes.json();
+      // No valid session (or a role this page doesn't apply to) — send
+      // back to login instead of showing an empty/broken picker.
+      if (!me || me.role !== 'owner') {
+        window.location.href = '/login';
+        return;
+      }
+      // propertyProfile.name comes from /api/settings, which — thanks to
+      // the session cookie already resolving every request to THIS
+      // customer's own Sheet (see server/requestContext.js) — returns
+      // this specific building's data, not any other customer's.
+      let buildingName = 'ตึกของคุณ';
+      try {
+        const settingsRes = await fetch('/api/settings');
+        if (settingsRes.ok) {
+          const settings = await settingsRes.json();
+          if (settings.propertyProfile && settings.propertyProfile.name) buildingName = settings.propertyProfile.name;
+        }
+      } catch (e) { /* fall back to the generic label above */ }
+
+      contentEl.className = '';
+      contentEl.innerHTML =
+        '<div class="list">' +
+          '<a class="building-card" href="/">' +
+            '<div class="building-icon">🏢</div>' +
+            '<div><div class="building-name">' + escapeHtml(buildingName) + '</div><div class="building-sub">แตะเพื่อเข้าจัดการ</div></div>' +
+            '<span class="arrow">›</span>' +
+          '</a>' +
+          // Per explicit user request: every owner sees a way to add
+          // another building/project — for now this points to the same
+          // "contact us, coming soon" placeholder as the login page's
+          // signup link, since self-service multi-building creation
+          // isn't built yet.
+          '<a class="add-building" href="/contact-us">＋ เพิ่มตึกใหม่ / เพิ่มโครงการใหม่</a>' +
+        '</div>' +
+        '<div class="logout-link"><a href="/api/auth/logout-link">ออกจากระบบ</a></div>';
+    } catch (e) {
+      contentEl.className = 'err';
+      contentEl.textContent = 'โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้งครับ';
+    }
+  }
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+  init();
+</script>
+</body>
+</html>

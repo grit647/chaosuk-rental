@@ -27,6 +27,9 @@
   .submit-btn { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #C1622D; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
   .submit-btn:disabled { opacity: 0.6; cursor: default; }
   .err { font-size: 12px; color: #B24336; margin-top: 12px; text-align: center; display: none; }
+  .signup-link { text-align: center; margin-top: 16px; font-size: 12px; color: #7C6E5F; }
+  .signup-link a { color: #C1622D; font-weight: 600; text-decoration: none; }
+  .signup-link a:hover { text-decoration: underline; }
   .footer-note { text-align: center; font-size: 10.5px; color: #B0A08C; margin-top: 18px; }
 </style>
 </head>
@@ -45,6 +48,11 @@
       </div>
       <button class="submit-btn" id="submitBtn" onclick="doLogin()">เข้าสู่ระบบ</button>
       <div class="err" id="err"></div>
+      <!-- Per explicit user request: a first-time visitor (no account yet)
+           needs somewhere to go besides a failed login attempt — real
+           self-service signup isn't built yet, so this points to a plain
+           "contact us, coming soon" placeholder instead of a broken flow. -->
+      <div class="signup-link">ยังไม่มีบัญชี? <a href="/contact-us">สร้างตึกใหม่ / ใช้งานครั้งแรก</a></div>
     </div>
     <div class="footer-note">เช่าสุข — ระบบจัดการหอพัก/อพาร์ทเมนท์</div>
   </div>
@@ -71,7 +79,11 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'เข้าสู่ระบบไม่สำเร็จ');
       if (data.role === 'owner') {
-        window.location.href = '/';
+        // Per explicit user request: land on a "your buildings" picker
+        // first instead of jumping straight into the dashboard — makes
+        // room for an owner who manages more than one building later,
+        // and gives a clear "+ เพิ่มตึกใหม่" entry point from day one.
+        window.location.href = '/my-buildings';
       } else {
         // Tenant/staff/admin portals aren't built yet — per explicit user
         // request, เจ้าของ (owner) came first. Show a simple confirmation

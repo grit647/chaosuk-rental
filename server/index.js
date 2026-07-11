@@ -52,6 +52,17 @@ app.get('/login-preview.html', noCache, (req, res) => res.sendFile(path.join(ROO
 // directly still works exactly as before with no login required, until a
 // later step makes that mandatory.
 app.get('/login', noCache, (req, res) => res.sendFile(path.join(ROOT, 'login.html')));
+// Per explicit user request: a "your buildings" picker shown right after
+// login — lets an owner with multiple buildings choose which one to
+// manage, and gives every owner an obvious "+ เพิ่มตึกใหม่" entry point.
+// Client-side JS fetches /api/auth/me + /api/settings itself (both
+// already session-scoped) rather than this route doing anything special.
+app.get('/my-buildings', noCache, (req, res) => res.sendFile(path.join(ROOT, 'my-buildings.html')));
+// Plain "coming soon" placeholder — real self-service signup (new
+// customer creating their own building/account) isn't built yet. Linked
+// from both /login's "สร้างตึกใหม่" link and /my-buildings' "+ เพิ่มตึกใหม่"
+// button.
+app.get('/contact-us', noCache, (req, res) => res.sendFile(path.join(ROOT, 'contact-us.html')));
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/bootstrap', require('./routes/bootstrap'));
