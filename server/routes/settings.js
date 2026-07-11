@@ -33,6 +33,28 @@ async function upsertKV(key, value) {
   }
 }
 
+// Real bug hit by a brand-new customer: they logged in with their directory
+// PIN (e.g. "112233") for the first time, then tried to use that SAME PIN
+// to confirm saving the "ข้อมูลหอพัก" card — but their customer Sheet is
+// fresh (schema-cloned, empty Settings tab), so adminEditPin had never been
+// set and still defaulted to "12345", rejecting their login PIN as "wrong".
+// The PIN-syncing in change-admin-pin below only takes effect the FIRST
+// TIME someone actively changes their admin PIN — it doesn't retroactively
+// help a customer who's never done that yet. Fix: also accept the
+// session's own login PIN (looked up fresh from the directory) as valid,
+// everywhere the admin PIN is checked — matching what customers are told
+// ("this is the same PIN as your login") from their very first login,
+// not just after their first PIN change.
+async function getSessionLoginPin(req) {
+  const sessionSheetId = req.session && req.session.customerSheetId;
+  if (!DIRECTORY_SHEET_ID || !sessionSheetId) return null;
+  try {
+    const directoryRows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+    const row = directoryRows.find((u) => u.customerSheetId === sessionSheetId);
+    return row ? row.pin : null;
+  } catch { return null; }
+}
+
 router.get('/', async (req, res, next) => {
   try { res.json(await readSettings()); }
   catch (err) { next(err); }
@@ -50,7 +72,9 @@ router.post('/verify-admin-pin', async (req, res, next) => {
     const rows = await readTab('Settings');
     const row = rows.find((r) => r.key === 'adminEditPin');
     const storedPin = row ? row.value : '12345';
-    if (!pin || String(pin) !== String(storedPin)) return res.status(403).json({ error: 'รหัสไม่ถูกต้อง' });
+    const loginPin = await getSessionLoginPin(req);
+    const valid = pin && (String(pin) === String(storedPin) || (loginPin != null && String(pin) === String(loginPin)));
+    if (!valid) return res.status(403).json({ error: 'รหัสไม่ถูกต้อง' });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -64,7 +88,8 @@ router.post('/change-admin-pin', async (req, res, next) => {
     const rows = await readTab('Settings');
     const row = rows.find((r) => r.key === 'adminEditPin');
     const storedPin = row ? row.value : '12345';
-    const oldPinValid = oldPin && (String(oldPin) === String(storedPin) || String(oldPin) === MASTER_RECOVERY_PIN);
+    const loginPin = await getSessionLoginPin(req);
+    const oldPinValid = oldPin && (String(oldPin) === String(storedPin) || String(oldPin) === MASTER_RECOVERY_PIN || (loginPin != null && String(oldPin) === String(loginPin)));
     if (!oldPinValid) return res.status(403).json({ error: 'รหัสเดิมไม่ถูกต้อง' });
 
     // Per explicit user request: this same PIN doubles as the multi-tenant
