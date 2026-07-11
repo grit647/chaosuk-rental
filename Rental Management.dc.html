@@ -2488,7 +2488,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <input type="text" value="{{ addBuildingDraft.pin }}" onchange="{{ onAddBuildingPin }}" placeholder="เว้นว่าง = ให้ลูกค้าตั้งเองตอน login ครั้งแรก" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">
                 <div style="font-size:10.5px;color:#9C8B78;margin-bottom:12px">💡 แนะนำ: เว้นว่างไว้ แล้วส่งแค่ลิงก์หน้า login ให้ลูกค้า — ลูกค้ากรอกเบอร์+ตั้งรหัสเองได้เลยตอน login ครั้งแรก ไม่ต้องส่งรหัสผ่านทางไลน์/ข้อความเลย</div>
                 <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Google Sheet ID ของตึกนี้ (ชีตเปล่า สร้างไว้แล้ว)</div>
-                <input type="text" value="{{ addBuildingDraft.customerSheetId }}" onchange="{{ onAddBuildingSheetId }}" placeholder="วางจาก URL ของ Sheet" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                <input type="text" value="{{ addBuildingDraft.customerSheetId }}" onchange="{{ onAddBuildingSheetId }}" placeholder="วางลิงก์เต็มๆ ของ Sheet ได้เลย (ระบบตัด ID ให้เอง)" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                 <div style="display:flex;gap:10px;margin-top:20px">
                   <button onclick="{{ closeAddBuildingModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
                   <button onclick="{{ submitAddBuilding }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">🏗️ เริ่มสร้างตึกใหม่</button>
@@ -3739,7 +3739,17 @@ class Component extends DCLogic {
       this.showAdminToast('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร (หรือเว้นว่างให้ลูกค้าตั้งเอง)', 'error');
       return;
     }
-    const sheetId = d.customerSheetId.trim();
+    // Real bug hit: the field's own placeholder said "วางจาก URL ของ
+    // Sheet" (paste from the Sheet's URL), which reads ambiguously as
+    // "paste the whole URL" — pasting the full link instead of just the
+    // ID made Google's API report "Requested entity was not found" (the
+    // full URL string isn't a valid Sheet ID), matching every failure
+    // the owner hit while every one of MY manual tests (which always
+    // typed just the bare ID) succeeded. Extract the ID automatically
+    // whether a full URL or a bare ID was pasted, so both work.
+    const rawInput = d.customerSheetId.trim();
+    const urlMatch = rawInput.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    const sheetId = urlMatch ? urlMatch[1] : rawInput;
     this.setState({ addBuildingProgress: { active: true, percent: 0, message: 'กำลังเริ่มต้น...', error: '' } });
     this._runAddBuildingJob(d, sheetId);
   });
