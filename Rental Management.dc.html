@@ -3741,34 +3741,68 @@ class Component extends DCLogic {
     }
     const sheetId = d.customerSheetId.trim();
     this.setState({ addBuildingProgress: { active: true, percent: 0, message: 'กำลังเริ่มต้น...', error: '' } });
-    const es = new EventSource('/api/settings/setup-building-stream?sheetId=' + encodeURIComponent(sheetId));
-    es.onmessage = async (evt) => {
-      let data;
-      try { data = JSON.parse(evt.data); } catch { return; }
-      if (data.phase === 'error') {
-        es.close();
-        this.setState(s => ({ addBuildingProgress: { ...s.addBuildingProgress, active: false, error: data.message || 'สร้างโครงสร้างชีตไม่สำเร็จ' } }));
-        return;
-      }
-      const percent = data.total ? Math.round(((data.index || 0) / data.total) * 100) : (this.state.addBuildingProgress.percent || 0);
-      this.setState({ addBuildingProgress: { active: true, percent, message: data.message || '', error: '' } });
-      if (data.phase === 'complete') {
-        es.close();
+    this._runAddBuildingJob(d, sheetId);
+  });
+  // Per explicit user request/real bug hit: switched from a held-open
+  // Server-Sent Events connection to plain polling — Render's free tier
+  // proxy doesn't reliably keep a long-lived stream open, and the
+  // browser's EventSource auto-reconnects on any hiccup, silently firing
+  // a SECOND overlapping clone attempt (this is what caused the real
+  // "Requested entity was not found" failures the owner hit repeatedly,
+  // even though the exact same operation succeeded every time it was
+  // called directly, outside a browser). One quick POST starts the job
+  // server-side (in-memory, no connection held open); this just asks
+  // "how's it going?" every 1.5s with an ordinary GET.
+  _runAddBuildingJob = async (d, sheetId) => {
+    let jobId;
+    try {
+      const startRes = await fetch('/api/settings/setup-building-start', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheetId }),
+      });
+      const startData = await startRes.json();
+      if (!startRes.ok) throw new Error(startData.error || 'เริ่มสร้างตึกใหม่ไม่สำเร็จ');
+      jobId = startData.jobId;
+    } catch (err) {
+      this.setState(s => ({ addBuildingProgress: { ...s.addBuildingProgress, active: false, error: err.message || 'เริ่มสร้างตึกใหม่ไม่สำเร็จ' } }));
+      return;
+    }
+
+    const poll = async () => {
+      // Bail out silently if the owner already closed/cancelled the modal.
+      if (!this.state.showAddBuildingModal) return;
+      try {
+        const res = await fetch('/api/settings/setup-building-progress?jobId=' + encodeURIComponent(jobId));
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'ตรวจสอบสถานะไม่สำเร็จ');
+        const last = data.events[data.events.length - 1];
+        if (last) {
+          const percent = last.total ? Math.round(((last.index || 0) / last.total) * 100) : (this.state.addBuildingProgress.percent || 0);
+          this.setState({ addBuildingProgress: { active: true, percent, message: last.message || '', error: '' } });
+        }
+        if (data.error) {
+          this.setState(s => ({ addBuildingProgress: { ...s.addBuildingProgress, active: false, error: data.error } }));
+          return;
+        }
+        if (!data.done) {
+          setTimeout(poll, 1500);
+          return;
+        }
         // Schema clone done — now add the directory login row.
         try {
-          const res = await fetch('/api/settings/add-building', {
+          const addRes = await fetch('/api/settings/add-building', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone: d.phone.trim(), pin: d.pin.trim(), customerSheetId: sheetId }),
           });
-          let resData;
-          try { resData = await res.json(); } catch { resData = {}; }
-          if (!res.ok) throw new Error(resData.error || 'เพิ่มแถวในสมุดรายชื่อกลางไม่สำเร็จ');
+          let addData;
+          try { addData = await addRes.json(); } catch { addData = {}; }
+          if (!addRes.ok) throw new Error(addData.error || 'เพิ่มแถวในสมุดรายชื่อกลางไม่สำเร็จ');
           this.setState({
             showAddBuildingModal: false, addBuildingDraft: { phone: '', pin: '', customerSheetId: '' },
             addBuildingProgress: { active: false, percent: 0, message: '', error: '' },
           });
           this.showAdminToast(
-            resData.awaitingClaim
+            addData.awaitingClaim
               ? 'เพิ่มตึกใหม่สำเร็จ ✓ ส่งลิงก์หน้า login ให้ลูกค้าได้เลย ลูกค้าตั้งรหัสเองตอน login ครั้งแรก'
               : 'เพิ่มตึกใหม่สำเร็จ ✓ พร้อมให้ลูกค้าล็อกอินได้เลย',
             'success'
@@ -3776,13 +3810,12 @@ class Component extends DCLogic {
         } catch (err) {
           this.setState(s => ({ addBuildingProgress: { ...s.addBuildingProgress, active: false, error: err.message || 'เพิ่มแถวในสมุดรายชื่อกลางไม่สำเร็จ' } }));
         }
+      } catch (err) {
+        this.setState(s => ({ addBuildingProgress: { ...s.addBuildingProgress, active: false, error: err.message || 'การเชื่อมต่อขาดหาย ลองใหม่อีกครั้งครับ' } }));
       }
     };
-    es.onerror = () => {
-      es.close();
-      this.setState(s => (s.addBuildingProgress.active ? { addBuildingProgress: { ...s.addBuildingProgress, active: false, error: 'การเชื่อมต่อขาดหาย ลองใหม่อีกครั้งครับ' } } : {}));
-    };
-  });
+    poll();
+  };
   retryAddBuilding = () => this.setState({ addBuildingProgress: { active: false, percent: 0, message: '', error: '' } });
   loadTuyaDevices = async () => {
     try {

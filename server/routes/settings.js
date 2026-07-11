@@ -86,23 +86,49 @@ router.post('/verify-platform-pin', (req, res) => {
 // endpoint, and it's still gated behind the same platform-admin check
 // as everything else in this file (cookie-based, not just "guessed the
 // URL" obscurity).
-router.get('/setup-building-stream', async (req, res) => {
-  if (!(await isPlatformAdminReq(req))) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
-  const targetSheetId = req.query.sheetId;
-  if (!targetSheetId) return res.status(400).json({ error: 'ต้องระบุ sheetId' });
+// Per explicit user request/real bug hit: the original design used
+// Server-Sent Events (a held-open connection streaming live progress) —
+// worked fine locally and when called directly, but repeatedly failed
+// for the real owner going through the actual browser UI on Render's
+// free tier, with a misleading "Requested entity was not found" error.
+// Best working theory: Render's free-tier proxy doesn't reliably keep a
+// long-lived streaming connection open, and the browser's native
+// EventSource auto-reconnects on any hiccup — silently firing a SECOND,
+// overlapping clone attempt against a target Sheet the first attempt was
+// still mid-way through modifying, corrupting/confusing both. Switched
+// to plain polling instead: one quick POST kicks off the job in the
+// background (in-memory, no held-open connection at all), the browser
+// asks "how's it going?" every 1.5s with an ordinary GET — much more
+// robust against exactly this kind of free-tier proxy flakiness, and
+// there's no auto-retry mechanism to accidentally double-fire the job.
+const setupBuildingJobs = new Map(); // jobId -> { events: [...], done: bool, error: string|null }
 
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-  });
-  const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
-  try {
-    await cloneSchemaToNewSheet(targetSheetId, send);
-  } catch (err) {
-    send({ phase: 'error', message: err.message });
-  }
-  res.end();
+router.post('/setup-building-start', async (req, res) => {
+  if (!(await isPlatformAdminReq(req))) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
+  const { sheetId } = req.body;
+  if (!sheetId) return res.status(400).json({ error: 'ต้องระบุ sheetId' });
+
+  const jobId = 'job-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  const job = { events: [], done: false, error: null };
+  setupBuildingJobs.set(jobId, job);
+  // Auto-expire after 10 minutes so this Map never grows unbounded from
+  // abandoned attempts (nobody polling a finished/orphaned job forever).
+  setTimeout(() => setupBuildingJobs.delete(jobId), 10 * 60 * 1000);
+
+  // Deliberately NOT awaited — runs in the background while this request
+  // returns immediately with the jobId to start polling.
+  cloneSchemaToNewSheet(sheetId, (event) => job.events.push(event))
+    .then(() => { job.done = true; })
+    .catch((err) => { job.done = true; job.error = err.message; });
+
+  res.json({ ok: true, jobId });
+});
+
+router.get('/setup-building-progress', async (req, res) => {
+  if (!(await isPlatformAdminReq(req))) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
+  const job = setupBuildingJobs.get(req.query.jobId);
+  if (!job) return res.status(404).json({ error: 'ไม่พบงานนี้ (อาจหมดเวลาไปแล้ว)' });
+  res.json({ events: job.events, done: job.done, error: job.error });
 });
 
 router.post('/add-building', async (req, res, next) => {
