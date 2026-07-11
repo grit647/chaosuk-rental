@@ -298,36 +298,9 @@
     </div>
   </div>
 
-  <!-- ============ 2. OWNER (เจ้าของ) ============ -->
-  <div class="dash-wrap" id="dashOwner">
-    <div class="dash-top">
-      <div class="dash-top-left">
-        <div class="logo-badge">ช</div>
-        <div>
-          <div class="dash-title">หอพักเช่าสุข <span class="dash-role-badge">เจ้าของ</span></div>
-          <div class="dash-sub">สวัสดีครับ คุณต้น — ภาพรวมประจำเดือนกรกฎาคม 2569</div>
-        </div>
-      </div>
-      <div class="logout-btn" onclick="logout()">ออกจากระบบ</div>
-    </div>
-    <div class="readonly-note">✅ นี่คือหน้าเดียวกับที่คุณต้นใช้งานอยู่ทุกวันนี้ครับ — สิทธิ์เจ้าของ = เข้าถึงทุกฟีเจอร์เต็มรูปแบบ แค่ต้องล็อกอินก่อนเข้าเท่านั้น</div>
-    <div class="dash-grid">
-      <div class="kpi-card"><div class="kpi-label">รายรับเดือนนี้</div><div class="kpi-value">฿24,500</div></div>
-      <div class="kpi-card"><div class="kpi-label">รายจ่ายเดือนนี้</div><div class="kpi-value">฿6,200</div></div>
-      <div class="kpi-card" style="border-top-color:#3B7A52"><div class="kpi-label">กำไรสุทธิเดือนนี้</div><div class="kpi-value" style="color:#3B7A52">+฿18,300</div></div>
-      <div class="kpi-card"><div class="kpi-label">ห้องว่าง</div><div class="kpi-value">2 / 6</div></div>
-      <div class="kpi-card" style="border-top-color:#B24336"><div class="kpi-label">ค้างชำระ</div><div class="kpi-value">1 ห้อง</div></div>
-    </div>
-    <div class="section-card">
-      <div class="section-card-title">เมนูทั้งหมด (แถบซ้ายของระบบจริง)</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <span class="mini-btn">แดชบอร์ด</span><span class="mini-btn">ห้องพัก</span><span class="mini-btn">ผู้เช่า</span>
-        <span class="mini-btn">บิล &amp; ใบแจ้งหนี้</span><span class="mini-btn">สัญญาเช่า</span><span class="mini-btn">บัญชีรายจ่าย</span>
-        <span class="mini-btn">แจ้งซ่อม</span><span class="mini-btn">ปฏิทิน</span><span class="mini-btn">การใช้น้ำ/ไฟ</span>
-        <span class="mini-btn">Set อุปกรณ์</span><span class="mini-btn">สัญญา/พนักงาน</span><span class="mini-btn">ตั้งค่า</span>
-      </div>
-    </div>
-  </div>
+  <!-- เจ้าของ role has no mockup screen anymore — per explicit user
+       request, it already IS the real app, so login just redirects
+       straight to the live production site (see doLogin() below). -->
 
   <!-- ============ 3. TENANT (ผู้เช่า) — read-only ============ -->
   <div class="dash-wrap" id="dashTenant">
@@ -433,9 +406,16 @@
       if (pin !== '12345') { if (err) err.style.display = 'block'; return; }
     }
     if (err) err.style.display = 'none';
+    // Per explicit user request: เจ้าของ role doesn't need its own mockup
+    // screen at all — it already IS the real, full-featured app. Instead
+    // of a condensed preview, go straight to the live production site.
+    if (selectedRole === 'owner') {
+      window.location.href = 'https://chaosuk-rental.onrender.com/';
+      return;
+    }
     document.getElementById('loginScreen').style.display = 'none';
-    const map = { admin: 'dashAdmin', owner: 'dashOwner', tenant: 'dashTenant', staff: 'dashStaff' };
-    document.getElementById(map[selectedRole] || 'dashOwner').classList.add('active');
+    const map = { admin: 'dashAdmin', tenant: 'dashTenant', staff: 'dashStaff' };
+    document.getElementById(map[selectedRole] || 'dashAdmin').classList.add('active');
   }
   function logout() {
     document.querySelectorAll('.dash-wrap').forEach(d => d.classList.remove('active'));
