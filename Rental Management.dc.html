@@ -2481,11 +2481,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:380px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
               <sc-if value="{{ addBuildingIdle }}" hint-placeholder-val="{{ true }}">
                 <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">เพิ่มตึกใหม่</div>
-                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">ระบบจะสร้างโครงสร้าง (แท็บ+หัวคอลัมน์) ในชีตนี้ให้เหมือนของคุณต้นอัตโนมัติ แล้วเพิ่มแถวลูกค้าในสมุดรายชื่อกลางให้เลย — เบอร์โทร+รหัสด้านล่างจะให้ลูกค้าใช้ล็อกอินครั้งแรก (เปลี่ยนเป็นของตัวเองได้ทีหลัง) ⚠️ ต้องสร้าง Google Sheet เปล่าไว้ล่วงหน้าและแชร์ให้ service account แล้วเท่านั้น</div>
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">ระบบจะสร้างโครงสร้าง (แท็บ+หัวคอลัมน์) ในชีตนี้ให้เหมือนของคุณต้นอัตโนมัติ แล้วเพิ่มแถวลูกค้าในสมุดรายชื่อกลางให้เลย ⚠️ ต้องสร้าง Google Sheet เปล่าไว้ล่วงหน้าและแชร์ให้ service account แล้วเท่านั้น</div>
                 <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เบอร์โทรลูกค้า</div>
                 <input type="text" value="{{ addBuildingDraft.phone }}" onchange="{{ onAddBuildingPhone }}" placeholder="08x-xxx-xxxx" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:12px">
-                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รหัสผ่านชั่วคราว (อย่างน้อย 4 ตัวอักษร)</div>
-                <input type="text" value="{{ addBuildingDraft.pin }}" onchange="{{ onAddBuildingPin }}" placeholder="เช่น 445566" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:12px">
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รหัสผ่านชั่วคราว (ไม่บังคับ — เว้นว่างได้)</div>
+                <input type="text" value="{{ addBuildingDraft.pin }}" onchange="{{ onAddBuildingPin }}" placeholder="เว้นว่าง = ให้ลูกค้าตั้งเองตอน login ครั้งแรก" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">
+                <div style="font-size:10.5px;color:#9C8B78;margin-bottom:12px">💡 แนะนำ: เว้นว่างไว้ แล้วส่งแค่ลิงก์หน้า login ให้ลูกค้า — ลูกค้ากรอกเบอร์+ตั้งรหัสเองได้เลยตอน login ครั้งแรก ไม่ต้องส่งรหัสผ่านทางไลน์/ข้อความเลย</div>
                 <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Google Sheet ID ของตึกนี้ (ชีตเปล่า สร้างไว้แล้ว)</div>
                 <input type="text" value="{{ addBuildingDraft.customerSheetId }}" onchange="{{ onAddBuildingSheetId }}" placeholder="วางจาก URL ของ Sheet" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                 <div style="display:flex;gap:10px;margin-top:20px">
@@ -3726,8 +3727,16 @@ class Component extends DCLogic {
   // failed/partial clone never leaves a "logs in but has no tabs" building.
   submitAddBuilding = () => this._guard('submitAddBuilding', () => {
     const d = this.state.addBuildingDraft;
-    if (!d.phone.trim() || !d.pin.trim() || !d.customerSheetId.trim()) {
-      this.showAdminToast('กรุณากรอกเบอร์โทร รหัสผ่าน และ Sheet ID ให้ครบ', 'error');
+    // Per explicit user request ("claim your account" flow): the PIN
+    // field is optional now — leaving it blank lets the real customer
+    // set their own on their first login attempt (see server/routes/
+    // auth.js's /login claim logic), so คุณต้น only needs to send a link.
+    if (!d.phone.trim() || !d.customerSheetId.trim()) {
+      this.showAdminToast('กรุณากรอกเบอร์โทรและ Sheet ID ให้ครบ', 'error');
+      return;
+    }
+    if (d.pin.trim() && d.pin.trim().length < 4) {
+      this.showAdminToast('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร (หรือเว้นว่างให้ลูกค้าตั้งเอง)', 'error');
       return;
     }
     const sheetId = d.customerSheetId.trim();
@@ -3758,7 +3767,12 @@ class Component extends DCLogic {
             showAddBuildingModal: false, addBuildingDraft: { phone: '', pin: '', customerSheetId: '' },
             addBuildingProgress: { active: false, percent: 0, message: '', error: '' },
           });
-          this.showAdminToast('เพิ่มตึกใหม่สำเร็จ ✓ พร้อมให้ลูกค้าล็อกอินได้เลย', 'success');
+          this.showAdminToast(
+            resData.awaitingClaim
+              ? 'เพิ่มตึกใหม่สำเร็จ ✓ ส่งลิงก์หน้า login ให้ลูกค้าได้เลย ลูกค้าตั้งรหัสเองตอน login ครั้งแรก'
+              : 'เพิ่มตึกใหม่สำเร็จ ✓ พร้อมให้ลูกค้าล็อกอินได้เลย',
+            'success'
+          );
         } catch (err) {
           this.setState(s => ({ addBuildingProgress: { ...s.addBuildingProgress, active: false, error: err.message || 'เพิ่มแถวในสมุดรายชื่อกลางไม่สำเร็จ' } }));
         }

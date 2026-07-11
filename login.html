@@ -45,6 +45,11 @@
       <div class="field">
         <label>รหัสผ่าน</label>
         <input type="password" id="pin" placeholder="รหัสผ่าน" autocomplete="current-password">
+        <!-- Per explicit user request ("claim your account" flow): a
+             brand-new building's row can exist with NO pin yet, waiting
+             for the real customer's first login — this hint tells them
+             they can just type whatever password they want to set it. -->
+        <div style="font-size:10.5px;color:#9C8B78;margin-top:5px">เข้าครั้งแรก? พิมพ์รหัสผ่านที่ต้องการตั้งได้เลย ระบบจะบันทึกให้อัตโนมัติ</div>
       </div>
       <button class="submit-btn" id="submitBtn" onclick="doLogin()">เข้าสู่ระบบ</button>
       <div class="err" id="err"></div>

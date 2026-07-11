@@ -111,8 +111,8 @@ router.post('/add-building', async (req, res, next) => {
     if (!(await isPlatformAdminReq(req))) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
 
     const { phone, pin, customerSheetId } = req.body;
-    if (!phone || !pin || !customerSheetId) return res.status(400).json({ error: 'กรุณากรอกเบอร์โทร รหัสผ่าน และ Sheet ID ให้ครบ' });
-    if (String(pin).length < 4) return res.status(400).json({ error: 'รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร' });
+    if (!phone || !customerSheetId) return res.status(400).json({ error: 'กรุณากรอกเบอร์โทรและ Sheet ID ให้ครบ' });
+    if (pin && String(pin).length < 4) return res.status(400).json({ error: 'รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร (หรือเว้นว่างให้ลูกค้าตั้งเอง)' });
 
     const directoryRows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
     if (directoryRows.some((u) => u.customerSheetId === customerSheetId)) {
@@ -125,9 +125,12 @@ router.post('/add-building', async (req, res, next) => {
     // (whatever was typed into the form is ignored in that case, so the
     // owner's one login always stays consistent across every building of
     // theirs, no manual syncing needed). A genuinely new phone gets a
-    // fresh ownerId and uses the PIN typed in, which only needs to be
-    // unique against OTHER owners (a different owner reusing the same PIN
-    // string is fine — login always matches phone+pin together).
+    // fresh ownerId; the PIN field is OPTIONAL for a new phone — per
+    // explicit user request ("claim your account" flow), leaving it blank
+    // creates the row with NO pin at all, and the real customer's first
+    // login attempt (whatever they type as the pin, min 4 chars) claims
+    // it as their own — see server/routes/auth.js's /login. คุณต้น only
+    // ever needs to hand them a login link, never a password.
     const existingOwnerRow = directoryRows.find((u) => u.phone === phone);
     let ownerId, effectivePin, reusedExistingOwner;
     if (existingOwnerRow) {
@@ -136,10 +139,12 @@ router.post('/add-building', async (req, res, next) => {
       effectivePin = existingOwnerRow.pin;
       reusedExistingOwner = true;
     } else {
-      const pinTakenByOtherOwner = directoryRows.some((u) => String(u.pin) === String(pin));
-      if (pinTakenByOtherOwner) return res.status(409).json({ error: 'รหัสผ่านนี้มีเจ้าของอื่นใช้อยู่แล้ว กรุณาตั้งรหัสอื่น' });
+      if (pin) {
+        const pinTakenByOtherOwner = directoryRows.some((u) => String(u.pin) === String(pin));
+        if (pinTakenByOtherOwner) return res.status(409).json({ error: 'รหัสผ่านนี้มีเจ้าของอื่นใช้อยู่แล้ว กรุณาตั้งรหัสอื่น' });
+      }
       ownerId = genOwnerId();
-      effectivePin = pin;
+      effectivePin = pin || '';
       reusedExistingOwner = false;
     }
 
@@ -147,16 +152,20 @@ router.post('/add-building', async (req, res, next) => {
       ownerId, phone, pin: effectivePin, role: 'owner', customerSheetId, roomId: '', staffId: '', status: 'active',
     }));
 
-    // One-time bootstrap only (NOT an ongoing sync) — a brand-new building
-    // starts with adminEditPin defaulted to "12345", which would leave the
-    // owner unable to confirm-save their own "ข้อมูลหอพัก" card without
-    // knowing that default. Seed it to match the login PIN they were just
-    // given so their first save works with the PIN they already know —
-    // completely independent from that point on (per explicit user
-    // correction: adminEditPin and the login PIN never sync after this).
-    await runWithSheetId(customerSheetId, () => upsertKV('adminEditPin', effectivePin));
+    // One-time bootstrap only (NOT an ongoing sync), and only when we
+    // actually HAVE a pin yet — a brand-new building starts with
+    // adminEditPin defaulted to "12345", which would leave the owner
+    // unable to confirm-save their own "ข้อมูลหอพัก" card without knowing
+    // that default. Seed it to match the login PIN so their first save
+    // works with a PIN they already know — completely independent from
+    // that point on (adminEditPin and the login PIN never sync after
+    // this). When the pin is claimed later instead (blank at creation),
+    // /login's claim step does this same seeding at claim time.
+    if (effectivePin) {
+      await runWithSheetId(customerSheetId, () => upsertKV('adminEditPin', effectivePin));
+    }
 
-    res.json({ ok: true, reusedExistingOwner, ownerId });
+    res.json({ ok: true, reusedExistingOwner, ownerId, awaitingClaim: !effectivePin });
   } catch (err) { next(err); }
 });
 

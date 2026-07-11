@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
-const { readTab, updateRow } = require('../sheets');
+const { readTab, updateRow, appendRow } = require('../sheets');
 const { runWithSheetId } = require('../requestContext');
 const { getSession, setSessionCookie, clearSessionCookie } = require('../auth');
 const { readSettings } = require('../coerce');
@@ -25,6 +25,19 @@ const DIRECTORY_SHEET_ID = process.env.GOOGLE_DIRECTORY_SHEET_ID;
 // from the owner mid-design.
 function genOwnerId() {
   return 'OWNER-' + crypto.randomBytes(6).toString('hex');
+}
+
+// Tiny local copy of settings.js's upsertKV — kept separate (not
+// imported) to avoid a circular require (settings.js already imports
+// from this file). Only used for the one-time adminEditPin bootstrap at
+// claim time below.
+async function upsertSettingKV(key, value) {
+  const rows = await readTab('Settings');
+  if (rows.some((r) => r.key === key)) {
+    await updateRow('Settings', key, { value: String(value) }, 'key');
+  } else {
+    await appendRow('Settings', { key, value: String(value) });
+  }
 }
 
 // Per explicit user request: whether this session belongs to the
@@ -62,7 +75,37 @@ router.post('/login', async (req, res, next) => {
     if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
 
     const users = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
-    const match = users.find((u) => u.phone === phone && u.pin === pin);
+    let match = users.find((u) => u.phone === phone && u.pin === pin);
+
+    // Per explicit user request ("claim your account" flow): a brand-new
+    // building created via "+ เพิ่มตึกใหม่" with the PIN field left blank
+    // sits with an EMPTY pin, waiting for the real customer to set their
+    // own — คุณต้น only ever hands them a login LINK, never a password.
+    // The very first login attempt for that phone, using WHATEVER PIN
+    // they type (min 4 chars), claims the account: that typed value
+    // becomes their real PIN from here on, same login form, no separate
+    // "set up your account" screen needed.
+    if (!match) {
+      const unclaimed = users.find((u) => u.phone === phone && !u.pin);
+      if (unclaimed) {
+        if (String(pin).length < 4) return res.status(400).json({ error: 'รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร' });
+        const pinTaken = users.some((u) => u.phone !== phone && String(u.pin) === String(pin));
+        if (pinTaken) return res.status(409).json({ error: 'รหัสผ่านนี้มีบัญชีอื่นใช้งานอยู่แล้ว กรุณาตั้งรหัสอื่นครับ' });
+        const ownerId = unclaimed.ownerId || genOwnerId();
+        await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', unclaimed.customerSheetId, { pin, ownerId }, 'customerSheetId'));
+        // Same one-time adminEditPin bootstrap as add-building does when a
+        // PIN is provided upfront — here it happens at claim time instead,
+        // since that's the first moment we actually know the customer's
+        // chosen PIN. Best-effort: a hiccup here shouldn't block the
+        // login/claim itself, which already succeeded by this point.
+        if (unclaimed.customerSheetId) {
+          try { await runWithSheetId(unclaimed.customerSheetId, () => upsertSettingKV('adminEditPin', pin)); }
+          catch (bootstrapErr) { console.error('[auth] adminEditPin bootstrap failed at claim for', unclaimed.customerSheetId, bootstrapErr.message); }
+        }
+        match = { ...unclaimed, pin, ownerId };
+      }
+    }
+
     if (!match) return res.status(401).json({ error: 'เบอร์โทรหรือรหัสผ่านไม่ถูกต้อง' });
 
     // Every building sharing this owner's ownerId — the session starts
