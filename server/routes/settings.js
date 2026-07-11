@@ -80,6 +80,42 @@ router.post('/verify-platform-pin', (req, res) => {
   res.json({ ok: true });
 });
 
+// Per explicit user request: lets the platform admin (คุณต้น only — see
+// the server-side isPlatformAdmin check below, this is NOT reachable by
+// a regular customer even if they guessed the URL) add a new building's
+// row to the master login directory directly from the app, instead of
+// hand-editing the Directory Sheet every time a new customer's building
+// is set up. The Google Sheet itself still has to be created manually
+// first (see prototype-auth/clone-schema.js) — this only automates the
+// "add the login row" step of that process.
+router.post('/add-building', async (req, res, next) => {
+  try {
+    if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
+    const isPlatformAdmin = !!(req.session && req.session.customerSheetId && req.session.customerSheetId === process.env.GOOGLE_SHEET_ID);
+    if (!isPlatformAdmin) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
+
+    const { phone, pin, customerSheetId } = req.body;
+    if (!phone || !pin || !customerSheetId) return res.status(400).json({ error: 'กรุณากรอกเบอร์โทร รหัสผ่าน และ Sheet ID ให้ครบ' });
+    if (String(pin).length < 4) return res.status(400).json({ error: 'รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร' });
+
+    const directoryRows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+    // Same global PIN-uniqueness rule as change-admin-pin — one PIN can
+    // only ever belong to one building across the whole directory, so
+    // login can always tell which building a (phone, pin) pair means.
+    if (directoryRows.some((u) => String(u.pin) === String(pin))) {
+      return res.status(409).json({ error: 'รหัสผ่านนี้มีตึกอื่นใช้อยู่แล้ว กรุณาตั้งรหัสอื่น' });
+    }
+    if (directoryRows.some((u) => u.customerSheetId === customerSheetId)) {
+      return res.status(409).json({ error: 'Sheet ID นี้มีอยู่ในสมุดรายชื่อกลางแล้ว (ตึกนี้เพิ่มไปแล้วหรือเปล่า?)' });
+    }
+
+    await runWithSheetId(DIRECTORY_SHEET_ID, () => appendRow('Users', {
+      phone, pin, role: 'owner', customerSheetId, roomId: '', staffId: '',
+    }));
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 router.post('/verify-admin-pin', async (req, res, next) => {
   try {
     const { pin } = req.body;

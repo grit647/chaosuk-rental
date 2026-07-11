@@ -56,7 +56,15 @@ router.get('/logout-link', (req, res) => {
 
 router.get('/me', (req, res) => {
   const session = getSession(req);
-  res.json(session || { role: null });
+  if (!session) return res.json({ role: null });
+  // Per explicit user request: flags whether THIS session is the
+  // platform's own account (คุณต้น's real production Sheet — the same
+  // one the no-session fallback in sheets.js uses) vs a regular
+  // customer's own building. Used to show admin-only tools (e.g. the
+  // "+ เพิ่มตึกใหม่" directory-row form in Settings) only to us, never to
+  // a customer, even though both log in through the exact same flow.
+  const isPlatformAdmin = !!(session.customerSheetId && session.customerSheetId === process.env.GOOGLE_SHEET_ID);
+  res.json({ ...session, isPlatformAdmin });
 });
 
 module.exports = router;
