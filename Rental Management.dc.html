@@ -753,6 +753,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <input value="{{ propertyProfile.adminPhone }}" onchange="{{ onProfilePhone }}" placeholder="08x-xxx-xxxx" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                     </div>
                   </div>
+                  <div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ID / รหัสประจำตึก</div>
+                    <input value="{{ propertyProfile.buildingKeyId }}" onchange="{{ onProfileBuildingKeyId }}" placeholder="เช่น OB-001 (ไว้อ้างอิงตึกนี้)" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  </div>
                 </sc-if>
                 <sc-if value="{{ adminInfoLocked }}" hint-placeholder-val="{{ true }}">
                   <div style="background:#F1EBE0;border-radius:7px;padding:12px 14px">
@@ -768,6 +772,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="font-size:10.5px;color:#9C8B78;margin-bottom:3px">เบอร์ติดต่อผู้ดูแล</div>
                       <div style="font-size:13px;font-weight:600;color:#241812;font-family:'IBM Plex Mono',monospace">{{ propertyProfile.adminPhone }}</div>
                     </div>
+                  </div>
+                  <div style="background:#F1EBE0;border-radius:7px;padding:12px 14px">
+                    <div style="font-size:10.5px;color:#9C8B78;margin-bottom:3px">ID / รหัสประจำตึก</div>
+                    <div style="font-size:13px;font-weight:600;color:#241812;font-family:'IBM Plex Mono',monospace">{{ buildingKeyIdDisplay }}</div>
                   </div>
                   <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#3B7A52;font-weight:600">
                     <span style="width:6px;height:6px;border-radius:50%;background:#3B7A52"></span>บันทึกแล้ว — กด "แก้ไข" เพื่อเปลี่ยนอีกครั้ง
@@ -3538,7 +3546,7 @@ class Component extends DCLogic {
     lineConn: { channelId: '', channelSecret: '', accessToken: '', connected: false },
     lineEnvConnected: false,
     sheetEnvConnected: false,
-    propertyProfile: { name: 'หอพักเช่าสุข', adminName: 'คุณสมหมาย ผู้จัดการ', adminPhone: '081-000-0000', paymentQrUrl: '' },
+    propertyProfile: { name: 'หอพักเช่าสุข', adminName: 'คุณสมหมาย ผู้จัดการ', adminPhone: '081-000-0000', paymentQrUrl: '', buildingKeyId: '' },
     // A newly-picked QR image (dataURL) or a pending removal — staged here
     // until confirmSaveAdminInfo's PIN-gated save actually uploads/commits
     // it, per explicit user request that this go through the same
@@ -6562,6 +6570,7 @@ class Component extends DCLogic {
   onProfileName = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, name: v } })); };
   onProfileAdmin = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminName: v } })); };
   onProfilePhone = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminPhone: v } })); };
+  onProfileBuildingKeyId = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, buildingKeyId: v } })); };
   onProfileAdminLineUserId = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminLineUserId: v } })); };
   // Clears the local value and opens the same PIN-confirm popup the normal
   // save uses (per the established security model here — unlinking is
@@ -8735,6 +8744,8 @@ class Component extends DCLogic {
       })),
       propertyProfile: s.propertyProfile,
       onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone,
+      onProfileBuildingKeyId: this.onProfileBuildingKeyId,
+      buildingKeyIdDisplay: s.propertyProfile.buildingKeyId || 'ยังไม่ได้ตั้งค่า',
       onProfileAdminLineUserId: this.onProfileAdminLineUserId, saveAdminInfo: this.saveAdminInfo,
       adminInfoLocked: s.adminInfoLocked, adminInfoUnlocked: !s.adminInfoLocked, unlockAdminInfo: this.unlockAdminInfo,
       viewingOtherAccount: !!(s.authSession && s.authSession.customerSheetId), logoutToOwnAccount: this.logoutToOwnAccount,

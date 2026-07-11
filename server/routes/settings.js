@@ -230,6 +230,7 @@ router.put('/', async (req, res, next) => {
       adminPhone: b.propertyProfile && b.propertyProfile.adminPhone,
       adminLineUserId: b.propertyProfile && b.propertyProfile.adminLineUserId,
       paymentQrUrl: b.propertyProfile && b.propertyProfile.paymentQrUrl,
+      buildingKeyId: b.propertyProfile && b.propertyProfile.buildingKeyId,
       waterRate: b.waterRate,
       elecRate: b.elecRate,
       trashRate: b.trashRate,

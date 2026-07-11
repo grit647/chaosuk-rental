@@ -176,6 +176,12 @@ async function readSettings() {
       // deploys, unlike the ephemeral local-disk uploads used for one-off
       // slip photos. Attached to the end of every outgoing LINE bill.
       paymentQrUrl: map.paymentQrUrl || '',
+      // Per explicit user request: a short reference/ID code identifying
+      // THIS specific building — separate from (and simpler to read/quote
+      // over the phone than) the long Google Sheet ID. Purely a display/
+      // reference field the owner sets themselves, no system logic reads
+      // it yet.
+      buildingKeyId: map.buildingKeyId || '',
     },
     waterRate: num(map.waterRate, 18),
     elecRate: num(map.elecRate, 8),
