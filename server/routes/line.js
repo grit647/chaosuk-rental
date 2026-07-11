@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { readTab, updateRow, appendRow } = require('../sheets');
-const { coerceInvoices, coerceRooms } = require('../coerce');
+const { coerceInvoices, coerceRooms, readIntegrationCredentials } = require('../coerce');
 const { isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent } = require('../line');
 const { isConfigured: claudeConfigured, readPaymentSlip } = require('../claude');
 const { isConfigured: cloudinaryConfigured, uploadBuffer: uploadToCloudinary } = require('../cloudinary');
@@ -26,8 +26,11 @@ async function updateSettingKV(key, value) {
   }
 }
 
-router.get('/status', (req, res) => {
-  res.json({ connected: isConfigured() });
+router.get('/status', async (req, res, next) => {
+  try {
+    const creds = await readIntegrationCredentials();
+    res.json({ connected: isConfigured(creds.line) });
+  } catch (err) { next(err); }
 });
 
 // Given a room and a freshly-read slip, files it against that room: adds to
@@ -218,6 +221,21 @@ router.post('/webhook', async (req, res) => {
   // downstream fails — we log failures instead of surfacing them to LINE.
   res.status(200).json({ ok: true });
 
+  // KNOWN LIMITATION, flagged per explicit user follow-up discussion:
+  // this webhook still only uses the SHARED server/.env LINE credentials
+  // (no `creds` passed to verifySignature/replyMessage below), unlike the
+  // outgoing /send route and /status check, which now resolve each
+  // customer's own credentials. LINE calls this ONE webhook URL with no
+  // way for us to know in advance which customer's Channel Secret to
+  // verify against, since there's no session cookie on an incoming
+  // webhook call the way there is on a browser request — routing this
+  // per-customer needs either per-customer webhook URLs or trying every
+  // customer's secret until one's signature matches, neither of which is
+  // built yet. For now, a second customer's own LINE OA (if they set one
+  // up via the new Settings form) can only SEND messages through this
+  // app; tenants replying/sending slips to THAT OA won't be received
+  // here until this gets built out further.
+
   try {
     const signature = req.headers['x-line-signature'];
     if (!verifySignature(req.rawBody || Buffer.from(''), signature)) {
@@ -275,7 +293,12 @@ router.post('/webhook', async (req, res) => {
 
 router.post('/send', async (req, res, next) => {
   try {
-    if (!isConfigured()) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า LINE บนเซิร์ฟเวอร์ (server/.env)' });
+    // Resolves THIS customer's own LINE credentials (from whichever Sheet
+    // the current request/session is scoped to) if they've set any via
+    // the Settings gear-icon form, otherwise falls back to server/.env
+    // exactly as before — see server/line.js's resolveCreds().
+    const creds = await readIntegrationCredentials();
+    if (!isConfigured(creds.line)) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า LINE (ใส่ Token/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
     const { roomId, message, imageUrl } = req.body;
     if (!roomId || (!message || !String(message).trim()) && !imageUrl) {
       return res.status(400).json({ error: 'กรุณาระบุห้องและข้อความหรือรูปภาพ' });
@@ -285,7 +308,7 @@ router.post('/send', async (req, res, next) => {
     if (!room || !room.lineUserId) {
       return res.status(400).json({ error: `ห้อง ${roomId} ยังไม่ได้เชื่อมต่อ LINE` });
     }
-    await pushMessage(room.lineUserId, message, imageUrl);
+    await pushMessage(room.lineUserId, message, imageUrl, creds.line);
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

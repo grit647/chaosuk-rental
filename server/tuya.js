@@ -1,11 +1,23 @@
 const crypto = require('crypto');
 
-const BASE = process.env.TUYA_API_BASE || 'https://openapi.tuyaus.com';
-const CLIENT_ID = process.env.TUYA_ACCESS_ID;
-const CLIENT_SECRET = process.env.TUYA_ACCESS_SECRET;
+// Per explicit user request: Tuya credentials can now come from either the
+// shared server/.env values (คุณต้น's current setup, unchanged) OR a
+// per-customer override stored in that customer's own Settings sheet (see
+// server/routes/settings.js's tuyaCredentials handling + the new
+// gear-icon UI). Every exported function below takes an OPTIONAL trailing
+// `creds` param `{ accessId, accessSecret, apiBase }` — when omitted,
+// falls back to process.env exactly as before.
+function resolveCreds(creds) {
+  return {
+    clientId: (creds && creds.accessId) || process.env.TUYA_ACCESS_ID,
+    clientSecret: (creds && creds.accessSecret) || process.env.TUYA_ACCESS_SECRET,
+    base: (creds && creds.apiBase) || process.env.TUYA_API_BASE || 'https://openapi.tuyaus.com',
+  };
+}
 
-function isConfigured() {
-  return !!(CLIENT_ID && CLIENT_SECRET && BASE);
+function isConfigured(creds) {
+  const c = resolveCreds(creds);
+  return !!(c.clientId && c.clientSecret && c.base);
 }
 
 function sha256Hex(str) {
@@ -23,37 +35,45 @@ function buildStringToSign(method, body, url) {
   return `${method}\n${bodyHash}\n\n${url}`;
 }
 
-let tokenCache = { token: null, expiresAt: 0 };
+// Keyed by clientId — different customers have different Tuya Cloud
+// Projects, each with its own access token (and, separately below, its own
+// device-spec cache). A shared single-slot cache (the old design) would
+// have silently served one customer's token to another's requests.
+const tokenCacheByClient = new Map();
 
-async function getAccessToken() {
-  if (tokenCache.token && Date.now() < tokenCache.expiresAt) return tokenCache.token;
+async function getAccessToken(creds) {
+  const { clientId, clientSecret, base } = resolveCreds(creds);
+  const cached = tokenCacheByClient.get(clientId);
+  if (cached && Date.now() < cached.expiresAt) return cached.token;
   const t = Date.now().toString();
   const url = '/v1.0/token?grant_type=1';
   const stringToSign = buildStringToSign('GET', '', url);
-  const sign = hmacSha256Hex(CLIENT_ID + t + stringToSign, CLIENT_SECRET);
-  const res = await fetch(BASE + url, {
+  const sign = hmacSha256Hex(clientId + t + stringToSign, clientSecret);
+  const res = await fetch(base + url, {
     method: 'GET',
-    headers: { client_id: CLIENT_ID, sign, t, sign_method: 'HMAC-SHA256' },
+    headers: { client_id: clientId, sign, t, sign_method: 'HMAC-SHA256' },
   });
   const data = await res.json();
   if (!data.success) throw new Error('Tuya token error: ' + (data.msg || JSON.stringify(data)));
-  tokenCache = {
+  const entry = {
     token: data.result.access_token,
     expiresAt: Date.now() + (data.result.expire_time - 60) * 1000, // refresh a minute early
   };
-  return tokenCache.token;
+  tokenCacheByClient.set(clientId, entry);
+  return entry.token;
 }
 
-async function tuyaRequest(method, path, body) {
-  const accessToken = await getAccessToken();
+async function tuyaRequest(method, path, body, creds) {
+  const { clientId, clientSecret, base } = resolveCreds(creds);
+  const accessToken = await getAccessToken(creds);
   const t = Date.now().toString();
   const bodyStr = body ? JSON.stringify(body) : '';
   const stringToSign = buildStringToSign(method, bodyStr, path);
-  const sign = hmacSha256Hex(CLIENT_ID + accessToken + t + stringToSign, CLIENT_SECRET);
-  const res = await fetch(BASE + path, {
+  const sign = hmacSha256Hex(clientId + accessToken + t + stringToSign, clientSecret);
+  const res = await fetch(base + path, {
     method,
     headers: {
-      client_id: CLIENT_ID,
+      client_id: clientId,
       access_token: accessToken,
       sign,
       t,
@@ -67,24 +87,29 @@ async function tuyaRequest(method, path, body) {
   return data.result;
 }
 
-async function listDevices() {
+async function listDevices(creds) {
   // Project-level device list — works because the Smart Life/Tuya Smart app
   // account has been linked to this Cloud Project (Devices > Link Tuya App Account).
-  const result = await tuyaRequest('GET', '/v1.3/iot-03/devices?page_size=100');
+  const result = await tuyaRequest('GET', '/v1.3/iot-03/devices?page_size=100', null, creds);
   const list = (result && result.list) || [];
   return list.map((d) => ({ id: d.id, name: d.name, online: !!d.online, productName: d.product_name }));
 }
 
-async function getDeviceStatus(deviceId) {
-  const result = await tuyaRequest('GET', `/v1.0/devices/${deviceId}/status`);
+async function getDeviceStatus(deviceId, creds) {
+  const result = await tuyaRequest('GET', `/v1.0/devices/${deviceId}/status`, null, creds);
   return result || [];
 }
 
+// Keyed by "clientId:deviceId" — same per-customer isolation reasoning as
+// the token cache above (a device's spec doesn't change, but different
+// customers' projects could theoretically reuse the same deviceId
+// numbering scheme in principle, so keep them namespaced to be safe).
 const specCache = new Map();
-async function getDeviceSpec(deviceId) {
-  if (specCache.has(deviceId)) return specCache.get(deviceId);
-  const result = await tuyaRequest('GET', `/v1.0/devices/${deviceId}/specifications`);
-  specCache.set(deviceId, result);
+async function getDeviceSpec(deviceId, creds) {
+  const cacheKey = `${(creds && creds.accessId) || process.env.TUYA_ACCESS_ID}:${deviceId}`;
+  if (specCache.has(cacheKey)) return specCache.get(cacheKey);
+  const result = await tuyaRequest('GET', `/v1.0/devices/${deviceId}/specifications`, null, creds);
+  specCache.set(cacheKey, result);
   return result;
 }
 
@@ -123,10 +148,10 @@ function decodePhaseRaw(base64Value) {
 // simple-plug-style separate DP codes first (using the device's own DP
 // schema scale factor when available), then falls back to decoding the
 // packed phase_a raw DP used by circuit-breaker/RCBO-style meters.
-async function getElecReading(deviceId) {
+async function getElecReading(deviceId, creds) {
   const [status, spec] = await Promise.all([
-    getDeviceStatus(deviceId),
-    getDeviceSpec(deviceId).catch(() => null),
+    getDeviceStatus(deviceId, creds),
+    getDeviceSpec(deviceId, creds).catch(() => null),
   ]);
   const map = {};
   status.forEach((s) => { map[s.code] = s.value; });
@@ -159,10 +184,10 @@ async function getElecReading(deviceId) {
 
 // Sends a control command to the device. `code` is the DP code (e.g. 'switch'
 // for the breaker's relay on/off), `value` is whatever type that DP expects.
-async function sendCommand(deviceId, code, value) {
+async function sendCommand(deviceId, code, value, creds) {
   return tuyaRequest('POST', `/v1.0/devices/${deviceId}/commands`, {
     commands: [{ code, value }],
-  });
+  }, creds);
 }
 
 module.exports = { isConfigured, listDevices, getDeviceStatus, getDeviceSpec, getElecReading, sendCommand };

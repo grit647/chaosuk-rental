@@ -14,6 +14,27 @@ app.set('trust proxy', 1); // behind Render's proxy — needed so req.protocol r
 app.use(express.json({ limit: '5mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Per explicit user request (multi-tenant login prototype): if this
+// request carries a valid signed session cookie, resolve every
+// sheets.js call for the REST of this request to that session's own
+// customerSheetId instead of the single GOOGLE_SHEET_ID env var — see
+// requestContext.js for how sheets.js reads this back. No session (which
+// is every request today, since nothing requires login yet) falls
+// straight through to next() unchanged — zero behavior change for the
+// current owner's existing no-login usage.
+const { getSession } = require('./auth');
+const { runWithSheetId } = require('./requestContext');
+app.use((req, res, next) => {
+  const session = getSession(req);
+  if (session && session.customerSheetId) {
+    req.session = session;
+    runWithSheetId(session.customerSheetId, next);
+  } else {
+    if (session) req.session = session; // role set but no customerSheetId (e.g. ผู้ดูแลระบบ) — still expose it
+    next();
+  }
+});
+
 // Never let browsers cache these — every deploy changes the app logic, and a
 // stale cached copy would silently keep showing old behavior/data forever.
 const noCache = (req, res, next) => { res.set('Cache-Control', 'no-store, no-cache, must-revalidate'); next(); };
@@ -25,7 +46,14 @@ app.get('/Lease Agreement - Room 302.dc.html', noCache, (req, res) => res.sendFi
 // future multi-tenant login/signup page could look like. Pure HTML/CSS/JS,
 // no backend wiring, not linked from anywhere in the real app's nav.
 app.get('/login-preview.html', noCache, (req, res) => res.sendFile(path.join(ROOT, 'login-preview.html')));
+// The REAL login page — per explicit user request, wired to POST
+// /api/auth/login for real (unlike login-preview.html's role-picker
+// mockup). Separate static file, not yet linked from '/' — visiting '/'
+// directly still works exactly as before with no login required, until a
+// later step makes that mandatory.
+app.get('/login', noCache, (req, res) => res.sendFile(path.join(ROOT, 'login.html')));
 
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/bootstrap', require('./routes/bootstrap'));
 app.use('/api/rooms', require('./routes/rooms'));
 app.use('/api/staff', require('./routes/staff'));

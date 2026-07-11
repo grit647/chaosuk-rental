@@ -162,6 +162,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div style="width:36px;height:36px;border-radius:9px;background:#C1622D;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;flex-shrink:0">ช</div>
             <div style="font-weight:700;font-size:16px;color:#F1EBE0">เช่าสุข</div>
           </div>
+          <sc-if value="{{ viewingOtherAccount }}" hint-placeholder-val="{{ false }}">
+            <div style="margin:0 0 8px;padding:9px 11px;border-radius:8px;background:#4A3418;border:1px solid #C1622D;display:flex;flex-direction:column;gap:5px">
+              <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#F0B87D">
+                <span style="width:6px;height:6px;border-radius:50%;background:#F0B87D"></span>กำลังดูข้อมูลของ: {{ propertyProfile.name }}
+              </div>
+              <div onclick="{{ logoutToOwnAccount }}" style="font-size:10.5px;color:#F1EBE0;text-decoration:underline;cursor:pointer">← กลับไปบัญชีของคุณเอง</div>
+            </div>
+          </sc-if>
           <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
             <div onclick="{{ goDashboard }}" style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;cursor:pointer;background:{{ navDash.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navDash.dot }}"></div>
@@ -723,20 +731,41 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:18px">ชื่อหอพักและผู้ดูแลจะแสดงบนบิลและเอกสารสัญญา — เชื่อม LINE เพื่อรับการแจ้งเตือนจากระบบ</div>
               <div style="display:flex;flex-direction:column;gap:14px">
-                <div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ชื่อหอพัก</div>
-                  <input value="{{ propertyProfile.name }}" onchange="{{ onProfileName }}" placeholder="เช่น หอพักเช่าสุข" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
-                </div>
-                <div style="display:flex;gap:12px">
-                  <div style="flex:1.4">
-                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ผู้ดูแลหอพัก</div>
-                    <input value="{{ propertyProfile.adminName }}" onchange="{{ onProfileAdmin }}" placeholder="ชื่อผู้ดูแล" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                <sc-if value="{{ adminInfoUnlocked }}" hint-placeholder-val="{{ false }}">
+                  <div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ชื่อหอพัก</div>
+                    <input value="{{ propertyProfile.name }}" onchange="{{ onProfileName }}" placeholder="เช่น หอพักเช่าสุข" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
                   </div>
-                  <div style="flex:1">
-                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เบอร์ติดต่อผู้ดูแล</div>
-                    <input value="{{ propertyProfile.adminPhone }}" onchange="{{ onProfilePhone }}" placeholder="08x-xxx-xxxx" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  <div style="display:flex;gap:12px">
+                    <div style="flex:1.4">
+                      <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ผู้ดูแลหอพัก</div>
+                      <input value="{{ propertyProfile.adminName }}" onchange="{{ onProfileAdmin }}" placeholder="ชื่อผู้ดูแล" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                    </div>
+                    <div style="flex:1">
+                      <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เบอร์ติดต่อผู้ดูแล</div>
+                      <input value="{{ propertyProfile.adminPhone }}" onchange="{{ onProfilePhone }}" placeholder="08x-xxx-xxxx" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                    </div>
                   </div>
-                </div>
+                </sc-if>
+                <sc-if value="{{ adminInfoLocked }}" hint-placeholder-val="{{ true }}">
+                  <div style="background:#F1EBE0;border-radius:7px;padding:12px 14px">
+                    <div style="font-size:10.5px;color:#9C8B78;margin-bottom:3px">ชื่อหอพัก</div>
+                    <div style="font-size:13px;font-weight:600;color:#241812">{{ propertyProfile.name }}</div>
+                  </div>
+                  <div style="display:flex;gap:12px">
+                    <div style="flex:1.4;background:#F1EBE0;border-radius:7px;padding:12px 14px">
+                      <div style="font-size:10.5px;color:#9C8B78;margin-bottom:3px">ผู้ดูแลหอพัก</div>
+                      <div style="font-size:13px;font-weight:600;color:#241812">{{ propertyProfile.adminName }}</div>
+                    </div>
+                    <div style="flex:1;background:#F1EBE0;border-radius:7px;padding:12px 14px">
+                      <div style="font-size:10.5px;color:#9C8B78;margin-bottom:3px">เบอร์ติดต่อผู้ดูแล</div>
+                      <div style="font-size:13px;font-weight:600;color:#241812;font-family:'IBM Plex Mono',monospace">{{ propertyProfile.adminPhone }}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#3B7A52;font-weight:600">
+                    <span style="width:6px;height:6px;border-radius:50%;background:#3B7A52"></span>บันทึกแล้ว — กด "แก้ไข" เพื่อเปลี่ยนอีกครั้ง
+                  </div>
+                </sc-if>
                 <div>
                   <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">การเชื่อมต่อ LINE ผู้ดูแล (สำหรับรับการแจ้งเตือนจากระบบ)</div>
                   <sc-if value="{{ adminLineConnected }}" hint-placeholder-val="{{ false }}">
@@ -781,7 +810,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 </div>
                 <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
                   <div onclick="{{ openChangePinModal }}" title="ตั้งค่ารหัสผ่าน" style="width:38px;height:38px;border-radius:7px;border:1px solid #E3D8C8;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px">⚙️</div>
-                  <div onclick="{{ saveAdminInfo }}" style="padding:10px 22px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;cursor:pointer">บันทึกข้อมูล</div>
+                  <sc-if value="{{ adminInfoLocked }}" hint-placeholder-val="{{ true }}">
+                    <div onclick="{{ unlockAdminInfo }}" style="padding:10px 22px;border-radius:7px;background:none;border:1.5px solid #C1622D;color:#C1622D;font-size:13px;font-weight:700;cursor:pointer">✏️ แก้ไข</div>
+                  </sc-if>
+                  <sc-if value="{{ adminInfoUnlocked }}" hint-placeholder-val="{{ false }}">
+                    <div onclick="{{ saveAdminInfo }}" style="padding:10px 22px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;cursor:pointer">บันทึกข้อมูล</div>
+                  </sc-if>
                 </div>
               </div>
             </div>
@@ -895,13 +929,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;row-gap:6px">
                 <span style="font-size:16px">🔗</span>
                 <div style="font-size:15px;font-weight:700;color:#241812">การเชื่อมต่อ Tuya Cloud</div>
-                <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;margin-left:auto;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ tuyaStatusBg }};color:{{ tuyaStatusColor }}">
+                <span onclick="{{ openTuyaCredModal }}" title="ตั้งค่า Tuya" style="cursor:pointer;font-size:14px;margin-left:auto">⚙️</span>
+                <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ tuyaStatusBg }};color:{{ tuyaStatusColor }}">
                   <span style="width:6px;height:6px;border-radius:50%;background:{{ tuyaStatusDot }}"></span>{{ tuyaStatusLabel }}
                 </span>
               </div>
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:10px">ดึงสถานะอุปกรณ์ไฟฟ้าแบบเรียลไทม์ (V/A/W) จาก Tuya Cloud</div>
               <div style="display:flex;flex-direction:column;gap:10px">
-                <div style="font-size:12px;color:#7C6E5F">Access ID / Access Secret ตั้งค่าที่ฝั่งเซิร์ฟเวอร์เท่านั้น (ไฟล์ <code>server/.env</code>) เพื่อความปลอดภัย — ไม่กรอกผ่านหน้านี้</div>
+                <div style="font-size:12px;color:#7C6E5F">กด ⚙️ ด้านบนเพื่อกรอก Access ID/Secret ของบัญชี Tuya ของคุณเอง (ต้องยืนยันรหัส PIN) — ถ้ายังไม่ได้กรอก ระบบจะใช้ค่าเริ่มต้นของเซิร์ฟเวอร์แทน</div>
                 <div style="font-size:12px;color:{{ tuyaStatusColor }};font-weight:600">{{ tuyaEnvStatusLabel }}</div>
               </div>
             </div>
@@ -910,13 +945,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;row-gap:6px">
                 <span style="width:22px;height:22px;border-radius:6px;background:#06C755;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">L</span>
                 <div style="font-size:15px;font-weight:700;color:#241812">การเชื่อมต่อ LINE Official Account</div>
-                <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;margin-left:auto;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ lineStatusBg }};color:{{ lineStatusColor }}">
+                <span onclick="{{ openLineCredModal }}" title="ตั้งค่า LINE" style="cursor:pointer;font-size:14px;margin-left:auto">⚙️</span>
+                <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ lineStatusBg }};color:{{ lineStatusColor }}">
                   <span style="width:6px;height:6px;border-radius:50%;background:{{ lineStatusDot }}"></span>{{ lineStatusLabel }}
                 </span>
               </div>
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:18px">เชื่อม LINE OA เพื่อส่งแจ้งเตือนบิลและกำหนดชำระให้ผู้เช่าผ่าน LINE (Messaging API)</div>
               <div style="display:flex;flex-direction:column;gap:10px">
-                <div style="font-size:12px;color:#7C6E5F">Channel Access Token และ Channel Secret ตั้งค่าที่ฝั่งเซิร์ฟเวอร์เท่านั้น (ไฟล์ <code>server/.env</code>) เพื่อความปลอดภัย — ไม่กรอกผ่านหน้านี้</div>
+                <div style="font-size:12px;color:#7C6E5F">กด ⚙️ ด้านบนเพื่อกรอก Channel Access Token/Secret ของ LINE OA ของคุณเอง (ต้องยืนยันรหัส PIN) — ถ้ายังไม่ได้กรอก ระบบจะใช้ค่าเริ่มต้นของเซิร์ฟเวอร์แทน (หมายเหตุ: การรับข้อความเข้า เช่น สลิป/เชื่อมห้อง ยังใช้ LINE OA ของเซิร์ฟเวอร์กลางเท่านั้นในตอนนี้)</div>
                 <div style="font-size:12px;color:{{ lineStatusColor }};font-weight:600">{{ lineEnvStatusLabel }}</div>
               </div>
             </div>
@@ -2348,11 +2384,61 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showLineCredModal }}">
+          <div onclick="{{ closeLineCredModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:380px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ตั้งค่า LINE Official Account</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">กรอก Channel Access Token และ Channel Secret จาก LINE Developers Console ของบัญชีคุณเอง — ใช้แทนค่าเริ่มต้นของเซิร์ฟเวอร์ ต้องยืนยันรหัส PIN ก่อนบันทึก</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Channel Access Token</div>
+              <textarea rows="3" value="{{ lineCredDraft.accessToken }}" onchange="{{ onLineCredAccessToken }}" placeholder="วาง Channel Access Token ที่นี่" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;resize:vertical;margin-bottom:12px"></textarea>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Channel Secret</div>
+              <input type="text" value="{{ lineCredDraft.channelSecret }}" onchange="{{ onLineCredChannelSecret }}" placeholder="Channel Secret" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+              <div style="display:flex;gap:10px;margin-top:20px">
+                <button onclick="{{ closeLineCredModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ saveLineCred }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึก</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showTuyaCredModal }}">
+          <div onclick="{{ closeTuyaCredModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:380px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ตั้งค่า Tuya Cloud</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">กรอก Access ID และ Access Secret จาก Tuya IoT Platform Project ของคุณเอง — ใช้แทนค่าเริ่มต้นของเซิร์ฟเวอร์ ต้องยืนยันรหัส PIN ก่อนบันทึก</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Access ID</div>
+              <input type="text" value="{{ tuyaCredDraft.accessId }}" onchange="{{ onTuyaCredAccessId }}" placeholder="Access ID" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:12px">
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Access Secret</div>
+              <input type="text" value="{{ tuyaCredDraft.accessSecret }}" onchange="{{ onTuyaCredAccessSecret }}" placeholder="Access Secret" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:12px">
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Data Center API Base (ถ้าไม่แน่ใจ ใช้ค่าเริ่มต้น)</div>
+              <input type="text" value="{{ tuyaCredDraft.apiBase }}" onchange="{{ onTuyaCredApiBase }}" placeholder="https://openapi.tuyaus.com" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+              <div style="display:flex;gap:10px;margin-top:20px">
+                <button onclick="{{ closeTuyaCredModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ saveTuyaCred }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึก</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showIntegrationCredPinModal }}">
+          <div onclick="{{ closeIntegrationCredPinModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ยืนยันรหัสก่อนบันทึก</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">การเปลี่ยนข้อมูลเชื่อมต่อ LINE/Tuya ต้องใส่รหัสยืนยันก่อนทุกครั้ง (รหัสเดียวกับที่ใช้บันทึกการ์ด "ข้อมูลหอพัก")</div>
+              <input type="password" value="{{ integrationCredPinDraft }}" onchange="{{ onIntegrationCredPinDraft }}" placeholder="รหัสยืนยัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+              <div style="display:flex;gap:10px;margin-top:20px">
+                <button onclick="{{ closeIntegrationCredPinModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ confirmSaveIntegrationCred }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยืนยันและบันทึก</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showChangePinModal }}">
           <div onclick="{{ closeChangePinModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
               <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ตั้งค่ารหัสผ่าน</div>
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">รหัสนี้ใช้ทั้งตอนบันทึกการ์ด "ข้อมูลหอพัก" และตอนแอด LINE OA เพื่อเชื่อมต่อบัญชีผู้ดูแล</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">รหัสนี้ใช้ทั้งตอนบันทึกการ์ด "ข้อมูลหอพัก" ตอนแอด LINE OA เพื่อเชื่อมต่อบัญชีผู้ดูแล และเป็นรหัสเข้าสู่ระบบ (คู่กับเบอร์โทร) — ถ้าเจ้าของมีหลายตึกและใช้เบอร์เดียวกัน แต่ละตึกต้องตั้งรหัสไม่ซ้ำกัน ระบบจะตรวจสอบให้อัตโนมัติ</div>
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รหัสเดิม</div>
               <input type="password" value="{{ changePinOldDraft }}" onchange="{{ onChangePinOldDraftChange }}" placeholder="รหัสเดิม" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:12px">
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รหัสใหม่</div>
@@ -3131,7 +3217,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
         </sc-if>
 
         <sc-if value="{{ adminToastShow }}">
-          <div style="position:absolute;bottom:24px;left:50%;transform:translateX(-50%);background:#241812;color:#F1EBE0;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,0.25);z-index:300;white-space:nowrap">{{ adminToastMessage }}</div>
+          <div style="position:absolute;bottom:28px;left:50%;transform:translateX(-50%);background:{{ adminToastBg }};color:#fff;padding:14px 24px;border-radius:9px;font-size:14px;font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,0.32);z-index:300;white-space:nowrap;display:flex;align-items:center;gap:9px;border:1px solid {{ adminToastBorder }}">
+            <span style="width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,0.22);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">{{ adminToastIcon }}</span>
+            {{ adminToastMessage }}
+          </div>
         </sc-if>
 
       </div>
@@ -3303,6 +3392,14 @@ class Component extends DCLogic {
     hasDataResetPin: false,
     showAdminInfoPinModal: false,
     adminInfoPinDraft: '',
+    // Per explicit user request: after a successful save, the ชื่อหอพัก/
+    // ผู้ดูแล/เบอร์ fields lock (become read-only, greyed) so it's visually
+    // obvious the save went through — a plain toast wasn't enough
+    // confirmation, since the fields staying editable made it look like
+    // nothing happened even though the write succeeded. A "แก้ไข" button
+    // unlocks them again for the next edit. Starts locked (data just
+    // loaded from the server is, by definition, already saved).
+    adminInfoLocked: true,
     showChangePinModal: false,
     changePinOldDraft: '',
     changePinNewDraft: '',
@@ -3323,6 +3420,20 @@ class Component extends DCLogic {
     showFeatureTogglePinModal: false,
     featureTogglePinDraft: '',
     featureToggleTarget: '',
+    // Per-customer LINE OA / Tuya Cloud credential forms (gear icon on
+    // each card in Settings) — see openLineCredModal/openTuyaCredModal.
+    showLineCredModal: false,
+    lineCredDraft: { accessToken: '', channelSecret: '' },
+    showTuyaCredModal: false,
+    tuyaCredDraft: { accessId: '', accessSecret: '', apiBase: '' },
+    showIntegrationCredPinModal: false,
+    integrationCredPinDraft: '',
+    integrationCredTarget: '',
+    hasLineCredentials: false,
+    hasTuyaCredentials: false,
+    // Which account's data is on screen right now — see loadAuthSession()
+    // in componentDidMount / the sidebar badge that reads this.
+    authSession: null,
     claudeApiConnected: false,
     meterPhotoLoading: false,
     meterReadings: [],
@@ -3370,7 +3481,7 @@ class Component extends DCLogic {
     showNewsModal: false,
     newsTargetRoom: null,
     newsForm: { message: '', link: '', image: '' },
-    adminToast: { show: false, message: '' },
+    adminToast: { show: false, message: '', type: 'success' },
     mobileToast: { show: false, message: '' },
     mobileView: 'home',
     paymentState: 'idle',
@@ -3482,7 +3593,28 @@ class Component extends DCLogic {
     this.loadTuyaHealth();
     this._tuyaPollTimer = setInterval(() => this.refreshTuyaLive(), 5 * 60 * 1000);
     this.loadClaudeHealth();
+    this.loadAuthSession();
   }
+  // Per explicit user request: a small badge near the sidebar logo showing
+  // WHICH account's data is currently on screen — came out of a real mix-up
+  // where a leftover test-login cookie made the dashboard show a different
+  // (empty) customer's data with no visual cue it wasn't คุณต้น's own. No
+  // session (or a session with no customerSheetId, e.g. ผู้ดูแลระบบ) means
+  // "your own main account" — a session WITH customerSheetId means viewing
+  // through someone else's login, so the badge switches to an attention
+  // color with a quick logout link.
+  loadAuthSession = async () => {
+    try {
+      const res = await fetch('/api/auth/me');
+      const data = res.ok ? await res.json() : { role: null };
+      this.setState({ authSession: data });
+    } catch (err) { console.error(err); }
+  };
+  // Full page navigation (not a fetch) is deliberate here — clears the
+  // session cookie server-side, then reloads everything so every piece of
+  // state (rooms/invoices/settings/etc, not just this badge) re-fetches
+  // against คุณต้น's own account instead of the one being viewed.
+  logoutToOwnAccount = () => { window.location.href = '/api/auth/logout-link'; };
   loadTuyaDevices = async () => {
     try {
       const res = await fetch('/api/tuya/devices');
@@ -3551,6 +3683,8 @@ class Component extends DCLogic {
         hasDataResetPin: !!data.hasDataResetPin,
         adminNotify: data.adminNotify || s.adminNotify,
         featuresEnabled: data.featuresEnabled || s.featuresEnabled,
+        hasLineCredentials: !!data.hasLineCredentials,
+        hasTuyaCredentials: !!data.hasTuyaCredentials,
         sheetEnvConnected: true,
       }));
     } catch (err) {
@@ -6344,6 +6478,10 @@ class Component extends DCLogic {
   removePaymentQr = () => this.setState({ paymentQrDraft: null, paymentQrRemovePending: true });
   cancelPaymentQrDraft = () => this.setState({ paymentQrDraft: null, paymentQrRemovePending: false });
   saveAdminInfo = () => this.setState({ showAdminInfoPinModal: true, adminInfoPinDraft: '' });
+  // Per explicit user request: unlocks the ชื่อหอพัก/ผู้ดูแล/เบอร์ fields for
+  // editing again after a save locked them (see adminInfoLocked's comment
+  // in the initial state, and confirmSaveAdminInfo below).
+  unlockAdminInfo = () => this.setState({ adminInfoLocked: false });
   closeAdminInfoPinModal = () => this.setState({ showAdminInfoPinModal: false, adminInfoPinDraft: '' });
   onAdminInfoPinDraftChange = (e) => this.setState({ adminInfoPinDraft: e.target.value });
   confirmSaveAdminInfo = () => this._guard('confirmSaveAdminInfo', async () => {
@@ -6377,8 +6515,9 @@ class Component extends DCLogic {
       this.setState({
         showAdminInfoPinModal: false, adminInfoPinDraft: '',
         propertyProfile: profileToSave, paymentQrDraft: null, paymentQrRemovePending: false,
+        adminInfoLocked: true,
       });
-      this.showAdminToast('บันทึกข้อมูลผู้ดูแลแล้ว');
+      this.showAdminToast('บันทึกข้อมูลผู้ดูแลแล้ว ✓', 'success');
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
   });
   // Per explicit user request: gear icon next to 5 specific nav items
@@ -6427,6 +6566,68 @@ class Component extends DCLogic {
       });
       this.showAdminToast(nextEnabled[key] ? 'เปิดใช้งานฟีเจอร์แล้ว' : 'ปิดใช้งานฟีเจอร์แล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ดำเนินการไม่สำเร็จ'); }
+  });
+
+  // Per explicit user request: each customer (not just คุณต้น) can now
+  // enter their OWN LINE OA / Tuya Cloud credentials via these forms
+  // instead of everyone sharing server/.env — see server/routes/
+  // settings.js's lineCredentials/tuyaCredentials + server/coerce.js's
+  // readIntegrationCredentials(). Values are write-only from this UI (the
+  // form always starts blank — readSettings() never sends secrets back
+  // down), same pattern as the existing PIN fields. Saving either one is
+  // gated behind the same admin PIN as everything else in Settings.
+  openLineCredModal = () => this.setState({ showLineCredModal: true, lineCredDraft: { accessToken: '', channelSecret: '' } });
+  closeLineCredModal = () => this.setState({ showLineCredModal: false, lineCredDraft: { accessToken: '', channelSecret: '' } });
+  onLineCredAccessToken = (e) => this.setState(s => ({ lineCredDraft: { ...s.lineCredDraft, accessToken: e.target.value } }));
+  onLineCredChannelSecret = (e) => this.setState(s => ({ lineCredDraft: { ...s.lineCredDraft, channelSecret: e.target.value } }));
+  saveLineCred = () => {
+    if (!this.state.lineCredDraft.accessToken.trim() || !this.state.lineCredDraft.channelSecret.trim()) {
+      this.showAdminToast('กรุณากรอก Channel Access Token และ Channel Secret ให้ครบ');
+      return;
+    }
+    this.setState({ showLineCredModal: false, showIntegrationCredPinModal: true, integrationCredPinDraft: '', integrationCredTarget: 'line' });
+  };
+  openTuyaCredModal = () => this.setState({ showTuyaCredModal: true, tuyaCredDraft: { accessId: '', accessSecret: '', apiBase: 'https://openapi.tuyaus.com' } });
+  closeTuyaCredModal = () => this.setState({ showTuyaCredModal: false, tuyaCredDraft: { accessId: '', accessSecret: '', apiBase: '' } });
+  onTuyaCredAccessId = (e) => this.setState(s => ({ tuyaCredDraft: { ...s.tuyaCredDraft, accessId: e.target.value } }));
+  onTuyaCredAccessSecret = (e) => this.setState(s => ({ tuyaCredDraft: { ...s.tuyaCredDraft, accessSecret: e.target.value } }));
+  onTuyaCredApiBase = (e) => this.setState(s => ({ tuyaCredDraft: { ...s.tuyaCredDraft, apiBase: e.target.value } }));
+  saveTuyaCred = () => {
+    if (!this.state.tuyaCredDraft.accessId.trim() || !this.state.tuyaCredDraft.accessSecret.trim()) {
+      this.showAdminToast('กรุณากรอก Access ID และ Access Secret ให้ครบ');
+      return;
+    }
+    this.setState({ showTuyaCredModal: false, showIntegrationCredPinModal: true, integrationCredPinDraft: '', integrationCredTarget: 'tuya' });
+  };
+  closeIntegrationCredPinModal = () => this.setState({ showIntegrationCredPinModal: false, integrationCredPinDraft: '', integrationCredTarget: '' });
+  onIntegrationCredPinDraft = (e) => this.setState({ integrationCredPinDraft: e.target.value });
+  confirmSaveIntegrationCred = () => this._guard('confirmSaveIntegrationCred', async () => {
+    const target = this.state.integrationCredTarget;
+    if (!target) return;
+    try {
+      const verifyRes = await fetch('/api/settings/verify-admin-pin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: this.state.integrationCredPinDraft }),
+      });
+      if (!verifyRes.ok) throw new Error((await verifyRes.json()).error || 'รหัสไม่ถูกต้อง');
+      const body = target === 'line'
+        ? { lineCredentials: this.state.lineCredDraft }
+        : { tuyaCredentials: this.state.tuyaCredDraft };
+      const res = await fetch('/api/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState({
+        showIntegrationCredPinModal: false, integrationCredPinDraft: '', integrationCredTarget: '',
+        hasLineCredentials: updated.hasLineCredentials, hasTuyaCredentials: updated.hasTuyaCredentials,
+        lineCredDraft: { accessToken: '', channelSecret: '' }, tuyaCredDraft: { accessId: '', accessSecret: '', apiBase: '' },
+      });
+      this.showAdminToast(target === 'line' ? 'บันทึกการเชื่อมต่อ LINE แล้ว' : 'บันทึกการเชื่อมต่อ Tuya แล้ว');
+      // Refresh so the connection-status badges reflect the just-saved credentials immediately.
+      this.loadFromServer();
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
   });
 
   // "ล้างข้อมูล" system-data feature — per explicit user request for a
@@ -6726,10 +6927,17 @@ class Component extends DCLogic {
     finally { this._busyKeys.delete(key); }
   };
 
-  showAdminToast = (message) => {
-    this.setState({ adminToast: { show: true, message } });
+  // Per explicit user request: make this more prominent and longer-lived —
+  // the old 2.2s dark toast was easy to miss, which was part of why a
+  // successful save (e.g. the "ข้อมูลหอพัก" card) felt like it silently did
+  // nothing. `type` ('success'|'error', default 'success' since most calls
+  // report something that worked) drives a distinct green/red look with a
+  // ✓/✕ icon, on screen for 4s instead of 2.2s.
+  showAdminToast = (message, type) => {
+    const resolvedType = type || (/(ไม่สำเร็จ|ไม่ถูกต้อง|ไม่ได้|ผิดพลาด|error)/i.test(message) ? 'error' : 'success');
+    this.setState({ adminToast: { show: true, message, type: resolvedType } });
     clearTimeout(this._adminToastTimer);
-    this._adminToastTimer = setTimeout(() => this.setState({ adminToast: { show: false, message: '' } }), 2200);
+    this._adminToastTimer = setTimeout(() => this.setState({ adminToast: { show: false, message: '', type: resolvedType } }), 4000);
   };
   showMobileToast = (message) => {
     this.setState({ mobileToast: { show: true, message } });
@@ -8276,6 +8484,8 @@ class Component extends DCLogic {
       propertyProfile: s.propertyProfile,
       onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone,
       onProfileAdminLineUserId: this.onProfileAdminLineUserId, saveAdminInfo: this.saveAdminInfo,
+      adminInfoLocked: s.adminInfoLocked, adminInfoUnlocked: !s.adminInfoLocked, unlockAdminInfo: this.unlockAdminInfo,
+      viewingOtherAccount: !!(s.authSession && s.authSession.customerSheetId), logoutToOwnAccount: this.logoutToOwnAccount,
       adminLineConnected: !!s.propertyProfile.adminLineUserId, adminLineNotConnected: !s.propertyProfile.adminLineUserId, disconnectAdminLine: this.disconnectAdminLine,
       // Three genuinely distinct, mutually-exclusive states (not one
       // condition reused) — a pending draft (just picked, not saved), a
@@ -8312,6 +8522,14 @@ class Component extends DCLogic {
       onGearStaffContracts: this.onGearStaffContracts, onGearStaffMembers: this.onGearStaffMembers,
       showFeatureTogglePinModal: s.showFeatureTogglePinModal, closeFeatureTogglePinModal: this.closeFeatureTogglePinModal,
       featureTogglePinDraft: s.featureTogglePinDraft, onFeatureTogglePinDraft: this.onFeatureTogglePinDraft, confirmToggleFeature: this.confirmToggleFeature,
+      // Per-customer LINE OA / Tuya Cloud credential forms (gear icon on
+      // each connection card in Settings).
+      showLineCredModal: s.showLineCredModal, openLineCredModal: this.openLineCredModal, closeLineCredModal: this.closeLineCredModal,
+      lineCredDraft: s.lineCredDraft, onLineCredAccessToken: this.onLineCredAccessToken, onLineCredChannelSecret: this.onLineCredChannelSecret, saveLineCred: this.saveLineCred,
+      showTuyaCredModal: s.showTuyaCredModal, openTuyaCredModal: this.openTuyaCredModal, closeTuyaCredModal: this.closeTuyaCredModal,
+      tuyaCredDraft: s.tuyaCredDraft, onTuyaCredAccessId: this.onTuyaCredAccessId, onTuyaCredAccessSecret: this.onTuyaCredAccessSecret, onTuyaCredApiBase: this.onTuyaCredApiBase, saveTuyaCred: this.saveTuyaCred,
+      showIntegrationCredPinModal: s.showIntegrationCredPinModal, closeIntegrationCredPinModal: this.closeIntegrationCredPinModal,
+      integrationCredPinDraft: s.integrationCredPinDraft, onIntegrationCredPinDraft: this.onIntegrationCredPinDraft, confirmSaveIntegrationCred: this.confirmSaveIntegrationCred,
       featureToggleRows: [
         { key: 'water', label: 'การใช้น้ำประปา', enabled: s.featuresEnabled.water },
         { key: 'elec', label: 'การใช้ไฟฟ้า', enabled: s.featuresEnabled.elec },
@@ -8507,6 +8725,9 @@ class Component extends DCLogic {
       cfHasLeaseDoc: !!s.contractForm.leaseDocName,
 
       adminToastShow: s.adminToast.show, adminToastMessage: s.adminToast.message,
+      adminToastBg: s.adminToast.type === 'error' ? '#B24336' : '#3B7A52',
+      adminToastBorder: s.adminToast.type === 'error' ? '#8F332A' : '#2C5F40',
+      adminToastIcon: s.adminToast.type === 'error' ? '✕' : '✓',
       mobileToastShow: s.mobileToast.show, mobileToastMessage: s.mobileToast.message,
       stop: this.stop,
 

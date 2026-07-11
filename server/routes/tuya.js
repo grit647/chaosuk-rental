@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { readTab, appendRow } = require('../sheets');
 const { isConfigured, listDevices, getElecReading, sendCommand } = require('../tuya');
+const { readIntegrationCredentials } = require('../coerce');
 
 // ElectricityLog was writing a row on EVERY /status call — every 5-minute
 // auto-refresh tick from the frontend, plus every manual "รีเฟรช" click,
@@ -15,9 +16,10 @@ const lastLoggedAt = new Map();
 const LOG_INTERVAL_MS = 60 * 60 * 1000;
 
 router.get('/health', async (req, res) => {
-  if (!isConfigured()) return res.json({ connected: false });
+  const creds = await readIntegrationCredentials();
+  if (!isConfigured(creds.tuya)) return res.json({ connected: false });
   try {
-    await listDevices(); // exercises the full auth + signing flow
+    await listDevices(creds.tuya); // exercises the full auth + signing flow
     res.json({ connected: true });
   } catch (err) {
     res.json({ connected: false, error: err.message });
@@ -26,19 +28,21 @@ router.get('/health', async (req, res) => {
 
 router.get('/devices', async (req, res, next) => {
   try {
-    if (!isConfigured()) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Tuya บนเซิร์ฟเวอร์ (server/.env)' });
-    res.json(await listDevices());
+    const creds = await readIntegrationCredentials();
+    if (!isConfigured(creds.tuya)) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Tuya (ใส่ Access ID/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
+    res.json(await listDevices(creds.tuya));
   } catch (err) { next(err); }
 });
 
 router.get('/status', async (req, res, next) => {
   try {
-    if (!isConfigured()) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Tuya บนเซิร์ฟเวอร์ (server/.env)' });
+    const creds = await readIntegrationCredentials();
+    if (!isConfigured(creds.tuya)) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Tuya (ใส่ Access ID/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
     const rooms = await readTab('Rooms');
     const linked = rooms.filter((r) => r.tuyaElecDeviceId);
     const entries = await Promise.all(linked.map(async (r) => {
       try {
-        const reading = await getElecReading(r.tuyaElecDeviceId);
+        const reading = await getElecReading(r.tuyaElecDeviceId, creds.tuya);
         return [r.id, { ...reading, online: true }];
       } catch (err) {
         return [r.id, { voltage: null, current: null, power: null, online: false, error: err.message }];
@@ -70,14 +74,15 @@ router.get('/status', async (req, res, next) => {
 
 router.post('/switch', async (req, res, next) => {
   try {
-    if (!isConfigured()) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Tuya บนเซิร์ฟเวอร์ (server/.env)' });
+    const creds = await readIntegrationCredentials();
+    if (!isConfigured(creds.tuya)) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Tuya (ใส่ Access ID/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
     const { roomId, on } = req.body;
     if (!roomId || typeof on !== 'boolean') return res.status(400).json({ error: 'ต้องระบุห้องและสถานะเปิด/ปิด' });
     const rooms = await readTab('Rooms');
     const room = rooms.find((r) => r.id === roomId);
     if (!room || !room.tuyaElecDeviceId) return res.status(400).json({ error: `ห้อง ${roomId} ยังไม่ได้เชื่อมต่ออุปกรณ์ไฟฟ้า` });
-    await sendCommand(room.tuyaElecDeviceId, 'switch', on);
-    const reading = await getElecReading(room.tuyaElecDeviceId);
+    await sendCommand(room.tuyaElecDeviceId, 'switch', on, creds.tuya);
+    const reading = await getElecReading(room.tuyaElecDeviceId, creds.tuya);
     res.json({ ok: true, ...reading });
   } catch (err) { next(err); }
 });

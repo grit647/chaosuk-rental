@@ -2,6 +2,15 @@ const express = require('express');
 const router = express.Router();
 const { readTab, updateRow, appendRow } = require('../sheets');
 const { readSettings } = require('../coerce');
+const { runWithSheetId } = require('../requestContext');
+
+// Master multi-tenant login directory (see server/routes/auth.js) — a
+// separate Sheet from any customer's own data. Only set once the
+// multi-tenant login system is actually deployed (see CLAUDE.md /
+// GOOGLE_DIRECTORY_SHEET_ID in .env); undefined for now on the current
+// single-tenant deploy, which every check below treats as "nothing to
+// sync" rather than an error.
+const DIRECTORY_SHEET_ID = process.env.GOOGLE_DIRECTORY_SHEET_ID;
 
 // Permanent master/recovery code for the "ผู้ดูแลระบบ" card's PIN — per
 // explicit user request, kept as a hardcoded server-side constant (NOT
@@ -57,7 +66,35 @@ router.post('/change-admin-pin', async (req, res, next) => {
     const storedPin = row ? row.value : '12345';
     const oldPinValid = oldPin && (String(oldPin) === String(storedPin) || String(oldPin) === MASTER_RECOVERY_PIN);
     if (!oldPinValid) return res.status(403).json({ error: 'รหัสเดิมไม่ถูกต้อง' });
+
+    // Per explicit user request: this same PIN doubles as the multi-tenant
+    // LOGIN PIN (master "directory" Users sheet, server/routes/auth.js).
+    // One person can own several buildings under the SAME phone number —
+    // login resolves by matching (phone, pin) TOGETHER — so if two
+    // buildings under one phone ever shared a PIN, login couldn't tell
+    // which building to open. Enforce the new PIN is unique across the
+    // WHOLE directory (every building, not just ones sharing this phone —
+    // simplest rule that can never collide) before allowing the change,
+    // except against this customer's own existing row (keeping the PIN you
+    // already have is always fine). Only applies once logged in via the
+    // multi-tenant system (req.session.customerSheetId set) — คุณต้น's own
+    // current no-login usage has no directory row yet, so this is a no-op
+    // for him and nothing changes about his existing flow.
+    const sessionSheetId = req.session && req.session.customerSheetId;
+    if (DIRECTORY_SHEET_ID && sessionSheetId) {
+      const directoryRows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+      const taken = directoryRows.find((u) => String(u.pin) === String(newPin) && u.customerSheetId !== sessionSheetId);
+      if (taken) return res.status(409).json({ error: 'รหัสนี้มีผู้ใช้งานแล้วโดยตึกอื่น กรุณาตั้งรหัสอื่นครับ' });
+    }
+
     await upsertKV('adminEditPin', newPin);
+
+    // Sync the new PIN into this customer's own directory row too, so the
+    // login PIN always matches the admin PIN just set above.
+    if (DIRECTORY_SHEET_ID && sessionSheetId) {
+      await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', sessionSheetId, { pin: newPin }, 'customerSheetId'));
+    }
+
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -100,11 +137,33 @@ router.put('/', async (req, res, next) => {
       featureEquipmentEnabled: b.featuresEnabled && b.featuresEnabled.equipment,
       featureStaffContractsEnabled: b.featuresEnabled && b.featuresEnabled.staffContracts,
       featureStaffMembersEnabled: b.featuresEnabled && b.featuresEnabled.staffMembers,
+      // Per explicit user request: per-customer LINE OA / Tuya Cloud
+      // credentials, only written when the owner is actively setting/
+      // changing them via the new gear-icon forms (never sent as part of
+      // a routine save — readSettings() never sends these values back
+      // down for the client to accidentally resubmit unchanged, matching
+      // the PIN fields' pattern above).
+      lineChannelAccessToken: b.lineCredentials && b.lineCredentials.accessToken,
+      lineChannelSecret: b.lineCredentials && b.lineCredentials.channelSecret,
+      tuyaAccessId: b.tuyaCredentials && b.tuyaCredentials.accessId,
+      tuyaAccessSecret: b.tuyaCredentials && b.tuyaCredentials.accessSecret,
+      tuyaApiBase: b.tuyaCredentials && b.tuyaCredentials.apiBase,
     };
     const entries = Object.entries(kv).filter(([, v]) => v !== undefined);
     for (const [k, v] of entries) {
       await upsertKV(k, v);
     }
+
+    // Keep the multi-tenant login directory's phone number in sync with
+    // the "ผู้ดูแลหอพัก" card's phone — per explicit user request, so a
+    // customer who updates their contact phone here doesn't get locked out
+    // of login (which looks up by phone+PIN together). Same no-op-for-
+    // คุณต้น reasoning as the PIN sync above.
+    const sessionSheetId = req.session && req.session.customerSheetId;
+    if (DIRECTORY_SHEET_ID && sessionSheetId && kv.adminPhone !== undefined) {
+      await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', sessionSheetId, { phone: kv.adminPhone }, 'customerSheetId'));
+    }
+
     res.json(await readSettings());
   } catch (err) { next(err); }
 });

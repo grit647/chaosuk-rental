@@ -217,9 +217,43 @@ async function readSettings() {
       staffContracts: bool(map.featureStaffContractsEnabled, true),
       staffMembers: bool(map.featureStaffMembersEnabled, true),
     },
+    // Per explicit user request: each customer can now enter their OWN
+    // LINE OA / Tuya Cloud credentials (see server/routes/settings.js's
+    // lineCredentials/tuyaCredentials handling + the gear-icon UI) instead
+    // of everyone sharing the values in server/.env. Only exposes WHETHER
+    // one is set, never the actual secret — same pattern as
+    // hasDataResetPin above. The real values are only ever read
+    // server-side via readIntegrationCredentials() below, by the route
+    // handlers that actually call out to LINE/Tuya.
+    hasLineCredentials: !!(map.lineChannelAccessToken && map.lineChannelSecret),
+    hasTuyaCredentials: !!(map.tuyaAccessId && map.tuyaAccessSecret),
+  };
+}
+
+// Server-side only — NEVER returned from an API route directly to the
+// client (unlike readSettings() above, which several routes send as-is).
+// Reads this customer's own LINE/Tuya credentials (from whichever Sheet
+// the current request is scoped to — see requestContext.js) for
+// server/line.js and server/tuya.js to use, falling back to undefined
+// fields when not set, which those modules' resolveCreds() then falls
+// back to process.env for.
+async function readIntegrationCredentials() {
+  const rows = await readTab('Settings');
+  const map = {};
+  rows.forEach((r) => { map[r.key] = r.value; });
+  return {
+    line: (map.lineChannelAccessToken || map.lineChannelSecret) ? {
+      accessToken: map.lineChannelAccessToken || '',
+      channelSecret: map.lineChannelSecret || '',
+    } : null,
+    tuya: (map.tuyaAccessId || map.tuyaAccessSecret) ? {
+      accessId: map.tuyaAccessId || '',
+      accessSecret: map.tuyaAccessSecret || '',
+      apiBase: map.tuyaApiBase || '',
+    } : null,
   };
 }
 
 module.exports = {
-  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, coerceUnmatchedSlips, coerceStaff, coercePaymentLog, readSettings,
+  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, coerceUnmatchedSlips, coerceStaff, coercePaymentLog, readSettings, readIntegrationCredentials,
 };

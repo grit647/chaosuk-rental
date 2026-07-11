@@ -1,6 +1,17 @@
 const { google } = require('googleapis');
+const { getCurrentSheetId } = require('./requestContext');
 
-const SHEET_ID = process.env.GOOGLE_SHEET_ID;
+// Per explicit user request (multi-tenant login prototype): resolves to
+// the logged-in user's own customerSheetId if the current request is
+// running inside a session context (see requestContext.js + the auth
+// middleware in index.js), otherwise falls back to the single
+// GOOGLE_SHEET_ID env var exactly as before. This is a FUNCTION now
+// (not a constant computed once at module load) specifically so it can
+// change per-request — every call site below already called it fresh
+// each time it needed the id, so this is a drop-in replacement.
+function SHEET_ID() {
+  return getCurrentSheetId() || process.env.GOOGLE_SHEET_ID;
+}
 
 function getAuth() {
   return new google.auth.JWT(
@@ -39,13 +50,13 @@ function objectToRow(header, obj) {
 }
 
 async function getHeader(sheets, tab) {
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `${tab}!A1:Z1` });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A1:Z1` });
   return (res.data.values || [[]])[0] || [];
 }
 
 async function readTab(tab) {
   const sheets = await client();
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `${tab}!A1:Z1000` });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A1:Z1000` });
   return rowsToObjects(res.data.values || []);
 }
 
@@ -54,7 +65,7 @@ async function appendRow(tab, obj) {
   const header = await getHeader(sheets, tab);
   const row = objectToRow(header, obj);
   await sheets.spreadsheets.values.append({
-    spreadsheetId: SHEET_ID,
+    spreadsheetId: SHEET_ID(),
     range: `${tab}!A1`,
     valueInputOption: 'RAW', // store values literally — no auto number/date parsing (that's what strips leading zeros off phone numbers etc; we handle all type coercion ourselves in coerce.js)
     insertDataOption: 'INSERT_ROWS',
@@ -65,7 +76,7 @@ async function appendRow(tab, obj) {
 
 async function findRowNumber(sheets, tab, header, matchCol, matchValue) {
   const colIdx = header.indexOf(matchCol);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `${tab}!A2:Z1000` });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A2:Z1000` });
   const rows = res.data.values || [];
   const idx = rows.findIndex((r) => String(r[colIdx]) === String(matchValue));
   return idx === -1 ? -1 : idx + 2; // +1 for 1-based, +1 for header row
@@ -76,14 +87,14 @@ async function updateRow(tab, matchValue, patch, matchCol = 'id') {
   const header = await getHeader(sheets, tab);
   const rowNum = await findRowNumber(sheets, tab, header, matchCol, matchValue);
   if (rowNum === -1) throw new Error(`${tab}: row with ${matchCol}=${matchValue} not found`);
-  const existingRes = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `${tab}!A${rowNum}:Z${rowNum}` });
+  const existingRes = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A${rowNum}:Z${rowNum}` });
   const existingRow = (existingRes.data.values || [[]])[0] || [];
   const existingObj = {};
   header.forEach((key, i) => { existingObj[key] = existingRow[i] !== undefined ? existingRow[i] : ''; });
   const merged = { ...existingObj, ...patch };
   const row = objectToRow(header, merged);
   await sheets.spreadsheets.values.update({
-    spreadsheetId: SHEET_ID,
+    spreadsheetId: SHEET_ID(),
     range: `${tab}!A${rowNum}:Z${rowNum}`,
     valueInputOption: 'RAW', // store values literally — no auto number/date parsing (that's what strips leading zeros off phone numbers etc; we handle all type coercion ourselves in coerce.js)
     requestBody: { values: [row] },
@@ -96,11 +107,11 @@ async function deleteRow(tab, matchValue, matchCol = 'id') {
   const header = await getHeader(sheets, tab);
   const rowNum = await findRowNumber(sheets, tab, header, matchCol, matchValue);
   if (rowNum === -1) return;
-  const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID() });
   const sheetMeta = meta.data.sheets.find((s) => s.properties.title === tab);
   if (!sheetMeta) return;
   await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: SHEET_ID,
+    spreadsheetId: SHEET_ID(),
     requestBody: {
       requests: [{
         deleteDimension: {
@@ -121,7 +132,7 @@ async function deleteRow(tab, matchValue, matchCol = 'id') {
 async function clearTab(tab) {
   const sheets = await client();
   await sheets.spreadsheets.values.clear({
-    spreadsheetId: SHEET_ID,
+    spreadsheetId: SHEET_ID(),
     range: `${tab}!A2:Z100000`,
   });
 }
