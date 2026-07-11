@@ -4079,7 +4079,19 @@ class Component extends DCLogic {
           }),
         }),
       ]);
-      if (!roomRes.ok) throw new Error((await roomRes.json()).error || 'บันทึกไม่สำเร็จ');
+      if (!roomRes.ok) {
+        // Real bug hit: on a slow/large save (e.g. big ID-card photo
+        // attached), Render's own proxy can return an HTML error page
+        // (502/504) instead of our server's JSON error — blindly calling
+        // .json() on that crashed with a confusing raw parser error
+        // ("Unexpected token '<' ... is not valid JSON") instead of a
+        // real Thai message. Fall back gracefully instead of throwing
+        // that raw parse error at the owner.
+        let msg = 'บันทึกไม่สำเร็จ';
+        try { msg = (await roomRes.json()).error || msg; }
+        catch { msg = 'บันทึกไม่สำเร็จ (เซิร์ฟเวอร์ไม่ตอบสนอง หรือรูปภาพที่แนบมีขนาดใหญ่เกินไป — ลองใหม่อีกครั้ง หรือลดขนาดรูปที่แนบ)'; }
+        throw new Error(msg);
+      }
       const updatedRoom = await roomRes.json();
       this.setState(st => ({
         waterRate: Number(cf.waterRate) || st.waterRate,
