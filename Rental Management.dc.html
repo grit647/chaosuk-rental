@@ -2855,14 +2855,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="display:flex;gap:10px">
                   <div style="flex:1">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-                      <div style="font-size:11.5px;color:#7C6E5F">ค่าน้ำ (บาท)</div>
+                      <div style="font-size:11.5px;color:#7C6E5F">มิเตอร์น้ำ (หน่วย)</div>
                       <div style="display:flex;gap:3px">
                         <div onclick="{{ setInvWaterDevice }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invWaterDeviceBg }};color:{{ invWaterDeviceColor }}">อุปกรณ์</div>
                         <div onclick="{{ setInvWaterManual }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invWaterManualBg }};color:{{ invWaterManualColor }}">กรอกเอง</div>
                       </div>
                     </div>
                     <sc-if value="{{ invWaterIsDevice }}" hint-placeholder-val="{{ true }}">
-                      <input value="{{ newInvoice.water }}" readonly="{{ true }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:{{ invWaterFieldBg }}">
+                      <input value="{{ invWaterDeviceDisplay }}" readonly="{{ true }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:{{ invWaterFieldBg }}">
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">📟 {{ invWaterUnitsHint }}</div>
                     </sc-if>
                     <sc-if value="{{ invWaterIsManual }}" hint-placeholder-val="{{ false }}">
@@ -2875,14 +2875,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                   <div style="flex:1">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-                      <div style="font-size:11.5px;color:#7C6E5F">ค่าไฟ (บาท)</div>
+                      <div style="font-size:11.5px;color:#7C6E5F">มิเตอร์ไฟ (หน่วย)</div>
                       <div style="display:flex;gap:3px">
                         <div onclick="{{ setInvElecDevice }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invElecDeviceBg }};color:{{ invElecDeviceColor }}">อุปกรณ์</div>
                         <div onclick="{{ setInvElecManual }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invElecManualBg }};color:{{ invElecManualColor }}">กรอกเอง</div>
                       </div>
                     </div>
                     <sc-if value="{{ invElecIsDevice }}" hint-placeholder-val="{{ true }}">
-                      <input value="{{ newInvoice.elec }}" readonly="{{ true }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:{{ invElecFieldBg }}">
+                      <input value="{{ invElecDeviceDisplay }}" readonly="{{ true }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:{{ invElecFieldBg }}">
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">📟 {{ invElecUnitsHint }}</div>
                     </sc-if>
                     <sc-if value="{{ invElecIsManual }}" hint-placeholder-val="{{ false }}">
@@ -8412,8 +8412,20 @@ class Component extends DCLogic {
       invElecManualBg: s.newInvoice.elecMode === 'manual' ? '#C1622D' : '#EDE4D6', invElecManualColor: s.newInvoice.elecMode === 'manual' ? '#fff' : '#7C6E5F',
       setInvWaterDevice: () => this.setInvoiceWaterMode('device'), setInvWaterManual: () => this.setInvoiceWaterMode('manual'),
       setInvElecDevice: () => this.setInvoiceElecMode('device'), setInvElecManual: () => this.setInvoiceElecMode('manual'),
-      invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? d.units + ' หน่วย × ' + this.roomRate(s.newInvoice.roomId, 'water') : 'อุปกรณ์ไม่พร้อม'; })(),
-      invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? d.units + ' หน่วย × ' + this.roomRate(s.newInvoice.roomId, 'elec') : 'อุปกรณ์ไม่พร้อม'; })(),
+      // Per explicit user request (real device tested, saw the box showing
+      // an already-calculated Baht amount where the raw meter reading was
+      // expected): the readonly box in "อุปกรณ์" mode now shows the actual
+      // METER UNITS reading (matching what "กรอกเอง" manual mode asks the
+      // owner to type in, and what they can visually check against the
+      // physical device) — the computed Baht charge moves into the hint
+      // line below instead. `newInvoice.water`/`elec` themselves are
+      // UNCHANGED (still the Baht amount actually billed/submitted) — this
+      // only changes which number is shown in the box, not what gets sent
+      // to the server, since that calculation was already correct.
+      invWaterDeviceDisplay: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? String(d.units) : '0'; })(),
+      invElecDeviceDisplay: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? String(d.units) : '0'; })(),
+      invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? `${d.units} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'water')} = ${d.charge} บาท` : 'อุปกรณ์ไม่พร้อม'; })(),
+      invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? `${d.units} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'elec')} = ${d.charge} บาท` : 'อุปกรณ์ไม่พร้อม'; })(),
       // Per explicit user request: a simple always-visible reference line
       // (not a popup/history modal, which they found overlapped awkwardly)
       // showing the water/elec reading from this room's LAST bill —
