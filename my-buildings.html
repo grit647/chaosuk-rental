@@ -114,14 +114,20 @@
   // never accidentally show up where a regular customer could see them.
   function buildAdminCard(b) {
     const suspended = b.status === 'suspended';
+    const pendingHandoff = b.handoffStatus !== 'ready';
     const sid = b.customerSheetId.replace(/'/g, "\\'");
-    return '<div class="building-card' + (suspended ? '' : '') + '" style="cursor:default;' + (suspended ? 'opacity:0.6' : '') + '">' +
+    const badges = [
+      suspended ? '<span style="font-size:10px;font-weight:700;color:#B24336;background:#F5E1DC;padding:2px 7px;border-radius:4px;margin-left:4px">พักการใช้งาน</span>' : '',
+      pendingHandoff ? '<span style="font-size:10px;font-weight:700;color:#9C7A2E;background:#F5EFDC;padding:2px 7px;border-radius:4px;margin-left:4px">🟡 กำลังตั้งค่า</span>' : '<span style="font-size:10px;font-weight:700;color:#3B7A52;background:#E4EFE7;padding:2px 7px;border-radius:4px;margin-left:4px">✅ พร้อมส่งมอบ</span>',
+    ].join('');
+    return '<div class="building-card" style="cursor:default;' + (suspended ? 'opacity:0.6' : '') + '">' +
         '<div class="building-icon" onclick="' + (suspended ? '' : "selectBuilding('" + sid + "')") + '" style="cursor:' + (suspended ? 'default' : 'pointer') + '">🏢</div>' +
         '<div style="flex:1;min-width:0" onclick="' + (suspended ? '' : "selectBuilding('" + sid + "')") + '" style="cursor:' + (suspended ? 'default' : 'pointer') + '">' +
-          '<div class="building-name">' + escapeHtml(b.name) + (suspended ? ' <span style="font-size:10px;font-weight:700;color:#B24336;background:#F5E1DC;padding:2px 7px;border-radius:4px;margin-left:4px">พักการใช้งาน</span>' : '') + '</div>' +
+          '<div class="building-name">' + escapeHtml(b.name) + badges + '</div>' +
           '<div class="building-sub">' + (suspended ? 'ถูกพักการใช้งาน — แตะ "เปิดใช้งาน" เพื่อเข้าอีกครั้ง' : 'แตะรูปตึก/ชื่อ เพื่อเข้าจัดการ') + '</div>' +
         '</div>' +
         '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">' +
+          '<span onclick="toggleHandoffStatus(\'' + sid + '\')" style="font-size:10px;font-weight:600;padding:4px 8px;border-radius:5px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;background:#fff;text-align:center">' + (pendingHandoff ? '✅ พร้อมส่งมอบแล้ว' : '↩ ยังไม่พร้อม') + '</span>' +
           '<span onclick="toggleBuildingStatus(\'' + sid + '\')" style="font-size:10px;font-weight:600;padding:4px 8px;border-radius:5px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;background:#fff;text-align:center">' + (suspended ? '▶ เปิดใช้งาน' : '⏸ พัก') + '</span>' +
           '<span onclick="deleteBuilding(\'' + sid + '\')" style="font-size:10px;font-weight:600;padding:4px 8px;border-radius:5px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336;background:#fff;text-align:center">🗑 ลบ</span>' +
         '</div>' +
@@ -173,6 +179,23 @@
   async function toggleBuildingStatus(customerSheetId) {
     try {
       const res = await fetch('/api/settings/toggle-building-status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerSheetId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'เปลี่ยนสถานะไม่สำเร็จ');
+      init();
+    } catch (e) {
+      alert(e.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+    }
+  }
+
+  // Per explicit user request: a "พร้อมส่งมอบแล้ว" checklist marker —
+  // purely informational (doesn't block login, unlike ⏸ พัก above) so
+  // คุณต้น doesn't lose track of which new buildings still need setup.
+  async function toggleHandoffStatus(customerSheetId) {
+    try {
+      const res = await fetch('/api/settings/toggle-handoff-status', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customerSheetId }),
       });

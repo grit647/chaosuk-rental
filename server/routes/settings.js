@@ -148,8 +148,13 @@ router.post('/add-building', async (req, res, next) => {
       reusedExistingOwner = false;
     }
 
+    // Per explicit user request: a "พร้อมส่งมอบแล้ว" checklist marker so
+    // คุณต้น doesn't lose track of which new buildings still need setup
+    // before handing the real login over, vs which are done — defaults to
+    // "pending" for every new building, toggled via
+    // POST /toggle-handoff-status once configuration is actually done.
     await runWithSheetId(DIRECTORY_SHEET_ID, () => appendRow('Users', {
-      ownerId, phone, pin: effectivePin, role: 'owner', customerSheetId, roomId: '', staffId: '', status: 'active',
+      ownerId, phone, pin: effectivePin, role: 'owner', customerSheetId, roomId: '', staffId: '', status: 'active', handoffStatus: 'pending',
     }));
 
     // One-time bootstrap only (NOT an ongoing sync), and only when we
@@ -190,6 +195,27 @@ router.post('/toggle-building-status', async (req, res, next) => {
     const newStatus = row.status === 'suspended' ? 'active' : 'suspended';
     await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', customerSheetId, { status: newStatus }, 'customerSheetId'));
     res.json({ ok: true, status: newStatus });
+  } catch (err) { next(err); }
+});
+
+// Per explicit user request: a simple checklist marker — "พร้อมส่งมอบแล้ว"
+// (ready) vs "กำลังตั้งค่า" (pending) — so คุณต้น doesn't lose track of
+// which new buildings still need configuring before the real login goes
+// out to that customer. Purely informational (doesn't block login or
+// anything else, unlike the active/suspended status above).
+router.post('/toggle-handoff-status', async (req, res, next) => {
+  try {
+    if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
+    if (!(await isPlatformAdminReq(req))) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
+    const { customerSheetId } = req.body;
+    if (!customerSheetId) return res.status(400).json({ error: 'ต้องระบุตึกที่ต้องการเปลี่ยนสถานะ' });
+
+    const rows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+    const row = rows.find((u) => u.customerSheetId === customerSheetId);
+    if (!row) return res.status(404).json({ error: 'ไม่พบตึกนี้ในสมุดรายชื่อกลาง' });
+    const newStatus = row.handoffStatus === 'ready' ? 'pending' : 'ready';
+    await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', customerSheetId, { handoffStatus: newStatus }, 'customerSheetId'));
+    res.json({ ok: true, handoffStatus: newStatus });
   } catch (err) { next(err); }
 });
 

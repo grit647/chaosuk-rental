@@ -181,7 +181,7 @@ async function resolveBuildingNames(rows, session) {
       const settings = await runWithSheetId(u.customerSheetId, () => readSettings());
       if (settings.propertyProfile && settings.propertyProfile.name) name = settings.propertyProfile.name;
     } catch { /* fall back to the generic label above */ }
-    return { customerSheetId: u.customerSheetId, name, isActive: u.customerSheetId === session.customerSheetId, status: u.status || 'active' };
+    return { customerSheetId: u.customerSheetId, name, isActive: u.customerSheetId === session.customerSheetId, status: u.status || 'active', handoffStatus: u.handoffStatus || 'ready' };
   }));
 }
 
