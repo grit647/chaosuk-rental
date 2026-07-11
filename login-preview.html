@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>เช่าสุข — ตัวอย่างหน้า Login/สมัครสมาชิก (ตัวอย่างเท่านั้น)</title>
+<title>เช่าสุข — ตัวอย่างหน้า Login หลายบทบาท (ทดสอบเท่านั้น)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
@@ -13,9 +13,6 @@
     background: #F7F1E6;
     color: #241812;
     min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     padding: 24px;
   }
   .banner {
@@ -23,6 +20,7 @@
     background: #B85B27; color: #fff; text-align: center;
     font-size: 12.5px; font-weight: 600; padding: 8px 12px; z-index: 999;
   }
+  .center-wrap { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 40px); }
   .wrap { width: 100%; max-width: 420px; margin-top: 36px; }
   .logo-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px; }
   .logo-badge {
@@ -38,16 +36,15 @@
     box-shadow: 0 8px 28px rgba(36,24,18,0.08);
   }
 
-  .tabs {
-    display: flex; gap: 4px; background: #F7F2E9; border-radius: 8px;
-    padding: 3px; margin-bottom: 22px;
+  .role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 22px; }
+  .role-card {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 16px 8px; border-radius: 10px; border: 1.5px solid #E3D8C8;
+    cursor: pointer; background: #FBF7F0; text-align: center; transition: all .15s;
   }
-  .tab {
-    flex: 1; text-align: center; padding: 9px; border-radius: 6px;
-    font-size: 13px; font-weight: 600; cursor: pointer; color: #7C6E5F;
-    transition: background .15s, color .15s;
-  }
-  .tab.active { background: #C1622D; color: #fff; }
+  .role-card .icon { font-size: 22px; }
+  .role-card .label { font-size: 12px; font-weight: 600; color: #241812; }
+  .role-card.selected { border-color: #C1622D; background: #FBEADF; }
 
   .field { margin-bottom: 14px; }
   .field label {
@@ -60,10 +57,9 @@
     border: 1px solid #E3D8C8; font-size: 13px; font-family: inherit;
     background: #fff; color: #241812;
   }
-  .field input:focus, .field select:focus {
-    outline: none; border-color: #C1622D;
-  }
+  .field input:focus, .field select:focus { outline: none; border-color: #C1622D; }
   .field .hint { font-size: 10.5px; color: #A89A88; margin-top: 4px; }
+  .field .err { font-size: 11px; color: #B24336; margin-top: 5px; display: none; }
 
   .row2 { display: flex; gap: 10px; }
   .row2 .field { flex: 1; }
@@ -92,9 +88,7 @@
     display: flex; align-items: center; gap: 10px; margin: 18px 0;
     font-size: 11px; color: #B0A08C;
   }
-  .divider::before, .divider::after {
-    content: ''; flex: 1; height: 1px; background: #EDE4D6;
-  }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #EDE4D6; }
 
   .oauth-row { display: flex; gap: 10px; margin-bottom: 4px; }
   .oauth-btn {
@@ -104,12 +98,7 @@
     cursor: pointer;
   }
 
-  .forgot-row { text-align: right; margin: -6px 0 16px; }
-  .forgot-row a { font-size: 11.5px; color: #C1622D; text-decoration: none; }
-
-  .switch-note {
-    text-align: center; font-size: 12px; color: #7C6E5F; margin-top: 18px;
-  }
+  .switch-note { text-align: center; font-size: 12px; color: #7C6E5F; margin-top: 18px; }
   .switch-note a { color: #C1622D; font-weight: 600; text-decoration: none; cursor: pointer; }
 
   .panel { display: none; }
@@ -121,146 +110,334 @@
   }
   .section-label:first-of-type { margin-top: 0; }
 
-  .footer-note {
-    text-align: center; font-size: 10.5px; color: #B0A08C; margin-top: 22px; line-height: 1.6;
+  .footer-note { text-align: center; font-size: 10.5px; color: #B0A08C; margin-top: 22px; line-height: 1.6; }
+
+  /* ---- Dashboard mockups ---- */
+  .dash-wrap { display: none; max-width: 900px; margin: 40px auto 0; padding: 0 8px; }
+  .dash-wrap.active { display: block; }
+  .dash-top {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #FFFFFF; border-radius: 12px; padding: 16px 20px; margin-bottom: 18px;
+    box-shadow: 0 4px 16px rgba(36,24,18,0.06);
   }
+  .dash-top-left { display: flex; align-items: center; gap: 10px; }
+  .dash-role-badge { font-size: 10.5px; font-weight: 700; padding: 4px 10px; border-radius: 6px; background: #F1EBE0; color: #B85B27; }
+  .dash-title { font-size: 16px; font-weight: 700; }
+  .dash-sub { font-size: 12px; color: #7C6E5F; margin-top: 2px; }
+  .logout-btn {
+    font-size: 12px; font-weight: 600; color: #7C6E5F; cursor: pointer;
+    padding: 8px 14px; border-radius: 7px; border: 1px solid #E3D8C8; background: #fff;
+  }
+  .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .kpi-card { background: #fff; border-radius: 10px; padding: 16px; border-top: 3px solid #D9A15B; box-shadow: 0 2px 10px rgba(36,24,18,0.04); }
+  .kpi-label { font-size: 10.5px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: #7C6E5F; margin-bottom: 6px; }
+  .kpi-value { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; }
+  .kpi-hint { font-size: 11px; color: #9C8B78; margin-top: 4px; }
+  .section-card { background: #fff; border-radius: 10px; padding: 18px; margin-bottom: 14px; box-shadow: 0 2px 10px rgba(36,24,18,0.04); }
+  .section-card-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+  .list-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #F0E9DC; font-size: 12.5px; }
+  .list-row:last-child { border-bottom: none; }
+  .list-row .amt { font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+  .pill { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 6px; }
+  .pill.green { background: #E4F0E8; color: #3B7A52; }
+  .pill.orange { background: #FBEADF; color: #B85B27; }
+  .pill.red { background: #F7E3DF; color: #B24336; }
+  .readonly-note {
+    background: #FBF7F0; border: 1px dashed #D8C9B4; border-radius: 8px;
+    padding: 10px 14px; font-size: 11.5px; color: #7C6E5F; margin-bottom: 14px;
+  }
+  .table-wrap table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .table-wrap th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: #7C6E5F; padding-bottom: 8px; border-bottom: 1px solid #E3D8C8; }
+  .table-wrap td { padding: 10px 0; border-bottom: 1px solid #F0E9DC; }
+  .mini-btn { font-size: 11px; font-weight: 600; padding: 6px 12px; border-radius: 6px; border: 1px solid #E3D8C8; background: #fff; cursor: pointer; color: #241812; }
+  .mini-btn.primary { background: #C1622D; color: #fff; border: none; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
 </style>
 </head>
 <body>
 
-  <div class="banner">🧪 ตัวอย่างหน้าจอเท่านั้น — ยังไม่เชื่อมต่อระบบจริง กดปุ่มใดๆ จะไม่มีผลอะไรเกิดขึ้น</div>
+  <div class="banner">🧪 ตัวอย่างหน้าจอทดสอบเท่านั้น — ยังไม่เชื่อมต่อระบบจริง/ฐานข้อมูลจริง — รหัสทดสอบ: <b>12345</b> ใช้ได้ทุกบทบาท</div>
 
-  <div class="wrap">
-    <div class="logo-row">
-      <div class="logo-badge">ช</div>
-      <div class="logo-text">เช่าสุข</div>
-    </div>
-    <div class="tagline">ระบบจัดการหอพัก/อพาร์ทเมนท์ครบวงจร</div>
-
-    <div class="card">
-      <div class="tabs">
-        <div class="tab active" onclick="showPanel('login')" id="tabLogin">เข้าสู่ระบบ</div>
-        <div class="tab" onclick="showPanel('signup')" id="tabSignup">สมัครสมาชิกใหม่</div>
+  <!-- ============ LOGIN SCREEN ============ -->
+  <div class="center-wrap" id="loginScreen">
+    <div class="wrap">
+      <div class="logo-row">
+        <div class="logo-badge">ช</div>
+        <div class="logo-text">เช่าสุข</div>
       </div>
+      <div class="tagline">ระบบจัดการหอพัก/อพาร์ทเมนท์ครบวงจร</div>
 
-      <!-- ============ LOGIN PANEL ============ -->
-      <div class="panel active" id="panelLogin">
-        <div class="field">
-          <label>อีเมล <span class="req">*</span></label>
-          <input type="email" placeholder="you@example.com">
-        </div>
-        <div class="field">
-          <label>รหัสผ่าน <span class="req">*</span></label>
-          <div class="pw-wrap">
-            <input type="password" placeholder="••••••••" id="pwLogin">
-            <span class="pw-toggle" onclick="togglePw('pwLogin', this)">แสดง</span>
+      <div class="card">
+
+        <!-- ============ LOGIN PANEL ============ -->
+        <div class="panel active" id="panelLogin">
+          <div class="section-label">เลือกบทบาทที่จะเข้าสู่ระบบ (ทดสอบ)</div>
+          <div class="role-grid" id="roleGrid">
+            <div class="role-card" data-role="admin" onclick="selectRole('admin')">
+              <div class="icon">🛠️</div><div class="label">เรา / ผู้ดูแลระบบ</div>
+            </div>
+            <div class="role-card" data-role="owner" onclick="selectRole('owner')">
+              <div class="icon">🏢</div><div class="label">เจ้าของ</div>
+            </div>
+            <div class="role-card" data-role="tenant" onclick="selectRole('tenant')">
+              <div class="icon">🔑</div><div class="label">ผู้เช่า</div>
+            </div>
+            <div class="role-card" data-role="staff" onclick="selectRole('staff')">
+              <div class="icon">👷</div><div class="label">พนักงาน</div>
+            </div>
           </div>
-        </div>
-        <div class="forgot-row"><a href="#" onclick="return false">ลืมรหัสผ่าน?</a></div>
-        <button class="submit-btn" onclick="return false">เข้าสู่ระบบ</button>
 
-        <div class="divider">หรือ</div>
-        <div class="oauth-row">
-          <div class="oauth-btn">🔵 Google</div>
-          <div class="oauth-btn">💬 LINE</div>
+          <div class="field">
+            <label>รหัสทดสอบ <span class="req">*</span></label>
+            <div class="pw-wrap">
+              <input type="password" placeholder="กรอกรหัสทดสอบ (12345)" id="pwLogin">
+              <span class="pw-toggle" onclick="togglePw('pwLogin', this)">แสดง</span>
+            </div>
+            <div class="err" id="loginErr">รหัสไม่ถูกต้อง (ใช้ 12345 สำหรับทดสอบ)</div>
+          </div>
+          <button class="submit-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
+
+          <div class="divider">หรือ</div>
+          <div class="oauth-row">
+            <div class="oauth-btn">🔵 Google</div>
+            <div class="oauth-btn">💬 LINE</div>
+          </div>
+
+          <div class="switch-note">เป็นลูกค้าใหม่ อยากสมัครใช้งาน? <a onclick="showPanel('signup')">สมัครสมาชิกใหม่</a></div>
         </div>
 
-        <div class="switch-note">ยังไม่มีบัญชี? <a onclick="showPanel('signup')">สมัครสมาชิกใหม่</a></div>
+        <!-- ============ SIGNUP PANEL (บทบาทที่ 5: User ใหม่) ============ -->
+        <div class="panel" id="panelSignup">
+          <div class="section-label">ข้อมูลผู้ดูแลระบบ (เจ้าของ/ผู้จัดการ)</div>
+          <div class="row2">
+            <div class="field"><label>ชื่อ <span class="req">*</span></label><input type="text" placeholder="ต้น"></div>
+            <div class="field"><label>นามสกุล <span class="req">*</span></label><input type="text" placeholder="ใจดี"></div>
+          </div>
+          <div class="field">
+            <label>อีเมล <span class="req">*</span></label>
+            <input type="email" placeholder="you@example.com">
+            <div class="hint">ใช้สำหรับเข้าสู่ระบบและรับการแจ้งเตือนสำคัญ</div>
+          </div>
+          <div class="field"><label>เบอร์โทรศัพท์ <span class="req">*</span></label><input type="tel" placeholder="08X-XXX-XXXX"></div>
+
+          <div class="section-label">ข้อมูลหอพัก/อพาร์ทเมนท์</div>
+          <div class="field"><label>ชื่อหอพัก/อพาร์ทเมนท์ <span class="req">*</span></label><input type="text" placeholder="เช่น หอพักสุขใจ"></div>
+          <div class="row2">
+            <div class="field">
+              <label>จำนวนห้องโดยประมาณ <span class="req">*</span></label>
+              <select><option>1–10 ห้อง</option><option>11–30 ห้อง</option><option>31–60 ห้อง</option><option>60+ ห้อง</option></select>
+            </div>
+            <div class="field"><label>จังหวัด</label><input type="text" placeholder="เช่น กรุงเทพฯ"></div>
+          </div>
+
+          <div class="section-label">ตั้งรหัสผ่าน</div>
+          <div class="field">
+            <label>รหัสผ่าน <span class="req">*</span></label>
+            <div class="pw-wrap"><input type="password" placeholder="อย่างน้อย 8 ตัวอักษร" id="pwSignup"><span class="pw-toggle" onclick="togglePw('pwSignup', this)">แสดง</span></div>
+          </div>
+          <div class="field">
+            <label>ยืนยันรหัสผ่าน <span class="req">*</span></label>
+            <div class="pw-wrap"><input type="password" placeholder="พิมพ์รหัสผ่านอีกครั้ง" id="pwSignup2"><span class="pw-toggle" onclick="togglePw('pwSignup2', this)">แสดง</span></div>
+          </div>
+
+          <div class="check-row">
+            <input type="checkbox" id="agreeTerms">
+            <label for="agreeTerms">ฉันยอมรับ <a href="#" onclick="return false">ข้อตกลงการใช้งาน</a> และ <a href="#" onclick="return false">นโยบายความเป็นส่วนตัว (PDPA)</a></label>
+          </div>
+
+          <button class="submit-btn" onclick="selectRole('owner'); doLogin(true)">สร้างบัญชีใหม่ (ทดสอบ → เข้าดูหน้าเจ้าของ)</button>
+          <div class="switch-note">มีบัญชีอยู่แล้ว? <a onclick="showPanel('login')">เข้าสู่ระบบ</a></div>
+        </div>
+
       </div>
-
-      <!-- ============ SIGNUP PANEL ============ -->
-      <div class="panel" id="panelSignup">
-
-        <div class="section-label">ข้อมูลผู้ดูแลระบบ (เจ้าของ/ผู้จัดการ)</div>
-        <div class="row2">
-          <div class="field">
-            <label>ชื่อ <span class="req">*</span></label>
-            <input type="text" placeholder="ต้น">
-          </div>
-          <div class="field">
-            <label>นามสกุล <span class="req">*</span></label>
-            <input type="text" placeholder="ใจดี">
-          </div>
-        </div>
-        <div class="field">
-          <label>อีเมล <span class="req">*</span></label>
-          <input type="email" placeholder="you@example.com">
-          <div class="hint">ใช้สำหรับเข้าสู่ระบบและรับการแจ้งเตือนสำคัญ</div>
-        </div>
-        <div class="field">
-          <label>เบอร์โทรศัพท์ <span class="req">*</span></label>
-          <input type="tel" placeholder="08X-XXX-XXXX">
-        </div>
-
-        <div class="section-label">ข้อมูลหอพัก/อพาร์ทเมนท์</div>
-        <div class="field">
-          <label>ชื่อหอพัก/อพาร์ทเมนท์ <span class="req">*</span></label>
-          <input type="text" placeholder="เช่น หอพักสุขใจ">
-        </div>
-        <div class="row2">
-          <div class="field">
-            <label>จำนวนห้องโดยประมาณ <span class="req">*</span></label>
-            <select>
-              <option>1–10 ห้อง</option>
-              <option>11–30 ห้อง</option>
-              <option>31–60 ห้อง</option>
-              <option>60+ ห้อง</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>จังหวัด</label>
-            <input type="text" placeholder="เช่น กรุงเทพฯ">
-          </div>
-        </div>
-
-        <div class="section-label">ตั้งรหัสผ่าน</div>
-        <div class="field">
-          <label>รหัสผ่าน <span class="req">*</span></label>
-          <div class="pw-wrap">
-            <input type="password" placeholder="อย่างน้อย 8 ตัวอักษร" id="pwSignup">
-            <span class="pw-toggle" onclick="togglePw('pwSignup', this)">แสดง</span>
-          </div>
-        </div>
-        <div class="field">
-          <label>ยืนยันรหัสผ่าน <span class="req">*</span></label>
-          <div class="pw-wrap">
-            <input type="password" placeholder="พิมพ์รหัสผ่านอีกครั้ง" id="pwSignup2">
-            <span class="pw-toggle" onclick="togglePw('pwSignup2', this)">แสดง</span>
-          </div>
-        </div>
-
-        <div class="check-row">
-          <input type="checkbox" id="agreeTerms">
-          <label for="agreeTerms">ฉันยอมรับ <a href="#" onclick="return false">ข้อตกลงการใช้งาน</a> และ <a href="#" onclick="return false">นโยบายความเป็นส่วนตัว (PDPA)</a> — เนื่องจากระบบนี้จะจัดเก็บข้อมูลส่วนตัวของผู้เช่าในหอพักของท่าน (เช่น รูปบัตรประชาชน เบอร์โทร)</label>
-        </div>
-        <div class="check-row">
-          <input type="checkbox" id="agreeMarketing">
-          <label for="agreeMarketing">รับข่าวสารและอัปเดตฟีเจอร์ใหม่ทางอีเมล (ไม่บังคับ)</label>
-        </div>
-
-        <button class="submit-btn" onclick="return false">สร้างบัญชีใหม่</button>
-
-        <div class="switch-note">มีบัญชีอยู่แล้ว? <a onclick="showPanel('login')">เข้าสู่ระบบ</a></div>
+      <div class="footer-note">
+        หน้านี้เป็นตัวอย่าง (mockup) เพื่อพิจารณาการออกแบบเท่านั้น — ยังไม่เชื่อมต่อกับระบบสมาชิก/ฐานข้อมูลจริงของเช่าสุข
       </div>
     </div>
+  </div>
 
-    <div class="footer-note">
-      หน้านี้เป็นตัวอย่าง (mockup) เพื่อพิจารณาการออกแบบเท่านั้น<br>
-      ยังไม่เชื่อมต่อกับระบบสมาชิก/ฐานข้อมูลจริงของเช่าสุข
+  <!-- ============ 1. ADMIN (เรา/ผู้ดูแลระบบ) ============ -->
+  <div class="dash-wrap" id="dashAdmin">
+    <div class="dash-top">
+      <div class="dash-top-left">
+        <div class="logo-badge">ช</div>
+        <div>
+          <div class="dash-title">แผงควบคุมผู้ดูแลระบบ <span class="dash-role-badge">ADMIN</span></div>
+          <div class="dash-sub">ภาพรวมลูกค้าทั้งหมดที่ใช้แพลตฟอร์มเช่าสุข</div>
+        </div>
+      </div>
+      <div class="logout-btn" onclick="logout()">ออกจากระบบ</div>
+    </div>
+    <div class="dash-grid">
+      <div class="kpi-card"><div class="kpi-label">ลูกค้าทั้งหมด</div><div class="kpi-value">7 ราย</div><div class="kpi-hint">ใช้งานอยู่ 6 · ระงับ 1</div></div>
+      <div class="kpi-card" style="border-top-color:#3B7A52"><div class="kpi-label">รายได้ MRR (ตัวอย่าง)</div><div class="kpi-value">฿12,600</div><div class="kpi-hint">รวมทุกแพ็กเกจ</div></div>
+      <div class="kpi-card"><div class="kpi-label">ลูกค้าใหม่เดือนนี้</div><div class="kpi-value">1 ราย</div><div class="kpi-hint">สมัครผ่านหน้า Signup</div></div>
+      <div class="kpi-card" style="border-top-color:#B24336"><div class="kpi-label">แจ้งปัญหาระบบ</div><div class="kpi-value">2 รายการ</div><div class="kpi-hint">รอตรวจสอบ</div></div>
+    </div>
+    <div class="section-card">
+      <div class="section-card-title">รายชื่อลูกค้า</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>หอพัก</th><th>เจ้าของ</th><th>จำนวนห้อง</th><th>แพ็กเกจ</th><th>สถานะ</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>หอพักเช่าสุข</td><td>คุณต้น</td><td>6</td><td>Standard</td><td><span class="pill green">ใช้งานอยู่</span></td><td><span class="mini-btn">จัดการ</span></td></tr>
+            <tr><td>บ้านสวยอพาร์ทเมนท์</td><td>คุณสมหญิง</td><td>24</td><td>Pro</td><td><span class="pill green">ใช้งานอยู่</span></td><td><span class="mini-btn">จัดการ</span></td></tr>
+            <tr><td>หอพักริมคลอง</td><td>คุณวิชัย</td><td>12</td><td>Standard</td><td><span class="pill orange">ค้างชำระ</span></td><td><span class="mini-btn">จัดการ</span></td></tr>
+            <tr><td>ธารารีสอร์ท</td><td>คุณปิยะ</td><td>40</td><td>Pro</td><td><span class="pill red">ระงับ</span></td><td><span class="mini-btn">จัดการ</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="section-card">
+      <div class="section-card-title">การจัดการระบบ</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <span class="mini-btn primary">+ เพิ่มลูกค้าใหม่</span>
+        <span class="mini-btn">ตั้งค่าแพ็กเกจ/ราคา</span>
+        <span class="mini-btn">ดู Log ระบบ</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 2. OWNER (เจ้าของ) ============ -->
+  <div class="dash-wrap" id="dashOwner">
+    <div class="dash-top">
+      <div class="dash-top-left">
+        <div class="logo-badge">ช</div>
+        <div>
+          <div class="dash-title">หอพักเช่าสุข <span class="dash-role-badge">เจ้าของ</span></div>
+          <div class="dash-sub">สวัสดีครับ คุณต้น — ภาพรวมประจำเดือนกรกฎาคม 2569</div>
+        </div>
+      </div>
+      <div class="logout-btn" onclick="logout()">ออกจากระบบ</div>
+    </div>
+    <div class="readonly-note">✅ นี่คือหน้าเดียวกับที่คุณต้นใช้งานอยู่ทุกวันนี้ครับ — สิทธิ์เจ้าของ = เข้าถึงทุกฟีเจอร์เต็มรูปแบบ แค่ต้องล็อกอินก่อนเข้าเท่านั้น</div>
+    <div class="dash-grid">
+      <div class="kpi-card"><div class="kpi-label">รายรับเดือนนี้</div><div class="kpi-value">฿24,500</div></div>
+      <div class="kpi-card"><div class="kpi-label">รายจ่ายเดือนนี้</div><div class="kpi-value">฿6,200</div></div>
+      <div class="kpi-card" style="border-top-color:#3B7A52"><div class="kpi-label">กำไรสุทธิเดือนนี้</div><div class="kpi-value" style="color:#3B7A52">+฿18,300</div></div>
+      <div class="kpi-card"><div class="kpi-label">ห้องว่าง</div><div class="kpi-value">2 / 6</div></div>
+      <div class="kpi-card" style="border-top-color:#B24336"><div class="kpi-label">ค้างชำระ</div><div class="kpi-value">1 ห้อง</div></div>
+    </div>
+    <div class="section-card">
+      <div class="section-card-title">เมนูทั้งหมด (แถบซ้ายของระบบจริง)</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="mini-btn">แดชบอร์ด</span><span class="mini-btn">ห้องพัก</span><span class="mini-btn">ผู้เช่า</span>
+        <span class="mini-btn">บิล &amp; ใบแจ้งหนี้</span><span class="mini-btn">สัญญาเช่า</span><span class="mini-btn">บัญชีรายจ่าย</span>
+        <span class="mini-btn">แจ้งซ่อม</span><span class="mini-btn">ปฏิทิน</span><span class="mini-btn">การใช้น้ำ/ไฟ</span>
+        <span class="mini-btn">Set อุปกรณ์</span><span class="mini-btn">สัญญา/พนักงาน</span><span class="mini-btn">ตั้งค่า</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3. TENANT (ผู้เช่า) — read-only ============ -->
+  <div class="dash-wrap" id="dashTenant">
+    <div class="dash-top">
+      <div class="dash-top-left">
+        <div class="logo-badge">ช</div>
+        <div>
+          <div class="dash-title">สวัสดีครับ, อร สว่างรุ่ง <span class="dash-role-badge">ผู้เช่า</span></div>
+          <div class="dash-sub">ห้อง 103 · หอพักเช่าสุข</div>
+        </div>
+      </div>
+      <div class="logout-btn" onclick="logout()">ออกจากระบบ</div>
+    </div>
+    <div class="readonly-note">👁️ หน้านี้ดูข้อมูลได้อย่างเดียว — แก้ไข/ส่งสลิป/แจ้งซ่อม ยังคงทักผ่าน LINE บอทเหมือนเดิมครับ</div>
+    <div class="dash-grid">
+      <div class="kpi-card" style="border-top-color:#B24336"><div class="kpi-label">ยอดค้างชำระ</div><div class="kpi-value">฿1,375</div><div class="kpi-hint">ครบกำหนด 31/07/2026</div></div>
+      <div class="kpi-card" style="border-top-color:#3B7A52"><div class="kpi-label">เงินคงเหลือในบัญชี</div><div class="kpi-value">฿500</div><div class="kpi-hint">หักลบอัตโนมัติบิลถัดไป</div></div>
+      <div class="kpi-card"><div class="kpi-label">หน่วยน้ำล่าสุด</div><div class="kpi-value">32</div><div class="kpi-hint">เรียลไทม์จากมิเตอร์ (ถ้าเชื่อมต่อ)</div></div>
+      <div class="kpi-card"><div class="kpi-label">หน่วยไฟล่าสุด</div><div class="kpi-value">55</div><div class="kpi-hint">เรียลไทม์จากมิเตอร์ (ถ้าเชื่อมต่อ)</div></div>
+    </div>
+    <div class="section-card">
+      <div class="section-card-title">ประวัติการชำระเงิน</div>
+      <div class="list-row"><span>INV-103-... · 10/07/2026</span><span class="amt">฿1,625 <span class="pill green">ชำระแล้ว</span></span></div>
+      <div class="list-row"><span>INV-103-... · 10/06/2026</span><span class="amt">฿1,540 <span class="pill green">ชำระแล้ว</span></span></div>
+      <div class="list-row"><span>INV-103-... · 10/05/2026</span><span class="amt">฿1,610 <span class="pill green">ชำระแล้ว</span></span></div>
+    </div>
+    <div class="section-card">
+      <div class="section-card-title">ข้อมูลสัญญาเช่า</div>
+      <div class="list-row"><span>ค่าเช่า/เดือน</span><span class="amt">฿1,200</span></div>
+      <div class="list-row"><span>วันที่เข้าอยู่</span><span>07/07/2026</span></div>
+      <div class="list-row"><span>สิ้นสุดสัญญา</span><span>31/07/2026</span></div>
+      <div class="list-row"><span>กำหนดชำระทุกวันที่</span><span>5</span></div>
+    </div>
+  </div>
+
+  <!-- ============ 4. STAFF (พนักงาน) ============ -->
+  <div class="dash-wrap" id="dashStaff">
+    <div class="dash-top">
+      <div class="dash-top-left">
+        <div class="logo-badge">ช</div>
+        <div>
+          <div class="dash-title">สวัสดีครับ, สมชาย ดูแลดี <span class="dash-role-badge">พนักงาน</span></div>
+          <div class="dash-sub">ตำแหน่ง: ช่างซ่อมบำรุง · หอพักเช่าสุข</div>
+        </div>
+      </div>
+      <div class="logout-btn" onclick="logout()">ออกจากระบบ</div>
+    </div>
+    <div class="dash-grid">
+      <div class="kpi-card"><div class="kpi-label">เงินเดือน</div><div class="kpi-value">฿12,000</div><div class="kpi-hint">รับทุกวันที่ 30</div></div>
+      <div class="kpi-card"><div class="kpi-label">เข้างานเดือนนี้</div><div class="kpi-value">18 วัน</div></div>
+      <div class="kpi-card"><div class="kpi-label">งานซ่อมที่ทำเสร็จ</div><div class="kpi-value">5 งาน</div><div class="kpi-hint">เดือนนี้</div></div>
+    </div>
+    <div class="section-card">
+      <div class="section-card-title">บันทึกงานซ่อมที่ทำเสร็จ</div>
+      <div class="form-grid">
+        <div class="field" style="margin-bottom:0"><label>ห้อง</label><select><option>103</option><option>104</option><option>ส่วนกลาง</option></select></div>
+        <div class="field" style="margin-bottom:0"><label>รายละเอียดงาน</label><input type="text" placeholder="เช่น ซ่อมก๊อกน้ำรั่ว"></div>
+      </div>
+      <span class="mini-btn primary">บันทึกว่าทำเสร็จแล้ว</span>
+    </div>
+    <div class="section-card">
+      <div class="section-card-title">ตารางการทำงานของฉัน</div>
+      <div class="list-row"><span>จันทร์ – ศุกร์</span><span>08:00 – 17:00</span></div>
+      <div class="list-row"><span>เสาร์</span><span>08:00 – 12:00</span></div>
+      <div class="list-row"><span>อาทิตย์</span><span>หยุด</span></div>
+    </div>
+    <div class="section-card">
+      <div class="section-card-title">ประวัติเข้างานล่าสุด</div>
+      <div class="list-row"><span>10/07/2026</span><span class="pill green">เข้างานตรงเวลา</span></div>
+      <div class="list-row"><span>09/07/2026</span><span class="pill green">เข้างานตรงเวลา</span></div>
+      <div class="list-row"><span>08/07/2026</span><span class="pill orange">ลาป่วย</span></div>
     </div>
   </div>
 
 <script>
+  let selectedRole = null;
+
   function showPanel(name) {
     document.getElementById('panelLogin').classList.toggle('active', name === 'login');
     document.getElementById('panelSignup').classList.toggle('active', name === 'signup');
-    document.getElementById('tabLogin').classList.toggle('active', name === 'login');
-    document.getElementById('tabSignup').classList.toggle('active', name === 'signup');
   }
   function togglePw(id, el) {
     const input = document.getElementById(id);
     if (input.type === 'password') { input.type = 'text'; el.textContent = 'ซ่อน'; }
     else { input.type = 'password'; el.textContent = 'แสดง'; }
+  }
+  function selectRole(role) {
+    selectedRole = role;
+    document.querySelectorAll('.role-card').forEach(c => c.classList.toggle('selected', c.dataset.role === role));
+  }
+  function doLogin(skipRoleCheck) {
+    const pin = document.getElementById('pwLogin') ? document.getElementById('pwLogin').value : '';
+    const err = document.getElementById('loginErr');
+    if (!skipRoleCheck) {
+      if (!selectedRole) { alert('กรุณาเลือกบทบาทก่อนครับ'); return; }
+      if (pin !== '12345') { if (err) err.style.display = 'block'; return; }
+    }
+    if (err) err.style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'none';
+    const map = { admin: 'dashAdmin', owner: 'dashOwner', tenant: 'dashTenant', staff: 'dashStaff' };
+    document.getElementById(map[selectedRole] || 'dashOwner').classList.add('active');
+  }
+  function logout() {
+    document.querySelectorAll('.dash-wrap').forEach(d => d.classList.remove('active'));
+    document.getElementById('loginScreen').style.display = 'flex';
+    selectedRole = null;
+    document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+    const pwEl = document.getElementById('pwLogin');
+    if (pwEl) pwEl.value = '';
+    showPanel('login');
   }
 </script>
 </body>
