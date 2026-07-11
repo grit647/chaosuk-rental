@@ -171,7 +171,12 @@
 
         <!-- ============ LOGIN PANEL ============ -->
         <div class="panel active" id="panelLogin">
-          <div class="section-label">เลือกบทบาทที่จะเข้าสู่ระบบ (ทดสอบ)</div>
+          <div class="field">
+            <label>เบอร์โทรศัพท์ <span class="req">*</span></label>
+            <input type="tel" placeholder="08X-XXX-XXXX" id="phoneLogin">
+            <div class="hint">ในระบบจริง เบอร์นี้จะใช้ค้นหาในสมุดรายชื่อกลางเพื่อรู้ว่าเป็นใคร/บทบาทอะไรอัตโนมัติ — ไม่ต้องเลือกบทบาทเอง หน้านี้ยังให้เลือกไว้ก่อนเพื่อดูตัวอย่างแต่ละหน้าจอเท่านั้น</div>
+          </div>
+          <div class="section-label">เลือกบทบาทที่จะเข้าสู่ระบบ (สำหรับดูตัวอย่างเท่านั้น)</div>
           <div class="role-grid" id="roleGrid">
             <div class="role-card" data-role="admin" onclick="selectRole('admin')">
               <div class="icon">🛠️</div><div class="label">เรา / ผู้ดูแลระบบ</div>
