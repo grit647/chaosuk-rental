@@ -1803,6 +1803,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <sc-if value="{{ st.hasNotes }}" hint-placeholder-val="{{ false }}">
                       <div style="font-size:11.5px;color:#9C8B78;background:#FBF7F0;border-radius:6px;padding:8px 10px">📝 {{ st.notes }}</div>
                     </sc-if>
+                    <!-- Per explicit user design: "เปิดใช้งาน Login" gives
+                         this staff member real access to the app
+                         (accounting-clerk role — see /staff-login) —
+                         shown separately from the plain data edit/delete
+                         row below since granting login access is a more
+                         sensitive action. -->
+                    <div style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;padding:6px 0">
+                      <span style="color:{{ st.loginStatusColor }}">{{ st.loginStatusLabel }}</span>
+                      <span onclick="{{ st.onSetPin }}" style="cursor:pointer;color:#2C6E8F;text-decoration:underline">{{ st.setPinLabel }}</span>
+                      <sc-if value="{{ st.loginEnabled }}" hint-placeholder-val="{{ false }}">
+                        <span onclick="{{ st.onDisableLogin }}" style="cursor:pointer;color:#B24336;text-decoration:underline">ปิดใช้งาน</span>
+                      </sc-if>
+                    </div>
                     <div style="display:flex;gap:8px;margin-top:2px">
                       <span onclick="{{ st.onEdit }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F">✎ แก้ไข</span>
                       <span onclick="{{ st.onDelete }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336">🗑 ลบ</span>
@@ -3293,6 +3306,26 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <!-- Per explicit user design: sets/changes a staff member's own
+             login PIN — used together with the building's own รหัสตึก
+             (buildingKeyId) + their own phone at /staff-login. -->
+        <sc-if value="{{ showStaffPinModal }}">
+          <div onclick="{{ closeStaffPinModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210;padding:16px;box-sizing:border-box">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:100%;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ตั้งรหัสผ่าน Login พนักงาน</div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">พนักงานจะใช้ รหัสตึก + เบอร์โทรของตัวเอง + รหัสผ่านนี้ เข้าสู่ระบบที่หน้า /staff-login</div>
+              <div style="margin-bottom:16px">
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รหัสผ่านใหม่ (อย่างน้อย 4 ตัวอักษร)</div>
+                <input value="{{ staffPinValue }}" onchange="{{ onStaffPinValue }}" placeholder="เช่น 1234" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:13px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+              </div>
+              <div style="display:flex;gap:10px">
+                <button onclick="{{ closeStaffPinModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ submitStaffPin }}" style="flex:1.3;background:#2C6E8F;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึกรหัสผ่าน</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showMaintenanceModal }}">
           <div onclick="{{ closeMaintenanceModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
@@ -3427,6 +3460,16 @@ class Component extends DCLogic {
     newStaff: { name: '', position: '', salary: '', workStart: '', workEnd: '', workDays: '', startDate: '', endDate: '', phone: '', status: 'active', notes: '', payDay: '' },
     showDeleteStaffConfirm: false,
     deleteStaffId: null,
+    // Per explicit user design: "เปิดใช้งาน Login" lets the owner set a
+    // per-staff-member PIN so that person can log in as a full-access
+    // accounting-clerk role via /staff-login (building code + own phone +
+    // this PIN) — see server/routes/auth.js's POST /staff-login. Separate
+    // small modal from the main add/edit form since it's a distinct,
+    // more sensitive action (creating real login access), not just
+    // editing a data field.
+    showStaffPinModal: false,
+    staffPinTargetId: null,
+    staffPinValue: '',
     showMaintenanceModal: false,
     newMaintenance: { roomId: '', issue: '' },
     settings: { emailNotif: true, smsNotif: false, autoInvoice: true, dueReminder: true, lineNotif: true },
@@ -6574,6 +6617,50 @@ class Component extends DCLogic {
     }
   });
 
+  // "เปิดใช้งาน Login" — sets/changes this staff member's own login PIN
+  // (checked against server/routes/auth.js's POST /staff-login, alongside
+  // their phone + the building's buildingKeyId). Requires a phone number
+  // on file first (staff-login matches phone+pin together, same as the
+  // owner's own login) — the modal below blocks submitting without one
+  // instead of silently saving a PIN nobody could ever use to log in.
+  openStaffPinModal = (id) => {
+    const st = this.state.staff.find(x => x.id === id);
+    if (!st) return;
+    this.setState({ showStaffPinModal: true, staffPinTargetId: id, staffPinValue: '' });
+  };
+  closeStaffPinModal = () => this.setState({ showStaffPinModal: false, staffPinTargetId: null, staffPinValue: '' });
+  onStaffPinValue = (e) => this.setState({ staffPinValue: e.target.value });
+  submitStaffPin = () => this._guard('submitStaffPin:' + this.state.staffPinTargetId, async () => {
+    const id = this.state.staffPinTargetId;
+    const pin = this.state.staffPinValue.trim();
+    const st = this.state.staff.find(x => x.id === id);
+    if (!id || !st) return;
+    if (!st.phone || !st.phone.trim()) { this.showAdminToast('พนักงานคนนี้ยังไม่มีเบอร์โทร กรุณาแก้ไขข้อมูลพนักงานเพิ่มเบอร์ก่อน'); return; }
+    if (pin.length < 4) { this.showAdminToast('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร'); return; }
+    try {
+      const res = await fetch('/api/staff/' + encodeURIComponent(id), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState(s => ({ staff: s.staff.map(x => x.id === updated.id ? updated : x), showStaffPinModal: false, staffPinTargetId: null, staffPinValue: '' }));
+      this.showAdminToast('ตั้งรหัส Login ให้ ' + st.name + ' แล้ว — บอกรหัสตึก เบอร์โทร และรหัสผ่านนี้ให้พนักงานเพื่อเข้าสู่ระบบที่หน้า /staff-login');
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
+  });
+  disableStaffLogin = (id) => this._guard('disableStaffLogin:' + id, async () => {
+    const st = this.state.staff.find(x => x.id === id);
+    if (!st) return;
+    try {
+      const res = await fetch('/api/staff/' + encodeURIComponent(id), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '' }),
+      });
+      if (!res.ok) throw new Error('ปิดใช้งานไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState(s => ({ staff: s.staff.map(x => x.id === updated.id ? updated : x) }));
+      this.showAdminToast('ปิดใช้งาน Login ของ ' + st.name + ' แล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'ปิดใช้งานไม่สำเร็จ'); }
+  });
+
   openMaintenanceModal = () => this.setState({ showMaintenanceModal: true, newMaintenance: { roomId: '', issue: '' } });
   closeMaintenanceModal = () => this.setState({ showMaintenanceModal: false });
   onNewMaintRoomChange = (e) => { const v = e.target.value; this.setState(s => ({ newMaintenance: { ...s.newMaintenance, roomId: v } })); };
@@ -8539,6 +8626,17 @@ class Component extends DCLogic {
           statusBg: isActive ? '#E4EFE7' : '#EDE4D6', statusColor: isActive ? '#3B7A52' : '#9C8B78',
           onEdit: () => this.openEditStaff(st.id),
           onDelete: () => this.askDeleteStaff(st.id),
+          // Per explicit user design: "เปิดใช้งาน Login" gives this staff
+          // member real access to the app (accounting-clerk role, full
+          // access same as owner) via /staff-login — shown as a distinct
+          // badge/button from the plain data edit above since it's a more
+          // sensitive action.
+          loginEnabled: !!st.hasPin,
+          loginStatusLabel: st.hasPin ? '🔑 เปิดใช้งาน Login แล้ว' : '🔒 ยังไม่เปิดใช้งาน Login',
+          loginStatusColor: st.hasPin ? '#3B7A52' : '#9C8B78',
+          setPinLabel: st.hasPin ? 'เปลี่ยนรหัสผ่าน' : 'เปิดใช้งาน',
+          onSetPin: () => this.openStaffPinModal(st.id),
+          onDisableLogin: () => this.disableStaffLogin(st.id),
         };
       }),
       showStaffModal: s.showStaffModal, closeStaffModal: this.closeStaffModal,
@@ -8561,6 +8659,8 @@ class Component extends DCLogic {
       staffInactiveColor: s.newStaff.status === 'inactive' ? '#fff' : '#7C6E5F',
       showDeleteStaffConfirm: s.showDeleteStaffConfirm, closeDeleteStaffConfirm: this.closeDeleteStaffConfirm,
       confirmDeleteStaff: this.confirmDeleteStaff,
+      showStaffPinModal: s.showStaffPinModal, closeStaffPinModal: this.closeStaffPinModal,
+      staffPinValue: s.staffPinValue, onStaffPinValue: this.onStaffPinValue, submitStaffPin: this.submitStaffPin,
       calMonthLabel, calCells, calWeekdays: ['อา','จ','อ','พ','พฤ','ศ','ส'],
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,

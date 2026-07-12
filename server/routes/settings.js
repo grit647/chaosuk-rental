@@ -385,6 +385,21 @@ router.put('/', async (req, res, next) => {
       }
     }
 
+    // Same sync pattern for buildingKeyId — per explicit user request, the
+    // new staff-login flow (POST /api/auth/staff-login) needs to look up
+    // "which building has this buildingKeyId" FAST (one Directory read)
+    // instead of opening every building's own Settings sheet to search.
+    // buildingKeyId's actual source of truth stays each building's own
+    // Settings sheet (via propertyProfile above) — this Directory column
+    // is purely a mirrored index, kept in sync here.
+    if (DIRECTORY_SHEET_ID && sessionSheetId && kv.buildingKeyId !== undefined) {
+      try {
+        await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', sessionSheetId, { buildingKeyId: kv.buildingKeyId }, 'customerSheetId'));
+      } catch (syncErr) {
+        console.error('[settings] directory buildingKeyId sync failed for', sessionSheetId, syncErr.message);
+      }
+    }
+
     res.json(await readSettings());
   } catch (err) { next(err); }
 });

@@ -54,6 +54,18 @@ async function upsertSettingKV(key, value) {
 // no ownerId (pre-migration/legacy rows).
 async function isPlatformAdminSession(session) {
   if (!session) return false;
+  // Real gap caught while adding staff-login: a staff session has NO
+  // ownerId by design (staff isn't part of any owner's multi-building
+  // group — see POST /staff-login) — the "!session.ownerId" fallback
+  // below was written assuming that only ever meant "a legacy pre-
+  // migration owner row", so it would have WRONGLY granted platform-admin
+  // rights (see all other customers, delete/suspend buildings) to any
+  // staff member the owner set up for the MAIN property specifically
+  // (their own customerSheetId matching GOOGLE_SHEET_ID). Staff must
+  // NEVER get platform-admin rights, regardless of which building they
+  // belong to — explicit user requirement ("ลบตึกทิ้ง/พักการใช้งาน...
+  // อยู่ฝั่ง server เท่านั้น").
+  if (session.role === 'staff') return false;
   if (!DIRECTORY_SHEET_ID || !session.ownerId) return session.customerSheetId === process.env.GOOGLE_SHEET_ID;
   try {
     const users = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
@@ -125,6 +137,49 @@ router.post('/login', async (req, res, next) => {
     };
     setSessionCookie(res, session);
     res.json({ ok: true, ...session, buildingCount: ownedBuildings.length });
+  } catch (err) { next(err); }
+});
+
+// Per explicit user request/discussion: a "ผู้ดูแล" (staff — in practice
+// an accounting clerk operating the site on the owner's behalf, per the
+// owner's own description) logs in with a DIFFERENT 3-field flow than the
+// owner's phone+PIN: building code (buildingKeyId) + their OWN phone +
+// their OWN PIN. This is a completely separate credential set from the
+// owner's login — the owner never has to share their personal phone/PIN.
+//
+// Design: buildingKeyId is looked up in the shared Directory sheet (kept
+// in sync with each building's own Settings via the settings.js PUT route
+// — see that route's buildingKeyId sync block) to resolve WHICH building's
+// Sheet to check. Then phone+pin is checked against THAT building's own
+// Staff tab (not the Directory — staff records live per-building, same as
+// Rooms/Invoices/etc.), so one Staff phone+PIN can never accidentally
+// match a different building's staff member.
+//
+// Per explicit user request, staff sees the EXACT SAME full dashboard as
+// the owner once logged in (this is an accounting-clerk role, not a
+// restricted view) — the only differences are: (1) a separate credential
+// from the owner's own, and (2) actions already gated behind
+// isPlatformAdminSession (delete/suspend building) or the adminEditPin
+// confirm-modal (ข้อมูลหอพัก card save) stay gated the exact same way
+// regardless of who's logged in, no special-casing needed for staff.
+router.post('/staff-login', async (req, res, next) => {
+  try {
+    const { buildingKeyId, phone, pin } = req.body;
+    if (!buildingKeyId || !phone || !pin) return res.status(400).json({ error: 'กรุณากรอกรหัสตึก เบอร์โทร และรหัสผ่านให้ครบ' });
+    if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
+
+    const users = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+    const building = users.find((u) => u.buildingKeyId && u.buildingKeyId === buildingKeyId);
+    if (!building) return res.status(401).json({ error: 'ไม่พบรหัสตึกนี้ กรุณาตรวจสอบรหัสตึกอีกครั้ง' });
+    if (building.status === 'suspended') return res.status(403).json({ error: 'ตึกนี้ถูกพักการใช้งานชั่วคราว กรุณาติดต่อผู้ดูแลระบบ' });
+
+    const staffRows = await runWithSheetId(building.customerSheetId, () => readTab('Staff'));
+    const staff = staffRows.find((s) => s.phone === phone && s.pin && s.pin === pin);
+    if (!staff) return res.status(401).json({ error: 'เบอร์โทรหรือรหัสผ่านไม่ถูกต้อง' });
+
+    const session = { ownerId: null, role: 'staff', customerSheetId: building.customerSheetId, roomId: null, staffId: staff.id };
+    setSessionCookie(res, session);
+    res.json({ ok: true, ...session });
   } catch (err) { next(err); }
 });
 

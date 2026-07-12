@@ -71,6 +71,12 @@ app.get('/login-preview.html', noCache, (req, res) => res.sendFile(path.join(ROO
 // directly still works exactly as before with no login required, until a
 // later step makes that mandatory.
 app.get('/login', noCache, (req, res) => res.sendFile(path.join(ROOT, 'login.html')));
+// Per explicit user design: staff (an accounting clerk operating the site
+// on the owner's behalf) logs in with a different 3-field flow (building
+// code + own phone + own PIN) than the owner's 2-field one — see POST
+// /api/auth/staff-login. Separate page so the owner's own login flow
+// stays untouched.
+app.get('/staff-login', noCache, (req, res) => res.sendFile(path.join(ROOT, 'staff-login.html')));
 // Per explicit user request: a "your buildings" picker shown right after
 // login — lets an owner with multiple buildings choose which one to
 // manage, and gives every owner an obvious "+ เพิ่มตึกใหม่" entry point.
