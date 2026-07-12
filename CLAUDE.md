@@ -76,6 +76,38 @@ tenant, this constant needs to move to a real per-deployment secret
 instead of a shared hardcoded value — flagging now so a future session
 doesn't miss it.
 
+### LINE webhook only receives messages for the main property — other customers' LINE OAs can send but not receive
+
+**Status:** Open — decided on an approach (per-customer webhook URLs),
+not yet built. Revisit when a second customer (e.g. บ้านพักครูโจ) actually
+needs tenants to reply/send slips via their own LINE OA.
+
+`server/routes/line.js`'s `POST /webhook` is ONE shared URL
+(`https://chaosuk-rental.onrender.com/api/line/webhook`) registered in the
+main property's LINE Developers Console, and it verifies every incoming
+signature against ONLY the main property's Channel Secret (see the
+"KNOWN LIMITATION" comment right above the route). This means:
+
+- ✅ Every customer (main property + บ้านพักครูโจ, etc.) can already SEND
+  messages through their own LINE OA fine — outbound `/send`/`/status`
+  already resolve each customer's own saved credentials correctly.
+- ❌ A tenant replying, sending a room number to self-link, or sending a
+  payment slip photo to a customer OTHER than the main property's LINE
+  OA is silently dropped — signature verification fails against the
+  wrong Channel Secret, so the event never reaches our handlers at all.
+
+**Decided approach when this gets built:** per-customer webhook URLs
+(e.g. `/api/line/webhook/:customerSheetId` or similar), each customer
+registers their OWN distinct URL in their OWN LINE Developers Console —
+chosen over the alternative (one shared URL that tries every customer's
+Channel Secret until one verifies) for clarity and to avoid O(n) signature
+checks per webhook call as the customer count grows.
+
+**Not yet done because:** no customer currently needs tenant-side LINE
+reception through their own OA — บ้านพักครูโจ's outbound sending already
+works, and the owner asked to just record the decision for now rather
+than implement it speculatively.
+
 ## Permanent rules (do not relax without the owner explicitly re-confirming)
 
 - **No code/server/credential access from the Claude command box or recurring

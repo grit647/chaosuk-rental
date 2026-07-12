@@ -247,6 +247,14 @@ router.post('/webhook', async (req, res) => {
   // up via the new Settings form) can only SEND messages through this
   // app; tenants replying/sending slips to THAT OA won't be received
   // here until this gets built out further.
+  //
+  // DECIDED (2026-07-12, discussed with owner re: บ้านพักครูโจ): when this
+  // gets built, go with per-customer webhook URLs (e.g.
+  // /api/line/webhook/:customerSheetId), NOT the try-every-secret
+  // alternative — clearer, and avoids O(n) signature checks per call as
+  // the customer count grows. Not implemented yet — no customer currently
+  // needs tenant-side LINE reception through their own OA; see CLAUDE.md's
+  // "Known issues / follow-ups" for the full writeup.
 
   try {
     const signature = req.headers['x-line-signature'];
