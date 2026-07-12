@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>เช่าสุข — พอร์ทัลผู้เช่า</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'IBM Plex Sans Thai', sans-serif; background: #F7F1E6; color: #241812; min-height: 100vh; }
+  .topbar { background: #3B7A52; color: #fff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .topbar .brand { font-size: 15px; font-weight: 700; }
+  .topbar .logout { font-size: 12px; color: #fff; opacity: 0.85; cursor: pointer; text-decoration: underline; background: none; border: none; font-family: inherit; }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 20px 16px 60px; }
+  .card { background: #FFFFFF; border-radius: 10px; padding: 18px; margin-bottom: 14px; }
+  .card-title { font-size: 13px; font-weight: 700; color: #7C6E5F; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 12px; }
+  .room-header { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+  .room-sub { font-size: 12.5px; color: #7C6E5F; }
+  .due-amount { font-family: 'IBM Plex Mono', monospace; font-size: 28px; font-weight: 700; color: #C1622D; margin: 6px 0; }
+  .due-label { font-size: 12px; color: #7C6E5F; }
+  .badge { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 3px 9px; border-radius: 5px; margin-top: 6px; }
+  .badge-overdue { background: #F6DCD8; color: #B24336; }
+  .badge-pending { background: #F5EFE2; color: #9C7A2E; }
+  .badge-none { background: #E4EFE7; color: #3B7A52; }
+  .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F0E9DC; font-size: 12.5px; }
+  .row:last-child { border-bottom: none; }
+  .row .label { color: #7C6E5F; }
+  .row .value { font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
+  .history-item { padding: 10px 0; border-bottom: 1px solid #F0E9DC; }
+  .history-item:last-child { border-bottom: none; }
+  .history-top { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 3px; }
+  .history-amount { font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+  .history-sub { font-size: 11px; color: #9C8B78; }
+  textarea { width: 100%; min-height: 70px; padding: 10px; border-radius: 7px; border: 1px solid #E3D8C8; font-size: 13px; font-family: inherit; resize: vertical; box-sizing: border-box; }
+  .submit-btn { width: 100%; margin-top: 10px; padding: 11px; border-radius: 7px; border: none; background: #3B7A52; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .submit-btn:disabled { opacity: 0.6; cursor: default; }
+  .empty-note { font-size: 12px; color: #9C8B78; text-align: center; padding: 12px 0; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #241812; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 12.5px; display: none; z-index: 100; max-width: 90vw; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">🏠 เช่าสุข — ผู้เช่า</div>
+    <button class="logout" onclick="doLogout()">ออกจากระบบ</button>
+  </div>
+  <div class="wrap" id="app">
+    <div class="card"><div class="empty-note">กำลังโหลดข้อมูล...</div></div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+<script>
+  let roomData = null;
+  let invoiceData = [];
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    setTimeout(() => { t.style.display = 'none'; }, 3500);
+  }
+
+  function fmt(n) {
+    return Number(n || 0).toLocaleString('th-TH');
+  }
+
+  async function doLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    window.location.href = '/tenant-login';
+  }
+
+  async function loadAll() {
+    try {
+      const [meRes, invRes] = await Promise.all([
+        fetch('/api/tenant/me'),
+        fetch('/api/tenant/invoices'),
+      ]);
+      if (!meRes.ok || !invRes.ok) {
+        // Session invalid/expired — bounce back to login.
+        window.location.href = '/tenant-login';
+        return;
+      }
+      roomData = await meRes.json();
+      invoiceData = await invRes.json();
+      render();
+    } catch (e) {
+      document.getElementById('app').innerHTML = '<div class="card"><div class="empty-note">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้าอีกครั้งครับ</div></div>';
+    }
+  }
+
+  function render() {
+    const app = document.getElementById('app');
+    const current = invoiceData.find((i) => i.status !== 'paid');
+    const history = invoiceData.filter((i) => i.status === 'paid');
+
+    let currentHtml;
+    if (current) {
+      const total = Number(current.rent || 0) + Number(current.water || 0) + Number(current.elec || 0) + Number(current.trash || 0) + Number(current.internet || 0);
+      const remaining = current.remainingDue != null ? current.remainingDue : Math.max(0, total - Number(current.amountPaid || 0));
+      const badgeClass = current.status === 'overdue' ? 'badge-overdue' : 'badge-pending';
+      const badgeLabel = current.status === 'overdue' ? '⚠️ เกินกำหนดชำระ' : '⏳ รอชำระ';
+      currentHtml = '<div class="card">' +
+        '<div class="card-title">ยอดที่ต้องชำระ</div>' +
+        '<div class="due-amount">฿' + fmt(remaining) + '</div>' +
+        '<div class="due-label">ครบกำหนด: ' + (current.due || '-') + '</div>' +
+        '<div class="badge ' + badgeClass + '">' + badgeLabel + '</div>' +
+        '<div style="margin-top:14px">' +
+          rowHtml('ค่าเช่า', current.rent) +
+          rowHtml('ค่าน้ำ' + (current.waterUnits != null ? ' (' + current.waterUnits + ' หน่วย)' : ''), current.water) +
+          rowHtml('ค่าไฟ' + (current.elecUnits != null ? ' (' + current.elecUnits + ' หน่วย)' : ''), current.elec) +
+          (current.trash ? rowHtml('ค่าขยะ', current.trash) : '') +
+          (current.internet ? rowHtml('ค่าอินเทอร์เน็ต', current.internet) : '') +
+        '</div>' +
+      '</div>';
+    } else {
+      currentHtml = '<div class="card">' +
+        '<div class="card-title">ยอดที่ต้องชำระ</div>' +
+        '<div class="badge badge-none">✅ ไม่มีบิลค้างชำระ</div>' +
+      '</div>';
+    }
+
+    const historyHtml = history.length
+      ? history.map((i) => {
+          const total = Number(i.rent || 0) + Number(i.water || 0) + Number(i.elec || 0) + Number(i.trash || 0) + Number(i.internet || 0);
+          return '<div class="history-item">' +
+            '<div class="history-top"><span>' + (i.due || i.id) + '</span><span class="history-amount">฿' + fmt(total) + '</span></div>' +
+            '<div class="history-sub">น้ำ ' + (i.waterUnits != null ? i.waterUnits : '-') + ' หน่วย · ไฟ ' + (i.elecUnits != null ? i.elecUnits : '-') + ' หน่วย · จ่ายแล้ว</div>' +
+          '</div>';
+        }).join('')
+      : '<div class="empty-note">ยังไม่มีประวัติบิล</div>';
+
+    app.innerHTML =
+      '<div class="card">' +
+        '<div class="room-header">ห้อง ' + (roomData.id || '-') + '</div>' +
+        '<div class="room-sub">' + (roomData.tenant || '') + '</div>' +
+      '</div>' +
+      currentHtml +
+      '<div class="card">' +
+        '<div class="card-title">ประวัติบิล (การใช้น้ำ/ไฟ)</div>' +
+        historyHtml +
+      '</div>' +
+      '<div class="card">' +
+        '<div class="card-title">แจ้งซ่อม</div>' +
+        '<textarea id="maintIssue" placeholder="อธิบายปัญหาที่พบ เช่น แอร์ไม่เย็น ก๊อกน้ำรั่ว"></textarea>' +
+        '<button class="submit-btn" id="maintSubmitBtn" onclick="submitMaintenance()">ส่งคำขอแจ้งซ่อม</button>' +
+      '</div>';
+  }
+
+  function rowHtml(label, value) {
+    return '<div class="row"><span class="label">' + label + '</span><span class="value">฿' + fmt(value) + '</span></div>';
+  }
+
+  async function submitMaintenance() {
+    const textarea = document.getElementById('maintIssue');
+    const btn = document.getElementById('maintSubmitBtn');
+    const issue = textarea.value.trim();
+    if (!issue) { showToast('กรุณากรอกรายละเอียดปัญหาก่อนครับ'); return; }
+    btn.disabled = true;
+    btn.textContent = 'กำลังส่ง...';
+    try {
+      const res = await fetch('/api/tenant/maintenance', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ issue }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'ส่งไม่สำเร็จ');
+      textarea.value = '';
+      showToast(data.message || 'ส่งคำขอแจ้งซ่อมแล้วครับ');
+    } catch (e) {
+      showToast(e.message || 'ส่งไม่สำเร็จ');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'ส่งคำขอแจ้งซ่อม';
+    }
+  }
+
+  loadAll();
+</script>
+</body>
+</html>

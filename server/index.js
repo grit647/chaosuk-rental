@@ -39,6 +39,27 @@ app.use((req, res, next) => {
 // stale cached copy would silently keep showing old behavior/data forever.
 const noCache = (req, res, next) => { res.set('Cache-Control', 'no-store, no-cache, must-revalidate'); next(); };
 
+// SECURITY: real gap found while adding the tenant-login feature. Every
+// /api/* route below (rooms, invoices, expenses, staff, settings, etc.)
+// has NEVER had role-based access control — only the PAGE load
+// (`requireLogin` on GET '/') was ever gated. That was fine as long as
+// every logged-in role had full access anyway (owner AND staff, by
+// explicit design, both see everything) — but a tenant session is the
+// FIRST genuinely restricted role this app has ever had. Verified: a
+// tenant session's valid cookie, hit directly against GET /api/rooms,
+// returned ALL 6 rooms' full data — completely bypassing tenant-portal.
+// html's own scoping (which only ever calls /api/tenant/*). Blanket-deny
+// here rather than patching each of the ~15 admin route files
+// individually — simpler to reason about, and any NEW admin route added
+// later is protected automatically without remembering to gate it.
+app.use((req, res, next) => {
+  const isRestrictedApi = req.path.startsWith('/api/') && !req.path.startsWith('/api/tenant') && !req.path.startsWith('/api/auth');
+  if (req.session && req.session.role === 'tenant' && isRestrictedApi) {
+    return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงส่วนนี้' });
+  }
+  next();
+});
+
 // Per explicit user request: the main app page used to be reachable by
 // ANYONE who knew the URL, with zero login wall — คุณต้น's own real data
 // (rooms/tenants/bills) was fully visible to anyone, session or not. Now
@@ -55,6 +76,14 @@ const noCache = (req, res, next) => { res.set('Cache-Control', 'no-store, no-cac
 const requireLogin = (req, res, next) => {
   const hasSession = !!(req.session && req.session.customerSheetId);
   if (!hasSession) return res.redirect('/login');
+  // Per explicit user request: a tenant session must NEVER load the full
+  // owner/staff dashboard (`Rental Management.dc.html`) — that page has
+  // zero data scoping, it shows every room/tenant/bill/expense in the
+  // building. Tenants get their own dedicated, data-scoped page instead
+  // (server/routes/tenant.js's requireTenant re-checks this server-side
+  // on every API call too, this redirect is just so a tenant landing on
+  // '/' doesn't even see the wrong page load for a moment).
+  if (req.session.role === 'tenant') return res.redirect('/tenant-portal');
   next();
 };
 app.get('/', noCache, requireLogin, (req, res) => res.sendFile(path.join(ROOT, 'Rental Management.dc.html')));
@@ -77,6 +106,15 @@ app.get('/login', noCache, (req, res) => res.sendFile(path.join(ROOT, 'login.htm
 // /api/auth/staff-login. Separate page so the owner's own login flow
 // stays untouched.
 app.get('/staff-login', noCache, (req, res) => res.sendFile(path.join(ROOT, 'staff-login.html')));
+// Per explicit user design: a tenant logs in with building code + their
+// own phone ONLY (no PIN — see POST /api/auth/tenant-login's security-
+// trade-off note) and lands on a dedicated, data-scoped portal — never
+// the full owner/staff dashboard.
+app.get('/tenant-login', noCache, (req, res) => res.sendFile(path.join(ROOT, 'tenant-login.html')));
+app.get('/tenant-portal', noCache, (req, res) => {
+  if (!req.session || req.session.role !== 'tenant') return res.redirect('/tenant-login');
+  res.sendFile(path.join(ROOT, 'tenant-portal.html'));
+});
 // Per explicit user request: a "your buildings" picker shown right after
 // login — lets an owner with multiple buildings choose which one to
 // manage, and gives every owner an obvious "+ เพิ่มตึกใหม่" entry point.
@@ -93,6 +131,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/bootstrap', require('./routes/bootstrap'));
 app.use('/api/rooms', require('./routes/rooms'));
 app.use('/api/staff', require('./routes/staff'));
+app.use('/api/tenant', require('./routes/tenant'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/maintenance', require('./routes/maintenance'));
 app.use('/api/expenses', require('./routes/expenses'));

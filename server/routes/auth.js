@@ -64,8 +64,13 @@ async function isPlatformAdminSession(session) {
   // (their own customerSheetId matching GOOGLE_SHEET_ID). Staff must
   // NEVER get platform-admin rights, regardless of which building they
   // belong to — explicit user requirement ("ลบตึกทิ้ง/พักการใช้งาน...
-  // อยู่ฝั่ง server เท่านั้น").
-  if (session.role === 'staff') return false;
+  // อยู่ฝั่ง server เท่านั้น"). Written as a WHITELIST (only 'owner' can
+  // ever reach the ownerId-based check below) rather than blacklisting
+  // 'staff' specifically — the tenant-login flow added afterward (POST
+  // /tenant-login) ALSO produces a session with no ownerId, and would
+  // have hit the exact same gap if this had stayed a one-off blacklist.
+  // Any future non-owner role gets the same safe default automatically.
+  if (session.role !== 'owner') return false;
   if (!DIRECTORY_SHEET_ID || !session.ownerId) return session.customerSheetId === process.env.GOOGLE_SHEET_ID;
   try {
     const users = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
@@ -178,6 +183,38 @@ router.post('/staff-login', async (req, res, next) => {
     if (!staff) return res.status(401).json({ error: 'เบอร์โทรหรือรหัสผ่านไม่ถูกต้อง' });
 
     const session = { ownerId: null, role: 'staff', customerSheetId: building.customerSheetId, roomId: null, staffId: staff.id };
+    setSessionCookie(res, session);
+    res.json({ ok: true, ...session });
+  } catch (err) { next(err); }
+});
+
+// Per explicit user request/discussion: a tenant logs in with building
+// code + their OWN phone number ONLY — no PIN. Explicit trade-off the
+// owner chose (phone is already on file in the room's contract, no
+// separate password to create/remember) — SECURITY NOTE: this means
+// anyone who knows a tenant's phone number and the building code can log
+// in as that tenant. Accepted because a tenant session only ever sees
+// their OWN room's bill/usage/maintenance data (see server/routes/
+// tenant.js's requireTenant guard) — never other tenants' data, never
+// anything financial about the building as a whole, never anything an
+// owner or staff session can do. If this ever needs to be hardened, add
+// a PIN here the same way staff-login has one.
+router.post('/tenant-login', async (req, res, next) => {
+  try {
+    const { buildingKeyId, phone } = req.body;
+    if (!buildingKeyId || !phone) return res.status(400).json({ error: 'กรุณากรอกรหัสตึกและเบอร์โทรให้ครบ' });
+    if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
+
+    const users = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+    const building = users.find((u) => u.buildingKeyId && u.buildingKeyId === buildingKeyId);
+    if (!building) return res.status(401).json({ error: 'ไม่พบรหัสตึกนี้ กรุณาตรวจสอบรหัสตึกอีกครั้ง' });
+    if (building.status === 'suspended') return res.status(403).json({ error: 'ตึกนี้ถูกพักการใช้งานชั่วคราว กรุณาติดต่อผู้ดูแลระบบ' });
+
+    const rooms = await runWithSheetId(building.customerSheetId, () => readTab('Rooms'));
+    const room = rooms.find((r) => r.phone === phone);
+    if (!room) return res.status(401).json({ error: 'ไม่พบเบอร์โทรนี้ในตึกนี้ กรุณาตรวจสอบเบอร์โทรอีกครั้ง' });
+
+    const session = { ownerId: null, role: 'tenant', customerSheetId: building.customerSheetId, roomId: room.id, staffId: null };
     setSessionCookie(res, session);
     res.json({ ok: true, ...session });
   } catch (err) { next(err); }
