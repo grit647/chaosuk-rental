@@ -1,25 +1,13 @@
-// One-time migration: adds a `tuyaWaterDeviceId` column to the Rooms tab so
-// Equipment page's "อุปกรณ์น้ำ" tab can save/read a real Tuya water flowmeter
-// device ID per room (previously mock-only, never persisted).
-//
-// IMPORTANT — learned the hard way earlier this session: Google Sheets'
-// values.get API silently omits TRAILING empty cells from returned row
-// arrays. Blindly doing [...existingRow, newValue] corrupted real data
-// when earlier columns were legitimately blank. This script avoids that
-// entirely by reading each row as a header-keyed OBJECT (padding missing
-// trailing cells with '' explicitly) and re-serializing by header name,
-// so column position is always correct regardless of how many trailing
-// cells a given row happened to have.
-//
-// UPDATE: originally hardcoded ranges to column Z (26) — broke the moment
-// a sheet had more than 26 columns (see server/sheets.js's MAX_COL fix,
-// same root cause). Fixed here too, plus accepts an optional Sheet ID CLI
-// arg so this can be re-run against any customer's own separate Rooms
-// sheet in this multi-tenant system, not just the main property's.
+// One-time migration: adds a `tuyaWaterMaxLiters` column to Rooms so the
+// Equipment page's water tab can save an optional per-room rollover value
+// (see Rental Management.dc.html's _waterRolloverUnits()). Same safe
+// header-keyed-object rebuild pattern as migrate-add-water-device-column.js
+// — never assumes row array length/position, since Google Sheets silently
+// trims trailing empty cells from values.get responses.
 require('dotenv').config({ path: require('path').join(__dirname, '..', 'server', '.env') });
 const { google } = require('googleapis');
 
-const NEW_COLUMN = 'tuyaWaterDeviceId';
+const NEW_COLUMN = 'tuyaWaterMaxLiters';
 
 function colLetter(n) {
   let s = '';
@@ -39,6 +27,11 @@ async function main() {
     ['https://www.googleapis.com/auth/spreadsheets']
   );
   const sheets = google.sheets({ version: 'v4', auth });
+  // Accepts an optional Sheet ID as a CLI arg so it can be run against any
+  // customer's own Rooms sheet in this multi-tenant system, not just the
+  // main property's (per explicit user request — this same migration ran
+  // against บ้านพักครูโจ's own separate sheet too, since that's where the
+  // real water device actually lives).
   const spreadsheetId = process.argv[2] || process.env.GOOGLE_SHEET_ID;
   console.log('Target spreadsheet:', spreadsheetId);
 
@@ -55,8 +48,6 @@ async function main() {
 
   const newHeader = [...header, NEW_COLUMN];
   const newRows = rows.map((row) => {
-    // Rebuild as a header-keyed object first (pad missing trailing cells),
-    // THEN serialize in newHeader order — never assume array length.
     const obj = {};
     header.forEach((key, i) => { obj[key] = row[i] !== undefined ? row[i] : ''; });
     obj[NEW_COLUMN] = '';

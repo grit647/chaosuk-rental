@@ -1292,6 +1292,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                   <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Tuya Device ID (น้ำ) · คัดลอกจากหน้า Devices ใน Tuya IoT Platform</div>
                   <input value="{{ tuyaForm.waterDeviceId }}" onchange="{{ onTuyaWaterDeviceId }}" placeholder="เช่น eb22f277jcxrhzmf" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-top:10px;margin-bottom:5px">ค่าสูงสุดก่อนมิเตอร์รีเซ็ต (ลิตร) · เว้นว่างได้ถ้าไม่ทราบ</div>
+                  <input type="number" value="{{ tuyaForm.waterMaxLiters }}" onchange="{{ onTuyaWaterMaxLiters }}" placeholder="เช่น 10000 (ถ้าไม่ทราบ ปล่อยว่างไว้ได้)" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   <div style="margin-top:10px;padding:10px;border-radius:6px;background:#F0F6FA;border:1px solid #DCE9F0">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
                       <span style="font-size:11px;font-weight:700;color:#7C6E5F">ข้อมูลน้ำแบบเรียลไทม์</span>
@@ -3605,7 +3607,7 @@ class Component extends DCLogic {
       waterDay: [], waterMonth: [], elecDay: [], elecMonth: [],
     },
     equipSelectedRoom: '101',
-    tuyaForm: { elecName: '', elecDeviceId: '', waterDeviceId: '' },
+    tuyaForm: { elecName: '', elecDeviceId: '', waterDeviceId: '', waterMaxLiters: '' },
     equipDeviceTab: 'elec',
     tuyaDeviceList: [],
     tuyaLiveReadings: {},
@@ -4838,12 +4840,19 @@ class Component extends DCLogic {
   selectEquipRoom = (id) => {
     const d = this.state.tuyaDevices[id] || {};
     const room = this.state.rooms.find(r => r.id === id) || {};
-    this.setState({ equipSelectedRoom: id, tuyaForm: { elecName: d.elecName || '', elecDeviceId: room.tuyaElecDeviceId || '', waterDeviceId: room.tuyaWaterDeviceId || '' } });
+    this.setState({ equipSelectedRoom: id, tuyaForm: { elecName: d.elecName || '', elecDeviceId: room.tuyaElecDeviceId || '', waterDeviceId: room.tuyaWaterDeviceId || '', waterMaxLiters: room.tuyaWaterMaxLiters || '' } });
   };
   onEquipRoomSelectChange = (e) => this.selectEquipRoom(e.target.value);
   setEquipTab = (tab) => this.setState({ equipDeviceTab: tab });
   onTuyaElecDeviceId = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, elecDeviceId: e.target.value } }));
   onTuyaWaterDeviceId = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, waterDeviceId: e.target.value } }));
+  // Per explicit user request: some battery-powered water flowmeters wrap
+  // their cumulative counter back to 0 after a fixed max (this device: the
+  // owner believes ~10,000 liters, not 100% certain) — an optional,
+  // per-room value the owner can fill in so deviceCharge() can compute
+  // accurate usage across a rollover instead of losing that period's usage
+  // entirely (see deviceCharge()'s water branch for the actual math).
+  onTuyaWaterMaxLiters = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, waterMaxLiters: e.target.value } }));
   // Split from the old single saveTuyaDevice — เดิมกดปุ่มเดียวบันทึกทั้งน้ำ+ไฟพร้อมกัน
   // ทั้งที่จริงๆ เป็นข้อมูลคนละก้อน (ไฟ = tuyaElecDeviceId บันทึกลง Sheet จริง, น้ำ =
   // ยังเป็น mock ในเครื่องเท่านั้น) แยกปุ่ม/handler ตามชนิดอุปกรณ์ให้ชัดเจน
@@ -4884,7 +4893,7 @@ class Component extends DCLogic {
     try {
       const res = await fetch('/api/rooms/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tuyaWaterDeviceId: f.waterDeviceId }),
+        body: JSON.stringify({ tuyaWaterDeviceId: f.waterDeviceId, tuyaWaterMaxLiters: f.waterMaxLiters }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
       const updatedRoom = await res.json();
@@ -5637,6 +5646,42 @@ class Component extends DCLogic {
     if (minRate > 0 && rawCharge < minRate) return { charge: minRate, minApplied: true };
     return { charge: rawCharge, minApplied: false };
   }
+  // Per explicit user request/discussion: some battery-powered water
+  // flowmeters wrap their cumulative liter counter back to 0 after a fixed
+  // max (owner's own device: believed to be ~10,000L, not 100% certain —
+  // hence the field is OPTIONAL, not a hard assumption baked into the
+  // code). Without this, a rollover would make (currentLiters - baseline)
+  // go negative, and the existing Math.max(0, ...) safety floor would
+  // silently report ZERO usage for that whole billing period — the owner
+  // loses that revenue with no visible sign anything went wrong.
+  //
+  // currentLiters: raw live.usage from the device (always liters).
+  // room.waterPrev: the stored baseline, in "หน่วย" (÷1000 of liters) —
+  // same unit the rest of the app's water billing has always used.
+  //
+  // Normal case: usage = current - baseline (both compared in liters).
+  // Rollover case (current < baseline, so the counter must have wrapped):
+  //   - If the owner filled in tuyaWaterMaxLiters: usage = (max - baseline)
+  //     + current — i.e. "the rest of the old cycle up to the max" plus
+  //     "however far the new cycle has gotten since it reset to 0". This
+  //     is the accurate answer IF the configured max is correct.
+  //   - If not filled in: fall back to usage = current (assume the meter
+  //     JUST reset and everything read so far this cycle is new usage).
+  //     Under-counts whatever happened between the true rollover point and
+  //     now, but that's a much smaller, safer error than reporting 0.
+  // Math.max(0, ...) stays as the final safety net either way, in case of
+  // any other weird edge case (e.g. a bad/negative max value typed in).
+  _waterRolloverUnits(currentLiters, room) {
+    const baselineLiters = Number(room.waterPrev || 0) * 1000;
+    if (currentLiters >= baselineLiters) {
+      return { units: Math.max(0, (currentLiters - baselineLiters) / 1000), rolledOver: false };
+    }
+    const maxLiters = Number(room.tuyaWaterMaxLiters || 0);
+    const deltaLiters = maxLiters > 0
+      ? (maxLiters - baselineLiters) + currentLiters
+      : currentLiters;
+    return { units: Math.max(0, deltaLiters / 1000), rolledOver: true };
+  }
   deviceCharge(roomId, kind) {
     const room = this.state.rooms.find(r => r.id === roomId);
     if (!room) return null;
@@ -5660,9 +5705,9 @@ class Component extends DCLogic {
     if (kind === 'water' && room.tuyaWaterDeviceId) {
       const live = this.state.tuyaLiveReadings[roomId];
       if (live && live.usage != null) {
-        const units = Math.max(0, (live.usage / 1000) - Number(room.waterPrev || 0));
+        const { units, rolledOver } = this._waterRolloverUnits(live.usage, room);
         const { charge, minApplied } = this._applyMinCharge(roomId, 'water', Math.round(units * this.roomRate(roomId, 'water')));
-        return { units: Number(units.toFixed(2)), charge, minApplied };
+        return { units: Number(units.toFixed(2)), charge, minApplied, rolledOver };
       }
     }
     const dev = this.state.tuyaDevices[roomId];
@@ -5686,7 +5731,8 @@ class Component extends DCLogic {
       // number (e.g. the form's original placeholder default) happened to
       // be sitting there before — that stale number looked like a real
       // reading the owner might accidentally bill against.
-      if (next.waterMode === 'device') { const d = this.deviceCharge(v, 'water'); next.water = d ? String(d.charge) : '0'; }
+      let waterDeviceCharge = null;
+      if (next.waterMode === 'device') { waterDeviceCharge = this.deviceCharge(v, 'water'); next.water = waterDeviceCharge ? String(waterDeviceCharge.charge) : '0'; }
       if (next.elecMode === 'device') { const d = this.deviceCharge(v, 'elec'); next.elec = d ? String(d.charge) : '0'; }
       // Manual mode: re-derive units-used and price against the NEWLY
       // selected room's own rate AND own last-billed reading (waterPrev/
@@ -5694,6 +5740,16 @@ class Component extends DCLogic {
       // against the previous room's rate or baseline.
       if (next.waterMode === 'manual' && next.waterUnits) { const u = this.meterUnitsFromReading(v, 'water', next.waterUnits); next.water = String(this._applyMinCharge(v, 'water', Math.round(u * this.roomRate(v, 'water'))).charge); }
       if (next.elecMode === 'manual' && next.elecUnits) { const u = this.meterUnitsFromReading(v, 'elec', next.elecUnits); next.elec = String(this._applyMinCharge(v, 'elec', Math.round(u * this.roomRate(v, 'elec'))).charge); }
+      // Per explicit user request: warn right at the moment of opening this
+      // room's invoice — before money changes hands — if the water meter's
+      // reading is LOWER than the last-billed baseline (rollover detected).
+      // The charge above is still computed either way (see
+      // _waterRolloverUnits), this is just a heads-up so the owner can
+      // sanity-check the amount before sending, especially if they never
+      // filled in the meter's max-liters value (less accurate fallback).
+      if (waterDeviceCharge && waterDeviceCharge.rolledOver) {
+        this.showAdminToast(`⚠️ ห้อง ${v}: มิเตอร์น้ำรีเซ็ตไปแล้ว ระบบคำนวณยอดให้อัตโนมัติ แนะนำตรวจสอบยอดก่อนส่งบิล`);
+      }
       return { newInvoice: next };
     });
   };
@@ -9074,7 +9130,7 @@ class Component extends DCLogic {
       equipSelectedRoom: s.equipSelectedRoom,
       equipSelTenant: equipSelRoom.tenant || '(ห้องว่าง)',
       equipSelConfigured: !!equipSelDevice,
-      tuyaForm: s.tuyaForm, onTuyaElecDeviceId: this.onTuyaElecDeviceId, onTuyaWaterDeviceId: this.onTuyaWaterDeviceId,
+      tuyaForm: s.tuyaForm, onTuyaElecDeviceId: this.onTuyaElecDeviceId, onTuyaWaterDeviceId: this.onTuyaWaterDeviceId, onTuyaWaterMaxLiters: this.onTuyaWaterMaxLiters,
       onEquipRoomSelectChange: this.onEquipRoomSelectChange,
       setEquipTabElec: () => this.setEquipTab('elec'), setEquipTabWater: () => this.setEquipTab('water'),
       equipTabIsElec: s.equipDeviceTab === 'elec', equipTabIsWater: s.equipDeviceTab === 'water',
