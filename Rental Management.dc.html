@@ -1123,12 +1123,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             </div>
 
             <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;overflow-x:auto">
-              <div style="min-width:600px">
-              <div style="display:grid;grid-template-columns:0.5fr 1.2fr 1.5fr 0.9fr 0.9fr 1.5fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
-                <div>ห้อง</div><div>ผู้เช่า</div><div>อุปกรณ์</div><div>หน่วยที่ใช้</div><div>ค่าน้ำ</div><div>ช่วงเวลาที่ดึงค่า</div>
+              <div style="min-width:680px">
+              <div style="display:grid;grid-template-columns:0.5fr 1.2fr 1.5fr 0.9fr 0.9fr 0.8fr 1.5fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
+                <div>ห้อง</div><div>ผู้เช่า</div><div>อุปกรณ์</div><div>หน่วยที่ใช้</div><div>ค่าน้ำ</div><div>แบตเตอรี่</div><div>ช่วงเวลาที่ดึงค่า</div>
               </div>
               <sc-for list="{{ waterReportView }}" as="w" hint-placeholder-count="13">
-                <div style="display:grid;grid-template-columns:0.5fr 1.2fr 1.5fr 0.9fr 0.9fr 1.5fr;gap:10px;font-size:12.5px;color:#241812;padding:11px 0;border-bottom:1px solid #F0E9DC;align-items:center">
+                <div style="display:grid;grid-template-columns:0.5fr 1.2fr 1.5fr 0.9fr 0.9fr 0.8fr 1.5fr;gap:10px;font-size:12.5px;color:#241812;padding:11px 0;border-bottom:1px solid #F0E9DC;align-items:center">
                   <div>{{ w.id }}</div>
                   <div>{{ w.tenant }}</div>
                   <div style="display:flex;align-items:center;gap:6px;min-width:0">
@@ -1137,6 +1137,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                   <div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ w.usage }} <span style="font-size:10px;color:#A89A88">ม³</span></div>
                   <div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ w.costDisplay }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:{{ w.batteryColor }}">{{ w.batteryLabel }}</div>
                   <div style="display:flex;gap:4px">
                     <sc-for list="{{ w.windowChips }}" as="c" hint-placeholder-count="3">
                       <div onclick="{{ c.onClick }}" style="font-size:10.5px;font-weight:600;padding:4px 8px;border-radius:5px;cursor:pointer;background:{{ c.bg }};color:{{ c.color }}">{{ c.label }}</div>
@@ -8115,6 +8116,12 @@ class Component extends DCLogic {
       }
       waterTotalCostNum += cost;
       const live = isReal ? s.tuyaLiveReadings[r.id] : null;
+      // Per explicit user request: show battery % right in this overview
+      // table too (same live.batteryPercent already shown on the Equipment
+      // page's water tab and the tenant card) — so the owner can scan
+      // every room's meter battery at a glance from one place instead of
+      // clicking into each room individually.
+      const battery = (isReal && live && live.batteryPercent != null) ? live.batteryPercent : null;
       return {
         id: r.id, tenant: r.tenant,
         deviceName: isReal ? r.tuyaWaterDeviceId : (dev ? dev.waterName : 'ยังไม่เชื่อมต่ออุปกรณ์'),
@@ -8122,6 +8129,8 @@ class Component extends DCLogic {
         online: isReal ? !!(live && live.waterOnline) : (dev ? dev.waterOnline : false),
         onlineDot: isReal ? ((live && live.waterOnline) ? '#3B7A52' : '#B24336') : ((dev && dev.waterOnline) ? '#3B7A52' : '#B0A08C'),
         usage, windowLabel: hrs + ' ชม.', costDisplay: this.fmt(cost),
+        batteryLabel: battery != null ? '🔋 ' + battery.toFixed(0) + '%' : '—',
+        batteryColor: battery != null && battery <= 20 ? '#B24336' : '#241812',
         windowChips: buildWindowChips(hrs, (h) => this.setWaterWindow(r.id, h)),
       };
     });
