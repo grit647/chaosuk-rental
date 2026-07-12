@@ -105,6 +105,74 @@ router.get('/status', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Per real user report: the "ปริมาณการใช้ไฟรวม" chart on the Electricity
+// Usage page always showed 0/empty even after weeks of real ElectricityLog
+// data had accumulated. Root cause: the frontend's usageSeries.elecDay/
+// elecMonth state was ONLY ever set once, to an empty array, at initial
+// state — nothing anywhere in the whole codebase ever populated it. This
+// is the endpoint that actually was missing: aggregates the raw cumulative
+// kWh log rows into day/month usage buckets (ElectricityLog stores a
+// running cumulative total per room, not a per-tick delta, so usage per
+// bucket = last reading in that bucket minus last reading in the previous
+// bucket, summed across all rooms).
+router.get('/elec-history', async (req, res, next) => {
+  try {
+    const rows = await readTab('ElectricityLog');
+    const byRoom = {};
+    rows.forEach((r) => {
+      if (!r.room || !r.timestamp) return;
+      if (!byRoom[r.room]) byRoom[r.room] = [];
+      byRoom[r.room].push(r);
+    });
+
+    function aggregate(bucketFn, labelFn, bucketCount) {
+      // bucketTotals: ordered Map so we can slice the most recent N buckets
+      // at the end regardless of how sparse the log is.
+      const bucketTotals = new Map();
+      Object.values(byRoom).forEach((roomRows) => {
+        roomRows.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        // Last cumulative reading seen per bucket, in chronological order —
+        // Map preserves insertion order, and re-setting an existing key
+        // (same bucket, later row) keeps it in its original position while
+        // updating to the latest value, which is exactly what we want.
+        const perBucketLast = new Map();
+        roomRows.forEach((r) => {
+          const key = bucketFn(new Date(r.timestamp));
+          perBucketLast.set(key, Number(r.energy) || 0);
+        });
+        let prevEnergy = null;
+        for (const [key, energy] of perBucketLast) {
+          if (prevEnergy != null) {
+            const usage = Math.max(0, energy - prevEnergy);
+            bucketTotals.set(key, (bucketTotals.get(key) || 0) + usage);
+          }
+          prevEnergy = energy;
+        }
+      });
+      const keys = Array.from(bucketTotals.keys()).sort();
+      const recentKeys = keys.slice(-bucketCount);
+      return recentKeys.map((key) => ({ label: labelFn(key), value: Math.round(bucketTotals.get(key) * 100) / 100 }));
+    }
+
+    const dayKey = (d) => d.toISOString().slice(0, 10); // YYYY-MM-DD
+    const dayLabel = (key) => {
+      const d = new Date(key + 'T00:00:00Z');
+      return d.getUTCDate() + '/' + (d.getUTCMonth() + 1);
+    };
+    const monthKey = (d) => d.toISOString().slice(0, 7); // YYYY-MM
+    const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    const monthLabel = (key) => {
+      const [y, m] = key.split('-');
+      return monthNames[Number(m) - 1];
+    };
+
+    res.json({
+      day: aggregate(dayKey, dayLabel, 14),
+      month: aggregate(monthKey, monthLabel, 6),
+    });
+  } catch (err) { next(err); }
+});
+
 router.post('/switch', async (req, res, next) => {
   try {
     const creds = await readIntegrationCredentials();

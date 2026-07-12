@@ -3864,6 +3864,22 @@ class Component extends DCLogic {
       console.error(err);
       this.setState({ tuyaLoadingReading: false });
     }
+    // Per real user report: the Electricity Usage page's "ปริมาณการใช้ไฟรวม"
+    // chart had ALWAYS been empty/dead — usageSeries.elecDay/elecMonth was
+    // only ever initialized to [] and nothing ever populated it, unrelated
+    // to any of today's changes, a pre-existing gap. Piggybacks on the same
+    // refresh cadence as the live V/A/W readout (mount + manual รีเฟรช +
+    // the 5-min auto-poll) so the chart updates whenever new ElectricityLog
+    // rows land, without needing a separate polling timer.
+    this.loadElecHistory();
+  };
+  loadElecHistory = async () => {
+    try {
+      const res = await fetch('/api/tuya/elec-history');
+      if (!res.ok) return;
+      const data = await res.json();
+      this.setState(s => ({ usageSeries: { ...s.usageSeries, elecDay: data.day || [], elecMonth: data.month || [] } }));
+    } catch (err) { console.error(err); }
   };
   // Auto-refresh toggle (Dashboard) — off by default (every refresh is a
   // Google Sheets read, no need to poll when nobody's watching the screen).
