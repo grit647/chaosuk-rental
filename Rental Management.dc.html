@@ -6540,7 +6540,7 @@ class Component extends DCLogic {
     };
     try {
       if (s.editingStaffId) {
-        const res = await fetch('/api/staff/' + s.editingStaffId, {
+        const res = await fetch('/api/staff/' + encodeURIComponent(s.editingStaffId), {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
@@ -6564,7 +6564,7 @@ class Component extends DCLogic {
     const id = this.state.deleteStaffId;
     if (!id) return;
     try {
-      const res = await fetch('/api/staff/' + id, { method: 'DELETE' });
+      const res = await fetch('/api/staff/' + encodeURIComponent(id), { method: 'DELETE' });
       if (!res.ok) throw new Error('ลบไม่สำเร็จ');
       this.setState(st => ({ staff: st.staff.filter(x => x.id !== id), showDeleteStaffConfirm: false, deleteStaffId: null }));
       this.showAdminToast('ลบข้อมูลพนักงานแล้ว');
