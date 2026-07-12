@@ -121,6 +121,14 @@ router.get('/elec-history', async (req, res, next) => {
     const byRoom = {};
     rows.forEach((r) => {
       if (!r.room || !r.timestamp) return;
+      // Real bug hit in production: a row with a malformed/unparseable
+      // timestamp made new Date(r.timestamp).toISOString() throw a
+      // RangeError ("Invalid time value") further down, which surfaced as
+      // a 500 on every single /status poll (this endpoint piggybacks on
+      // refreshTuyaLive — see Rental Management.dc.html) for that entire
+      // building, not just once. Skip anything that doesn't parse to a
+      // real date instead of crashing the whole aggregation.
+      if (Number.isNaN(new Date(r.timestamp).getTime())) return;
       if (!byRoom[r.room]) byRoom[r.room] = [];
       byRoom[r.room].push(r);
     });
