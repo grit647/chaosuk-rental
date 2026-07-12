@@ -159,6 +159,37 @@ above — those are settled. Still need: reset strategy, access method,
 and an actual design/prototype for the hover-tooltip mechanism before
 writing any page-specific content.
 
+### Known gap: a tenant who is ALSO staff could get mixed-up LINE messages
+
+**Status:** Flagged by the owner while building the staff-login feature
+(`server/routes/auth.js`'s `POST /staff-login`, `Rental Management.dc.html`'s
+staff PIN UI on the สัญญาพนักงาน page) — not yet a real scenario, not
+investigated further, just recorded so a future session doesn't miss it.
+
+**The concern:** a tenant and a staff member are currently two entirely
+separate identities in this app — a tenant's LINE link lives on their
+`Rooms` row (`lineUserId`, used for bill/receipt notifications), a
+staff member's own LINE link (if they ever get one — not currently
+wired to anything) would live on their own `Staff` row. If the SAME
+real person is both (e.g. a tenant who also helps manage the building),
+and their LINE account ends up linked in both places, they could
+receive both message types mixed together — a rent-due reminder text
+alongside a maintenance-ticket-assigned notification, no separation
+between "which hat they're wearing" when a message arrives. Nothing
+in the current LINE-sending code (`server/routes/line.js`,
+`server/automation.js`, `server/routes/scheduler.js`) makes any
+distinction between a tenant-role message and a staff-role one beyond
+which Sheet row triggered it — there's no per-message "sent to you as
+tenant vs. as staff" framing, and no dedup/merge logic if one LINE
+account is linked from two different rows.
+
+**Not investigated:** whether this is likely to actually happen for
+this owner's real usage, and if so what the right fix looks like
+(message-type prefixes so it's at least clear which role a given
+message concerns? checking for and warning about a LINE ID already
+linked elsewhere when linking a new one? something else). Purely a
+"remember this exists" note for now.
+
 ## Permanent rules (do not relax without the owner explicitly re-confirming)
 
 - **No code/server/credential access from the Claude command box or recurring
