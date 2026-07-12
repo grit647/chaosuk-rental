@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { readTab, appendRow } = require('../sheets');
-const { isConfigured, listDevices, getElecReading, sendCommand } = require('../tuya');
+const { isConfigured, listDevices, getElecReading, getWaterReading, sendCommand } = require('../tuya');
 const { readIntegrationCredentials } = require('../coerce');
 
 // ElectricityLog was writing a row on EVERY /status call — every 5-minute
@@ -63,7 +63,25 @@ router.get('/status', async (req, res, next) => {
         return [r.id, { voltage: null, current: null, power: null, online: false, error: err.message }];
       }
     }));
-    res.json(Object.fromEntries(entries));
+    const resultMap = Object.fromEntries(entries);
+
+    // Per explicit user request: same live-reading treatment for water
+    // flowmeters (battery-powered, BLE-gateway devices) — cumulative
+    // usage + flow rate + battery %. Merged into the SAME per-room
+    // object as the electricity reading above (a room can have either,
+    // both, or neither device linked) rather than a separate response
+    // shape, so the frontend only has to read one place per room.
+    const waterLinked = rooms.filter((r) => r.tuyaWaterDeviceId);
+    await Promise.all(waterLinked.map(async (r) => {
+      try {
+        const waterReading = await getWaterReading(r.tuyaWaterDeviceId, creds.tuya);
+        resultMap[r.id] = { ...(resultMap[r.id] || {}), ...waterReading, waterOnline: true };
+      } catch (err) {
+        resultMap[r.id] = { ...(resultMap[r.id] || {}), waterOnline: false, waterError: err.message };
+      }
+    }));
+
+    res.json(resultMap);
 
     // Fire-and-forget historical log for future usage analysis — never let a
     // logging hiccup affect the response above, which has already been sent.

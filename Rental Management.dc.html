@@ -597,6 +597,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="font-size:10.5px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F">การใช้งานรอบนี้ (นับจากบิลล่าสุด)</div>
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">💧 น้ำ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812;font-weight:600">{{ selectedTenant.waterUsageLabel }}</span></div>
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">⚡ ไฟ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812;font-weight:600">{{ selectedTenant.elecUsageLabel }}</span></div>
+                      <sc-if value="{{ selectedTenant.hasWaterBattery }}" hint-placeholder-val="{{ false }}">
+                        <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">🔋 แบตมิเตอร์น้ำ</span><span style="font-family:'IBM Plex Mono',monospace;color:{{ selectedTenant.waterBatteryColor }};font-weight:600">{{ selectedTenant.waterBatteryLabel }}<sc-if value="{{ selectedTenant.waterBatteryLow }}" hint-placeholder-val="{{ false }}"> ⚠️ ใกล้หมด</sc-if></span></div>
+                      </sc-if>
                     </div>
                   </sc-if>
                   <sc-if value="{{ selectedTenant.hasCredit }}" hint-placeholder-val="{{ false }}">
@@ -1287,11 +1290,22 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <span style="font-size:11px;color:#7C6E5F">{{ equipSelWaterOnline }}</span>
                     </div>
                   </div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ชื่ออุปกรณ์ Tuya (น้ำ)</div>
-                  <input value="{{ tuyaForm.waterName }}" onchange="{{ onTuyaWaterName }}" placeholder="เช่น TY-Water-101" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Tuya Device ID (น้ำ) · คัดลอกจากหน้า Devices ใน Tuya IoT Platform</div>
+                  <input value="{{ tuyaForm.waterDeviceId }}" onchange="{{ onTuyaWaterDeviceId }}" placeholder="เช่น eb22f277jcxrhzmf" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  <div style="margin-top:10px;padding:10px;border-radius:6px;background:#F0F6FA;border:1px solid #DCE9F0">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                      <span style="font-size:11px;font-weight:700;color:#7C6E5F">ข้อมูลน้ำแบบเรียลไทม์</span>
+                      <span onclick="{{ refreshTuyaLive }}" style="font-size:10.5px;color:#2C6E8F;font-weight:600;cursor:pointer">{{ tuyaRefreshLabel }}</span>
+                    </div>
+                    <div style="display:flex;gap:14px;flex-wrap:wrap">
+                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveWaterUsage }}</div><div style="font-size:10px;color:#A89A88">ลิตร (L) สะสม</div></div>
+                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveFlowRate }}</div><div style="font-size:10px;color:#A89A88">อัตราไหล (L/นาที)</div></div>
+                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:{{ equipSelBatteryColor }}">🔋 {{ equipSelLiveBattery }}</div><div style="font-size:10px;color:#A89A88">แบตเตอรี่ (%)</div></div>
+                    </div>
+                  </div>
                   <div style="display:flex;gap:10px;margin-top:16px">
                     <div onclick="{{ deleteTuyaWaterDevice }}" style="flex:1;text-align:center;padding:10px;border-radius:7px;border:1px solid #E3B7AC;color:#B24336;font-size:12.5px;font-weight:700;cursor:pointer">ลบอุปกรณ์</div>
-                    <div onclick="{{ saveTuyaWaterDevice }}" style="flex:1.4;text-align:center;padding:10px;border-radius:7px;background:#C1622D;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer">บันทึกอุปกรณ์น้ำ</div>
+                    <div onclick="{{ saveTuyaWaterDevice }}" style="flex:1.4;text-align:center;padding:10px;border-radius:7px;background:#2C6E8F;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer">บันทึกอุปกรณ์น้ำ</div>
                   </div>
                 </div>
               </sc-if>
@@ -3591,7 +3605,7 @@ class Component extends DCLogic {
       waterDay: [], waterMonth: [], elecDay: [], elecMonth: [],
     },
     equipSelectedRoom: '101',
-    tuyaForm: { elecName: '', elecDeviceId: '', waterName: '' },
+    tuyaForm: { elecName: '', elecDeviceId: '', waterDeviceId: '' },
     equipDeviceTab: 'elec',
     tuyaDeviceList: [],
     tuyaLiveReadings: {},
@@ -4824,12 +4838,12 @@ class Component extends DCLogic {
   selectEquipRoom = (id) => {
     const d = this.state.tuyaDevices[id] || {};
     const room = this.state.rooms.find(r => r.id === id) || {};
-    this.setState({ equipSelectedRoom: id, tuyaForm: { elecName: d.elecName || '', elecDeviceId: room.tuyaElecDeviceId || '', waterName: d.waterName || '' } });
+    this.setState({ equipSelectedRoom: id, tuyaForm: { elecName: d.elecName || '', elecDeviceId: room.tuyaElecDeviceId || '', waterDeviceId: room.tuyaWaterDeviceId || '' } });
   };
   onEquipRoomSelectChange = (e) => this.selectEquipRoom(e.target.value);
   setEquipTab = (tab) => this.setState({ equipDeviceTab: tab });
   onTuyaElecDeviceId = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, elecDeviceId: e.target.value } }));
-  onTuyaWaterName = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, waterName: e.target.value } }));
+  onTuyaWaterDeviceId = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, waterDeviceId: e.target.value } }));
   // Split from the old single saveTuyaDevice — เดิมกดปุ่มเดียวบันทึกทั้งน้ำ+ไฟพร้อมกัน
   // ทั้งที่จริงๆ เป็นข้อมูลคนละก้อน (ไฟ = tuyaElecDeviceId บันทึกลง Sheet จริง, น้ำ =
   // ยังเป็น mock ในเครื่องเท่านั้น) แยกปุ่ม/handler ตามชนิดอุปกรณ์ให้ชัดเจน
@@ -4861,22 +4875,37 @@ class Component extends DCLogic {
       this.showAdminToast('ลบอุปกรณ์ไฟฟ้าห้อง ' + id + ' แล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ลบไม่สำเร็จ'); }
   });
-  saveTuyaWaterDevice = () => {
+  // Was mock-only (saved to local tuyaDevices state, never persisted) — now
+  // wired to a real Sheet column (tuyaWaterDeviceId) + the real Tuya water
+  // flowmeter API, same pattern already proven for the electricity device.
+  saveTuyaWaterDevice = () => this._guard('saveTuyaWaterDevice:' + this.state.equipSelectedRoom, async () => {
     const id = this.state.equipSelectedRoom;
     const f = this.state.tuyaForm;
-    this.setState(s => ({
-      tuyaDevices: { ...s.tuyaDevices, [id]: { ...(s.tuyaDevices[id] || { elecOnline: true, elecReading: 0, elecPower: true, waterOnline: true, waterReading: 0 }), waterName: f.waterName } },
-    }));
-    this.showAdminToast('บันทึกอุปกรณ์น้ำห้อง ' + id + ' แล้ว');
-  };
-  deleteTuyaWaterDevice = () => {
+    try {
+      const res = await fetch('/api/rooms/' + encodeURIComponent(id), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tuyaWaterDeviceId: f.waterDeviceId }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
+      const updatedRoom = await res.json();
+      this.setState(s => ({ rooms: s.rooms.map(r => r.id === id ? updatedRoom : r) }));
+      this.showAdminToast('บันทึกอุปกรณ์น้ำห้อง ' + id + ' แล้ว');
+      this.refreshTuyaLive();
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
+  });
+  deleteTuyaWaterDevice = () => this._guard('deleteTuyaWaterDevice:' + this.state.equipSelectedRoom, async () => {
     const id = this.state.equipSelectedRoom;
-    this.setState(s => ({
-      tuyaDevices: { ...s.tuyaDevices, [id]: { ...(s.tuyaDevices[id] || {}), waterName: '', waterOnline: false } },
-      tuyaForm: { ...s.tuyaForm, waterName: '' },
-    }));
-    this.showAdminToast('ลบอุปกรณ์น้ำห้อง ' + id + ' แล้ว');
-  };
+    try {
+      const res = await fetch('/api/rooms/' + encodeURIComponent(id), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tuyaWaterDeviceId: '' }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'ลบไม่สำเร็จ');
+      const updatedRoom = await res.json();
+      this.setState(s => ({ rooms: s.rooms.map(r => r.id === id ? updatedRoom : r), tuyaForm: { ...s.tuyaForm, waterDeviceId: '' } }));
+      this.showAdminToast('ลบอุปกรณ์น้ำห้อง ' + id + ' แล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'ลบไม่สำเร็จ'); }
+  });
   // Turning power ON is low-risk and happens immediately. Turning it OFF cuts
   // a real tenant's electricity, so it goes through a confirmation modal first.
   toggleTuyaPower = (roomId, currentlyOn) => {
@@ -7469,6 +7498,18 @@ class Component extends DCLogic {
       t.waterUsageLabel = dw ? `${dw.units} หน่วย × ${this.roomRate(t.room, 'water')} = ${this.fmt(dw.charge)}` : 'อุปกรณ์ไม่พร้อม';
       t.elecUsageLabel = de ? `${de.units} หน่วย × ${this.roomRate(t.room, 'elec')} = ${this.fmt(de.charge)}` : 'อุปกรณ์ไม่พร้อม';
       t.hasUsageData = !!(dw || de);
+      // Per explicit user request: battery status for the water flowmeter
+      // (battery-powered, BLE-gateway device) shown right on the tenant
+      // card — same live reading source as the Equipment page's water tab
+      // (/api/tuya/status, merged into tuyaLiveReadings per room).
+      const room = s.rooms.find(r => r.id === t.room);
+      const live = room && room.tuyaWaterDeviceId ? s.tuyaLiveReadings[t.room] : null;
+      const battery = live && live.batteryPercent != null ? live.batteryPercent : null;
+      t.hasWaterBattery = battery != null;
+      t.waterBatteryLabel = battery != null ? battery.toFixed(0) + '%' : '—';
+      t.waterBatteryColor = battery != null && battery <= 20 ? '#B24336' : '#241812';
+      t.waterBatteryLow = battery != null && battery <= 20;
+      t.hasUsageData = t.hasUsageData || t.hasWaterBattery;
     });
     tenantsFiltered.forEach(t => {
       t.connLabel = t.connFilled ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ';
@@ -8992,7 +9033,7 @@ class Component extends DCLogic {
       equipSelectedRoom: s.equipSelectedRoom,
       equipSelTenant: equipSelRoom.tenant || '(ห้องว่าง)',
       equipSelConfigured: !!equipSelDevice,
-      tuyaForm: s.tuyaForm, onTuyaElecDeviceId: this.onTuyaElecDeviceId, onTuyaWaterName: this.onTuyaWaterName,
+      tuyaForm: s.tuyaForm, onTuyaElecDeviceId: this.onTuyaElecDeviceId, onTuyaWaterDeviceId: this.onTuyaWaterDeviceId,
       onEquipRoomSelectChange: this.onEquipRoomSelectChange,
       setEquipTabElec: () => this.setEquipTab('elec'), setEquipTabWater: () => this.setEquipTab('water'),
       equipTabIsElec: s.equipDeviceTab === 'elec', equipTabIsWater: s.equipDeviceTab === 'water',
@@ -9009,8 +9050,15 @@ class Component extends DCLogic {
       equipSelLiveEnergy: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].energy != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].energy.toFixed(2) : '—',
       equipSelElecOnline: equipSelDevice ? (equipSelDevice.elecOnline ? 'ออนไลน์' : 'ออฟไลน์') : '—',
       equipSelElecDot: equipSelDevice ? (equipSelDevice.elecOnline ? '#3B7A52' : '#B24336') : '#C9B79E',
-      equipSelWaterOnline: equipSelDevice ? (equipSelDevice.waterOnline ? 'ออนไลน์' : 'ออฟไลน์') : '—',
-      equipSelWaterDot: equipSelDevice ? (equipSelDevice.waterOnline ? '#3B7A52' : '#B24336') : '#C9B79E',
+      // Was sourced from the mock `tuyaDevices` map — now sourced from the
+      // real /api/tuya/status merged response the same way the elec V/A/W
+      // readout above already is (equipSelLiveVoltage etc.).
+      equipSelLiveWaterUsage: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].usage != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].usage.toFixed(0) : '—',
+      equipSelLiveFlowRate: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].flowRate != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].flowRate.toFixed(1) : '—',
+      equipSelLiveBattery: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent.toFixed(0) + '%' : '—',
+      equipSelBatteryColor: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent != null && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent <= 20) ? '#B24336' : '#241812',
+      equipSelWaterOnline: equipSelRoom.tuyaWaterDeviceId ? ((s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].waterOnline) ? 'ออนไลน์' : 'ออฟไลน์') : '—',
+      equipSelWaterDot: equipSelRoom.tuyaWaterDeviceId ? ((s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].waterOnline) ? '#3B7A52' : '#B24336') : '#C9B79E',
       elecDeviceRows, waterDeviceRows, elecOnlineCount, waterOnlineCount, deviceTotalCount: elecDeviceRows.length,
       expensesView, expenseTotalDisplay: this.fmt(expenseTotal), expenseCategoryOptions,
       hiddenExpenseCount, hasHiddenExpenses: hiddenExpenseCount > 0,

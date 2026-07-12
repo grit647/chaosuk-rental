@@ -2,3 +2,4 @@ server/node_modules/
 server/.env
 server/uploads/
 .claude/
+prototype-auth/.tuya-test-creds.json

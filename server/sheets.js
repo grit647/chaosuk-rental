@@ -49,14 +49,22 @@ function objectToRow(header, obj) {
   });
 }
 
+// Real bug found while adding a 27th column (tuyaWaterDeviceId) to Rooms:
+// every range below used to hardcode column Z (26) as the cap — a tab with
+// MORE than 26 columns silently had its extra columns never read/written at
+// all (Google's API just omits anything past the requested range, no error).
+// Widened to ZZ (702 columns) everywhere, comfortably beyond anything this
+// app is likely to ever need on one tab.
+const MAX_COL = 'ZZ';
+
 async function getHeader(sheets, tab) {
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A1:Z1` });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A1:${MAX_COL}1` });
   return (res.data.values || [[]])[0] || [];
 }
 
 async function readTab(tab) {
   const sheets = await client();
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A1:Z1000` });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A1:${MAX_COL}1000` });
   return rowsToObjects(res.data.values || []);
 }
 
@@ -76,7 +84,7 @@ async function appendRow(tab, obj) {
 
 async function findRowNumber(sheets, tab, header, matchCol, matchValue) {
   const colIdx = header.indexOf(matchCol);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A2:Z1000` });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A2:${MAX_COL}1000` });
   const rows = res.data.values || [];
   const idx = rows.findIndex((r) => String(r[colIdx]) === String(matchValue));
   return idx === -1 ? -1 : idx + 2; // +1 for 1-based, +1 for header row
@@ -87,7 +95,7 @@ async function updateRow(tab, matchValue, patch, matchCol = 'id') {
   const header = await getHeader(sheets, tab);
   const rowNum = await findRowNumber(sheets, tab, header, matchCol, matchValue);
   if (rowNum === -1) throw new Error(`${tab}: row with ${matchCol}=${matchValue} not found`);
-  const existingRes = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A${rowNum}:Z${rowNum}` });
+  const existingRes = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A${rowNum}:${MAX_COL}${rowNum}` });
   const existingRow = (existingRes.data.values || [[]])[0] || [];
   const existingObj = {};
   header.forEach((key, i) => { existingObj[key] = existingRow[i] !== undefined ? existingRow[i] : ''; });
@@ -95,7 +103,7 @@ async function updateRow(tab, matchValue, patch, matchCol = 'id') {
   const row = objectToRow(header, merged);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID(),
-    range: `${tab}!A${rowNum}:Z${rowNum}`,
+    range: `${tab}!A${rowNum}:${MAX_COL}${rowNum}`,
     valueInputOption: 'RAW', // store values literally — no auto number/date parsing (that's what strips leading zeros off phone numbers etc; we handle all type coercion ourselves in coerce.js)
     requestBody: { values: [row] },
   });
@@ -133,7 +141,7 @@ async function clearTab(tab) {
   const sheets = await client();
   await sheets.spreadsheets.values.clear({
     spreadsheetId: SHEET_ID(),
-    range: `${tab}!A2:Z100000`,
+    range: `${tab}!A2:${MAX_COL}100000`,
   });
 }
 

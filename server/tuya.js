@@ -182,6 +182,37 @@ async function getElecReading(deviceId, creds) {
   return { voltage: null, current: null, power: null, energy, switchOn };
 }
 
+// Returns live readings for a Tuya water flowmeter (e.g. "Bluetooth
+// Flowmeter" battery-powered/BLE-gateway devices) — cumulative usage
+// (liters), current flow rate, and battery level. Confirmed against a
+// real device (category "slj"): the DP named "voltage_current" is
+// actually the BATTERY PERCENTAGE (0-100%) for this device family —
+// misleading DP name (Tuya's own generic naming), NOT actual voltage;
+// verified via the device's own spec response (unit "%", range 0-100).
+async function getWaterReading(deviceId, creds) {
+  const [status, spec] = await Promise.all([
+    getDeviceStatus(deviceId, creds),
+    getDeviceSpec(deviceId, creds).catch(() => null),
+  ]);
+  const map = {};
+  status.forEach((s) => { map[s.code] = s.value; });
+  const pick = (code, fallbackScale) => {
+    if (map[code] === undefined) return null;
+    const scale = spec ? findScale(spec, code) : fallbackScale;
+    return Number(map[code]) / scale;
+  };
+  return {
+    // Cumulative liters used — this device family's equivalent of the
+    // electricity meter's "energy" reading, used the same way for
+    // billing (units since last-billed baseline × rate).
+    usage: pick('water_use_data', 1),
+    flowRate: pick('flow_velocity', 1),
+    // Battery percentage — despite the DP's confusing "voltage_current"
+    // name, its actual meaning (per this device's own spec) is 0-100%.
+    batteryPercent: pick('voltage_current', 1),
+  };
+}
+
 // Sends a control command to the device. `code` is the DP code (e.g. 'switch'
 // for the breaker's relay on/off), `value` is whatever type that DP expects.
 async function sendCommand(deviceId, code, value, creds) {
@@ -190,4 +221,4 @@ async function sendCommand(deviceId, code, value, creds) {
   }, creds);
 }
 
-module.exports = { isConfigured, listDevices, getDeviceStatus, getDeviceSpec, getElecReading, sendCommand };
+module.exports = { isConfigured, listDevices, getDeviceStatus, getDeviceSpec, getElecReading, getWaterReading, sendCommand };
