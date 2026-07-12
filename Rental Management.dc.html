@@ -5224,7 +5224,13 @@ class Component extends DCLogic {
         } else if (draft.elecMode === 'manual' && draft.elecUnits) {
           prevPatch.elecPrev = Number(draft.elecUnits) || 0;
         }
-        if (draft.waterMode === 'manual' && draft.waterUnits) {
+        if (room.tuyaWaterDeviceId) {
+          // Same liters→หน่วย (÷1000) conversion as deviceCharge() above —
+          // the baseline stored in waterPrev must stay in the same unit
+          // deviceCharge() expects to subtract it from next cycle.
+          const live = s.tuyaLiveReadings[roomId];
+          if (live && live.usage != null) prevPatch.waterPrev = live.usage / 1000;
+        } else if (draft.waterMode === 'manual' && draft.waterUnits) {
           prevPatch.waterPrev = Number(draft.waterUnits) || 0;
         }
         if (Object.keys(prevPatch).length) roomPrevUpdates[roomId] = prevPatch;
@@ -5643,6 +5649,22 @@ class Component extends DCLogic {
         return { units: Number(units.toFixed(2)), charge, minApplied };
       }
     }
+    // Per explicit user request: real Tuya cumulative water reading (from
+    // the flowmeter's water_use_data DP) replaces the manual meter entry
+    // when a water device is linked — same baseline-subtraction pattern as
+    // electricity above. IMPORTANT unit conversion: the device reports
+    // LITERS, but this app's water rate (roomRate/waterRate) is priced per
+    // "หน่วย" (1 หน่วย = 1 cubic meter = 1000 liters) same as the manual
+    // meter fields (waterPrev/waterCurr) always have been — dividing by
+    // 1000 here keeps device-mode and manual-mode bills on the same scale.
+    if (kind === 'water' && room.tuyaWaterDeviceId) {
+      const live = this.state.tuyaLiveReadings[roomId];
+      if (live && live.usage != null) {
+        const units = Math.max(0, (live.usage / 1000) - Number(room.waterPrev || 0));
+        const { charge, minApplied } = this._applyMinCharge(roomId, 'water', Math.round(units * this.roomRate(roomId, 'water')));
+        return { units: Number(units.toFixed(2)), charge, minApplied };
+      }
+    }
     const dev = this.state.tuyaDevices[roomId];
     if (!dev) return null;
     if (kind === 'water') {
@@ -5775,7 +5797,12 @@ class Component extends DCLogic {
       } else if (s.newInvoice.elecMode === 'manual' && s.newInvoice.elecUnits) {
         prevPatch.elecPrev = Number(s.newInvoice.elecUnits) || 0;
       }
-      if (s.newInvoice.waterMode === 'manual' && s.newInvoice.waterUnits) {
+      if (s.newInvoice.waterMode === 'device' && room.tuyaWaterDeviceId) {
+        // Same liters→หน่วย (÷1000) conversion as deviceCharge() — keeps the
+        // stored baseline in the same unit deviceCharge() subtracts it in.
+        const live = s.tuyaLiveReadings[room.id];
+        if (live && live.usage != null) prevPatch.waterPrev = live.usage / 1000;
+      } else if (s.newInvoice.waterMode === 'manual' && s.newInvoice.waterUnits) {
         prevPatch.waterPrev = Number(s.newInvoice.waterUnits) || 0;
       }
       if (Object.keys(prevPatch).length) {
@@ -8014,16 +8041,30 @@ class Component extends DCLogic {
     let waterTotalCostNum = 0;
     const waterReportView = occupiedRooms.map(r => {
       const dev = s.tuyaDevices[r.id];
-      const base24 = Math.max(0, (Number(r.waterCurr) || 0) - r.waterPrev);
       const hrs = s.waterWindows[r.id] || 24;
-      const usage = Math.round(base24 * hrs / 24);
-      const cost = usage * this.roomRate(r.id, 'water');
+      // Per explicit user request: rooms with a real Tuya water device
+      // linked use the real cumulative reading (same deviceCharge() path
+      // as electricity already does) instead of the old manual-meter
+      // base24/window-scaling calc. Non-linked rooms keep that fallback.
+      const isReal = !!r.tuyaWaterDeviceId;
+      let usage, cost;
+      if (isReal) {
+        const dc = this.deviceCharge(r.id, 'water');
+        usage = dc ? dc.units : 0;
+        cost = dc ? dc.charge : 0;
+      } else {
+        const base24 = Math.max(0, (Number(r.waterCurr) || 0) - r.waterPrev);
+        usage = Math.round(base24 * hrs / 24);
+        cost = usage * this.roomRate(r.id, 'water');
+      }
       waterTotalCostNum += cost;
+      const live = isReal ? s.tuyaLiveReadings[r.id] : null;
       return {
         id: r.id, tenant: r.tenant,
-        deviceName: dev ? dev.waterName : 'ยังไม่เชื่อมต่ออุปกรณ์',
-        deviceColor: dev ? '#241812' : '#B0A08C',
-        online: dev ? dev.waterOnline : false, onlineDot: (dev && dev.waterOnline) ? '#3B7A52' : '#B0A08C',
+        deviceName: isReal ? r.tuyaWaterDeviceId : (dev ? dev.waterName : 'ยังไม่เชื่อมต่ออุปกรณ์'),
+        deviceColor: (isReal || dev) ? '#241812' : '#B0A08C',
+        online: isReal ? !!(live && live.waterOnline) : (dev ? dev.waterOnline : false),
+        onlineDot: isReal ? ((live && live.waterOnline) ? '#3B7A52' : '#B24336') : ((dev && dev.waterOnline) ? '#3B7A52' : '#B0A08C'),
         usage, windowLabel: hrs + ' ชม.', costDisplay: this.fmt(cost),
         windowChips: buildWindowChips(hrs, (h) => this.setWaterWindow(r.id, h)),
       };
