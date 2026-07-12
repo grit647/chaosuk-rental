@@ -1359,6 +1359,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
                         <div style="width:6px;height:6px;border-radius:50%;background:{{ w.onlineDot }}"></div>
                         <span style="font-size:10.5px;color:#7C6E5F">{{ w.onlineLabel }}</span>
+                        <sc-if value="{{ w.batteryLabel }}" hint-placeholder-val="{{ true }}">
+                          <span style="font-size:10.5px;color:#7C6E5F;margin-left:4px">· {{ w.batteryLabel }}</span>
+                        </sc-if>
                       </div>
                     </div>
                     <div style="text-align:right">
@@ -8211,20 +8214,39 @@ class Component extends DCLogic {
           reading: (live && live.energy != null) ? live.energy.toFixed(2) : '—', unit: 'kWh',
           hasPowerControl: powerOn != null,
           powerOn, powerLabel: powerOn ? 'จ่ายไฟ' : 'ตัดไฟ',
-          powerBg: powerOn ? '#3B7A52' : '#B24336', onToggle: () => this.toggleTuyaPower(r.id, powerOn) };
+          powerBg: powerOn ? '#3B7A52' : '#B24336', onToggle: () => this.toggleTuyaPower(r.id, powerOn),
+          batteryLabel: '' };
+      }
+      // Per explicit user request: this summary block ("สถานะอุปกรณ์น้ำ" on
+      // the Equipment page) was still entirely on the old mock tuyaDevices
+      // path — never checked the real tuyaWaterDeviceId at all, so a
+      // real-linked room always showed "ยังไม่ตั้งค่า" here even though the
+      // per-room detail panel and reports already showed real data. Fixed
+      // to mirror the elec branch above, plus a battery readout since the
+      // owner specifically wants that visible in this all-rooms overview.
+      if (kind === 'water' && r.tuyaWaterDeviceId) {
+        const live = s.tuyaLiveReadings[r.id];
+        const online = live ? live.waterOnline : false;
+        const battery = live && live.batteryPercent != null ? live.batteryPercent : null;
+        return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: true,
+          name: r.tuyaWaterDeviceId,
+          onlineLabel: online ? 'ออนไลน์' : 'ออฟไลน์', onlineDot: online ? '#3B7A52' : '#B24336',
+          reading: (live && live.usage != null) ? live.usage.toLocaleString('en-US') : '—', unit: 'ลิตร',
+          hasPowerControl: false,
+          batteryLabel: battery != null ? '🔋 ' + battery.toFixed(0) + '%' : '' };
       }
       const d = s.tuyaDevices[r.id];
-      if (!d) return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: false, name: 'ยังไม่ตั้งค่า', onlineLabel: '—', onlineDot: '#C9B79E', reading: '—', unit: '', hasPowerControl: false };
+      if (!d) return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: false, name: 'ยังไม่ตั้งค่า', onlineLabel: '—', onlineDot: '#C9B79E', reading: '—', unit: '', hasPowerControl: false, batteryLabel: '' };
       if (kind === 'elec') {
         return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: true, name: d.elecName,
           onlineLabel: d.elecOnline ? 'ออนไลน์' : 'ออฟไลน์', onlineDot: d.elecOnline ? '#3B7A52' : '#B24336',
           reading: Number(d.elecReading).toLocaleString('en-US'), unit: 'kWh',
           hasPowerControl: false, powerOn: d.elecPower, powerLabel: d.elecPower ? 'จ่ายไฟ' : 'ตัดไฟ',
-          powerBg: d.elecPower ? '#3B7A52' : '#B24336', onToggle: () => {} };
+          powerBg: d.elecPower ? '#3B7A52' : '#B24336', onToggle: () => {}, batteryLabel: '' };
       }
       return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: true, name: d.waterName,
         onlineLabel: d.waterOnline ? 'ออนไลน์' : 'ออฟไลน์', onlineDot: d.waterOnline ? '#3B7A52' : '#B24336',
-        reading: Number(d.waterReading).toLocaleString('en-US'), unit: 'ม³', hasPowerControl: false };
+        reading: Number(d.waterReading).toLocaleString('en-US'), unit: 'ม³', hasPowerControl: false, batteryLabel: '' };
     };
     const elecDeviceRows = occupiedRooms.map(r => buildDeviceRow(r, 'elec'));
     const waterDeviceRows = occupiedRooms.map(r => buildDeviceRow(r, 'water'));
