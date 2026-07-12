@@ -4038,7 +4038,7 @@ class Component extends DCLogic {
   });
   deleteCalEvent = (id) => this._guard('deleteCalEvent:' + id, async () => {
     try {
-      const res = await fetch('/api/calendar/' + id, { method: 'DELETE' });
+      const res = await fetch('/api/calendar/' + encodeURIComponent(id), { method: 'DELETE' });
       if (!res.ok) throw new Error('ลบไม่สำเร็จ');
       this.setState(s => ({ calEvents: s.calEvents.filter(e => e.id !== id) }));
       this.showAdminToast('ลบรายการแล้ว');
@@ -5014,7 +5014,7 @@ class Component extends DCLogic {
   });
   deleteExpense = (id) => this._guard('deleteExpense:' + id, async () => {
     try {
-      const res = await fetch('/api/expenses/' + id, { method: 'DELETE' });
+      const res = await fetch('/api/expenses/' + encodeURIComponent(id), { method: 'DELETE' });
       if (!res.ok) throw new Error('ลบไม่สำเร็จ');
       this.setState(s => ({ expenses: s.expenses.filter(e => e.id !== id) }));
       this.showAdminToast('ลบรายการแล้ว');
@@ -5026,7 +5026,7 @@ class Component extends DCLogic {
   // hiddenFromDashboard).
   toggleHideExpense = (id, currentlyHidden) => this._guard('toggleHideExpense:' + id, async () => {
     try {
-      const res = await fetch('/api/expenses/' + id, {
+      const res = await fetch('/api/expenses/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hidden: !currentlyHidden }),
       });
@@ -5360,7 +5360,7 @@ class Component extends DCLogic {
           'ครบกำหนดชำระ: ' + (invoice.due ? this._fmtDateTh(invoice.due) : '-'),
         ].join('\n');
         // Fire-and-forget: a PDF hiccup shouldn't block the LINE message going out.
-        fetch('/api/invoices/' + invoice.id + '/pdf', { method: 'POST' }).catch(err => console.error(err));
+        fetch('/api/invoices/' + encodeURIComponent(invoice.id) + '/pdf', { method: 'POST' }).catch(err => console.error(err));
       } else {
         message = 'แจ้งใบแจ้งหนี้ห้อง ' + roomId + ' ครับ กรุณาตรวจสอบยอดชำระในระบบ';
       }
@@ -5377,7 +5377,7 @@ class Component extends DCLogic {
       let receiptImageUrl = '';
       if (invoice && qrUrl) {
         try {
-          const imgRes = await fetch('/api/invoices/' + invoice.id + '/receipt-image', { method: 'POST' });
+          const imgRes = await fetch('/api/invoices/' + encodeURIComponent(invoice.id) + '/receipt-image', { method: 'POST' });
           if (imgRes.ok) {
             receiptImageUrl = (await imgRes.json()).url;
             // The server already saved this onto the invoice row (Sheet) —
@@ -5398,7 +5398,7 @@ class Component extends DCLogic {
       // not only this exact button.
       if (invoice) {
         try {
-          const res = await fetch('/api/invoices/' + invoice.id, {
+          const res = await fetch('/api/invoices/' + encodeURIComponent(invoice.id), {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ receiptSent: true }),
           });
@@ -5422,7 +5422,7 @@ class Component extends DCLogic {
   // totals, reports).
   hideFromRecentPayments = (id) => this._guard('hideFromRecentPayments:' + id, async () => {
     try {
-      const res = await fetch('/api/invoices/' + id, {
+      const res = await fetch('/api/invoices/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hiddenFromDashboard: true }),
       });
@@ -5437,7 +5437,7 @@ class Component extends DCLogic {
   // to undo it short of editing the Sheet directly.
   unhideFromRecentPayments = (id) => this._guard('unhideFromRecentPayments:' + id, async () => {
     try {
-      const res = await fetch('/api/invoices/' + id, {
+      const res = await fetch('/api/invoices/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hiddenFromDashboard: false }),
       });
@@ -5511,7 +5511,7 @@ class Component extends DCLogic {
           return;
         }
       }
-      const res = await fetch('/api/invoices/' + ei.id, {
+      const res = await fetch('/api/invoices/' + encodeURIComponent(ei.id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rent: Number(ei.rent) || 0, water: Number(ei.water) || 0, elec: Number(ei.elec) || 0,
@@ -5545,7 +5545,7 @@ class Component extends DCLogic {
     // explicit user request.
     const wasSent = !!(inv && (inv.receiptSent || this.state.receiptsSent[inv.room]));
     try {
-      const res = await fetch('/api/invoices/' + id, { method: 'DELETE' });
+      const res = await fetch('/api/invoices/' + encodeURIComponent(id), { method: 'DELETE' });
       const result = await res.json();
       // Surface the server's specific reason when it refuses to delete (e.g.
       // the accounting-integrity guard for bills with a slip already sent)
@@ -5945,7 +5945,7 @@ class Component extends DCLogic {
       // total too, matching what resolveSlip's 'full' mode already does.
       const inv = this.state.invoices.find(i => i.id === id);
       const total = inv ? (inv.rent || 0) + (inv.water || 0) + (inv.elec || 0) + (inv.trash || 0) + (inv.internet || 0) : undefined;
-      const res = await fetch('/api/invoices/' + id, {
+      const res = await fetch('/api/invoices/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'paid', paidDate: new Date().toISOString().slice(0, 10), ...(total != null ? { amountPaid: total } : {}) }),
       });
@@ -5988,7 +5988,7 @@ class Component extends DCLogic {
       // Clear slipsJson too, not just the flag — otherwise a future slip
       // that happens to amount-match this same (now paid) invoice id again
       // would append onto old, already-resolved slip data.
-      await fetch('/api/invoices/' + id, {
+      await fetch('/api/invoices/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slipPending: false, slipsJson: '[]' }),
       });
@@ -5997,7 +5997,7 @@ class Component extends DCLogic {
   };
   rejectSlipFor = async (id) => {
     try {
-      const res = await fetch('/api/invoices/' + id, {
+      const res = await fetch('/api/invoices/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slipPending: false, slipsJson: '[]' }),
       });
@@ -6060,7 +6060,7 @@ class Component extends DCLogic {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ creditBalance: newCredit }),
         });
-        await fetch('/api/invoices/' + id, {
+        await fetch('/api/invoices/' + encodeURIComponent(id), {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ slipPending: false, slipsJson: '[]' }),
         });
@@ -6109,7 +6109,7 @@ class Component extends DCLogic {
       // ล่วงหน้าแทน" button uses) instead of being silently dropped.
       const remainingBefore = Math.max(0, total - (inv.amountPaid || 0));
       const overpay = mode === 'full' ? Math.max(0, combined - remainingBefore) : 0;
-      const res = await fetch('/api/invoices/' + id, {
+      const res = await fetch('/api/invoices/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       });
@@ -6202,7 +6202,7 @@ class Component extends DCLogic {
     try {
       const remaining = (inv.slips || []).filter((_, i) => i !== idx);
       const stillPending = remaining.length > 0;
-      const res = await fetch('/api/invoices/' + id, {
+      const res = await fetch('/api/invoices/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slipsJson: JSON.stringify(remaining), slipPending: stillPending }),
       });
@@ -6362,7 +6362,7 @@ class Component extends DCLogic {
     // user request ("กรอกจำนวนเองเด้งปุ่มยืนยันให้หน่อย").
     this.setState(s => ({ invoices: s.invoices.map(i => i.id === invoiceId ? { ...i, slips: updatedSlips, slipsTotal: optimisticTotal } : i) }));
     try {
-      const res = await fetch('/api/invoices/' + invoiceId, {
+      const res = await fetch('/api/invoices/' + encodeURIComponent(invoiceId), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slipsJson: JSON.stringify(updatedSlips) }),
       });
@@ -6468,7 +6468,7 @@ class Component extends DCLogic {
   setMaintStatus = (id, status) => this._guard('setMaintStatus:' + id, async () => {
     if (status === 'done') { this.setState({ showMaintDone: true, maintDoneId: id }); return; }
     try {
-      const res = await fetch('/api/maintenance/' + id, {
+      const res = await fetch('/api/maintenance/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
@@ -6481,7 +6481,7 @@ class Component extends DCLogic {
   confirmMaintDone = () => this._guard('confirmMaintDone:' + this.state.maintDoneId, async () => {
     const id = this.state.maintDoneId;
     try {
-      const res = await fetch('/api/maintenance/' + id, { method: 'DELETE' });
+      const res = await fetch('/api/maintenance/' + encodeURIComponent(id), { method: 'DELETE' });
       if (!res.ok) throw new Error('ปิดงานไม่สำเร็จ');
       this.setState(s => ({ maintenance: s.maintenance.filter(m => m.id !== id), showMaintDone: false, maintDoneId: null }));
       this.showAdminToast('ปิดงานซ่อมแล้ว — นำออกจากรายการ');
