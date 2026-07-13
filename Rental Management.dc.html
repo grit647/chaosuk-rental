@@ -264,6 +264,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div onclick="{{ goElecReport }}" style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navElec.bg }}">
                   <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navElec.dot }}"></div>
                   <span style="font-size:13.5px;color:{{ navElec.color }};font-weight:{{ navElec.weight }}">การใช้ไฟฟ้า</span>
+                  <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:9px;font-weight:700;background:#2C6E8F;color:#fff;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="หน้านี้มีคำอธิบายในโหมดทดลองแล้ว">?</span>
+                  </sc-if>
                 </div>
               </div>
             </sc-if>
@@ -1333,7 +1336,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;overflow-x:auto">
               <div style="min-width:600px">
               <div style="display:grid;grid-template-columns:0.5fr 1.2fr 1.5fr 0.9fr 0.9fr 1.5fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
-                <div>ห้อง</div><div>ผู้เช่า</div><div>อุปกรณ์</div><div>หน่วยที่ใช้</div><div>ค่าไฟ</div><div>ช่วงเวลาที่ดึงค่า</div>
+                <div>ห้อง</div><div>ผู้เช่า</div><div>อุปกรณ์</div><div>หน่วยที่ใช้</div><div>ค่าไฟ</div>
+                <div style="display:flex;align-items:center;gap:5px">ช่วงเวลาที่ดึงค่า
+                  <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                    <span onclick="{{ onDemoTipElecWindow }}" style="cursor:pointer;font-size:11px;font-weight:600;text-transform:none;letter-spacing:0;background:#2C6E8F;color:#fff;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                  </sc-if>
+                </div>
               </div>
               <sc-for list="{{ elecReportView }}" as="w" hint-placeholder-count="13">
                 <div style="display:grid;grid-template-columns:0.5fr 1.2fr 1.5fr 0.9fr 0.9fr 1.5fr;gap:10px;font-size:12.5px;color:#241812;padding:11px 0;border-bottom:1px solid #F0E9DC;align-items:center">
@@ -3675,6 +3683,7 @@ const DEMO_TIPS = {
   equipStatusList: 'รายการนี้สรุปสถานะอุปกรณ์ทุกห้องในตึกพร้อมกัน (ออนไลน์/ออฟไลน์ + ค่าล่าสุด) — สำหรับอุปกรณ์ไฟที่รองรับ จะมีปุ่ม "ตัดไฟ/จ่ายไฟ" ให้กดตัดไฟห้องนั้นได้โดยตรงจากตรงนี้ (มี popup ให้ยืนยันก่อนตัดไฟทุกครั้ง กันกดพลาด) — การตัดไฟเป็นการตัดสินใจของเจ้าของหอพักเองเสมอ ระบบอัตโนมัติจะไม่ตัดไฟให้เองเด็ดขาด อย่างมากแค่เตือนผู้เช่า/แจ้งเจ้าของถ้าค้างชำระ',
   claudeAttach: 'กด "+" เพื่อเปิดเมนู 2 อย่าง: "📎 เพิ่มไฟล์" แนบรูปไปพร้อมข้อความ (เช่น ถ่ายรูปมิเตอร์น้ำ/ไฟให้ Claude อ่านตัวเลขให้ หรือรูปสลิปโอนเงินให้ช่วยตรวจสอบ) และ "🗑️ เคลียร์หน้าแชท" ล้างประวัติการสนทนาทั้งหมดเพื่อเริ่มคุยเรื่องใหม่',
   waterMeterPhoto: 'ถ่ายรูปมิเตอร์น้ำ (ถ่ายได้หลายห้องในรูปเดียวถ้ามีป้ายเลขห้องกำกับ) แล้วอัปโหลด — Claude จะอ่านตัวเลขมิเตอร์ให้อัตโนมัติ ไม่ต้องจดเอง จากนั้นเลือกห้องที่ตรงกัน ตรวจตัวเลขอีกครั้ง แล้วกดบันทึก — ⚠️ ต้องเชื่อมต่อ Claude API ไว้ก่อน (หน้าตั้งค่า) ถึงจะใช้ฟีเจอร์นี้ได้ ถ้ายังไม่ได้เชื่อม ต้องกรอกเลขมิเตอร์เองแทน',
+  elecWindow: 'ปุ่ม 12 ชม./24 ชม./48 ชม. นี้ใช้ได้เฉพาะห้องที่ยัง "ไม่ได้เชื่อม" อุปกรณ์ Tuya จริง (โหมดกรอกมิเตอร์เอง) — เป็นตัวเลือกให้ประมาณการใช้ไฟฟ้าล่วงหน้าคร่าวๆ ก่อนออกบิลจริง โดยอิงจากอัตราการใช้ไฟที่กรอกไว้ (เลขมิเตอร์ปัจจุบัน-เก่า) มาคำนวณเป็นรายชั่วโมงตามช่วงที่เลือก — ห้องที่เชื่อมอุปกรณ์ Tuya จริงแล้วจะไม่มีปุ่มนี้ เพราะระบบใช้ยอดสะสมจริงตั้งแต่บิลล่าสุดแทนอยู่แล้ว แม่นกว่าการประมาณ',
 };
 class Component extends DCLogic {
   state = {
@@ -9101,6 +9110,7 @@ class Component extends DCLogic {
       onDemoTipEquipStatusList: () => this.showDemoTip('equipStatusList'),
       onDemoTipClaudeAttach: () => this.showDemoTip('claudeAttach'),
       onDemoTipWaterMeterPhoto: () => this.showDemoTip('waterMeterPhoto'),
+      onDemoTipElecWindow: () => this.showDemoTip('elecWindow'),
       calMonthLabel, calCells, calWeekdays: ['อา','จ','อ','พ','พฤ','ศ','ส'],
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,
