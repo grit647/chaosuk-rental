@@ -12,14 +12,13 @@ plain Thai, avoid assuming CS background).
 
 **The real/official logo** (per explicit owner confirmation): an orange
 (`#C1622D`) rounded-square badge with the character **"ช"** in it, next to
-the wordmark **"เช่าสุข"**. Used correctly on `login.html` and
-`my-buildings.html`. `staff-login.html` (blue badge, "ผ") and
-`tenant-login.html` (green badge, "ผ") currently do NOT match this — those
-were an intentional role-color-coding choice made when those pages were
-built, not yet reconciled with the confirmed real logo. Owner was asked
-whether to unify all login pages to the real logo and dismissed the
-question rather than deciding — revisit next time this comes up instead
-of assuming either way.
+the wordmark **"เช่าสุข"**. Used consistently everywhere now —
+`login.html`, `my-buildings.html`, `staff-login.html`, `tenant-login.html`
+all match. (`staff-login.html`/`tenant-login.html` originally used
+different colors/letters as a role-color-coding choice made when those
+pages were first built — owner explicitly asked for both to be
+reconciled to the real logo, done.) If any NEW page ever needs a
+logo badge, use this exact same styling.
 
 ## Known issues / follow-ups
 
