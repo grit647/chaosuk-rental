@@ -306,12 +306,21 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                  person's name + role, AND doubles as the entry point
                  for "จัดการผู้ดูแล" (add/edit/remove ผู้ดูแล login
                  accounts) — clicking it opens that popup. -->
-            <div onclick="{{ openAdminsModal }}" style="display:flex;align-items:center;gap:10px;padding:11px;border-radius:8px;background:rgba(241,235,224,0.08);cursor:pointer">
-              <div style="width:32px;height:32px;border-radius:50%;background:rgba(241,235,224,0.25);flex-shrink:0"></div>
-              <div>
-                <div style="font-size:12.5px;font-weight:600;color:#F1EBE0">{{ sidebarAccountName }}</div>
-                <div style="font-size:11px;color:rgba(241,235,224,0.55)">{{ sidebarAccountRole }}</div>
+            <div style="position:relative">
+              <div onclick="{{ openAdminsModal }}" style="display:flex;align-items:center;gap:10px;padding:11px;border-radius:8px;background:rgba(241,235,224,0.08);cursor:pointer">
+                <div style="width:32px;height:32px;border-radius:50%;background:rgba(241,235,224,0.25);flex-shrink:0"></div>
+                <div>
+                  <div style="font-size:12.5px;font-weight:600;color:#F1EBE0">{{ sidebarAccountName }}</div>
+                  <div style="font-size:11px;color:rgba(241,235,224,0.55)">{{ sidebarAccountRole }}</div>
+                </div>
               </div>
+              <!-- Sibling, not nested inside the clickable card above, so a
+                   tap on the badge doesn't also fire openAdminsModal
+                   (avoids a click-bubbling conflict with the parent card's
+                   own onclick). -->
+              <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                <span onclick="{{ onDemoTipSidebarAccount }}" style="position:absolute;top:6px;right:6px;cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center" title="อธิบาย">?</span>
+              </sc-if>
             </div>
             <div onclick="{{ logout }}" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:8px;border:1px solid rgba(241,235,224,0.18);color:#E8B4A0;font-size:12.5px;font-weight:600;cursor:pointer">
               <span style="font-size:14px">⏻</span> ออกจากระบบ
@@ -3624,6 +3633,7 @@ const DEMO_TIPS = {
   claudeOverview: 'การ์ดนี้คือผู้ช่วย AI ที่คุยด้วยข้อความ/เสียงได้ — สั่งงานได้เฉพาะในระบบนี้เท่านั้น (ดูข้อมูล, ออกบิล, ส่ง LINE, บันทึกมิเตอร์ ฯลฯ) ไม่แตะโค้ด/เซิร์ฟเวอร์เด็ดขาด ตอบโจทย์การใช้งานเชิง automation — ทุกรายการที่จะเพิ่ม/แก้ไข/ลบข้อมูลจะขึ้น popup ให้ยืนยันก่อนทำจริงเสมอ ไม่ทำอะไรลับหลังคุณ',
   claudeCommandBox: 'พิมพ์คำสั่งเป็นภาษาพูดปกติได้เลย เช่น "ออกบิลห้อง 101" หรือ "ห้องไหนค้างชำระบ้าง" — แนบรูปได้ (📎) พูดแทนพิมพ์ได้ (🎤) และมีโหมดขับรถ (🚗) ที่อ่านคำตอบออกเสียงให้แทนการอ่านหน้าจอ',
   claudeEnableToggle: 'สวิตช์นี้คุมเฉพาะ "ข้อความ/แจ้งเตือนที่ตั้งเวลาส่งล่วงหน้า" เท่านั้น (เช่น ตั้งเวลาส่ง LINE ผ่านปฏิทินหรือสั่งให้ส่งทีหลังในช่องแชท) — ปิดไว้ ตั้งเวลาไว้แค่ไหนก็จะไม่ถูกส่งจริงจนกว่าจะเปิด ไม่ได้คุมช่องแชท "สั่งงาน Claude ด้วยข้อความ" ด้านบน ซึ่งใช้งานได้ตลอดถ้าเชื่อมต่อ Claude API ไว้แล้ว (ข้อแม้เดียวคือถ้าเครดิต Claude API หมด AI จะใช้งานไม่ได้ทั้งหมดไม่ว่าสวิตช์นี้จะเปิดหรือปิด)',
+  sidebarAccount: 'การ์ดนี้แสดงชื่อและบทบาทของบัญชีที่ล็อกอินอยู่ตอนนี้ (เช่น เจ้าของกิจการ หรือ ผู้ดูแล) — กดเพื่อเปิดหน้าต่าง "จัดการผู้ดูแล" เพิ่ม/แก้ไข/ลบบัญชี "ผู้ดูแล" (คนช่วยดูแลระบบแทนเจ้าของ ไม่ใช่พนักงานในสัญญาจ้าง คนละส่วนกัน) — ตั้งชื่อ เบอร์โทร และรหัสผ่านสำหรับให้ผู้ดูแลคนนั้นล็อกอินเองได้ที่หน้า /staff-login ทุกการเพิ่ม/แก้ไข/ลบต้องยืนยันด้วยรหัส PIN ของเจ้าของก่อนเสมอ',
 };
 class Component extends DCLogic {
   state = {
@@ -9042,6 +9052,7 @@ class Component extends DCLogic {
       onDemoTipClaudeOverview: () => this.showDemoTip('claudeOverview'),
       onDemoTipClaudeCommandBox: () => this.showDemoTip('claudeCommandBox'),
       onDemoTipClaudeEnableToggle: () => this.showDemoTip('claudeEnableToggle'),
+      onDemoTipSidebarAccount: () => this.showDemoTip('sidebarAccount'),
       calMonthLabel, calCells, calWeekdays: ['อา','จ','อ','พ','พฤ','ศ','ส'],
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,
