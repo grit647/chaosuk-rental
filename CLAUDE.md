@@ -133,11 +133,12 @@ back up.
 **All 3 previously-open decisions got made:**
 - **Access:** dedicated `GET /demo` route (server/index.js) — no login
   form, sets a session with `role: 'demo'` scoped to a dedicated Sheet
-  (`DEMO_SHEET_ID` env var, currently
-  `10TD0QgpWhJxPnNHjkxTfjVGT5YbSr6g3PMg0fxbMCEY`) and redirects to `/`.
-  **Only set in `server/.env` locally so far — still needs adding to
-  Render's environment variables for the live `/demo` URL to work in
-  production.**
+  (`DEMO_SHEET_ID` env var, `10TD0QgpWhJxPnNHjkxTfjVGT5YbSr6g3PMg0fxbMCEY`).
+  **Set on Render's production environment variables too now — verified
+  working live.** Also linked from `login.html`'s own footer ("Demo —
+  อธิบายการใช้งานแพลตฟอร์ม"), so a prospective customer landing on the
+  real login page has an obvious way to find it without needing to
+  already know the `/demo` URL.
 - **Reset:** hourly cron, same external-ping pattern as
   `server/routes/scheduler.js` — see `.github/workflows/demo-reset.yml`
   (`curl .../api/demo-reset/run` every hour on the hour). The actual
@@ -148,10 +149,17 @@ back up.
   invoices + basic Settings (rates, a simple demo PIN `1234`).
 - **Tooltip UX:** tap/click a small "❓" badge (not hover — this app is
   used on mobile a lot, hover doesn't work on touch) opens a single
-  fixed-position bottom banner with the explanation, tap the badge again
-  or the × to close. One shared piece of state (`demoTipId` in
-  `Rental Management.dc.html`) rather than per-badge state, since only
-  one tip is ever open at once.
+  shared **centered** overlay (dimmed backdrop, tap outside or × to
+  close — originally bottom-anchored, moved to center per explicit
+  follow-up request since it was easy to miss near the browser's own
+  UI chrome on mobile) with the explanation. One shared piece of state
+  (`demoTipId` in `Rental Management.dc.html`) rather than per-badge
+  state, since only one tip is ever open at once.
+- Sidebar also shows a small green **"Demo"** tag right next to the
+  "ช เช่าสุข" logo/brand name at the very top (visible even scrolled),
+  plus a small "?" marker next to any nav item whose page already has
+  tooltips built — both `isDemo`-gated, both per explicit follow-up
+  requests after the first round of feedback.
 
 **Security/scoping already handled, verified working:**
 - A demo session (`role: 'demo'`) automatically gets ZERO platform-admin
@@ -175,8 +183,12 @@ badges) next to whatever UI element needs explaining. No other wiring
 needed — the bottom-banner display and open/close logic are already
 shared/generic.
 
-**Not done yet:** the other 7 pages' tips (only บิล & ใบแจ้งหนี้ has
-any so far), and adding `DEMO_SHEET_ID` to Render's production env vars.
+**Pages with tooltips so far:** บิล & ใบแจ้งหนี้, ห้องพัก (room cards +
+detail panel), สัญญาเช่า (the separate contracts table page — the
+owner's original scoping note called these two "ห้องพัก (rooms/
+contracts)" as one item, but they're actually two distinct nav items/
+pages in the real UI, both done now). **Not done yet:** ผู้เช่า,
+แจ้งซ่อม, ปฏิทิน, รายจ่าย, Set อุปกรณ์, ตั้งค่า.
 
 ### Known gap: a tenant who is ALSO staff could get mixed-up LINE messages
 
