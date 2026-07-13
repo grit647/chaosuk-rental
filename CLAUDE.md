@@ -188,8 +188,14 @@ detail panel), สัญญาเช่า (the separate contracts table page �
 owner's original scoping note called these two "ห้องพัก (rooms/
 contracts)" as one item, but they're actually two distinct nav items/
 pages in the real UI, both done now), ปฏิทิน (date picker, add-event
-form, LINE broadcast button). **Not done yet:** ผู้เช่า, แจ้งซ่อม,
-รายจ่าย, Set อุปกรณ์, ตั้งค่า.
+form, LINE broadcast button), **ตั้งค่า** (one tip per card — property
+info, LINE admin notifications, Tuya connection, LINE OA connection,
+Google Sheet status, feature toggles, system data/factory reset —
+explicitly requested as "the most important page, cover every button").
+Also one exception tip on **แดชบอร์ด** (auto-refresh toggle only —
+Dashboard is otherwise still excluded from the tour, this one control
+was a deliberate one-off exception since the owner asked for it
+directly). **Not done yet:** ผู้เช่า, แจ้งซ่อม, รายจ่าย, Set อุปกรณ์.
 
 ### Known gap: a tenant who is ALSO staff could get mixed-up LINE messages
 
