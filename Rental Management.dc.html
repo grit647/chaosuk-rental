@@ -1784,11 +1784,11 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:10.5px;color:#9C8B78;margin-top:10px">ถ้าคิดค่าน้ำ/ไฟตามหน่วยที่ใช้จริงแล้วต่ำกว่าอัตราขั้นต่ำที่ตั้งไว้ ระบบจะออกบิลที่อัตราขั้นต่ำแทน (แสดงเป็นค่าดูแลมิเตอร์ในใบเสร็จ) — ปล่อยว่างถ้าไม่ต้องการอัตราขั้นต่ำ</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">
                   <div>
-                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เลขมิเตอร์น้ำเริ่มต้น (หน่วย) <span style="color:#B24336">*จำเป็น</span></div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เลขมิเตอร์น้ำเริ่มต้น <span style="color:#B24336">*จำเป็น</span></div>
                     <input value="{{ cf.waterMeterStart }}" onchange="{{ onCfWaterMeterStart }}" placeholder="เช่น 1179" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   </div>
                   <div>
-                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เลขมิเตอร์ไฟเริ่มต้น (หน่วย) <span style="color:#B24336">*จำเป็น</span></div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เลขมิเตอร์ไฟเริ่มต้น <span style="color:#B24336">*จำเป็น</span></div>
                     <input value="{{ cf.elecMeterStart }}" onchange="{{ onCfElecMeterStart }}" placeholder="เช่น 4200" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   </div>
                 </div>
@@ -3108,7 +3108,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                             <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">📟 {{ b.waterDeviceHint }}</div>
                           </sc-if>
                           <sc-if value="{{ b.isWaterManual }}" hint-placeholder-val="{{ false }}">
-                            <input value="{{ b.waterUnits }}" onchange="{{ b.onWaterUnitsChange }}" placeholder="หน่วยปัจจุบัน" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                            <input value="{{ b.waterUnits }}" onchange="{{ b.onWaterUnitsChange }}" placeholder="เลขมิเตอร์ปัจจุบัน" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                             <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">{{ b.waterManualHint }}</div>
                           </sc-if>
                         </div>
@@ -3127,7 +3127,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                             <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">📟 {{ b.elecDeviceHint }}</div>
                           </sc-if>
                           <sc-if value="{{ b.isElecManual }}" hint-placeholder-val="{{ false }}">
-                            <input value="{{ b.elecUnits }}" onchange="{{ b.onElecUnitsChange }}" placeholder="หน่วยปัจจุบัน" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                            <input value="{{ b.elecUnits }}" onchange="{{ b.onElecUnitsChange }}" placeholder="เลขมิเตอร์ปัจจุบัน" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                             <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">{{ b.elecManualHint }}</div>
                           </sc-if>
                         </div>
@@ -3227,7 +3227,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="display:flex;gap:10px">
                   <div style="flex:1">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-                      <div style="font-size:11.5px;color:#7C6E5F">มิเตอร์น้ำ (หน่วย)</div>
+                      <div style="font-size:11.5px;color:#7C6E5F">เลขมิเตอร์น้ำ</div>
                       <sc-if value="{{ invWaterHasDevice }}" hint-placeholder-val="{{ true }}">
                         <div style="display:flex;gap:3px">
                           <div onclick="{{ setInvWaterDevice }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invWaterDeviceBg }};color:{{ invWaterDeviceColor }}">อุปกรณ์</div>
@@ -3240,16 +3240,16 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">📟 {{ invWaterUnitsHint }}</div>
                     </sc-if>
                     <sc-if value="{{ invWaterIsManual }}" hint-placeholder-val="{{ false }}">
-                      <input value="{{ newInvoice.waterUnits }}" onchange="{{ onNewInvoiceWaterUnitsChange }}" placeholder="หน่วยปัจจุบัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                      <input value="{{ newInvoice.waterUnits }}" onchange="{{ onNewInvoiceWaterUnitsChange }}" placeholder="เลขมิเตอร์ปัจจุบัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                     </sc-if>
-                    <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">หน่วยบิลหลังสุด: {{ invWaterLastReading }}</div>
+                    <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">เลขมิเตอร์บิลหลังสุด: {{ invWaterLastReading }}</div>
                     <sc-if value="{{ invWaterReadingTooLow }}" hint-placeholder-val="{{ false }}">
                       <div style="font-size:10.5px;color:#B24336;font-weight:600;margin-top:4px">⚠️ ตรวจสอบใหม่ — เลขน้อยกว่าบิลก่อนหน้า</div>
                     </sc-if>
                   </div>
                   <div style="flex:1">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-                      <div style="font-size:11.5px;color:#7C6E5F">มิเตอร์ไฟ (หน่วย)</div>
+                      <div style="font-size:11.5px;color:#7C6E5F">เลขมิเตอร์ไฟ</div>
                       <sc-if value="{{ invElecHasDevice }}" hint-placeholder-val="{{ true }}">
                         <div style="display:flex;gap:3px">
                           <div onclick="{{ setInvElecDevice }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invElecDeviceBg }};color:{{ invElecDeviceColor }}">อุปกรณ์</div>
@@ -3262,9 +3262,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">📟 {{ invElecUnitsHint }}</div>
                     </sc-if>
                     <sc-if value="{{ invElecIsManual }}" hint-placeholder-val="{{ false }}">
-                      <input value="{{ newInvoice.elecUnits }}" onchange="{{ onNewInvoiceElecUnitsChange }}" placeholder="หน่วยปัจจุบัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                      <input value="{{ newInvoice.elecUnits }}" onchange="{{ onNewInvoiceElecUnitsChange }}" placeholder="เลขมิเตอร์ปัจจุบัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                     </sc-if>
-                    <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">หน่วยบิลหลังสุด: {{ invElecLastReading }}</div>
+                    <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">เลขมิเตอร์บิลหลังสุด: {{ invElecLastReading }}</div>
                     <sc-if value="{{ invElecReadingTooLow }}" hint-placeholder-val="{{ false }}">
                       <div style="font-size:10.5px;color:#B24336;font-weight:600;margin-top:4px">⚠️ ตรวจสอบใหม่ — เลขน้อยกว่าบิลก่อนหน้า</div>
                     </sc-if>
