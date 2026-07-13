@@ -4152,7 +4152,17 @@ class Component extends DCLogic {
     try {
       const res = await fetch('/api/auth/me');
       const data = res.ok ? await res.json() : { role: null };
-      this.setState({ authSession: data });
+      this.setState(s => ({
+        authSession: data,
+        // Per explicit user request: a demo visitor on mobile should land
+        // on the regular page/dashboard view, not the full-screen Claude AI
+        // mode — mobileAiMode is decided synchronously at state-init time
+        // (before this session fetch resolves, see the state={} block
+        // above) purely from viewport width, so it has to be corrected
+        // here once we know isDemo. Only forces it OFF for demo sessions;
+        // never touches mobileAiMode for a real customer's own session.
+        mobileAiMode: data.isDemo ? false : s.mobileAiMode,
+      }));
     } catch (err) { console.error(err); }
   };
   // Full page navigation (not a fetch) is deliberate here — clears the
