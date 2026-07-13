@@ -187,8 +187,9 @@ shared/generic.
 detail panel), สัญญาเช่า (the separate contracts table page — the
 owner's original scoping note called these two "ห้องพัก (rooms/
 contracts)" as one item, but they're actually two distinct nav items/
-pages in the real UI, both done now). **Not done yet:** ผู้เช่า,
-แจ้งซ่อม, ปฏิทิน, รายจ่าย, Set อุปกรณ์, ตั้งค่า.
+pages in the real UI, both done now), ปฏิทิน (date picker, add-event
+form, LINE broadcast button). **Not done yet:** ผู้เช่า, แจ้งซ่อม,
+รายจ่าย, Set อุปกรณ์, ตั้งค่า.
 
 ### Known gap: a tenant who is ALSO staff could get mixed-up LINE messages
 
