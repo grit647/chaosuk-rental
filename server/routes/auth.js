@@ -13,6 +13,23 @@ const { readSettings } = require('../coerce');
 // prototype-auth/) before wiring in here.
 const DIRECTORY_SHEET_ID = process.env.GOOGLE_DIRECTORY_SHEET_ID;
 
+// Per explicit user report (real tenant login failure, "เข้าไม่ได้" with a
+// correct-looking รหัสตึก/เบอร์โทร): buildingKeyId is a free-text field an
+// owner types into ตั้งค่า > ข้อมูลหอพัก with zero normalization on save
+// (Rental Management.dc.html's onProfileBuildingKeyId stores the raw
+// value) — a tenant/staff typing "ob099" against a stored "OB-099" (or any
+// case/whitespace difference) would silently fail the exact `===` match
+// that used to be here, with an error message ("ไม่พบรหัสตึกนี้") that
+// doesn't hint the code might just be mistyped in case/spacing. Normalize
+// BOTH sides the same way before comparing, in staff-login and
+// tenant-login below, rather than changing how it's stored (stored value
+// still shows in the owner's own ตั้งค่า UI exactly as they typed it).
+const normKey = (s) => String(s || '').trim().toUpperCase();
+// Same reasoning for phone numbers — a tenant might type with dashes/
+// spaces ("084-444-4444") even if the room's saved phone has none, or
+// vice versa. Compare digits-only on both sides.
+const normPhone = (s) => String(s || '').replace(/\D/g, '');
+
 // Per explicit user request (multi-building-per-owner redesign): one
 // person ("เจ้าของ") can own several buildings, all reachable with ONE
 // shared login. `ownerId` (added by prototype-auth/migrate-add-owner-id.js)
@@ -186,12 +203,12 @@ router.post('/staff-login', async (req, res, next) => {
     if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
 
     const users = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
-    const building = users.find((u) => u.buildingKeyId && u.buildingKeyId === buildingKeyId);
+    const building = users.find((u) => u.buildingKeyId && normKey(u.buildingKeyId) === normKey(buildingKeyId));
     if (!building) return res.status(401).json({ error: 'ไม่พบรหัสตึกนี้ กรุณาตรวจสอบรหัสตึกอีกครั้ง' });
     if (building.status === 'suspended') return res.status(403).json({ error: 'ตึกนี้ถูกพักการใช้งานชั่วคราว กรุณาติดต่อผู้ดูแลระบบ' });
 
     const adminRows = await runWithSheetId(building.customerSheetId, () => readTab('Admins'));
-    const admin = adminRows.find((a) => a.phone === phone && a.pin && a.pin === pin);
+    const admin = adminRows.find((a) => normPhone(a.phone) === normPhone(phone) && a.pin && a.pin === pin);
     if (!admin) return res.status(401).json({ error: 'เบอร์โทรหรือรหัสผ่านไม่ถูกต้อง' });
 
     const session = { ownerId: null, role: 'staff', customerSheetId: building.customerSheetId, roomId: null, staffId: admin.id };
@@ -218,12 +235,12 @@ router.post('/tenant-login', async (req, res, next) => {
     if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
 
     const users = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
-    const building = users.find((u) => u.buildingKeyId && u.buildingKeyId === buildingKeyId);
+    const building = users.find((u) => u.buildingKeyId && normKey(u.buildingKeyId) === normKey(buildingKeyId));
     if (!building) return res.status(401).json({ error: 'ไม่พบรหัสตึกนี้ กรุณาตรวจสอบรหัสตึกอีกครั้ง' });
     if (building.status === 'suspended') return res.status(403).json({ error: 'ตึกนี้ถูกพักการใช้งานชั่วคราว กรุณาติดต่อผู้ดูแลระบบ' });
 
     const rooms = await runWithSheetId(building.customerSheetId, () => readTab('Rooms'));
-    const room = rooms.find((r) => r.phone === phone);
+    const room = rooms.find((r) => normPhone(r.phone) === normPhone(phone));
     if (!room) return res.status(401).json({ error: 'ไม่พบเบอร์โทรนี้ในตึกนี้ กรุณาตรวจสอบเบอร์โทรอีกครั้ง' });
 
     const session = { ownerId: null, role: 'tenant', customerSheetId: building.customerSheetId, roomId: room.id, staffId: null };
