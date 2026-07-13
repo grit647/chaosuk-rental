@@ -195,7 +195,11 @@ explicitly requested as "the most important page, cover every button").
 Also one exception tip on **แดชบอร์ด** (auto-refresh toggle only —
 Dashboard is otherwise still excluded from the tour, this one control
 was a deliberate one-off exception since the owner asked for it
-directly). **Not done yet:** ผู้เช่า, แจ้งซ่อม, รายจ่าย, Set อุปกรณ์.
+directly). Also **Set อุปกรณ์** (Tuya IoT page — 5 tips: page overview,
+room/ไฟ-น้ำ tab selector, อุปกรณ์ไฟฟ้า card, อุปกรณ์น้ำ card, and the
+สถานะอุปกรณ์ status lists incl. the ตัดไฟ/จ่ายไฟ button — explicitly
+requested for IoT-using customers). **Not done yet:** ผู้เช่า, แจ้งซ่อม,
+รายจ่าย.
 
 ### Known gap: a tenant who is ALSO staff could get mixed-up LINE messages
 
