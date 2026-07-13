@@ -19,10 +19,17 @@
 // (customerSheetId optional — defaults to GOOGLE_SHEET_ID, i.e. the main
 // property; pass a different building's Sheet ID to set this up for them
 // instead, using THEIR OWN saved LINE credentials from their Settings tab.)
-require('dotenv').config({ path: require('path').join(__dirname, '..', 'server', '.env') });
 const path = require('path');
-const sharp = require(path.join(__dirname, '..', 'server', 'node_modules', 'sharp'));
-const { google } = require('googleapis');
+const SERVER_MODULES = path.join(__dirname, '..', 'server', 'node_modules');
+// Explicit node_modules paths (not a plain `require('dotenv')`/`require
+// ('googleapis')`) — prototype-auth/ has no node_modules of its own,
+// only server/ does, and Node's module resolution walks up from the
+// REQUIRING FILE's own directory, not the process's cwd, so a plain
+// bare require here would fail regardless of which directory this
+// script is invoked from.
+require(path.join(SERVER_MODULES, 'dotenv')).config({ path: path.join(__dirname, '..', 'server', '.env') });
+const sharp = require(path.join(SERVER_MODULES, 'sharp'));
+const { google } = require(path.join(SERVER_MODULES, 'googleapis'));
 const {
   isConfigured, createRichMenu, uploadRichMenuImage, deleteRichMenu,
 } = require(path.join(__dirname, '..', 'server', 'line'));
