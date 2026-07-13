@@ -3055,10 +3055,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <div style="flex:1">
                           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
                             <div style="font-size:10.5px;color:#7C6E5F">ค่าน้ำ (บาท)</div>
-                            <div style="display:flex;gap:3px">
-                              <div onclick="{{ b.onSetWaterDevice }}" style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;background:{{ b.waterDeviceBg }};color:{{ b.waterDeviceColor }}">อุปกรณ์</div>
-                              <div onclick="{{ b.onSetWaterManual }}" style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;background:{{ b.waterManualBg }};color:{{ b.waterManualColor }}">กรอกเอง</div>
-                            </div>
+                            <sc-if value="{{ b.hasWaterDevice }}" hint-placeholder-val="{{ true }}">
+                              <div style="display:flex;gap:3px">
+                                <div onclick="{{ b.onSetWaterDevice }}" style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;background:{{ b.waterDeviceBg }};color:{{ b.waterDeviceColor }}">อุปกรณ์</div>
+                                <div onclick="{{ b.onSetWaterManual }}" style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;background:{{ b.waterManualBg }};color:{{ b.waterManualColor }}">กรอกเอง</div>
+                              </div>
+                            </sc-if>
                           </div>
                           <sc-if value="{{ b.isWaterDevice }}" hint-placeholder-val="{{ true }}">
                             <input value="{{ b.water }}" readonly="{{ true }}" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:#F7F2E9">
@@ -3072,10 +3074,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <div style="flex:1">
                           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
                             <div style="font-size:10.5px;color:#7C6E5F">ค่าไฟ (บาท)</div>
-                            <div style="display:flex;gap:3px">
-                              <div onclick="{{ b.onSetElecDevice }}" style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;background:{{ b.elecDeviceBg }};color:{{ b.elecDeviceColor }}">อุปกรณ์</div>
-                              <div onclick="{{ b.onSetElecManual }}" style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;background:{{ b.elecManualBg }};color:{{ b.elecManualColor }}">กรอกเอง</div>
-                            </div>
+                            <sc-if value="{{ b.hasElecDevice }}" hint-placeholder-val="{{ true }}">
+                              <div style="display:flex;gap:3px">
+                                <div onclick="{{ b.onSetElecDevice }}" style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;background:{{ b.elecDeviceBg }};color:{{ b.elecDeviceColor }}">อุปกรณ์</div>
+                                <div onclick="{{ b.onSetElecManual }}" style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;background:{{ b.elecManualBg }};color:{{ b.elecManualColor }}">กรอกเอง</div>
+                              </div>
+                            </sc-if>
                           </div>
                           <sc-if value="{{ b.isElecDevice }}" hint-placeholder-val="{{ true }}">
                             <input value="{{ b.elec }}" readonly="{{ true }}" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:#F7F2E9">
@@ -3183,10 +3187,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="flex:1">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
                       <div style="font-size:11.5px;color:#7C6E5F">มิเตอร์น้ำ (หน่วย)</div>
-                      <div style="display:flex;gap:3px">
-                        <div onclick="{{ setInvWaterDevice }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invWaterDeviceBg }};color:{{ invWaterDeviceColor }}">อุปกรณ์</div>
-                        <div onclick="{{ setInvWaterManual }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invWaterManualBg }};color:{{ invWaterManualColor }}">กรอกเอง</div>
-                      </div>
+                      <sc-if value="{{ invWaterHasDevice }}" hint-placeholder-val="{{ true }}">
+                        <div style="display:flex;gap:3px">
+                          <div onclick="{{ setInvWaterDevice }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invWaterDeviceBg }};color:{{ invWaterDeviceColor }}">อุปกรณ์</div>
+                          <div onclick="{{ setInvWaterManual }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invWaterManualBg }};color:{{ invWaterManualColor }}">กรอกเอง</div>
+                        </div>
+                      </sc-if>
                     </div>
                     <sc-if value="{{ invWaterIsDevice }}" hint-placeholder-val="{{ true }}">
                       <input value="{{ invWaterDeviceDisplay }}" readonly="{{ true }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:{{ invWaterFieldBg }}">
@@ -3203,10 +3209,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="flex:1">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
                       <div style="font-size:11.5px;color:#7C6E5F">มิเตอร์ไฟ (หน่วย)</div>
-                      <div style="display:flex;gap:3px">
-                        <div onclick="{{ setInvElecDevice }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invElecDeviceBg }};color:{{ invElecDeviceColor }}">อุปกรณ์</div>
-                        <div onclick="{{ setInvElecManual }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invElecManualBg }};color:{{ invElecManualColor }}">กรอกเอง</div>
-                      </div>
+                      <sc-if value="{{ invElecHasDevice }}" hint-placeholder-val="{{ true }}">
+                        <div style="display:flex;gap:3px">
+                          <div onclick="{{ setInvElecDevice }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invElecDeviceBg }};color:{{ invElecDeviceColor }}">อุปกรณ์</div>
+                          <div onclick="{{ setInvElecManual }}" style="font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;cursor:pointer;background:{{ invElecManualBg }};color:{{ invElecManualColor }}">กรอกเอง</div>
+                        </div>
+                      </sc-if>
                     </div>
                     <sc-if value="{{ invElecIsDevice }}" hint-placeholder-val="{{ true }}">
                       <input value="{{ invElecDeviceDisplay }}" readonly="{{ true }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;background:{{ invElecFieldBg }}">
@@ -5539,8 +5547,14 @@ class Component extends DCLogic {
     eligible.forEach(r => {
       const dw = this.deviceCharge(r.id, 'water');
       const de = this.deviceCharge(r.id, 'elec');
+      // Per explicit user request: skip "อุปกรณ์" mode for a utility this
+      // room has no Tuya device linked for at all — the toggle is hidden
+      // for that case (see hasWaterDevice/hasElecDevice in renderVals()),
+      // so the draft should start in "กรอกเอง" straight away instead of a
+      // dead-end device mode showing a stuck 0.
       drafts[r.id] = {
-        waterMode: 'device', elecMode: 'device',
+        waterMode: r.tuyaWaterDeviceId ? 'device' : 'manual',
+        elecMode: r.tuyaElecDeviceId ? 'device' : 'manual',
         water: dw ? String(dw.charge) : '0', elec: de ? String(de.charge) : '0',
         waterUnits: '', elecUnits: '',
       };
@@ -5693,6 +5707,13 @@ class Component extends DCLogic {
   openInvoiceModal = () => this.setState({ showInvoiceModal: true, newInvoice: { roomId: '', water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' } });
   openInvoiceForRoom = (roomId) => {
     const next = { roomId, water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' };
+    // Per explicit user request: skip "อุปกรณ์" mode entirely for a
+    // utility this room has no Tuya device linked for (toggle is hidden
+    // in that case — see invWaterHasDevice/invElecHasDevice — so opening
+    // straight into "device" mode would just show a stuck 0 amount).
+    const room = this.state.rooms.find(r => r.id === roomId);
+    if (room && !room.tuyaWaterDeviceId) next.waterMode = 'manual';
+    if (room && !room.tuyaElecDeviceId) next.elecMode = 'manual';
     const dw = this.deviceCharge(roomId, 'water'); if (dw) next.water = String(dw.charge);
     const de = this.deviceCharge(roomId, 'elec'); if (de) next.elec = String(de.charge);
     this.setState({ showInvoiceModal: true, newInvoice: next });
@@ -6148,6 +6169,13 @@ class Component extends DCLogic {
     const v = e.target.value;
     this.setState(s => {
       const next = { ...s.newInvoice, roomId: v };
+      // Per explicit user request: a room with no Tuya device linked for a
+      // utility should never even offer "อุปกรณ์" mode — force straight to
+      // "กรอกเอง" (manual) for that utility when switching to such a room,
+      // so the owner isn't left on a dead-end toggle the UI now hides.
+      const newRoom = s.rooms.find(r => r.id === v);
+      if (newRoom && !newRoom.tuyaWaterDeviceId) next.waterMode = 'manual';
+      if (newRoom && !newRoom.tuyaElecDeviceId) next.elecMode = 'manual';
       // Per explicit user request: when in "อุปกรณ์" mode but the device
       // isn't ready/linked (deviceCharge returns null — "อุปกรณ์ไม่พร้อม"),
       // the amount should read 0, not silently keep whatever leftover
@@ -9391,6 +9419,11 @@ class Component extends DCLogic {
           totalDisplay: this.fmt(total),
           breakdownLabel: `ค่าเช่า ${this.fmt(room.rent || 0)} + ขยะ ${this.fmt(s.trashRate || 0)} + เน็ต ${this.fmt(s.internetRate || 0)}`,
           isWaterDevice, isWaterManual, isElecDevice, isElecManual,
+          // Per explicit user request (same as the single-invoice form):
+          // hide the อุปกรณ์/กรอกเอง toggle entirely for a utility this
+          // room has no Tuya device linked for — the toggle is a dead end
+          // otherwise (deviceCharge() returns null, "อุปกรณ์ไม่พร้อม").
+          hasWaterDevice: !!room.tuyaWaterDeviceId, hasElecDevice: !!room.tuyaElecDeviceId,
           waterDeviceHint: dw ? dw.units + ' หน่วย × ' + waterRate : 'อุปกรณ์ไม่พร้อม',
           elecDeviceHint: de ? de.units + ' หน่วย × ' + elecRate : 'อุปกรณ์ไม่พร้อม',
           // Same "ครั้งก่อน → ปัจจุบัน = ใช้ X หน่วย" derivation as the
@@ -9448,6 +9481,15 @@ class Component extends DCLogic {
       })(),
       onNewInvoiceRoomChange: this.onNewInvoiceRoomChange, onNewInvoiceWaterChange: this.onNewInvoiceWaterChange, onNewInvoiceElecChange: this.onNewInvoiceElecChange, onNewInvoiceDueChange: this.onNewInvoiceDueChange, submitInvoice: this.submitInvoice,
       setInvoiceWaterMode: this.setInvoiceWaterMode, setInvoiceElecMode: this.setInvoiceElecMode,
+      // Per explicit user request: a room with NO Tuya device linked at all
+      // for a given utility should never show the "อุปกรณ์/กรอกเอง" toggle —
+      // picking "อุปกรณ์" would just be a dead end (deviceCharge() returns
+      // null, amount reads 0 — see the comment on onNewInvoiceRoomChange).
+      // Simplify by hiding the toggle entirely and defaulting straight to
+      // manual entry for that utility (forced in openInvoiceForRoom/
+      // onNewInvoiceRoomChange, not just hidden here — see those handlers).
+      invWaterHasDevice: !!(s.rooms.find(x => x.id === s.newInvoice.roomId) || {}).tuyaWaterDeviceId,
+      invElecHasDevice: !!(s.rooms.find(x => x.id === s.newInvoice.roomId) || {}).tuyaElecDeviceId,
       invWaterIsDevice: s.newInvoice.waterMode === 'device', invElecIsDevice: s.newInvoice.elecMode === 'device',
       // Genuinely negated companion fields, NOT the same invWaterIsDevice/
       // invElecIsDevice condition reused with hint-placeholder-val flipped —
