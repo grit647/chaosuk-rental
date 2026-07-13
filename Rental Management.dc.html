@@ -3408,15 +3408,18 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
         </sc-if>
 
         <!-- Per explicit user request: the tap-to-explain answer banner
-             for /demo — a single fixed-position bottom banner (rather
-             than a popover positioned next to each "❓" badge) since
-             only one tip is ever open at a time and this stays
-             consistent on both desktop and mobile. -->
+             for /demo — a single shared overlay (rather than a popover
+             positioned next to each "❓" badge) since only one tip is
+             ever open at a time. Centered on screen (per explicit
+             follow-up request — was originally bottom-anchored) with a
+             dimmed backdrop, tap outside or × to close. -->
         <sc-if value="{{ demoTipVisible }}" hint-placeholder-val="{{ false }}">
-          <div style="position:fixed;left:16px;right:16px;bottom:16px;max-width:520px;margin:0 auto;background:#241812;color:#F1EBE0;border-radius:12px;padding:16px 18px;box-shadow:0 8px 28px rgba(36,24,18,0.35);z-index:300;display:flex;align-items:flex-start;gap:12px">
-            <span style="font-size:18px;flex-shrink:0">💡</span>
-            <div style="flex:1;font-size:13px;line-height:1.6">{{ demoTipText }}</div>
-            <span onclick="{{ closeDemoTip }}" style="cursor:pointer;font-size:18px;color:rgba(241,235,224,0.6);flex-shrink:0">×</span>
+          <div onclick="{{ closeDemoTip }}" style="position:fixed;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:300;padding:16px;box-sizing:border-box">
+            <div onclick="{{ stop }}" style="max-width:420px;width:100%;background:#241812;color:#F1EBE0;border-radius:12px;padding:18px 20px;box-shadow:0 8px 28px rgba(36,24,18,0.35);display:flex;align-items:flex-start;gap:12px">
+              <span style="font-size:18px;flex-shrink:0">💡</span>
+              <div style="flex:1;font-size:13px;line-height:1.6">{{ demoTipText }}</div>
+              <span onclick="{{ closeDemoTip }}" style="cursor:pointer;font-size:18px;color:rgba(241,235,224,0.6);flex-shrink:0">×</span>
+            </div>
           </div>
         </sc-if>
 
