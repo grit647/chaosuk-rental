@@ -80,4 +80,102 @@ async function getMessageContent(messageId, creds) {
   return Buffer.from(arrayBuffer);
 }
 
-module.exports = { isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent };
+// --- Rich Menu management ---
+// Per explicit user request: a persistent, tappable image menu shown at
+// the bottom of the LINE chat (see the "ทดสอบ เมนูฝั่งผู้เช่าก่อนครับ"
+// conversation) — separate API family from the message-sending ones
+// above, uses api.line.me/v2/bot/richmenu (+ api-data.line.me for the
+// image itself). Every action here is tap-zone → postback data, so the
+// webhook handler (see routes/line.js's postback event handling) always
+// learns WHICH zone was tapped and WHO tapped it (event.source.userId),
+// without needing LIFF or any browser-side auth at all.
+const RICHMENU_API = 'https://api.line.me/v2/bot/richmenu';
+
+async function callLineGetOrDelete(method, path, creds) {
+  const c = resolveCreds(creds);
+  const res = await fetch(`${RICHMENU_API}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${c.accessToken}` },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`LINE richmenu ${method} ${path} failed (${res.status}): ${text}`);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+// richMenuObject: { size: {width,height}, selected, name, chatBarText, areas: [{bounds:{x,y,width,height}, action:{type:'postback', data, displayText}}] }
+async function createRichMenu(richMenuObject, creds) {
+  const c = resolveCreds(creds);
+  const res = await fetch(RICHMENU_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${c.accessToken}` },
+    body: JSON.stringify(richMenuObject),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`LINE richmenu create failed (${res.status}): ${text}`);
+  }
+  return (await res.json()).richMenuId;
+}
+
+// imageBuffer must be PNG or JPEG, exact pixel size matching the richMenuObject's `size` used at creation (2500x1686 for a full menu).
+async function uploadRichMenuImage(richMenuId, imageBuffer, contentType, creds) {
+  const c = resolveCreds(creds);
+  const res = await fetch(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, {
+    method: 'POST',
+    headers: { 'Content-Type': contentType || 'image/png', Authorization: `Bearer ${c.accessToken}` },
+    body: imageBuffer,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`LINE richmenu image upload failed (${res.status}): ${text}`);
+  }
+}
+
+// Sets this rich menu as the DEFAULT shown to every follower who doesn't
+// have a per-user rich menu explicitly linked (see linkRichMenuToUser) —
+// used as a fallback (e.g. before a tenant's own room-specific menu gets
+// linked, or for anyone we haven't identified a role for at all).
+async function setDefaultRichMenu(richMenuId, creds) {
+  const c = resolveCreds(creds);
+  const res = await fetch(`https://api.line.me/v2/bot/user/all/richmenu/${richMenuId}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${c.accessToken}` },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`LINE richmenu set-default failed (${res.status}): ${text}`);
+  }
+}
+
+// Links a specific rich menu to ONE LINE user — this is the actual
+// mechanism behind "different menu per role" (owner/staff/tenant) even
+// though everyone messages the same shared LINE OA: called right after a
+// self-link succeeds (tenant types phone number, owner types PIN — see
+// routes/line.js) so each person gets the menu matching their own role
+// from that point on, overriding the default menu for just that user.
+async function linkRichMenuToUser(userId, richMenuId, creds) {
+  const c = resolveCreds(creds);
+  const res = await fetch(`https://api.line.me/v2/bot/user/${userId}/richmenu/${richMenuId}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${c.accessToken}` },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`LINE richmenu link-to-user failed (${res.status}): ${text}`);
+  }
+}
+
+async function listRichMenus(creds) {
+  return (await callLineGetOrDelete('GET', '/list', creds)).richmenus;
+}
+
+async function deleteRichMenu(richMenuId, creds) {
+  await callLineGetOrDelete('DELETE', `/${richMenuId}`, creds);
+}
+
+module.exports = {
+  isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent,
+  createRichMenu, uploadRichMenuImage, setDefaultRichMenu, linkRichMenuToUser, listRichMenus, deleteRichMenu,
+};

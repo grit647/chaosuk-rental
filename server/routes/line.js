@@ -4,11 +4,13 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { readTab, updateRow, appendRow } = require('../sheets');
-const { coerceInvoices, coerceRooms, readIntegrationCredentials } = require('../coerce');
-const { isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent } = require('../line');
+const { coerceInvoices, coerceRooms, readSettings, readIntegrationCredentials } = require('../coerce');
+const { isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent, linkRichMenuToUser } = require('../line');
 const { isConfigured: claudeConfigured, readPaymentSlip } = require('../claude');
 const { isConfigured: cloudinaryConfigured, uploadBuffer: uploadToCloudinary } = require('../cloudinary');
 const { notifyAdmin } = require('../adminNotify');
+const { sign, verify, setSessionCookie } = require('../auth');
+const { computeTenantUsage } = require('./tenant');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -308,6 +310,22 @@ router.post('/webhook', async (req, res) => {
           const room = rooms.find((r) => r.phone && normPhone(r.phone) === normPhone(text));
           if (room) {
             await updateRow('Rooms', room.id, { lineUserId: event.source.userId });
+            // Per explicit user request: right after a tenant successfully
+            // self-links, give them the tenant-specific Rich Menu (see
+            // prototype-auth/setup-tenant-richmenu.js for how it's
+            // created) instead of leaving them on the OA's default menu —
+            // this is the actual mechanism behind "different menu per
+            // role" even though everyone messages the same shared LINE
+            // OA. tenantRichMenuId is a Settings KV set once by that setup
+            // script; non-fatal if missing/not set up yet or if the link
+            // call itself fails — the tenant is still fully linked either
+            // way, just without the nicer menu.
+            try {
+              const rmRow = settingsRows.find((r) => r.key === 'tenantRichMenuId');
+              if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value);
+            } catch (err) {
+              console.error('[line] linkRichMenuToUser failed for', event.source.userId, err.message);
+            }
             await replyMessage(event.replyToken, `เชื่อมต่อห้อง ${room.id} เรียบร้อยแล้วครับ จะแจ้งเตือนบิล/ข่าวสารมาทางไลน์นี้`);
           } else {
             await replyMessage(event.replyToken, 'ไม่พบเบอร์โทรนี้ในระบบครับ กรุณาพิมพ์เบอร์โทรศัพท์ตามที่ระบุในสัญญาเช่าให้ถูกต้อง');
@@ -318,6 +336,17 @@ router.post('/webhook', async (req, res) => {
           await handleSlipImage(event, req);
           continue;
         }
+        // Per explicit user request: Rich Menu tap zones use postback
+        // actions (not "uri" actions) specifically so the webhook always
+        // learns WHO tapped (event.source.userId) — a plain link opened
+        // from a rich menu carries no identifying info back to us at all.
+        // See prototype-auth/setup-tenant-richmenu.js for the actual menu
+        // layout/postback-data values created; this switch is the other
+        // half of that contract.
+        if (event.type === 'postback' && event.postback) {
+          await handleTenantRichMenuPostback(event);
+          continue;
+        }
       } catch (err) {
         console.error('[line] error handling event', err.message);
       }
@@ -325,6 +354,94 @@ router.post('/webhook', async (req, res) => {
   } catch (err) {
     console.error('[line] webhook error', err.message);
   }
+});
+
+// Per explicit user request ("ทดสอบเมนูฝั่งผู้เช่าก่อน"): handles every
+// tap-zone on the tenant Rich Menu. Three actions reply with info
+// directly in the chat (no web page needed); three open the tenant
+// portal via a short-lived signed auto-login link, since a postback event
+// has no browser session to carry — see GET /auto-login below for the
+// other half.
+async function handleTenantRichMenuPostback(event) {
+  const data = event.postback.data || '';
+  const rooms = coerceRooms(await readTab('Rooms'));
+  const room = rooms.find((r) => r.lineUserId === event.source.userId);
+  if (!room) {
+    await replyMessage(event.replyToken, 'บัญชี LINE นี้ยังไม่ได้เชื่อมต่อกับห้องไหนเลยครับ กรุณาพิมพ์เบอร์โทรศัพท์ของคุณ (ตามที่ระบุในสัญญาเช่า) ก่อนครับ');
+    return;
+  }
+
+  const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://chaosuk-rental.onrender.com';
+  // Short-lived (5 min) signed token — payload deliberately minimal
+  // (customerSheetId + roomId only, matching a real tenant session's
+  // shape). Verified + consumed by GET /auto-login below.
+  function autoLoginLink(view) {
+    const token = sign({ customerSheetId: process.env.GOOGLE_SHEET_ID, roomId: room.id, exp: Date.now() + 5 * 60 * 1000 });
+    return `${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}&view=${view}`;
+  }
+
+  switch (data) {
+    case 'action=bill':
+      await replyMessage(event.replyToken, `ดูยอดค้างชำระห้อง ${room.id} ได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${autoLoginLink('bill')}`);
+      return;
+    case 'action=contract':
+      await replyMessage(event.replyToken, `ดูสัญญาเช่าห้อง ${room.id} ได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${autoLoginLink('contract')}`);
+      return;
+    case 'action=maintenance':
+      await replyMessage(event.replyToken, `แจ้งซ่อมห้อง ${room.id} ได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${autoLoginLink('maintenance')}`);
+      return;
+    case 'action=contact': {
+      const settings = await readSettings();
+      const name = settings.propertyProfile.adminName || 'เจ้าของหอพัก';
+      const phone = settings.propertyProfile.adminPhone;
+      await replyMessage(event.replyToken, phone ? `ติดต่อผู้ดูแล (${name}) ได้ที่เบอร์ ${phone} ครับ` : 'ยังไม่ได้ตั้งค่าเบอร์ติดต่อผู้ดูแลไว้ในระบบครับ');
+      return;
+    }
+    case 'action=wifi':
+      await replyMessage(event.replyToken, room.wifiCode ? `รหัส Wifi ห้อง ${room.id}: ${room.wifiCode}` : 'ยังไม่ได้บันทึกรหัส Wifi ของห้องนี้ไว้ในระบบครับ ลองสอบถามผู้ดูแลโดยตรงครับ');
+      return;
+    case 'action=usage': {
+      const usage = await computeTenantUsage(room);
+      if (!usage.hasElecDevice && !usage.hasWaterDevice) {
+        await replyMessage(event.replyToken, `ห้อง ${room.id} ยังไม่ได้เชื่อมต่ออุปกรณ์วัดน้ำ/ไฟกับระบบครับ`);
+        return;
+      }
+      const lines = [`การใช้น้ำ/ไฟห้อง ${room.id} (นับจากบิลล่าสุด):`];
+      if (usage.hasElecDevice) {
+        lines.push(usage.elecLive && usage.elecLive.online
+          ? `⚡ ไฟตอนนี้: ${usage.elecLive.voltage?.toFixed(1)}V · ${usage.elecLive.current?.toFixed(2)}A · ${usage.elecLive.power?.toFixed(1)}W`
+          : '⚡ อุปกรณ์ไฟฟ้า: ออฟไลน์');
+        if (usage.elecUsage != null) lines.push(`ไฟที่ใช้รอบนี้: ${usage.elecUsage} หน่วย (฿${usage.elecCost})`);
+      }
+      if (usage.hasWaterDevice) {
+        if (!(usage.waterLive && usage.waterLive.online)) lines.push('💧 อุปกรณ์น้ำ: ออฟไลน์');
+        if (usage.waterUsage != null) lines.push(`น้ำที่ใช้รอบนี้: ${usage.waterUsage} หน่วย (฿${usage.waterCost})`);
+      }
+      await replyMessage(event.replyToken, lines.join('\n'));
+      return;
+    }
+    default:
+      return;
+  }
+}
+
+// The other half of the Rich Menu's bill/contract/maintenance actions
+// above — verifies the short-lived signed token, sets a REAL tenant
+// session cookie (same setSessionCookie used by the normal tenant-login
+// flow), then redirects into the tenant portal. `view` isn't consumed
+// server-side (tenant-portal.html shows everything on one page already,
+// per explicit design — there's no separate bill/contract/maintenance
+// sub-page to route between), just carried through in case a future
+// version wants to auto-scroll/highlight a section.
+router.get('/auto-login', (req, res) => {
+  const { token } = req.query;
+  const payload = token && verify(token);
+  if (!payload || !payload.roomId || !payload.exp || Date.now() > payload.exp) {
+    return res.status(401).send('ลิงก์หมดอายุหรือไม่ถูกต้องครับ กรุณากดปุ่มจากเมนูอีกครั้ง');
+  }
+  const session = { ownerId: null, role: 'tenant', customerSheetId: payload.customerSheetId, roomId: payload.roomId, staffId: null };
+  setSessionCookie(res, session);
+  res.redirect('/tenant-portal');
 });
 
 router.post('/send', async (req, res, next) => {

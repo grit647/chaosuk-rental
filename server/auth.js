@@ -64,4 +64,11 @@ function clearSessionCookie(res) {
   res.setHeader('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
 }
 
-module.exports = { getSession, setSessionCookie, clearSessionCookie };
+// sign/verify exported too — reused by server/routes/line.js for the
+// short-lived LINE Rich Menu "auto-login" tokens (a rich menu tap fires a
+// postback webhook event, not a normal browser request, so it can't carry
+// a session cookie — a signed, expiring token embedded in a reply link
+// stands in for one instead). Same HMAC-signed base64url scheme as the
+// session cookie itself, just with a different payload shape and a short
+// expiry baked into the payload by the caller.
+module.exports = { getSession, setSessionCookie, clearSessionCookie, sign, verify };

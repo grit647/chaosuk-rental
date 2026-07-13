@@ -48,86 +48,88 @@ router.get('/invoices', requireTenant, async (req, res, next) => {
 // their room should see the SAME live water/elec readout + this-cycle
 // usage that the owner already sees on the ผู้เช่า page's tenant card
 // (Rental Management.dc.html's deviceCharge/_waterRolloverUnits/
-// _applyMinCharge) — this endpoint replicates that exact same calc
-// server-side (units/cost math kept in sync with those, see the comments
-// there for the full reasoning behind the min-charge and water-rollover
-// handling) so a tenant portal view never disagrees with what the owner
-// sees for the same room.
+// _applyMinCharge) — replicates that exact same calc server-side (units/
+// cost math kept in sync with those, see the comments there for the full
+// reasoning behind the min-charge and water-rollover handling) so this
+// never disagrees with what the owner sees for the same room. Exported
+// as a standalone function (not just inline in the route below) so
+// server/routes/line.js's Rich Menu "การใช้น้ำ/ไฟปัจจุบัน" postback
+// action can reuse the exact same computation without duplicating it.
+async function computeTenantUsage(room) {
+  const settings = await readSettings();
+  const creds = await readIntegrationCredentials();
+  // Same reasoning as server/routes/tuya.js's isConfiguredForRequest: only
+  // THIS building's own saved Tuya credentials count — never silently
+  // fall back to the shared server/.env values (a different customer's
+  // Tuya Cloud project) just because this building hasn't set its own.
+  const tuyaReady = !!creds.tuya && isConfigured(creds.tuya);
+
+  const roomRate = (kind) => {
+    const own = kind === 'water' ? room.waterRate : room.elecRate;
+    if (own > 0) return own;
+    return kind === 'water' ? settings.waterRate : settings.elecRate;
+  };
+  const roomMinRate = (kind) => (kind === 'water' ? room.waterMinRate : room.elecMinRate) || 0;
+  const applyMinCharge = (kind, rawCharge) => {
+    const minRate = roomMinRate(kind);
+    if (minRate > 0 && rawCharge < minRate) return { charge: minRate, minApplied: true };
+    return { charge: rawCharge, minApplied: false };
+  };
+
+  const result = { hasElecDevice: false, hasWaterDevice: false };
+
+  if (room.tuyaElecDeviceId && tuyaReady) {
+    result.hasElecDevice = true;
+    try {
+      const live = await getElecReading(room.tuyaElecDeviceId, creds.tuya);
+      result.elecLive = { voltage: live.voltage, current: live.current, power: live.power, energy: live.energy, online: true };
+      if (live.energy != null) {
+        const units = Math.max(0, live.energy - Number(room.elecPrev || 0));
+        const { charge } = applyMinCharge('elec', Math.round(units * roomRate('elec')));
+        result.elecUsage = Number(units.toFixed(2));
+        result.elecCost = charge;
+      }
+    } catch (err) {
+      result.elecLive = { online: false, error: err.message };
+    }
+  }
+
+  if (room.tuyaWaterDeviceId && tuyaReady) {
+    result.hasWaterDevice = true;
+    try {
+      const live = await getWaterReading(room.tuyaWaterDeviceId, creds.tuya);
+      result.waterLive = { usage: live.usage, flowRate: live.flowRate, batteryPercent: live.batteryPercent, online: true };
+      if (live.usage != null) {
+        // Same rollover-protection logic as _waterRolloverUnits — a
+        // meter that wraps back to 0 after a max reading would otherwise
+        // report a negative (floored to 0) usage for the whole cycle.
+        const baselineLiters = Number(room.waterPrev || 0) * 1000;
+        let units;
+        if (live.usage >= baselineLiters) {
+          units = Math.max(0, (live.usage - baselineLiters) / 1000);
+        } else {
+          const maxLiters = Number(room.tuyaWaterMaxLiters || 0);
+          const deltaLiters = maxLiters > 0 ? (maxLiters - baselineLiters) + live.usage : live.usage;
+          units = Math.max(0, deltaLiters / 1000);
+        }
+        const { charge } = applyMinCharge('water', Math.round(units * roomRate('water')));
+        result.waterUsage = Number(units.toFixed(2));
+        result.waterCost = charge;
+      }
+    } catch (err) {
+      result.waterLive = { online: false, error: err.message };
+    }
+  }
+
+  return result;
+}
+
 router.get('/usage', requireTenant, async (req, res, next) => {
   try {
     const rooms = coerceRooms(await readTab('Rooms'));
     const room = rooms.find((r) => r.id === req.session.roomId);
     if (!room) return res.status(404).json({ error: 'ไม่พบข้อมูลห้อง' });
-
-    const settings = await readSettings();
-    const creds = await readIntegrationCredentials();
-    // Same reasoning as server/routes/tuya.js's isConfiguredForRequest:
-    // a tenant session is always scoped to one customerSheetId (see
-    // requireTenant above), so only THAT building's OWN saved Tuya
-    // credentials count — never silently fall back to the shared
-    // server/.env values (which belong to a DIFFERENT customer's Tuya
-    // Cloud project) just because this tenant's own building hasn't set
-    // credentials of its own.
-    const tuyaReady = !!creds.tuya && isConfigured(creds.tuya);
-
-    const roomRate = (kind) => {
-      const own = kind === 'water' ? room.waterRate : room.elecRate;
-      if (own > 0) return own;
-      return kind === 'water' ? settings.waterRate : settings.elecRate;
-    };
-    const roomMinRate = (kind) => (kind === 'water' ? room.waterMinRate : room.elecMinRate) || 0;
-    const applyMinCharge = (kind, rawCharge) => {
-      const minRate = roomMinRate(kind);
-      if (minRate > 0 && rawCharge < minRate) return { charge: minRate, minApplied: true };
-      return { charge: rawCharge, minApplied: false };
-    };
-
-    const result = { hasElecDevice: false, hasWaterDevice: false };
-
-    if (room.tuyaElecDeviceId && tuyaReady) {
-      result.hasElecDevice = true;
-      try {
-        const live = await getElecReading(room.tuyaElecDeviceId, creds.tuya);
-        result.elecLive = { voltage: live.voltage, current: live.current, power: live.power, energy: live.energy, online: true };
-        if (live.energy != null) {
-          const units = Math.max(0, live.energy - Number(room.elecPrev || 0));
-          const { charge } = applyMinCharge('elec', Math.round(units * roomRate('elec')));
-          result.elecUsage = Number(units.toFixed(2));
-          result.elecCost = charge;
-        }
-      } catch (err) {
-        result.elecLive = { online: false, error: err.message };
-      }
-    }
-
-    if (room.tuyaWaterDeviceId && tuyaReady) {
-      result.hasWaterDevice = true;
-      try {
-        const live = await getWaterReading(room.tuyaWaterDeviceId, creds.tuya);
-        result.waterLive = { usage: live.usage, flowRate: live.flowRate, batteryPercent: live.batteryPercent, online: true };
-        if (live.usage != null) {
-          // Same rollover-protection logic as _waterRolloverUnits — a
-          // meter that wraps back to 0 after a max reading would otherwise
-          // report a negative (floored to 0) usage for the whole cycle.
-          const baselineLiters = Number(room.waterPrev || 0) * 1000;
-          let units;
-          if (live.usage >= baselineLiters) {
-            units = Math.max(0, (live.usage - baselineLiters) / 1000);
-          } else {
-            const maxLiters = Number(room.tuyaWaterMaxLiters || 0);
-            const deltaLiters = maxLiters > 0 ? (maxLiters - baselineLiters) + live.usage : live.usage;
-            units = Math.max(0, deltaLiters / 1000);
-          }
-          const { charge } = applyMinCharge('water', Math.round(units * roomRate('water')));
-          result.waterUsage = Number(units.toFixed(2));
-          result.waterCost = charge;
-        }
-      } catch (err) {
-        result.waterLive = { online: false, error: err.message };
-      }
-    }
-
-    res.json(result);
+    res.json(await computeTenantUsage(room));
   } catch (err) { next(err); }
 });
 
@@ -142,3 +144,4 @@ router.post('/maintenance', requireTenant, async (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.computeTenantUsage = computeTenantUsage;
