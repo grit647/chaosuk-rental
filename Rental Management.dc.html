@@ -294,6 +294,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div onclick="{{ goSettings }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navSettings.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navSettings.dot }}"></div>
               <span style="font-size:13.5px;color:{{ navSettings.color }};font-weight:{{ navSettings.weight }}">ตั้งค่า</span>
+              <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:9px;font-weight:700;background:#2C6E8F;color:#fff;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="หน้านี้มีคำอธิบายในโหมดทดลองแล้ว">?</span>
+              </sc-if>
             </div>
           </div>
           <div style="margin-top:auto;padding-top:14px;display:flex;flex-direction:column;gap:10px">
@@ -820,6 +823,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
                 <span style="font-size:16px">🏢</span>
                 <div style="font-size:15px;font-weight:700;color:#241812">ข้อมูลหอพัก</div>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipPropertyInfo }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto" title="อธิบาย">?</span>
+                </sc-if>
               </div>
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:18px">ชื่อหอพักและผู้ดูแลจะแสดงบนบิลและเอกสารสัญญา — เชื่อม LINE เพื่อรับการแจ้งเตือนจากระบบ</div>
               <div style="display:flex;flex-direction:column;gap:14px">
@@ -924,6 +930,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
                 <span style="font-size:16px">🔔</span>
                 <div style="font-size:15px;font-weight:700;color:#241812">การแจ้งเตือนผู้ดูแลทาง LINE</div>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipAdminNotify }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto" title="อธิบาย">?</span>
+                </sc-if>
               </div>
               <sc-if value="{{ adminNotifyLocked }}" hint-placeholder-val="{{ false }}">
                 <div style="font-size:11.5px;color:#B85B27;margin-bottom:16px">ต้องเชื่อมต่อ LINE ผู้ดูแล (การ์ดด้านบน) ก่อน ถึงจะเปิดใช้งานสวิตช์เหล่านี้ได้</div>
@@ -1029,7 +1038,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;row-gap:6px">
                 <span style="font-size:16px">🔗</span>
                 <div style="font-size:15px;font-weight:700;color:#241812">การเชื่อมต่อ Tuya Cloud</div>
-                <span onclick="{{ openTuyaCredModal }}" title="ตั้งค่า Tuya" style="cursor:pointer;font-size:14px;margin-left:auto">⚙️</span>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipTuyaConnect }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto" title="อธิบาย">?</span>
+                </sc-if>
+                <span onclick="{{ openTuyaCredModal }}" title="ตั้งค่า Tuya" style="cursor:pointer;font-size:14px">⚙️</span>
                 <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ tuyaStatusBg }};color:{{ tuyaStatusColor }}">
                   <span style="width:6px;height:6px;border-radius:50%;background:{{ tuyaStatusDot }}"></span>{{ tuyaStatusLabel }}
                 </span>
@@ -1045,7 +1057,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;row-gap:6px">
                 <span style="width:22px;height:22px;border-radius:6px;background:#06C755;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">L</span>
                 <div style="font-size:15px;font-weight:700;color:#241812">การเชื่อมต่อ LINE Official Account</div>
-                <span onclick="{{ openLineCredModal }}" title="ตั้งค่า LINE" style="cursor:pointer;font-size:14px;margin-left:auto">⚙️</span>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipLineConnect }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto" title="อธิบาย">?</span>
+                </sc-if>
+                <span onclick="{{ openLineCredModal }}" title="ตั้งค่า LINE" style="cursor:pointer;font-size:14px">⚙️</span>
                 <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ lineStatusBg }};color:{{ lineStatusColor }}">
                   <span style="width:6px;height:6px;border-radius:50%;background:{{ lineStatusDot }}"></span>{{ lineStatusLabel }}
                 </span>
@@ -1061,7 +1076,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;row-gap:6px">
                 <span style="width:22px;height:22px;border-radius:6px;background:#188038;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">S</span>
                 <div style="font-size:15px;font-weight:700;color:#241812">เชื่อมต่อ Google Sheet</div>
-                <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;margin-left:auto;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ sheetStatusBg }};color:{{ sheetStatusColor }}">
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipSheetConnect }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto" title="อธิบาย">?</span>
+                </sc-if>
+                <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ sheetStatusBg }};color:{{ sheetStatusColor }}">
                   <span style="width:6px;height:6px;border-radius:50%;background:{{ sheetStatusDot }}"></span>{{ sheetStatusLabel }}
                 </span>
               </div>
@@ -1076,6 +1094,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
               <span style="font-size:16px">🧩</span>
               <div style="font-size:15px;font-weight:700;color:#241812">จัดการเมนูฟีเจอร์</div>
+              <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                <span onclick="{{ onDemoTipFeatureToggle }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto" title="อธิบาย">?</span>
+              </sc-if>
             </div>
             <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">เปิด/ปิดเมนูบางส่วนในแถบซ้าย — เหมาะสำหรับกรณีไม่ได้ใช้งานฟีเจอร์นั้นๆ เมนูที่ปิดจะหายจากแถบซ้าย แต่กลับมาเปิดใหม่ได้เสมอจากตรงนี้ (ต้องใส่รหัสยืนยันของแพลตฟอร์ม — ติดต่อผู้ดูแลแพลตฟอร์มถ้าต้องการเปลี่ยน)</div>
             <div style="display:flex;flex-direction:column;gap:8px">
@@ -1111,6 +1132,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
               <span style="font-size:16px">🗑️</span>
               <div style="font-size:15px;font-weight:700;color:#241812">ข้อมูลระบบ</div>
+              <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                <span onclick="{{ onDemoTipSystemData }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto" title="อธิบาย">?</span>
+              </sc-if>
             </div>
             <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:18px">ล้างข้อมูลที่บันทึกไว้ — การลบทุกแบบด้านล่างนี้กู้คืนไม่ได้</div>
 
@@ -3562,6 +3586,18 @@ const DEMO_TIPS = {
   calAddEvent: 'กรอกรายการ/งาน เวลา และประเภท แล้วกด "+ บันทึกลงปฏิทิน" เพื่อเพิ่มนัดหมายในวันที่เลือกไว้ — เลือกประเภทเองได้ (เช่น ตามบิล, ซ่อมบำรุง, นัดดูห้อง)',
   calBroadcast: 'กดเพื่อส่งข้อความแจ้งเตือนเรื่องนี้ไปหาผู้เช่าทุกคน (หรือเลือกเฉพาะบางห้อง) ผ่าน LINE ได้ทันที — เช่น แจ้งเตือนตัดน้ำ-ไฟ หรือนัดหมายสำคัญของตึก',
   autoRefresh: 'เปิดสวิตช์นี้ไว้ ตัวเลขในหน้าแดชบอร์ด (และหน้าอื่นๆ ที่เปิดค้างไว้ในแท็บนี้) จะอัปเดตให้เองอัตโนมัติทุก 30 วินาที ไม่ต้องกด F5 รีเฟรชเอง — มีประโยชน์เวลาเปิดหน้าจอทิ้งไว้ที่เคาน์เตอร์หรือหน้าจอมอนิเตอร์ตึก',
+  // Per explicit user request ("สำคัญที่สุด ขอแบบละเอียดที่สุด ทุกปุ่ม
+  // ยิ่งดี"): ตั้งค่า (Settings) page — one tip per card, covering every
+  // distinct section a demo visitor could interact with. "เพิ่มตึกใหม่"
+  // card deliberately skipped — gated behind isPlatformAdmin, which is
+  // always false for a demo session, so it never even renders here.
+  propertyInfo: 'การ์ดนี้เก็บข้อมูลพื้นฐานของหอพัก (ชื่อ เจ้าของกิจการ เบอร์ติดต่อ รหัสประจำตึก) เชื่อม LINE ผู้ดูแลไว้รับการแจ้งเตือนสำคัญ และอัปโหลด QR ชำระเงินแนบท้ายบิลได้ — แก้ไขแล้วต้องกด "บันทึกข้อมูล" และยืนยันด้วยรหัส PIN ทุกครั้ง กันแก้ไขผิดพลาด',
+  adminNotify: 'เลือกได้ว่าอยากให้แจ้งเตือนอะไรบ้างทาง LINE เช่น มีสลิปรอตรวจสอบ บิลเกินกำหนดชำระ งานซ่อมใหม่เข้ามา สัญญาใกล้หมดอายุ — ต้องเชื่อม LINE ผู้ดูแล (การ์ดด้านบน) ก่อนถึงจะเปิดสวิตช์เหล่านี้ได้',
+  tuyaConnect: 'เชื่อมต่อกับ Tuya Cloud เพื่อดึงข้อมูลมิเตอร์ไฟ/น้ำแบบเรียลไทม์จากอุปกรณ์ IoT ที่ติดตั้งไว้ในตึกจริง — ใส่ Access ID/Secret จากหน้า Tuya IoT Platform ของตัวเอง',
+  lineConnect: 'เชื่อมต่อ LINE Official Account ของหอพักเพื่อส่งบิล/ข่าวสาร/แจ้งเตือนหาผู้เช่าโดยตรงผ่าน LINE — ใส่ Channel ID, Channel Secret และ Access Token จาก LINE Developers Console',
+  sheetConnect: 'แสดงสถานะการเชื่อมต่อกับ Google Sheet ที่เป็นฐานข้อมูลจริงของระบบ — ข้อมูลห้อง บิล ผู้เช่า ทุกอย่างเก็บอยู่ใน Sheet นี้จริงๆ เปิด Sheet ดูตรงๆ ได้ทุกเมื่อ',
+  featureToggle: 'เปิด/ปิดเมนูบางส่วนที่ไม่ได้ใช้งานได้ เช่น ถ้าตึกไม่มีอุปกรณ์ IoT ก็ปิดเมนู "Set อุปกรณ์" ไปได้เลย เมนูที่ปิดจะหายจากแถบซ้ายชั่วคราว เปิดกลับมาได้เสมอจากตรงนี้',
+  systemData: '"ล้างข้อมูลบางส่วน" เลือกได้ว่าจะล้างอะไร (เช่น แค่ประวัติการใช้ไฟ หรือแค่รายจ่าย) ส่วน "ล้างข้อมูลทั้งหมด" คือรีเซ็ตทุกอย่างเริ่มต้นใหม่ — ต้องตั้ง/ใส่รหัส PIN ก่อนเสมอ กันกดผิดโดยไม่ตั้งใจ และ ⚠️ ลบแล้วกู้คืนไม่ได้',
 };
 class Component extends DCLogic {
   state = {
@@ -8971,6 +9007,13 @@ class Component extends DCLogic {
       onDemoTipCalAddEvent: () => this.showDemoTip('calAddEvent'),
       onDemoTipCalBroadcast: () => this.showDemoTip('calBroadcast'),
       onDemoTipAutoRefresh: () => this.showDemoTip('autoRefresh'),
+      onDemoTipPropertyInfo: () => this.showDemoTip('propertyInfo'),
+      onDemoTipAdminNotify: () => this.showDemoTip('adminNotify'),
+      onDemoTipTuyaConnect: () => this.showDemoTip('tuyaConnect'),
+      onDemoTipLineConnect: () => this.showDemoTip('lineConnect'),
+      onDemoTipSheetConnect: () => this.showDemoTip('sheetConnect'),
+      onDemoTipFeatureToggle: () => this.showDemoTip('featureToggle'),
+      onDemoTipSystemData: () => this.showDemoTip('systemData'),
       calMonthLabel, calCells, calWeekdays: ['อา','จ','อ','พ','พฤ','ศ','ส'],
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,
