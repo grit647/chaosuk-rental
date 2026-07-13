@@ -88,6 +88,18 @@ tenant, this constant needs to move to a real per-deployment secret
 instead of a shared hardcoded value — flagging now so a future session
 doesn't miss it.
 
+**Login-PIN fallback (added later, per explicit user request):**
+`POST /api/settings/verify-admin-pin` — the shared endpoint behind
+every one of these "are you sure" gates — now accepts the owner's own
+LOGIN PIN (the one used at `/login`, phone+pin) as an alternative to
+this building's own `adminEditPin`, looked up from the shared
+Directory sheet matched strictly by the session's own
+`customerSheetId`. Reasoning: `adminEditPin` and the login PIN are two
+deliberately separate concepts (see the `change-admin-pin` comment
+above), but an owner shouldn't get stuck on a confirm dialog just
+because they forgot which of the two applies here — this makes either
+one work, without merging the two concepts together.
+
 ### LINE webhook only receives messages for the main property — other customers' LINE OAs can send but not receive
 
 **Status:** Open — decided on an approach (per-customer webhook URLs),
