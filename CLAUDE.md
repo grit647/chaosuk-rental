@@ -260,6 +260,17 @@ linked elsewhere when linking a new one? something else). Purely a
 
 ## Permanent rules (do not relax without the owner explicitly re-confirming)
 
+- **Terminology: "เลขมิเตอร์" vs "หน่วย".** "เลขมิเตอร์" (meter number/
+  reading) always means the raw current value read off a physical water
+  or electricity meter — for both utilities. "หน่วย" (units) is reserved
+  specifically for the CALCULATED RESULT of (current reading − previous
+  reading), i.e. usage. Never label a raw-reading field/box with "หน่วย"
+  and never label a calculated-usage figure with "เลขมิเตอร์" — mixing
+  these caused a real bug (the invoice form's device-mode meter box was
+  showing usage instead of the raw reading, looked like the meter went
+  backward — fixed, then this convention was set explicitly by the owner
+  afterward so it doesn't happen again). Applies to new labels/copy
+  anywhere in the app, not just the invoice form.
 - **No code/server/credential access from the Claude command box or recurring
   automation, ever.** Not a policy switch — there must never be a tool that
   makes this mechanically possible (see `server/claudeTools.js`'s `TOOLS`
