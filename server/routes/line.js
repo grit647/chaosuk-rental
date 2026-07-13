@@ -218,7 +218,7 @@ async function handleSlipImage(event, req) {
       amount: newSlip.amount != null ? newSlip.amount : '', date: newSlip.date,
       senderName: newSlip.senderName, imageUrl: newSlip.imageUrl, uploadedAt: newSlip.uploadedAt,
     });
-    await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ${amountLabel} — แต่ระบบยังไม่ทราบว่าเป็นห้องไหน (LINE นี้ยังไม่เชื่อมต่อกับห้อง) กรุณาพิมพ์เลขห้องของคุณครับ (เช่น 301) เจ้าของจะตรวจสอบและจับคู่ให้เร็วๆ นี้ครับ ขอบคุณครับ 🙏`);
+    await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ${amountLabel} — แต่ระบบยังไม่ทราบว่าเป็นห้องไหน (LINE นี้ยังไม่เชื่อมต่อกับห้อง) กรุณาพิมพ์เบอร์โทรศัพท์ของคุณครับ (ตามที่ระบุในสัญญาเช่า) เจ้าของจะตรวจสอบและจับคู่ให้เร็วๆ นี้ครับ ขอบคุณครับ 🙏`);
     notifyAdmin('unmatchedSlip', `มีสลิปใหม่ที่ยังไม่ทราบว่าเป็นห้องไหนครับ (${amountLabel}) เข้าไปจับคู่ห้องได้ที่หน้า Bills → สลิปรอตรวจสอบ`).catch(() => {});
     return;
   }
@@ -266,7 +266,16 @@ router.post('/webhook', async (req, res) => {
     for (const event of events) {
       try {
         if (event.type === 'follow') {
-          await replyMessage(event.replyToken, 'ยินดีต้อนรับสู่เช่าสุข! กรุณาพิมพ์เลขห้องของคุณ (เช่น 301) เพื่อเชื่อมต่อระบบแจ้งเตือนครับ');
+          // Per explicit user request: changed from "type your room number"
+          // to "type your phone number" — a room number can be understood
+          // differently between the tenant and owner (e.g. "22/3" typed as
+          // "223", or a tenant simply not sure what their own room's ID is
+          // labeled as in the system), while the phone number is
+          // unambiguous and is also what the room record is keyed to
+          // everywhere else (contract, tenant-login). Matched against
+          // room.phone below via normPhone (digits-only) so dashes/spaces
+          // in what the tenant types don't matter.
+          await replyMessage(event.replyToken, 'ยินดีต้อนรับสู่เช่าสุข! กรุณาพิมพ์เบอร์โทรศัพท์ของคุณ (ตามที่ระบุในสัญญาเช่า) เพื่อเชื่อมต่อระบบแจ้งเตือนครับ');
           continue;
         }
         if (event.type === 'message' && event.message && event.message.type === 'text') {
@@ -288,13 +297,20 @@ router.post('/webhook', async (req, res) => {
             continue;
           }
 
+          // Per explicit user request: match by PHONE NUMBER instead of
+          // room number — a tenant might not type/know their room's exact
+          // ID as labeled in the system (room numbering can be understood
+          // differently between tenant and owner), but their own phone
+          // number is unambiguous. normPhone strips everything but digits
+          // so "081-234-5671" and "0812345671" both match the same way.
+          const normPhone = (s) => String(s || '').replace(/\D/g, '');
           const rooms = await readTab('Rooms');
-          const room = rooms.find((r) => r.id === text);
+          const room = rooms.find((r) => r.phone && normPhone(r.phone) === normPhone(text));
           if (room) {
             await updateRow('Rooms', room.id, { lineUserId: event.source.userId });
             await replyMessage(event.replyToken, `เชื่อมต่อห้อง ${room.id} เรียบร้อยแล้วครับ จะแจ้งเตือนบิล/ข่าวสารมาทางไลน์นี้`);
           } else {
-            await replyMessage(event.replyToken, 'ไม่พบเลขห้องนี้ครับ กรุณาพิมพ์เลขห้องของคุณให้ถูกต้อง (เช่น 301)');
+            await replyMessage(event.replyToken, 'ไม่พบเบอร์โทรนี้ในระบบครับ กรุณาพิมพ์เบอร์โทรศัพท์ตามที่ระบุในสัญญาเช่าให้ถูกต้อง');
           }
           continue;
         }
