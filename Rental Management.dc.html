@@ -9614,8 +9614,32 @@ class Component extends DCLogic {
       // UNCHANGED (still the Baht amount actually billed/submitted) — this
       // only changes which number is shown in the box, not what gets sent
       // to the server, since that calculation was already correct.
-      invWaterDeviceDisplay: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? String(d.units) : '0'; })(),
-      invElecDeviceDisplay: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? String(d.units) : '0'; })(),
+      // Real bug found by the owner: the comment above says this box should
+      // show the RAW CURRENT METER READING (matching what "กรอกเอง" manual
+      // mode asks for, and what the owner can check against the physical
+      // device) — but this was actually computing deviceCharge().units,
+      // which is the USAGE delta (current − last-billed baseline), not the
+      // raw reading. Confirmed against the "หน่วยบิลหลังสุด" (last-billed)
+      // reference line right below it: a room last billed at 487 หน่วย
+      // showing "41.42" in this box looks like the meter went BACKWARD,
+      // when the true current reading should be ~487 + 41.42 ≈ 528. Fixed
+      // to pull the actual live cumulative reading straight from
+      // tuyaLiveReadings instead of deriving it through deviceCharge (elec:
+      // live.energy, already in the same "หน่วย"/kWh scale as manual entry;
+      // water: live.usage is in LITERS from the device, ÷1000 to match the
+      // "หน่วย" scale manual entry uses). The usage-delta math itself
+      // (d.units × rate = charge) is UNCHANGED and still correct — it just
+      // belongs in the hint line below, not this box.
+      invWaterDeviceDisplay: (() => {
+        const r = s.rooms.find(x => x.id === s.newInvoice.roomId);
+        const live = (r && r.tuyaWaterDeviceId) ? s.tuyaLiveReadings[s.newInvoice.roomId] : null;
+        return (live && live.usage != null) ? (live.usage / 1000).toFixed(2) : '0';
+      })(),
+      invElecDeviceDisplay: (() => {
+        const r = s.rooms.find(x => x.id === s.newInvoice.roomId);
+        const live = (r && r.tuyaElecDeviceId) ? s.tuyaLiveReadings[s.newInvoice.roomId] : null;
+        return (live && live.energy != null) ? String(live.energy) : '0';
+      })(),
       invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? `${d.units} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'water')} = ${d.charge} บาท` : 'อุปกรณ์ไม่พร้อม'; })(),
       invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? `${d.units} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'elec')} = ${d.charge} บาท` : 'อุปกรณ์ไม่พร้อม'; })(),
       // Per explicit user request: a simple always-visible reference line
