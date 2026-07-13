@@ -3582,6 +3582,18 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           <div onclick="{{ closeAdminFormModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:211;padding:16px;box-sizing:border-box">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:100%;box-sizing:border-box">
               <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:16px">{{ adminFormTitle }}</div>
+              <!-- Per explicit user request: warn right in this form if the
+                   building's "ID / รหัสประจำตึก" (ตั้งค่า > ข้อมูลหอพัก)
+                   isn't set — POST /api/auth/staff-login resolves which
+                   building to check phone+pin against by matching this
+                   code, so an admin created without it can never actually
+                   log in. Also enforced server-side (server/routes/
+                   admins.js), this is just the early, in-context warning. -->
+              <sc-if value="{{ missingBuildingKeyId }}" hint-placeholder-val="{{ false }}">
+                <div style="background:#FBE7DC;border:1px solid #E3B7AC;border-radius:7px;padding:10px 12px;margin-bottom:14px;font-size:11.5px;color:#B85B27;line-height:1.5">
+                  ⚠️ ยังไม่ได้ตั้งค่า "ID / รหัสประจำตึก" — ผู้ดูแลที่เพิ่มตอนนี้จะเข้าสู่ระบบไม่ได้ ไปที่หน้าตั้งค่า &gt; ข้อมูลหอพัก เพื่อตั้งค่าก่อนครับ
+                </div>
+              </sc-if>
               <div style="margin-bottom:12px">
                 <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ชื่อผู้ดูแล</div>
                 <input value="{{ newAdmin.name }}" onchange="{{ onNewAdminName }}" placeholder="เช่น สมชาย บัญชี" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:13px;box-sizing:border-box">
@@ -7078,6 +7090,18 @@ class Component extends DCLogic {
     const isNew = !this.state.editingAdminId;
     if (isNew && f.pin.trim().length < 4) { this.showAdminToast('กรุณาตั้งรหัสผ่านอย่างน้อย 4 ตัวอักษร'); return; }
     if (!isNew && f.pin.trim() && f.pin.trim().length < 4) { this.showAdminToast('รหัสผ่านใหม่ต้องมีอย่างน้อย 4 ตัวอักษร (หรือเว้นว่างไว้เพื่อไม่เปลี่ยน)'); return; }
+    // Per explicit user request: block adding a NEW ผู้ดูแล login if this
+    // building's "ID / รหัสประจำตึก" isn't set yet — same reasoning/gate as
+    // server/routes/admins.js's POST validation, caught early here so the
+    // owner doesn't even get to the owner-PIN-confirm step first. Doesn't
+    // block EDITING an existing admin (name/phone/pin), since that admin
+    // already exists either way and this isn't the moment to force a
+    // Settings detour.
+    const bkid = this.state.propertyProfile.buildingKeyId;
+    if (isNew && (!bkid || !bkid.trim())) {
+      this.showAdminToast('ยังไม่ได้ตั้งค่า "ID / รหัสประจำตึก" — ไปที่หน้าตั้งค่า > ข้อมูลหอพัก ก่อนครับ ไม่งั้นผู้ดูแลคนนี้จะเข้าสู่ระบบไม่ได้');
+      return;
+    }
     this.setState({ showAdminFormModal: false, showAdminOwnerVerify: true, adminOwnerVerifyDraft: '', adminOwnerVerifyAction: 'save' });
   };
   askDeleteAdmin = (id) => this.setState({ showAdminOwnerVerify: true, adminOwnerVerifyDraft: '', adminOwnerVerifyAction: 'delete', deleteAdminId: id });
@@ -9147,6 +9171,7 @@ class Component extends DCLogic {
       newAdmin: s.newAdmin, onNewAdminName: this.onNewAdminName, onNewAdminPhone: this.onNewAdminPhone,
       onNewAdminPin: this.onNewAdminPin, submitAdminForm: this.submitAdminForm,
       adminFormTitle: s.editingAdminId ? 'แก้ไขข้อมูลผู้ดูแล' : 'เพิ่มผู้ดูแลใหม่',
+      missingBuildingKeyId: !(s.propertyProfile.buildingKeyId && s.propertyProfile.buildingKeyId.trim()),
       adminPinFieldLabel: s.editingAdminId ? 'รหัสผ่านใหม่ (เว้นว่างไว้ถ้าไม่เปลี่ยน)' : 'รหัสผ่าน (อย่างน้อย 4 ตัวอักษร)',
       showAdminOwnerVerify: s.showAdminOwnerVerify, closeAdminOwnerVerify: this.closeAdminOwnerVerify,
       adminOwnerVerifyDraft: s.adminOwnerVerifyDraft, onAdminOwnerVerifyDraft: this.onAdminOwnerVerifyDraft,
