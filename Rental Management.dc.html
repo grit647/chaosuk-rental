@@ -170,6 +170,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div onclick="{{ logoutToOwnAccount }}" style="font-size:10.5px;color:#F1EBE0;text-decoration:underline;cursor:pointer">← กลับไปบัญชีของคุณเอง</div>
             </div>
           </sc-if>
+          <!-- Per explicit user request: makes it obvious a visitor is
+               in the throwaway /demo sandbox — data here resets every
+               hour, never real customer data. -->
+          <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+            <div style="margin:0 0 8px;padding:9px 11px;border-radius:8px;background:#1F3A2E;border:1px solid #3B7A52;display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#8FCBA5">
+              <span style="width:6px;height:6px;border-radius:50%;background:#8FCBA5"></span>โหมดทดลองใช้งาน — ข้อมูลรีเซ็ตทุกชั่วโมง
+            </div>
+          </sc-if>
           <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
             <div onclick="{{ goDashboard }}" style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;cursor:pointer;background:{{ navDash.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navDash.dot }}"></div>
@@ -647,10 +655,16 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <button onclick="{{ confirmAllSlips }}" style="background:#3B7A52;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">{{ confirmAllSlipsLabel }}</button>
                 </sc-if>
                 <button onclick="{{ openInvoiceModeModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ สร้างใบแจ้งหนี้</button>
+                <!-- Per explicit user request: /demo-only tap-to-explain
+                     badge, hidden entirely for a real customer's own
+                     building (see isDemo/DEMO_TIPS). -->
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipCreateInvoice }}" style="cursor:pointer;font-size:14px;background:#2C6E8F;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">❓</span>
+                </sc-if>
               </div>
             </div>
 
-            <div class="stat-row" style="display:flex;gap:14px;margin-bottom:18px">
+            <div class="stat-row" style="display:flex;gap:14px;margin-bottom:18px;align-items:flex-start">
               <sc-for list="{{ billingChips }}" as="c" hint-placeholder-count="4">
                 <div class="stat-card" onclick="{{ c.onClick }}" style="flex:1;background:#FFFFFF;border-top:3px solid {{ c.accent }};border-radius:8px;padding:16px;box-sizing:border-box;cursor:pointer;box-shadow:{{ c.ring }}">
                   <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">{{ c.label }}</div>
@@ -658,6 +672,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="font-size:12px;color:#7C6E5F;margin-top:6px">{{ c.count }} รายการ</div>
                 </div>
               </sc-for>
+              <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                <span onclick="{{ onDemoTipBillingChips }}" style="cursor:pointer;font-size:14px;background:#2C6E8F;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px" title="อธิบาย">❓</span>
+              </sc-if>
             </div>
 
             <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;margin-top:16px;overflow-x:auto">
@@ -665,7 +682,17 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="font-size:14px;font-weight:700;color:#241812;margin-bottom:2px">ใบแจ้งหนี้ที่รอชำระ ({{ pendingBillsCount }})</div>
               <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">สร้างบิลจะเพิ่มแถวที่นี่ · กดสถานะเพื่อยืนยันการชำระ เมื่อชำระแล้วแถวจะถูกนำออก</div>
               <div style="display:grid;grid-template-columns:0.5fr 1.5fr 0.9fr 1.1fr 1fr 1.2fr 1.3fr;gap:12px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#9C8B78;padding-bottom:11px;border-bottom:2px solid #EDE1CE">
-                <div>ห้อง</div><div>ผู้เช่า</div><div>ยอดที่ต้องชำระ</div><div>วันครบกำหนด</div><div>สถานะ</div><div>จัดการใบเสร็จ</div><div style="text-align:right">ส่งข้อมูล</div>
+                <div>ห้อง</div><div>ผู้เช่า</div><div>ยอดที่ต้องชำระ</div><div>วันครบกำหนด</div><div>สถานะ</div>
+                <div style="display:flex;align-items:center;gap:6px">จัดการใบเสร็จ
+                  <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                    <span onclick="{{ onDemoTipBillActions }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;text-transform:none" title="อธิบาย">❓</span>
+                  </sc-if>
+                </div>
+                <div style="text-align:right;display:flex;align-items:center;justify-content:flex-end;gap:6px">ส่งข้อมูล
+                  <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                    <span onclick="{{ onDemoTipSendLine }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;text-transform:none" title="อธิบาย">❓</span>
+                  </sc-if>
+                </div>
               </div>
               <sc-if value="{{ pendingBillsCount }}" hint-placeholder-val="{{ true }}">
                 <sc-for list="{{ pendingBills }}" as="b" hint-placeholder-count="6">
@@ -3380,6 +3407,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <!-- Per explicit user request: the tap-to-explain answer banner
+             for /demo — a single fixed-position bottom banner (rather
+             than a popover positioned next to each "❓" badge) since
+             only one tip is ever open at a time and this stays
+             consistent on both desktop and mobile. -->
+        <sc-if value="{{ demoTipVisible }}" hint-placeholder-val="{{ false }}">
+          <div style="position:fixed;left:16px;right:16px;bottom:16px;max-width:520px;margin:0 auto;background:#241812;color:#F1EBE0;border-radius:12px;padding:16px 18px;box-shadow:0 8px 28px rgba(36,24,18,0.35);z-index:300;display:flex;align-items:flex-start;gap:12px">
+            <span style="font-size:18px;flex-shrink:0">💡</span>
+            <div style="flex:1;font-size:13px;line-height:1.6">{{ demoTipText }}</div>
+            <span onclick="{{ closeDemoTip }}" style="cursor:pointer;font-size:18px;color:rgba(241,235,224,0.6);flex-shrink:0">×</span>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showMaintenanceModal }}">
           <div onclick="{{ closeMaintenanceModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
@@ -3426,6 +3466,16 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
 </x-dc>
 <script type="text/x-dc" data-dc-script="">
+// Per explicit user request: explanation text shown when a "❓" badge is
+// tapped on the /demo sandbox (see Component.showDemoTip). Starting with
+// the บิล & ใบแจ้งหนี้ page only, per explicit scoping — more pages get
+// their own tips added the same way later.
+const DEMO_TIPS = {
+  createInvoice: 'ปุ่มนี้ใช้สร้างใบแจ้งหนี้ใหม่ให้ห้องที่เลือก — เลือกได้ว่าจะกรอกยอดค่าน้ำ/ไฟเอง หรือให้ระบบดึงจากอุปกรณ์ IoT ที่เชื่อมไว้ให้อัตโนมัติ',
+  billActions: '"แก้ไข" ใช้ปรับยอด/วันครบกำหนดของบิลที่ยังไม่ได้จ่าย, "ลบ" ใช้ยกเลิกบิลทั้งใบ (ลบไม่ได้ถ้ามีสลิปส่งเข้ามาแล้ว), "ประวัติ" ดูบิลเก่าของห้องนั้นทั้งหมด',
+  sendLine: 'กดเพื่อส่งใบแจ้งหนี้ไปให้ผู้เช่าทาง LINE โดยตรง พร้อมยอดที่ต้องชำระและ QR พร้อมเพย์ (ถ้าตั้งค่าไว้) — ผู้เช่าจะได้รับข้อความทันที',
+  billingChips: 'การ์ดสรุปด้านบนกดกรองรายการด้านล่างได้เลย เช่น กด "เกินกำหนด" จะกรองให้เห็นเฉพาะบิลที่ค้างชำระเลยกำหนด',
+};
 class Component extends DCLogic {
   state = {
     viewportWidth: (typeof window !== 'undefined' ? window.innerWidth : 1400),
@@ -3532,6 +3582,15 @@ class Component extends DCLogic {
     adminOwnerVerifyDraft: '',
     adminOwnerVerifyAction: '',
     deleteAdminId: null,
+    // Per explicit user request: tap-to-explain tooltips, shown ONLY when
+    // running on the dedicated /demo sandbox (see authSession.isDemo) —
+    // never for a real customer's own building. Single shared state
+    // (demoTipId) rather than per-badge state, since only one tip is ever
+    // open at a time — the explanation itself renders as one fixed-
+    // position bottom banner (see renderVals' demoTipText), simpler and
+    // more consistent than positioning a popover next to each individual
+    // "❓" badge, and works the same on both desktop and mobile.
+    demoTipId: null,
     showMaintenanceModal: false,
     newMaintenance: { roomId: '', issue: '' },
     settings: { emailNotif: true, smsNotif: false, autoInvoice: true, dueReminder: true, lineNotif: true },
@@ -6777,6 +6836,12 @@ class Component extends DCLogic {
     else this.confirmAdminSaveWithOwnerPin();
   };
 
+  // Per explicit user request: tap-to-explain tooltips for the /demo
+  // sandbox — see DEMO_TIPS below for the actual explanation text per
+  // point. showDemoTip(id) again on the SAME id closes it (tap to
+  // toggle), matching how a real tooltip badge usually behaves.
+  showDemoTip = (id) => this.setState(s => ({ demoTipId: s.demoTipId === id ? null : id }));
+  closeDemoTip = () => this.setState({ demoTipId: null });
   openMaintenanceModal = () => this.setState({ showMaintenanceModal: true, newMaintenance: { roomId: '', issue: '' } });
   closeMaintenanceModal = () => this.setState({ showMaintenanceModal: false });
   onNewMaintRoomChange = (e) => { const v = e.target.value; this.setState(s => ({ newMaintenance: { ...s.newMaintenance, roomId: v } })); };
@@ -8800,6 +8865,15 @@ class Component extends DCLogic {
         ? s.authSession.adminName
         : (s.propertyProfile.adminName || 'เจ้าของกิจการ'),
       sidebarAccountRole: (s.authSession && s.authSession.role === 'staff') ? 'ผู้ดูแล' : 'เจ้าของกิจการ',
+      // Per explicit user request: tap-to-explain tooltips, /demo only.
+      isDemo: !!(s.authSession && s.authSession.isDemo),
+      demoTipVisible: !!s.demoTipId,
+      demoTipText: s.demoTipId ? (DEMO_TIPS[s.demoTipId] || '') : '',
+      closeDemoTip: this.closeDemoTip,
+      onDemoTipCreateInvoice: () => this.showDemoTip('createInvoice'),
+      onDemoTipBillActions: () => this.showDemoTip('billActions'),
+      onDemoTipSendLine: () => this.showDemoTip('sendLine'),
+      onDemoTipBillingChips: () => this.showDemoTip('billingChips'),
       calMonthLabel, calCells, calWeekdays: ['อา','จ','อ','พ','พฤ','ศ','ส'],
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,

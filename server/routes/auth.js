@@ -406,7 +406,12 @@ router.get('/me', async (req, res) => {
       if (match) adminName = match.name;
     } catch { /* non-fatal — sidebar falls back to a generic label */ }
   }
-  res.json({ ...session, isPlatformAdmin, isOwnBuildingActive, adminName });
+  // Per explicit user request: lets the frontend show the demo-only
+  // tap-to-explain tooltips (see Rental Management.dc.html's Bills page)
+  // ONLY when running against the dedicated Demo Sheet — never for a
+  // real customer's own building.
+  const isDemo = session.role === 'demo';
+  res.json({ ...session, isPlatformAdmin, isOwnBuildingActive, adminName, isDemo });
 });
 
 module.exports = router;

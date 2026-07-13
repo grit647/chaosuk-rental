@@ -1,0 +1,19 @@
+name: Reset Demo Data
+
+# Per explicit user request: the dedicated Demo Sheet (/demo — a
+# frictionless, no-login sandbox for prospective customers to click
+# around in) resets to a fresh baseline every hour, discarding anything
+# a visitor typed/saved. Same "external cron ping" pattern already used
+# for scheduler.yml — Render's free tier sleeps the app when idle, so an
+# in-process timer alone can't reliably fire on schedule.
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  reset-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping demo-reset endpoint
+        run: curl -fsS "https://chaosuk-rental.onrender.com/api/demo-reset/run"

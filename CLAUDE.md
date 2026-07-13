@@ -108,56 +108,63 @@ reception through their own OA — บ้านพักครูโจ's outbou
 works, and the owner asked to just record the decision for now rather
 than implement it speculatively.
 
-### Idea: interactive demo/tutorial site (hover tooltips + real save, resets on load)
+### Interactive demo/tutorial site (tap-to-explain, real save, resets hourly)
 
-**Status:** Idea discussed and scoped, NOT started. Explicitly deferred
-by the owner — "บันทึกไว้หน่อย รอทำภายหลัง" (write it down, come back to
-it later). Flagged as a genuinely large feature (owner agreed, after I
-gave an honest time estimate — comparable in size to a full session's
-worth of work like the multi-building login system).
+**Status:** Started — mechanism built and working, currently covers ONLY
+the บิล & ใบแจ้งหนี้ page (per explicit request, "ทำหน้าส่วนบิลใบแจ้งหนี้
+ดีกว่าผมว่า สำคัญสุด" — considered the most important page). The other 7
+pages from the original scoping (ห้องพัก, ผู้เช่า, แจ้งซ่อม, ปฏิทิน,
+รายจ่าย, Set อุปกรณ์, ตั้งค่า) still have NO tooltips at all — add them
+the same way (see "How to add tips to another page" below) when picked
+back up.
 
-**The idea:** a tutorial/demo version of the app where hovering over a
-UI element shows an explanation of what it does, actions actually save
-for real (not faked), but the whole thing resets to a fresh starting
-state on next load — so prospective customers (or new real customers
-being onboarded) can click around and try things without fear of
-breaking anything real, and without stale leftover data confusing the
-next visitor.
+**All 3 previously-open decisions got made:**
+- **Access:** dedicated `GET /demo` route (server/index.js) — no login
+  form, sets a session with `role: 'demo'` scoped to a dedicated Sheet
+  (`DEMO_SHEET_ID` env var, currently
+  `10TD0QgpWhJxPnNHjkxTfjVGT5YbSr6g3PMg0fxbMCEY`) and redirects to `/`.
+  **Only set in `server/.env` locally so far — still needs adding to
+  Render's environment variables for the live `/demo` URL to work in
+  production.**
+- **Reset:** hourly cron, same external-ping pattern as
+  `server/routes/scheduler.js` — see `.github/workflows/demo-reset.yml`
+  (`curl .../api/demo-reset/run` every hour on the hour). The actual
+  reseed logic lives in `server/demoSeed.js` (shared by the route and
+  the one-time manual seed script `prototype-auth/seed-demo-data.js`) —
+  clears every tab, writes back 4 baseline demo rooms (one each:
+  pending bill, overdue bill, already-paid history, vacant) + 3 matching
+  invoices + basic Settings (rates, a simple demo PIN `1234`).
+- **Tooltip UX:** tap/click a small "❓" badge (not hover — this app is
+  used on mobile a lot, hover doesn't work on touch) opens a single
+  fixed-position bottom banner with the explanation, tap the badge again
+  or the × to close. One shared piece of state (`demoTipId` in
+  `Rental Management.dc.html`) rather than per-badge state, since only
+  one tip is ever open at once.
 
-**Scoping discussion so far (nothing built yet):**
-- Must use a **separate, dedicated demo Google Sheet** — never point a
-  demo at real customer data, no exceptions.
-- Reset strategy not yet decided between owner and me — options raised
-  were (a) a scheduled reset (e.g. hourly cron, similar pattern to
-  `server/routes/scheduler.js`'s existing GitHub Actions cron) so it's
-  hands-off, or (b) a manual "รีเซ็ต Demo" button. Owner dismissed the
-  AskUserQuestion on this rather than picking — still open.
-- Access method (dedicated `/demo` route vs. reusing the real
-  multi-tenant login system with a dedicated demo "building") — also
-  dismissed/not decided yet.
-- **Scope narrowed together:** started from all ~11 pages, then
-  explicitly cut down to only pages with a REAL save/write action
-  (excludes pure read-only report/dashboard pages — Dashboard,
-  การใช้ไฟฟ้า, การใช้น้ำ) since a demo's value is in showing people how
-  to *do* things, not just look at numbers. Landed on 8 candidate pages:
-  ห้องพัก (rooms/contracts), บิล & ใบแจ้งหนี้ (invoices), ผู้เช่า
-  (tenants — LINE send, credit edit), แจ้งซ่อม (maintenance), ปฏิทิน
-  (calendar), รายจ่าย (expenses), Set อุปกรณ์ (Tuya linking), ตั้งค่า
-  (settings).
-- **Rollout approach agreed in spirit (not formally decided):** rather
-  than building all 8 pages' tours at once, start with 2-3 core pages
-  (ห้องพัก + บิล suggested, since they're the app's core workflow),
-  get the tour/tooltip mechanism itself right, THEN expand to the rest.
-- **The tour/tooltip mechanism itself has NOT been designed at all yet**
-  — no library chosen, no UI mockup, nothing built. This is a from-
-  scratch UI component (`Rental Management.dc.html` has no existing
-  tour/onboarding system to extend).
+**Security/scoping already handled, verified working:**
+- A demo session (`role: 'demo'`) automatically gets ZERO platform-admin
+  rights (`isPlatformAdminSession`'s whitelist only allows `'owner'`)
+  and is NOT blocked by the tenant-only API restriction in
+  `server/index.js` (that check is specifically `role === 'tenant'`) —
+  a demo session behaves like a normal, fully-scoped-to-its-own-Sheet
+  owner session, which is exactly right since it's a real, isolated
+  Sheet with throwaway data, not real customer data.
+- The green "โหมดทดลองใช้งาน — ข้อมูลรีเซ็ตทุกชั่วโมง" sidebar badge and
+  every "❓" tip badge are gated behind `isDemo` (from `GET /api/auth/
+  me`) — invisible for every real customer's own session, only ever
+  shown when `customerSheetId` is the dedicated Demo Sheet.
 
-**Next step when this gets picked back up:** don't re-litigate the
-already-narrowed 8-page scope or the read-only-pages-excluded decision
-above — those are settled. Still need: reset strategy, access method,
-and an actual design/prototype for the hover-tooltip mechanism before
-writing any page-specific content.
+**How to add tips to another page:** add the explanation text to the
+`DEMO_TIPS` object near the top of `Rental Management.dc.html`'s
+`<script>` block, add a render-var handler (`onDemoTip<Name>: () =>
+this.showDemoTip('<key>')`), and drop a `<sc-if value="{{ isDemo }}">`
+-wrapped "❓" badge (copy the styling from one of the existing บิล page
+badges) next to whatever UI element needs explaining. No other wiring
+needed — the bottom-banner display and open/close logic are already
+shared/generic.
+
+**Not done yet:** the other 7 pages' tips (only บิล & ใบแจ้งหนี้ has
+any so far), and adding `DEMO_SHEET_ID` to Render's production env vars.
 
 ### Known gap: a tenant who is ALSO staff could get mixed-up LINE messages
 

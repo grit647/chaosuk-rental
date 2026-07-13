@@ -22,7 +22,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // is every request today, since nothing requires login yet) falls
 // straight through to next() unchanged — zero behavior change for the
 // current owner's existing no-login usage.
-const { getSession } = require('./auth');
+const { getSession, setSessionCookie } = require('./auth');
 const { runWithSheetId } = require('./requestContext');
 app.use((req, res, next) => {
   const session = getSession(req);
@@ -87,6 +87,22 @@ const requireLogin = (req, res, next) => {
   next();
 };
 app.get('/', noCache, requireLogin, (req, res) => res.sendFile(path.join(ROOT, 'Rental Management.dc.html')));
+// Per explicit user request: a frictionless demo entry point — no login
+// form, no account needed. Sets a session scoped to a dedicated, separate
+// Demo Sheet (never real customer data — see prototype-auth/seed-demo-
+// data.js, which the hourly reset cron re-runs to restore a fresh
+// baseline every hour, discarding anything a visitor typed/saved).
+// role: 'demo' deliberately distinct from 'owner'/'staff'/'tenant' — the
+// blanket security middleware below and isPlatformAdminSession's
+// whitelist both already deny anything non-'owner' by default, so a demo
+// session automatically gets ZERO platform-admin/cross-tenant access
+// without needing a new special-case anywhere.
+app.get('/demo', noCache, (req, res) => {
+  if (!process.env.DEMO_SHEET_ID) return res.status(500).send('ยังไม่ได้ตั้งค่า DEMO_SHEET_ID บนเซิร์ฟเวอร์');
+  const session = { ownerId: null, role: 'demo', customerSheetId: process.env.DEMO_SHEET_ID, roomId: null, staffId: null };
+  setSessionCookie(res, session);
+  res.redirect('/');
+});
 app.get('/support.js', noCache, (req, res) => res.sendFile(path.join(ROOT, 'support.js')));
 app.get('/doc-page.js', noCache, (req, res) => res.sendFile(path.join(ROOT, 'doc-page.js')));
 app.get('/Lease Agreement - Room 302.dc.html', noCache, (req, res) => res.sendFile(path.join(ROOT, 'Lease Agreement - Room 302.dc.html')));
@@ -146,6 +162,7 @@ app.use('/api/recurring-tasks', require('./routes/recurringTasks'));
 app.use('/api/unmatched-slips', require('./routes/unmatchedSlips'));
 app.use('/api/system-data', require('./routes/systemData'));
 app.use('/api/scheduler', require('./routes/scheduler'));
+app.use('/api/demo-reset', require('./routes/demoReset'));
 app.use('/api/payment-card-image', require('./routes/paymentCard'));
 app.use('/api/payment-log', require('./routes/paymentLog'));
 
