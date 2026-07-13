@@ -52,6 +52,7 @@
 <script>
   let roomData = null;
   let invoiceData = [];
+  let usageData = null;
 
   function showToast(msg) {
     const t = document.getElementById('toast');
@@ -82,6 +83,17 @@
       }
       roomData = await meRes.json();
       invoiceData = await invRes.json();
+      // Per explicit user request: show live water/elec usage on the
+      // tenant's own portal too, matching what the owner already sees on
+      // the ผู้เช่า page's tenant card — but only if this room actually
+      // has a Tuya device linked. Fetched separately (not Promise.all'd
+      // with the two above) and failure here is non-fatal — a device
+      // read hiccup shouldn't block the bill/history view the tenant
+      // came here for in the first place.
+      try {
+        const usageRes = await fetch('/api/tenant/usage');
+        usageData = usageRes.ok ? await usageRes.json() : null;
+      } catch (e) { usageData = null; }
       render();
     } catch (e) {
       document.getElementById('app').innerHTML = '<div class="card"><div class="empty-note">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้าอีกครั้งครับ</div></div>';
@@ -134,6 +146,7 @@
         '<div class="room-header">ห้อง ' + (roomData.id || '-') + '</div>' +
         '<div class="room-sub">' + (roomData.tenant || '') + '</div>' +
       '</div>' +
+      usageHtml() +
       currentHtml +
       '<div class="card">' +
         '<div class="card-title">ประวัติบิล (การใช้น้ำ/ไฟ)</div>' +
@@ -148,6 +161,46 @@
 
   function rowHtml(label, value) {
     return '<div class="row"><span class="label">' + label + '</span><span class="value">฿' + fmt(value) + '</span></div>';
+  }
+
+  // Per explicit user request: same live V/A/W/kWh readout + this-cycle
+  // usage the owner sees on the ผู้เช่า page's tenant card, shown here
+  // too — only rendered if this room actually has a Tuya device linked
+  // (hasElecDevice/hasWaterDevice from GET /api/tenant/usage). Returns
+  // an empty string (no card at all) if neither is linked, rather than
+  // showing an empty/confusing card to every tenant regardless.
+  function usageHtml() {
+    if (!usageData || (!usageData.hasElecDevice && !usageData.hasWaterDevice)) return '';
+    let rows = '';
+    if (usageData.hasElecDevice) {
+      const live = usageData.elecLive || {};
+      if (live.online && live.voltage != null) {
+        rows += '<div class="row"><span class="label">⚡ ไฟฟ้าตอนนี้</span><span class="value">' +
+          Number(live.voltage).toFixed(1) + 'V · ' + Number(live.current).toFixed(2) + 'A · ' + Number(live.power).toFixed(1) + 'W</span></div>';
+      } else {
+        rows += '<div class="row"><span class="label">⚡ อุปกรณ์ไฟฟ้า</span><span class="value" style="color:#B24336">ออฟไลน์</span></div>';
+      }
+      if (usageData.elecUsage != null) {
+        rows += '<div class="row"><span class="label">ไฟที่ใช้รอบนี้</span><span class="value">' + usageData.elecUsage + ' หน่วย (฿' + fmt(usageData.elecCost) + ')</span></div>';
+      }
+    }
+    if (usageData.hasWaterDevice) {
+      const live = usageData.waterLive || {};
+      if (live.online) {
+        if (live.batteryPercent != null) {
+          rows += '<div class="row"><span class="label">🔋 แบตมิเตอร์น้ำ</span><span class="value">' + Number(live.batteryPercent).toFixed(0) + '%</span></div>';
+        }
+      } else {
+        rows += '<div class="row"><span class="label">💧 อุปกรณ์น้ำ</span><span class="value" style="color:#B24336">ออฟไลน์</span></div>';
+      }
+      if (usageData.waterUsage != null) {
+        rows += '<div class="row"><span class="label">น้ำที่ใช้รอบนี้</span><span class="value">' + usageData.waterUsage + ' หน่วย (฿' + fmt(usageData.waterCost) + ')</span></div>';
+      }
+    }
+    return '<div class="card">' +
+      '<div class="card-title">การใช้น้ำ/ไฟตอนนี้ (นับจากบิลล่าสุด)</div>' +
+      rows +
+    '</div>';
   }
 
   async function submitMaintenance() {
