@@ -965,6 +965,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;row-gap:8px">
                 <span style="width:26px;height:26px;border-radius:8px;background:#D97757;color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">✦</span>
                 <div style="font-size:15px;font-weight:700;color:#241812;flex-shrink:0">Claude ผู้ช่วยดูแลอัตโนมัติ</div>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipClaudeOverview }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                </sc-if>
                 <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
                   <div onclick="{{ openClaudeEmailModal }}" style="font-size:10.5px;font-weight:600;padding:4px 9px;border-radius:5px;cursor:pointer;background:{{ claudeEmailBtnBg }};color:{{ claudeEmailBtnColor }};white-space:nowrap">{{ claudeEmailBtnLabel }}</div>
                   <div onclick="{{ openRecurringModal }}" title="คำสั่งงานประจำ" style="width:26px;height:26px;border-radius:5px;cursor:pointer;background:#F1EBE0;color:#7C6E5F;font-size:12.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0">⚙</div>
@@ -978,7 +981,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
               <div style="margin-bottom:12px;padding-bottom:14px;border-bottom:1px dashed #E3D8C8">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
-                  <div style="font-size:12.5px;font-weight:700;color:#241812">สั่งงาน Claude ด้วยข้อความ</div>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <div style="font-size:12.5px;font-weight:700;color:#241812">สั่งงาน Claude ด้วยข้อความ</div>
+                    <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                      <span onclick="{{ onDemoTipClaudeCommandBox }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                    </sc-if>
+                  </div>
                   <sc-if value="{{ claudeCommandHistory }}" hint-placeholder-val="{{ false }}">
                     <div onclick="{{ clearClaudeCommandHistory }}" style="font-size:10.5px;color:#A89A88;cursor:pointer;text-decoration:underline">ล้างการสนทนา</div>
                   </sc-if>
@@ -1025,7 +1033,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
               <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC">
                 <div>
-                  <div style="font-size:13px;font-weight:600;color:#241812">เปิดใช้งานฟีเจอร์นี้</div>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <div style="font-size:13px;font-weight:600;color:#241812">เปิดใช้งานฟีเจอร์นี้</div>
+                    <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                      <span onclick="{{ onDemoTipClaudeEnableToggle }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                    </sc-if>
+                  </div>
                   <div style="font-size:11px;color:#A89A88;margin-top:2px">ต้องเปิดไว้ ข้อความ/การแจ้งเตือนที่ตั้งเวลาส่งล่วงหน้าไว้ (ผ่านช่องคำสั่งหรือปฏิทิน) ถึงจะถูกส่งจริงตามเวลา</div>
                 </div>
                 <div onclick="{{ toggleClaudeAutomation }}" style="width:44px;height:24px;border-radius:12px;position:relative;cursor:pointer;flex-shrink:0;background:{{ claudeAutomationBg }}">
@@ -3598,6 +3611,12 @@ const DEMO_TIPS = {
   sheetConnect: 'แสดงสถานะการเชื่อมต่อกับ Google Sheet ที่เป็นฐานข้อมูลจริงของระบบ — ข้อมูลห้อง บิล ผู้เช่า ทุกอย่างเก็บอยู่ใน Sheet นี้จริงๆ เปิด Sheet ดูตรงๆ ได้ทุกเมื่อ',
   featureToggle: 'เปิด/ปิดเมนูบางส่วนที่ไม่ได้ใช้งานได้ เช่น ถ้าตึกไม่มีอุปกรณ์ IoT ก็ปิดเมนู "Set อุปกรณ์" ไปได้เลย เมนูที่ปิดจะหายจากแถบซ้ายชั่วคราว เปิดกลับมาได้เสมอจากตรงนี้',
   systemData: '"ล้างข้อมูลบางส่วน" เลือกได้ว่าจะล้างอะไร (เช่น แค่ประวัติการใช้ไฟ หรือแค่รายจ่าย) ส่วน "ล้างข้อมูลทั้งหมด" คือรีเซ็ตทุกอย่างเริ่มต้นใหม่ — ต้องตั้ง/ใส่รหัส PIN ก่อนเสมอ กันกดผิดโดยไม่ตั้งใจ และ ⚠️ ลบแล้วกู้คืนไม่ได้',
+  // Per explicit user follow-up: this card was genuinely missed in the
+  // first Settings pass (a different HTML attribute pattern than the
+  // other card titles slipped past the grep search used to find them).
+  claudeOverview: 'การ์ดนี้คือผู้ช่วย AI ที่คุยด้วยข้อความ/เสียงได้ — สั่งงานได้เฉพาะในระบบนี้เท่านั้น (ดูข้อมูล, ออกบิล, ส่ง LINE, บันทึกมิเตอร์ ฯลฯ) ไม่แตะโค้ด/เซิร์ฟเวอร์เด็ดขาด ตอบโจทย์การใช้งานเชิง automation — ทุกรายการที่จะเพิ่ม/แก้ไข/ลบข้อมูลจะขึ้น popup ให้ยืนยันก่อนทำจริงเสมอ ไม่ทำอะไรลับหลังคุณ',
+  claudeCommandBox: 'พิมพ์คำสั่งเป็นภาษาพูดปกติได้เลย เช่น "ออกบิลห้อง 101" หรือ "ห้องไหนค้างชำระบ้าง" — แนบรูปได้ (📎) พูดแทนพิมพ์ได้ (🎤) และมีโหมดขับรถ (🚗) ที่อ่านคำตอบออกเสียงให้แทนการอ่านหน้าจอ',
+  claudeEnableToggle: 'สวิตช์นี้คุมว่าจะให้ระบบส่งข้อความ/แจ้งเตือนที่ตั้งเวลาไว้ล่วงหน้าจริงหรือไม่ (ผ่านช่องคำสั่งหรือปฏิทิน) — ถ้าปิดไว้ ตั้งเวลาไว้แค่ไหนก็จะไม่ถูกส่งจริงจนกว่าจะเปิดสวิตช์นี้',
 };
 class Component extends DCLogic {
   state = {
@@ -9014,6 +9033,9 @@ class Component extends DCLogic {
       onDemoTipSheetConnect: () => this.showDemoTip('sheetConnect'),
       onDemoTipFeatureToggle: () => this.showDemoTip('featureToggle'),
       onDemoTipSystemData: () => this.showDemoTip('systemData'),
+      onDemoTipClaudeOverview: () => this.showDemoTip('claudeOverview'),
+      onDemoTipClaudeCommandBox: () => this.showDemoTip('claudeCommandBox'),
+      onDemoTipClaudeEnableToggle: () => this.showDemoTip('claudeEnableToggle'),
       calMonthLabel, calCells, calWeekdays: ['อา','จ','อ','พ','พฤ','ศ','ส'],
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,
