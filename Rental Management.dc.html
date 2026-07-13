@@ -252,6 +252,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div onclick="{{ goWaterReport }}" style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navWater.bg }}">
                   <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navWater.dot }}"></div>
                   <span style="font-size:13.5px;color:{{ navWater.color }};font-weight:{{ navWater.weight }}">การใช้น้ำประปา</span>
+                  <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:9px;font-weight:700;background:#2C6E8F;color:#fff;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="หน้านี้มีคำอธิบายในโหมดทดลองแล้ว">?</span>
+                  </sc-if>
                 </div>
               </div>
             </sc-if>
@@ -1215,6 +1218,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
                 <span style="width:22px;height:22px;border-radius:6px;background:#D97757;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">✦</span>
                 <div style="font-size:13.5px;font-weight:700;color:#241812">อ่านมิเตอร์น้ำจากรูปภาพด้วย Claude</div>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipWaterMeterPhoto }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                </sc-if>
               </div>
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:12px">ถ่ายรูปมิเตอร์ (ถ่ายได้หลายห้องในรูปเดียว ถ้ามีป้ายเลขห้องกำกับ) แล้วอัปโหลด — Claude จะอ่านตัวเลขให้อัตโนมัติ</div>
               <label style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border:1px dashed #C9B79E;border-radius:6px;cursor:pointer;background:#FBF7F0">
@@ -3668,6 +3674,7 @@ const DEMO_TIPS = {
   equipWater: 'กรอก "Tuya Device ID" ของมิเตอร์น้ำห้องนี้ แล้วกด "บันทึกอุปกรณ์น้ำ" — ช่อง "ค่าสูงสุดก่อนมิเตอร์รีเซ็ต" สำคัญสำหรับมิเตอร์น้ำบางรุ่นที่นับได้ถึงค่าหนึ่งแล้ววนกลับไปเริ่มที่ 0 ใหม่ (เช่น 10000 ลิตร) — ถ้าไม่ตั้งค่านี้ไว้ ระบบอาจคิดหน่วยการใช้น้ำผิดตอนมิเตอร์รีเซ็ตพอดี',
   equipStatusList: 'รายการนี้สรุปสถานะอุปกรณ์ทุกห้องในตึกพร้อมกัน (ออนไลน์/ออฟไลน์ + ค่าล่าสุด) — สำหรับอุปกรณ์ไฟที่รองรับ จะมีปุ่ม "ตัดไฟ/จ่ายไฟ" ให้กดตัดไฟห้องนั้นได้โดยตรงจากตรงนี้ (มี popup ให้ยืนยันก่อนตัดไฟทุกครั้ง กันกดพลาด) — การตัดไฟเป็นการตัดสินใจของเจ้าของหอพักเองเสมอ ระบบอัตโนมัติจะไม่ตัดไฟให้เองเด็ดขาด อย่างมากแค่เตือนผู้เช่า/แจ้งเจ้าของถ้าค้างชำระ',
   claudeAttach: 'กด "+" เพื่อเปิดเมนู 2 อย่าง: "📎 เพิ่มไฟล์" แนบรูปไปพร้อมข้อความ (เช่น ถ่ายรูปมิเตอร์น้ำ/ไฟให้ Claude อ่านตัวเลขให้ หรือรูปสลิปโอนเงินให้ช่วยตรวจสอบ) และ "🗑️ เคลียร์หน้าแชท" ล้างประวัติการสนทนาทั้งหมดเพื่อเริ่มคุยเรื่องใหม่',
+  waterMeterPhoto: 'ถ่ายรูปมิเตอร์น้ำ (ถ่ายได้หลายห้องในรูปเดียวถ้ามีป้ายเลขห้องกำกับ) แล้วอัปโหลด — Claude จะอ่านตัวเลขมิเตอร์ให้อัตโนมัติ ไม่ต้องจดเอง จากนั้นเลือกห้องที่ตรงกัน ตรวจตัวเลขอีกครั้ง แล้วกดบันทึก — ⚠️ ต้องเชื่อมต่อ Claude API ไว้ก่อน (หน้าตั้งค่า) ถึงจะใช้ฟีเจอร์นี้ได้ ถ้ายังไม่ได้เชื่อม ต้องกรอกเลขมิเตอร์เองแทน',
 };
 class Component extends DCLogic {
   state = {
@@ -9093,6 +9100,7 @@ class Component extends DCLogic {
       onDemoTipEquipWater: () => this.showDemoTip('equipWater'),
       onDemoTipEquipStatusList: () => this.showDemoTip('equipStatusList'),
       onDemoTipClaudeAttach: () => this.showDemoTip('claudeAttach'),
+      onDemoTipWaterMeterPhoto: () => this.showDemoTip('waterMeterPhoto'),
       calMonthLabel, calCells, calWeekdays: ['อา','จ','อ','พ','พฤ','ศ','ส'],
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,
