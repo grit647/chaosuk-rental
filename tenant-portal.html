@@ -44,6 +44,9 @@
   .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
   .modal-sub { font-size: 11.5px; color: #7C6E5F; margin-bottom: 14px; }
   .modal-close-btn { width: 100%; margin-top: 16px; padding: 10px; border-radius: 7px; border: 1px solid #E3D8C8; background: none; color: #241812; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .credit-card { background: #FFFFFF; border-radius: 10px; padding: 14px 18px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #E3D2A8; }
+  .credit-label { font-size: 11.5px; color: #9C7A2E; font-weight: 600; }
+  .credit-amount { font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 700; color: #9C7A2E; }
 </style>
 </head>
 <body>
@@ -177,6 +180,7 @@
           '<button class="contract-btn" onclick="openContractModal()">📄 ดูสัญญาเช่า</button>' +
         '</div>' +
       '</div>' +
+      creditHtml() +
       usageHtml() +
       currentHtml +
       '<div class="card">' +
@@ -210,6 +214,23 @@
   }
   function closeContractModal() {
     document.getElementById('contractModal').classList.remove('open');
+  }
+
+  // Per explicit user request: a tenant who paid in advance (e.g. an
+  // over-payment or a slip resolved as "credit" — see server-side
+  // slipPending/resolveSlip flow) should be able to see their own
+  // remaining credit balance, matching what the owner already sees on
+  // the ผู้เช่า page's tenant card (selectedTenant.hasCredit/creditDisplay
+  // in Rental Management.dc.html) — this was a real gap, roomData.
+  // creditBalance was already being sent by GET /api/tenant/me but never
+  // rendered anywhere on this page. Renders nothing at all when there's
+  // no credit (0 or unset), not an empty/confusing card.
+  function creditHtml() {
+    if (!roomData || !(Number(roomData.creditBalance) > 0)) return '';
+    return '<div class="credit-card">' +
+      '<div class="credit-label">💰 ยอดเงินล่วงหน้าคงเหลือ</div>' +
+      '<div class="credit-amount">฿' + fmt(roomData.creditBalance) + '</div>' +
+    '</div>';
   }
 
   // Per explicit user request: same live V/A/W/kWh readout + this-cycle
