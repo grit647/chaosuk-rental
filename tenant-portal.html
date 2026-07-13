@@ -37,6 +37,13 @@
   .submit-btn:disabled { opacity: 0.6; cursor: default; }
   .empty-note { font-size: 12px; color: #9C8B78; text-align: center; padding: 12px 0; }
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #241812; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 12.5px; display: none; z-index: 100; max-width: 90vw; text-align: center; }
+  .contract-btn { flex-shrink: 0; background: none; border: 1px solid #D8C9B4; color: #7C6E5F; border-radius: 7px; padding: 8px 12px; font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(36,24,18,0.45); display: none; align-items: center; justify-content: center; z-index: 200; padding: 16px; box-sizing: border-box; }
+  .modal-overlay.open { display: flex; }
+  .modal-box { background: #FFFFFF; border-radius: 12px; padding: 22px; width: 380px; max-width: 100%; max-height: 85vh; overflow-y: auto; box-sizing: border-box; }
+  .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .modal-sub { font-size: 11.5px; color: #7C6E5F; margin-bottom: 14px; }
+  .modal-close-btn { width: 100%; margin-top: 16px; padding: 10px; border-radius: 7px; border: 1px solid #E3D8C8; background: none; color: #241812; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 </style>
 </head>
 <body>
@@ -48,6 +55,24 @@
     <div class="card"><div class="empty-note">กำลังโหลดข้อมูล...</div></div>
   </div>
   <div class="toast" id="toast"></div>
+  <!-- Per explicit user request: view-only lease contract summary — a
+       tenant can look but not edit anything here (no inputs at all, just
+       a close button). Sourced entirely from the same GET /api/tenant/me
+       response already loaded for the room header, no extra request. -->
+  <div class="modal-overlay" id="contractModal" onclick="if (event.target === this) closeContractModal()">
+    <div class="modal-box">
+      <div class="modal-title">สัญญาเช่า</div>
+      <div class="modal-sub">ห้อง <span id="cRoom"></span> — ดูอย่างเดียว ติดต่อเจ้าของหอพักหากต้องการแก้ไข</div>
+      <div class="row"><span class="label">ผู้เช่า</span><span class="value" id="cTenant"></span></div>
+      <div class="row"><span class="label">เบอร์โทร</span><span class="value" id="cPhone"></span></div>
+      <div class="row"><span class="label">ค่าเช่า/เดือน</span><span class="value" id="cRent"></span></div>
+      <div class="row"><span class="label">เงินประกัน</span><span class="value" id="cDeposit"></span></div>
+      <div class="row"><span class="label">วันที่เข้าอยู่</span><span class="value" id="cMoveIn"></span></div>
+      <div class="row"><span class="label">วันหมดอายุสัญญา</span><span class="value" id="cEnd"></span></div>
+      <div class="row"><span class="label">ครบกำหนดชำระทุกวันที่</span><span class="value" id="cDue"></span></div>
+      <button class="modal-close-btn" onclick="closeContractModal()">ปิด</button>
+    </div>
+  </div>
 
 <script>
   let roomData = null;
@@ -143,8 +168,14 @@
 
     app.innerHTML =
       '<div class="card">' +
-        '<div class="room-header">ห้อง ' + (roomData.id || '-') + '</div>' +
-        '<div class="room-sub">' + (roomData.tenant || '') + '</div>' +
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">' +
+          '<div>' +
+            '<div class="room-header">ห้อง ' + (roomData.id || '-') + '</div>' +
+            '<div class="room-sub">' + (roomData.tenant || '') + '</div>' +
+            '<div class="room-sub" style="margin-top:4px">วันหมดอายุสัญญา: ' + (roomData.contractEnd || '-') + '</div>' +
+          '</div>' +
+          '<button class="contract-btn" onclick="openContractModal()">📄 ดูสัญญาเช่า</button>' +
+        '</div>' +
       '</div>' +
       usageHtml() +
       currentHtml +
@@ -161,6 +192,24 @@
 
   function rowHtml(label, value) {
     return '<div class="row"><span class="label">' + label + '</span><span class="value">฿' + fmt(value) + '</span></div>';
+  }
+
+  // Per explicit user request: view-only — populates from the same
+  // roomData already loaded, no editing UI/handlers at all.
+  function openContractModal() {
+    if (!roomData) return;
+    document.getElementById('cRoom').textContent = roomData.id || '-';
+    document.getElementById('cTenant').textContent = roomData.tenant || '-';
+    document.getElementById('cPhone').textContent = roomData.phone || '-';
+    document.getElementById('cRent').textContent = '฿' + fmt(roomData.rent);
+    document.getElementById('cDeposit').textContent = '฿' + fmt(roomData.deposit);
+    document.getElementById('cMoveIn').textContent = roomData.moveIn || '-';
+    document.getElementById('cEnd').textContent = roomData.contractEnd || '-';
+    document.getElementById('cDue').textContent = roomData.dueDay ? ('วันที่ ' + roomData.dueDay) : '-';
+    document.getElementById('contractModal').classList.add('open');
+  }
+  function closeContractModal() {
+    document.getElementById('contractModal').classList.remove('open');
   }
 
   // Per explicit user request: same live V/A/W/kWh readout + this-cycle
@@ -186,11 +235,11 @@
     }
     if (usageData.hasWaterDevice) {
       const live = usageData.waterLive || {};
-      if (live.online) {
-        if (live.batteryPercent != null) {
-          rows += '<div class="row"><span class="label">🔋 แบตมิเตอร์น้ำ</span><span class="value">' + Number(live.batteryPercent).toFixed(0) + '%</span></div>';
-        }
-      } else {
+      // Per explicit user request: battery % isn't something a tenant
+      // needs to see/act on (it's an owner/maintenance concern — replacing
+      // the flowmeter's battery isn't the tenant's job) — only show the
+      // ออฟไลน์ warning if relevant, never the battery level itself.
+      if (!live.online) {
         rows += '<div class="row"><span class="label">💧 อุปกรณ์น้ำ</span><span class="value" style="color:#B24336">ออฟไลน์</span></div>';
       }
       if (usageData.waterUsage != null) {
