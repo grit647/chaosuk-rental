@@ -270,6 +270,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div onclick="{{ goEquipment }}" style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navEquip.bg }}">
                   <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navEquip.dot }}"></div>
                   <span style="font-size:13.5px;color:{{ navEquip.color }};font-weight:{{ navEquip.weight }}">Set อุปกรณ์</span>
+                  <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:9px;font-weight:700;background:#2C6E8F;color:#fff;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="หน้านี้มีคำอธิบายในโหมดทดลองแล้ว">?</span>
+                  </sc-if>
                 </div>
               </div>
             </sc-if>
@@ -1356,13 +1359,23 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           <sc-if value="{{ isEquipment }}" hint-placeholder-val="{{ false }}">
           <div>
             <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px">
-              <div style="font-size:21px;font-weight:700;color:#241812">Set อุปกรณ์ · Tuya IoT</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="font-size:21px;font-weight:700;color:#241812">Set อุปกรณ์ · Tuya IoT</div>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipEquipOverview }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                </sc-if>
+              </div>
               <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">เชื่อมต่ออุปกรณ์ Tuya ประจำห้อง · ไฟ {{ elecOnlineCount }}/{{ deviceTotalCount }} · น้ำ {{ waterOnlineCount }}/{{ deviceTotalCount }} ออนไลน์</div>
             </div>
 
             <!-- ROOM SELECT + DEVICE NAMING -->
             <div style="background:#FFFFFF;border-radius:8px;padding:20px;box-sizing:border-box;margin-bottom:16px">
-              <div style="font-size:13px;font-weight:700;color:#241812;margin-bottom:10px">เลือกห้องเพื่อตั้งค่าอุปกรณ์</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <div style="font-size:13px;font-weight:700;color:#241812">เลือกห้องเพื่อตั้งค่าอุปกรณ์</div>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipEquipRoomSelect }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                </sc-if>
+              </div>
               <select value="{{ equipSelectedRoom }}" onchange="{{ onEquipRoomSelectChange }}" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:13px;box-sizing:border-box;background:#fff;margin-bottom:14px">
                 <sc-for list="{{ equipRoomOptions }}" as="o" hint-placeholder-count="18">
                   <option value="{{ o.id }}">{{ o.label }}</option>
@@ -1383,6 +1396,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
                     <span style="font-size:14px">⚡</span>
                     <div style="font-size:12.5px;font-weight:700;color:#C1622D">อุปกรณ์ไฟฟ้า</div>
+                    <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                      <span onclick="{{ onDemoTipEquipElec }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                    </sc-if>
                     <div style="display:flex;align-items:center;gap:5px;margin-left:auto">
                       <div style="width:7px;height:7px;border-radius:50%;background:{{ equipSelElecDot }}"></div>
                       <span style="font-size:11px;color:#7C6E5F">{{ equipSelElecOnline }}</span>
@@ -1419,6 +1435,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
                     <span style="font-size:14px">💧</span>
                     <div style="font-size:12.5px;font-weight:700;color:#2C6E8F">อุปกรณ์น้ำ</div>
+                    <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                      <span onclick="{{ onDemoTipEquipWater }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                    </sc-if>
                     <div style="display:flex;align-items:center;gap:5px;margin-left:auto">
                       <div style="width:7px;height:7px;border-radius:50%;background:{{ equipSelWaterDot }}"></div>
                       <span style="font-size:11px;color:#7C6E5F">{{ equipSelWaterOnline }}</span>
@@ -1452,6 +1471,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
                 <span style="font-size:16px">⚡</span>
                 <div style="font-size:14px;font-weight:700;color:#241812">สถานะอุปกรณ์ไฟฟ้า</div>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipEquipStatusList }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                </sc-if>
                 <span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:5px;color:#C1622D;background:#F3E3D5;margin-left:auto">{{ elecOnlineCount }}/{{ deviceTotalCount }} ออนไลน์</span>
               </div>
               <div style="display:flex;flex-direction:column;gap:8px">
@@ -3634,6 +3656,14 @@ const DEMO_TIPS = {
   claudeCommandBox: 'พิมพ์คำสั่งเป็นภาษาพูดปกติได้เลย เช่น "ออกบิลห้อง 101" หรือ "ห้องไหนค้างชำระบ้าง" — แนบรูปได้ (📎) พูดแทนพิมพ์ได้ (🎤) และมีโหมดขับรถ (🚗) ที่อ่านคำตอบออกเสียงให้แทนการอ่านหน้าจอ',
   claudeEnableToggle: 'สวิตช์นี้คุมเฉพาะ "ข้อความ/แจ้งเตือนที่ตั้งเวลาส่งล่วงหน้า" เท่านั้น (เช่น ตั้งเวลาส่ง LINE ผ่านปฏิทินหรือสั่งให้ส่งทีหลังในช่องแชท) — ปิดไว้ ตั้งเวลาไว้แค่ไหนก็จะไม่ถูกส่งจริงจนกว่าจะเปิด ไม่ได้คุมช่องแชท "สั่งงาน Claude ด้วยข้อความ" ด้านบน ซึ่งใช้งานได้ตลอดถ้าเชื่อมต่อ Claude API ไว้แล้ว (ข้อแม้เดียวคือถ้าเครดิต Claude API หมด AI จะใช้งานไม่ได้ทั้งหมดไม่ว่าสวิตช์นี้จะเปิดหรือปิด)',
   sidebarAccount: 'การ์ดนี้แสดงชื่อและบทบาทของบัญชีที่ล็อกอินอยู่ตอนนี้ (เช่น เจ้าของกิจการ หรือ ผู้ดูแล) — กดเพื่อเปิดหน้าต่าง "จัดการผู้ดูแล" เพิ่ม/แก้ไข/ลบบัญชี "ผู้ดูแล" (คนช่วยดูแลระบบแทนเจ้าของ ไม่ใช่พนักงานในสัญญาจ้าง คนละส่วนกัน) — ตั้งชื่อ เบอร์โทร และรหัสผ่านสำหรับให้ผู้ดูแลคนนั้นล็อกอินเองได้ที่หน้า /staff-login ทุกการเพิ่ม/แก้ไข/ลบต้องยืนยันด้วยรหัส PIN ของเจ้าของก่อนเสมอ',
+  // Per explicit user request: "Set อุปกรณ์" tour for the IoT/Tuya crowd
+  // specifically — this page is where a real Tuya smart-meter device
+  // (electricity or water) gets linked to a specific room.
+  equipOverview: 'หน้านี้ใช้เชื่อมต่ออุปกรณ์ IoT ของ Tuya Cloud (มิเตอร์ไฟ/น้ำอัจฉริยะที่ติดตั้งจริงในตึก) เข้ากับห้องแต่ละห้อง — ทำให้ระบบดึงค่าไฟ/น้ำแบบเรียลไทม์มาคิดบิลอัตโนมัติแทนการจดมิเตอร์เอง ตัวเลขที่หัวหน้า ("ไฟ x/y", "น้ำ x/y ออนไลน์") คือจำนวนห้องที่เชื่อมต่อสำเร็จและอุปกรณ์ยังออนไลน์อยู่ตอนนี้',
+  equipRoomSelect: 'เลือกห้องที่ต้องการตั้งค่าอุปกรณ์จากตรงนี้ก่อน แล้วสลับแท็บ "⚡ ไฟฟ้า" / "💧 น้ำ" ด้านล่างเพื่อกรอก Device ID ของอุปกรณ์ประเภทนั้นๆ ให้ห้องที่เลือกไว้ — แต่ละห้องเชื่อมได้ทั้งอุปกรณ์ไฟและน้ำพร้อมกัน (คนละช่องกัน)',
+  equipElec: 'กรอก "Tuya Device ID" ของมิเตอร์ไฟห้องนี้ (คัดลอกจากหน้า Devices ใน Tuya IoT Platform ของตัวเอง) แล้วกด "บันทึกอุปกรณ์ไฟฟ้า" — ด้านล่างจะแสดงค่าโวลต์/แอมป์/วัตต์/หน่วยสะสมแบบเรียลไทม์ กด "รีเฟรช" เพื่อดึงค่าล่าสุด (ระบบดึงอัตโนมัติทุก 5 นาทีถ้าเปิดหน้านี้ค้างไว้ด้วย)',
+  equipWater: 'กรอก "Tuya Device ID" ของมิเตอร์น้ำห้องนี้ แล้วกด "บันทึกอุปกรณ์น้ำ" — ช่อง "ค่าสูงสุดก่อนมิเตอร์รีเซ็ต" สำคัญสำหรับมิเตอร์น้ำบางรุ่นที่นับได้ถึงค่าหนึ่งแล้ววนกลับไปเริ่มที่ 0 ใหม่ (เช่น 10000 ลิตร) — ถ้าไม่ตั้งค่านี้ไว้ ระบบอาจคิดหน่วยการใช้น้ำผิดตอนมิเตอร์รีเซ็ตพอดี',
+  equipStatusList: 'รายการนี้สรุปสถานะอุปกรณ์ทุกห้องในตึกพร้อมกัน (ออนไลน์/ออฟไลน์ + ค่าล่าสุด) — สำหรับอุปกรณ์ไฟที่รองรับ จะมีปุ่ม "ตัดไฟ/จ่ายไฟ" ให้กดตัดไฟห้องนั้นได้โดยตรงจากตรงนี้ (มี popup ให้ยืนยันก่อนตัดไฟทุกครั้ง กันกดพลาด) — การตัดไฟเป็นการตัดสินใจของเจ้าของหอพักเองเสมอ ระบบอัตโนมัติจะไม่ตัดไฟให้เองเด็ดขาด อย่างมากแค่เตือนผู้เช่า/แจ้งเจ้าของถ้าค้างชำระ',
 };
 class Component extends DCLogic {
   state = {
@@ -9053,6 +9083,11 @@ class Component extends DCLogic {
       onDemoTipClaudeCommandBox: () => this.showDemoTip('claudeCommandBox'),
       onDemoTipClaudeEnableToggle: () => this.showDemoTip('claudeEnableToggle'),
       onDemoTipSidebarAccount: () => this.showDemoTip('sidebarAccount'),
+      onDemoTipEquipOverview: () => this.showDemoTip('equipOverview'),
+      onDemoTipEquipRoomSelect: () => this.showDemoTip('equipRoomSelect'),
+      onDemoTipEquipElec: () => this.showDemoTip('equipElec'),
+      onDemoTipEquipWater: () => this.showDemoTip('equipWater'),
+      onDemoTipEquipStatusList: () => this.showDemoTip('equipStatusList'),
       calMonthLabel, calCells, calWeekdays: ['อา','จ','อ','พ','พฤ','ศ','ส'],
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,
