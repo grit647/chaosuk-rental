@@ -207,12 +207,13 @@ command box, the "+"  attach menu, and the "เปิดใช้งานฟี
 toggle — carefully worded to match actual code behavior, not the
 owner's initial mental model, since the toggle only gates scheduled
 messages, not the interactive chat box), the **sidebar account card**
-(bottom-left "จัดการผู้ดูแล" entry point), and finally **แจ้งซ่อม** +
-**บัญชีรายจ่าย** (2 tips each). This completes tooltip coverage for
-every page in the original 8-page scope plus several extra cards/
-controls the owner asked about along the way. **Not done:** ผู้เช่า
-(the owner never asked for this one specifically — revisit if
-requested).
+(bottom-left "จัดการผู้ดูแล" entry point), **แจ้งซ่อม** + **บัญชีรายจ่าย**
+(2 tips each), and finally **ผู้เช่า** (3 tips: page overview, the
+Token·การเชื่อมต่อ Auto(LINE)/กรอกเอง toggle, and the ส่งข่าวสาร button
+— explicitly requested last, "เหลืออันเดียว"). **Every nav page in the
+app now has demo tooltip coverage** — the full tour is complete. If a
+new page/feature is added later, follow "How to add tips to another
+page" above to extend it.
 
 ### Known gap: a tenant who is ALSO staff could get mixed-up LINE messages
 
