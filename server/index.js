@@ -131,6 +131,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/bootstrap', require('./routes/bootstrap'));
 app.use('/api/rooms', require('./routes/rooms'));
 app.use('/api/staff', require('./routes/staff'));
+app.use('/api/admins', require('./routes/admins'));
 app.use('/api/tenant', require('./routes/tenant'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/maintenance', require('./routes/maintenance'));

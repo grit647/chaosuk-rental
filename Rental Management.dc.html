@@ -266,11 +266,17 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             </div>
           </div>
           <div style="margin-top:auto;padding-top:14px;display:flex;flex-direction:column;gap:10px">
-            <div style="display:flex;align-items:center;gap:10px;padding:11px;border-radius:8px;background:rgba(241,235,224,0.08)">
+            <!-- Per explicit user request: was hardcoded mock text
+                 ("คุณอารีย์ ผู้ดูแล" / "เจ้าของหอพัก") never wired to any
+                 real session data. Now shows the real logged-in
+                 person's name + role, AND doubles as the entry point
+                 for "จัดการผู้ดูแล" (add/edit/remove ผู้ดูแล login
+                 accounts) — clicking it opens that popup. -->
+            <div onclick="{{ openAdminsModal }}" style="display:flex;align-items:center;gap:10px;padding:11px;border-radius:8px;background:rgba(241,235,224,0.08);cursor:pointer">
               <div style="width:32px;height:32px;border-radius:50%;background:rgba(241,235,224,0.25);flex-shrink:0"></div>
               <div>
-                <div style="font-size:12.5px;font-weight:600;color:#F1EBE0">คุณอารีย์ ผู้ดูแล</div>
-                <div style="font-size:11px;color:rgba(241,235,224,0.55)">เจ้าของหอพัก</div>
+                <div style="font-size:12.5px;font-weight:600;color:#F1EBE0">{{ sidebarAccountName }}</div>
+                <div style="font-size:11px;color:rgba(241,235,224,0.55)">{{ sidebarAccountRole }}</div>
               </div>
             </div>
             <div onclick="{{ logout }}" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:8px;border:1px solid rgba(241,235,224,0.18);color:#E8B4A0;font-size:12.5px;font-weight:600;cursor:pointer">
@@ -1803,19 +1809,6 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <sc-if value="{{ st.hasNotes }}" hint-placeholder-val="{{ false }}">
                       <div style="font-size:11.5px;color:#9C8B78;background:#FBF7F0;border-radius:6px;padding:8px 10px">📝 {{ st.notes }}</div>
                     </sc-if>
-                    <!-- Per explicit user design: "เปิดใช้งาน Login" gives
-                         this staff member real access to the app
-                         (accounting-clerk role — see /staff-login) —
-                         shown separately from the plain data edit/delete
-                         row below since granting login access is a more
-                         sensitive action. -->
-                    <div style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;padding:6px 0">
-                      <span style="color:{{ st.loginStatusColor }}">{{ st.loginStatusLabel }}</span>
-                      <span onclick="{{ st.onSetPin }}" style="cursor:pointer;color:#2C6E8F;text-decoration:underline">{{ st.setPinLabel }}</span>
-                      <sc-if value="{{ st.loginEnabled }}" hint-placeholder-val="{{ false }}">
-                        <span onclick="{{ st.onDisableLogin }}" style="cursor:pointer;color:#B24336;text-decoration:underline">ปิดใช้งาน</span>
-                      </sc-if>
-                    </div>
                     <div style="display:flex;gap:8px;margin-top:2px">
                       <span onclick="{{ st.onEdit }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F">✎ แก้ไข</span>
                       <span onclick="{{ st.onDelete }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336">🗑 ลบ</span>
@@ -3306,43 +3299,82 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
-        <!-- Per explicit user design: sets/changes a staff member's own
-             login PIN — used together with the building's own รหัสตึก
-             (buildingKeyId) + their own phone at /staff-login. -->
-        <sc-if value="{{ showStaffPinModal }}">
-          <div onclick="{{ closeStaffPinModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210;padding:16px;box-sizing:border-box">
+        <!-- Per explicit user request (next-day correction): "ผู้ดูแล"
+             login access is now managed as a completely SEPARATE concept
+             from พนักงาน/สัญญาพนักงาน — see the "จัดการผู้ดูแล" popup
+             (opened from the sidebar's account card) below instead. -->
+        <sc-if value="{{ showAdminsModal }}">
+          <div onclick="{{ closeAdminsModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210;padding:16px;box-sizing:border-box">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:400px;max-width:100%;max-height:88vh;overflow-y:auto;box-sizing:border-box">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                <div style="font-size:16px;font-weight:700;color:#241812">จัดการผู้ดูแล</div>
+                <span onclick="{{ closeAdminsModal }}" style="cursor:pointer;font-size:18px;color:#9C8B78">×</span>
+              </div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">ผู้ดูแลเข้าสู่ระบบได้เต็มรูปแบบเหมือนเจ้าของ ด้วยรหัสตึก + เบอร์โทรของตัวเอง + รหัสผ่าน ที่หน้า /staff-login</div>
+              <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+                <sc-for list="{{ adminsList }}" as="a" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid #E3D8C8;border-radius:8px">
+                    <div>
+                      <div style="font-size:13px;font-weight:600;color:#241812">{{ a.name }}</div>
+                      <div style="font-size:11px;color:#9C8B78;font-family:'IBM Plex Mono',monospace">{{ a.phone }}</div>
+                    </div>
+                    <div style="display:flex;gap:8px">
+                      <span onclick="{{ a.onEdit }}" style="font-size:11px;font-weight:600;padding:5px 10px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F">✎ แก้ไข</span>
+                      <span onclick="{{ a.onDelete }}" style="font-size:11px;font-weight:600;padding:5px 10px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336">🗑 ลบ</span>
+                    </div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ noAdmins }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:12px;color:#9C8B78;text-align:center;padding:12px 0">ยังไม่มีผู้ดูแลในระบบ</div>
+                </sc-if>
+              </div>
+              <div onclick="{{ openAdminFormNew }}" style="text-align:center;padding:10px;border-radius:7px;border:1.5px dashed #D8C9B4;color:#7C6E5F;font-size:12.5px;font-weight:600;cursor:pointer">+ เพิ่มผู้ดูแลใหม่</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- Add/edit form for one admin — pin is required when adding new,
+             optional when editing (blank = keep the existing password). -->
+        <sc-if value="{{ showAdminFormModal }}">
+          <div onclick="{{ closeAdminFormModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:211;padding:16px;box-sizing:border-box">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:100%;box-sizing:border-box">
-              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ตั้งรหัสผ่าน Login พนักงาน</div>
-              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">พนักงานจะใช้ รหัสตึก + เบอร์โทรของตัวเอง + รหัสผ่านนี้ เข้าสู่ระบบที่หน้า /staff-login</div>
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:16px">{{ adminFormTitle }}</div>
+              <div style="margin-bottom:12px">
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ชื่อผู้ดูแล</div>
+                <input value="{{ newAdmin.name }}" onchange="{{ onNewAdminName }}" placeholder="เช่น สมชาย บัญชี" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:13px;box-sizing:border-box">
+              </div>
+              <div style="margin-bottom:12px">
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เบอร์โทร</div>
+                <input value="{{ newAdmin.phone }}" onchange="{{ onNewAdminPhone }}" placeholder="08X-XXX-XXXX" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:13px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+              </div>
               <div style="margin-bottom:16px">
-                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รหัสผ่านใหม่ (อย่างน้อย 4 ตัวอักษร)</div>
-                <input value="{{ staffPinValue }}" onchange="{{ onStaffPinValue }}" placeholder="เช่น 1234" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:13px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">{{ adminPinFieldLabel }}</div>
+                <input value="{{ newAdmin.pin }}" onchange="{{ onNewAdminPin }}" placeholder="อย่างน้อย 4 ตัวอักษร" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:13px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
               </div>
               <div style="display:flex;gap:10px">
-                <button onclick="{{ closeStaffPinModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
-                <button onclick="{{ submitStaffPin }}" style="flex:1.3;background:#2C6E8F;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึกรหัสผ่าน</button>
+                <button onclick="{{ closeAdminFormModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ submitAdminForm }}" style="flex:1.3;background:#2C6E8F;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึก</button>
               </div>
             </div>
           </div>
         </sc-if>
 
-        <!-- Per explicit user request: granting/changing/disabling a staff
-             member's login access requires the OWNER's own PIN first —
-             same gate as ข้อมูลหอพัก and other Settings actions. Shared by
-             both submitStaffPin (set/change) and askDisableStaffLogin
-             (disable) — staffPinOwnerVerifyLabel picks the right wording. -->
-        <sc-if value="{{ showStaffPinOwnerVerify }}">
-          <div onclick="{{ closeStaffPinOwnerVerify }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:211;padding:16px;box-sizing:border-box">
+        <!-- Per explicit user request: adding/editing/deleting a "ผู้ดูแล"
+             login requires the OWNER's own PIN first — same gate as
+             ข้อมูลหอพัก and other Settings actions. Shared by all 3
+             actions — adminOwnerVerifyLabel picks the right wording. -->
+        <sc-if value="{{ showAdminOwnerVerify }}">
+          <div onclick="{{ closeAdminOwnerVerify }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:212;padding:16px;box-sizing:border-box">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:100%;box-sizing:border-box">
               <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ยืนยันด้วยรหัสเจ้าของ</div>
-              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">{{ staffPinOwnerVerifyLabel }}</div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">{{ adminOwnerVerifyLabel }}</div>
               <div style="margin-bottom:16px">
                 <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รหัสของเจ้าของหอพัก</div>
-                <input type="password" value="{{ staffPinOwnerVerifyDraft }}" onchange="{{ onStaffPinOwnerVerifyDraft }}" placeholder="รหัส" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:13px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                <input type="password" value="{{ adminOwnerVerifyDraft }}" onchange="{{ onAdminOwnerVerifyDraft }}" placeholder="รหัส" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:13px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
               </div>
               <div style="display:flex;gap:10px">
-                <button onclick="{{ closeStaffPinOwnerVerify }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
-                <button onclick="{{ confirmStaffPinOwnerVerify }}" style="flex:1.3;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยืนยัน</button>
+                <button onclick="{{ closeAdminOwnerVerify }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ confirmAdminOwnerVerify }}" style="flex:1.3;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยืนยัน</button>
               </div>
             </div>
           </div>
@@ -3482,23 +3514,24 @@ class Component extends DCLogic {
     newStaff: { name: '', position: '', salary: '', workStart: '', workEnd: '', workDays: '', startDate: '', endDate: '', phone: '', status: 'active', notes: '', payDay: '' },
     showDeleteStaffConfirm: false,
     deleteStaffId: null,
-    // Per explicit user design: "เปิดใช้งาน Login" lets the owner set a
-    // per-staff-member PIN so that person can log in as a full-access
-    // accounting-clerk role via /staff-login (building code + own phone +
-    // this PIN) — see server/routes/auth.js's POST /staff-login. Separate
-    // small modal from the main add/edit form since it's a distinct,
-    // more sensitive action (creating real login access), not just
-    // editing a data field.
-    showStaffPinModal: false,
-    staffPinTargetId: null,
-    staffPinValue: '',
-    // Per explicit user request: setting/changing/disabling a staff
-    // member's login PIN requires the OWNER's own PIN first (same gate
-    // as ข้อมูลหอพัก and other Settings actions) — this shared modal
-    // handles both directions, staffPinDisableMode picks which.
-    showStaffPinOwnerVerify: false,
-    staffPinOwnerVerifyDraft: '',
-    staffPinDisableMode: false,
+    // "ผู้ดูแล" (accounting-clerk login access) — per explicit user
+    // correction, kept fully separate from พนักงาน/สัญญาพนักงาน above.
+    // See server/routes/admins.js + the "Admins" Sheet tab, and
+    // server/routes/auth.js's POST /staff-login (building code + phone
+    // + PIN, checked against Admins).
+    admins: [],
+    showAdminsModal: false,
+    showAdminFormModal: false,
+    editingAdminId: null,
+    newAdmin: { name: '', phone: '', pin: '' },
+    // Per explicit user request: adding/editing/deleting a ผู้ดูแล login
+    // requires the OWNER's own PIN first (same gate as ข้อมูลหอพัก and
+    // other Settings actions) — this shared modal handles all 3 actions,
+    // adminOwnerVerifyAction picks which.
+    showAdminOwnerVerify: false,
+    adminOwnerVerifyDraft: '',
+    adminOwnerVerifyAction: '',
+    deleteAdminId: null,
     showMaintenanceModal: false,
     newMaintenance: { roomId: '', issue: '' },
     settings: { emailNotif: true, smsNotif: false, autoInvoice: true, dueReminder: true, lineNotif: true },
@@ -6646,92 +6679,102 @@ class Component extends DCLogic {
     }
   });
 
-  // "เปิดใช้งาน Login" — sets/changes this staff member's own login PIN
-  // (checked against server/routes/auth.js's POST /staff-login, alongside
-  // their phone + the building's buildingKeyId). Requires a phone number
-  // on file first (staff-login matches phone+pin together, same as the
-  // owner's own login) — the modal below blocks submitting without one
-  // instead of silently saving a PIN nobody could ever use to log in.
-  openStaffPinModal = (id) => {
-    const st = this.state.staff.find(x => x.id === id);
-    if (!st) return;
-    this.setState({ showStaffPinModal: true, staffPinTargetId: id, staffPinValue: '' });
+  // "ผู้ดูแล" (accounting-clerk login access — full access same as the
+  // owner, a completely separate credential) — per explicit user
+  // correction the next day, kept as its own management flow, fully
+  // separate from พนักงาน/สัญญาพนักงาน (which has no login concept at
+  // all anymore). Backed by server/routes/admins.js + the "Admins"
+  // Sheet tab, checked at login time by server/routes/auth.js's POST
+  // /staff-login (building code + phone + PIN).
+  loadAdmins = async () => {
+    try {
+      const res = await fetch('/api/admins');
+      if (res.ok) this.setState({ admins: await res.json() });
+    } catch (err) { console.error(err); }
   };
-  closeStaffPinModal = () => this.setState({ showStaffPinModal: false, staffPinTargetId: null, staffPinValue: '' });
-  onStaffPinValue = (e) => this.setState({ staffPinValue: e.target.value });
-  // Per explicit user request: granting/changing a staff member's login
-  // access is sensitive enough to require the OWNER's own PIN first —
-  // same gate already used for the ข้อมูลหอพัก card and other Settings
-  // actions (POST /api/settings/verify-admin-pin). This step just
-  // validates the new PIN locally (phone on file, min length) and moves
-  // to the owner-PIN confirm modal — the ACTUAL save happens in
-  // confirmStaffPinWithOwnerPin below, only after that PIN checks out.
-  submitStaffPin = () => {
-    const id = this.state.staffPinTargetId;
-    const pin = this.state.staffPinValue.trim();
-    const st = this.state.staff.find(x => x.id === id);
-    if (!id || !st) return;
-    if (!st.phone || !st.phone.trim()) { this.showAdminToast('พนักงานคนนี้ยังไม่มีเบอร์โทร กรุณาแก้ไขข้อมูลพนักงานเพิ่มเบอร์ก่อน'); return; }
-    if (pin.length < 4) { this.showAdminToast('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร'); return; }
-    this.setState({ showStaffPinModal: false, showStaffPinOwnerVerify: true, staffPinOwnerVerifyDraft: '' });
+  openAdminsModal = () => { this.setState({ showAdminsModal: true }); this.loadAdmins(); };
+  closeAdminsModal = () => this.setState({ showAdminsModal: false });
+  openAdminFormNew = () => this.setState({
+    showAdminFormModal: true, editingAdminId: null, newAdmin: { name: '', phone: '', pin: '' },
+  });
+  openAdminFormEdit = (id) => {
+    const a = this.state.admins.find(x => x.id === id);
+    if (!a) return;
+    this.setState({
+      showAdminFormModal: true, editingAdminId: id,
+      newAdmin: { name: a.name || '', phone: a.phone || '', pin: '' },
+    });
   };
-  closeStaffPinOwnerVerify = () => this.setState({ showStaffPinOwnerVerify: false, staffPinOwnerVerifyDraft: '', staffPinTargetId: null, staffPinValue: '', staffPinDisableMode: false });
-  onStaffPinOwnerVerifyDraft = (e) => this.setState({ staffPinOwnerVerifyDraft: e.target.value });
-  confirmStaffPinWithOwnerPin = () => this._guard('confirmStaffPinWithOwnerPin:' + this.state.staffPinTargetId, async () => {
-    const id = this.state.staffPinTargetId;
-    const pin = this.state.staffPinValue.trim();
-    const st = this.state.staff.find(x => x.id === id);
-    if (!id || !st) return;
+  closeAdminFormModal = () => this.setState({ showAdminFormModal: false, editingAdminId: null });
+  onNewAdminName = (e) => this.setState(s => ({ newAdmin: { ...s.newAdmin, name: e.target.value } }));
+  onNewAdminPhone = (e) => this.setState(s => ({ newAdmin: { ...s.newAdmin, phone: e.target.value } }));
+  onNewAdminPin = (e) => this.setState(s => ({ newAdmin: { ...s.newAdmin, pin: e.target.value } }));
+  // Validates locally (name/phone always required; PIN required only
+  // when adding new — editing leaves the password unchanged if left
+  // blank), then moves to the owner-PIN confirm step. The actual
+  // save happens in confirmAdminSaveWithOwnerPin, only after that
+  // PIN checks out — same two-step pattern as ข้อมูลหอพัก's save.
+  submitAdminForm = () => {
+    const f = this.state.newAdmin;
+    if (!f.name.trim()) { this.showAdminToast('กรุณากรอกชื่อผู้ดูแล'); return; }
+    if (!f.phone.trim()) { this.showAdminToast('กรุณากรอกเบอร์โทร'); return; }
+    const isNew = !this.state.editingAdminId;
+    if (isNew && f.pin.trim().length < 4) { this.showAdminToast('กรุณาตั้งรหัสผ่านอย่างน้อย 4 ตัวอักษร'); return; }
+    if (!isNew && f.pin.trim() && f.pin.trim().length < 4) { this.showAdminToast('รหัสผ่านใหม่ต้องมีอย่างน้อย 4 ตัวอักษร (หรือเว้นว่างไว้เพื่อไม่เปลี่ยน)'); return; }
+    this.setState({ showAdminFormModal: false, showAdminOwnerVerify: true, adminOwnerVerifyDraft: '', adminOwnerVerifyAction: 'save' });
+  };
+  askDeleteAdmin = (id) => this.setState({ showAdminOwnerVerify: true, adminOwnerVerifyDraft: '', adminOwnerVerifyAction: 'delete', deleteAdminId: id });
+  closeAdminOwnerVerify = () => this.setState({ showAdminOwnerVerify: false, adminOwnerVerifyDraft: '', adminOwnerVerifyAction: '', deleteAdminId: null });
+  onAdminOwnerVerifyDraft = (e) => this.setState({ adminOwnerVerifyDraft: e.target.value });
+  confirmAdminSaveWithOwnerPin = () => this._guard('confirmAdminSaveWithOwnerPin', async () => {
+    const f = this.state.newAdmin;
+    const editingId = this.state.editingAdminId;
     try {
       const verifyRes = await fetch('/api/settings/verify-admin-pin', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: this.state.staffPinOwnerVerifyDraft }),
+        body: JSON.stringify({ pin: this.state.adminOwnerVerifyDraft }),
       });
       if (!verifyRes.ok) throw new Error((await verifyRes.json()).error || 'รหัสเจ้าของไม่ถูกต้อง');
-      const res = await fetch('/api/staff/' + encodeURIComponent(id), {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }),
-      });
+      let res;
+      if (editingId) {
+        const patch = { name: f.name, phone: f.phone };
+        if (f.pin.trim()) patch.pin = f.pin.trim();
+        res = await fetch('/api/admins/' + encodeURIComponent(editingId), {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+        });
+      } else {
+        res = await fetch('/api/admins', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: f.name, phone: f.phone, pin: f.pin.trim() }),
+        });
+      }
       if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
-      const updated = await res.json();
-      this.setState(s => ({
-        staff: s.staff.map(x => x.id === updated.id ? updated : x),
-        showStaffPinOwnerVerify: false, staffPinOwnerVerifyDraft: '', staffPinTargetId: null, staffPinValue: '',
-      }));
-      this.showAdminToast('ตั้งรหัส Login ให้ ' + st.name + ' แล้ว — บอกรหัสตึก เบอร์โทร และรหัสผ่านนี้ให้พนักงานเพื่อเข้าสู่ระบบที่หน้า /staff-login');
+      await this.loadAdmins();
+      this.setState({ showAdminOwnerVerify: false, adminOwnerVerifyDraft: '', adminOwnerVerifyAction: '', editingAdminId: null });
+      this.showAdminToast(editingId ? 'บันทึกข้อมูลผู้ดูแลแล้ว' : 'เพิ่มผู้ดูแล ' + f.name + ' แล้ว — บอกรหัสตึก เบอร์โทร และรหัสผ่านนี้ให้เขาเข้าสู่ระบบที่หน้า /staff-login');
     } catch (err) { this.showAdminToast(err.message || 'ดำเนินการไม่สำเร็จ'); }
   });
-  // Same owner-PIN gate applied to disabling a staff member's login —
-  // per explicit user intent ("ป้องกันไว้"), any change to WHO can log
-  // in should require the owner's confirmation, not just granting it.
-  askDisableStaffLogin = (id) => this.setState({ showStaffPinOwnerVerify: true, staffPinOwnerVerifyDraft: '', staffPinTargetId: id, staffPinValue: '', staffPinDisableMode: true });
-  confirmDisableStaffLoginWithOwnerPin = () => this._guard('confirmDisableStaffLoginWithOwnerPin:' + this.state.staffPinTargetId, async () => {
-    const id = this.state.staffPinTargetId;
-    const st = this.state.staff.find(x => x.id === id);
-    if (!id || !st) return;
+  confirmAdminDeleteWithOwnerPin = () => this._guard('confirmAdminDeleteWithOwnerPin', async () => {
+    const id = this.state.deleteAdminId;
+    if (!id) return;
     try {
       const verifyRes = await fetch('/api/settings/verify-admin-pin', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: this.state.staffPinOwnerVerifyDraft }),
+        body: JSON.stringify({ pin: this.state.adminOwnerVerifyDraft }),
       });
       if (!verifyRes.ok) throw new Error((await verifyRes.json()).error || 'รหัสเจ้าของไม่ถูกต้อง');
-      const res = await fetch('/api/staff/' + encodeURIComponent(id), {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '' }),
-      });
-      if (!res.ok) throw new Error('ปิดใช้งานไม่สำเร็จ');
-      const updated = await res.json();
-      this.setState(s => ({
-        staff: s.staff.map(x => x.id === updated.id ? updated : x),
-        showStaffPinOwnerVerify: false, staffPinOwnerVerifyDraft: '', staffPinTargetId: null, staffPinDisableMode: false,
-      }));
-      this.showAdminToast('ปิดใช้งาน Login ของ ' + st.name + ' แล้ว');
+      const res = await fetch('/api/admins/' + encodeURIComponent(id), { method: 'DELETE' });
+      if (!res.ok) throw new Error('ลบไม่สำเร็จ');
+      await this.loadAdmins();
+      this.setState({ showAdminOwnerVerify: false, adminOwnerVerifyDraft: '', adminOwnerVerifyAction: '', deleteAdminId: null });
+      this.showAdminToast('ลบผู้ดูแลแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ดำเนินการไม่สำเร็จ'); }
   });
   // Single entry point for the shared owner-PIN-verify modal's submit
-  // button — dispatches to whichever action (set/change PIN, or disable
-  // login) triggered the modal, per staffPinDisableMode.
-  confirmStaffPinOwnerVerify = () => {
-    if (this.state.staffPinDisableMode) this.confirmDisableStaffLoginWithOwnerPin();
-    else this.confirmStaffPinWithOwnerPin();
+  // button — dispatches per adminOwnerVerifyAction.
+  confirmAdminOwnerVerify = () => {
+    if (this.state.adminOwnerVerifyAction === 'delete') this.confirmAdminDeleteWithOwnerPin();
+    else this.confirmAdminSaveWithOwnerPin();
   };
 
   openMaintenanceModal = () => this.setState({ showMaintenanceModal: true, newMaintenance: { roomId: '', issue: '' } });
@@ -7493,7 +7536,17 @@ class Component extends DCLogic {
     } catch (err) { this.showAdminToast('อัปเดตไม่สำเร็จ'); }
   });
 
-  logout = () => this.showAdminToast('ออกจากระบบเรียบร้อย (เดโม)');
+  // Per explicit user report: this used to be a pure mock — clicking it
+  // never actually logged anyone out, just showed a fake success toast.
+  // Real logout: clears the session cookie server-side, then bounces to
+  // the login page appropriate for whichever role was signed in (a
+  // tenant's own portal has its own separate logout in tenant-portal.
+  // html — this one only ever handles owner/staff sessions, since a
+  // tenant session never loads this file at all).
+  logout = () => this._guard('logout', async () => {
+    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch { /* clear cookie best-effort even if this call fails */ }
+    window.location.href = '/login';
+  });
 
   // Double-click / double-tap guard for anything that hits the server and
   // shouldn't run twice (create invoice, mark paid, send LINE, delete, etc.)
@@ -8699,17 +8752,6 @@ class Component extends DCLogic {
           statusBg: isActive ? '#E4EFE7' : '#EDE4D6', statusColor: isActive ? '#3B7A52' : '#9C8B78',
           onEdit: () => this.openEditStaff(st.id),
           onDelete: () => this.askDeleteStaff(st.id),
-          // Per explicit user design: "เปิดใช้งาน Login" gives this staff
-          // member real access to the app (accounting-clerk role, full
-          // access same as owner) via /staff-login — shown as a distinct
-          // badge/button from the plain data edit above since it's a more
-          // sensitive action.
-          loginEnabled: !!st.hasPin,
-          loginStatusLabel: st.hasPin ? '🔑 เปิดใช้งาน Login แล้ว' : '🔒 ยังไม่เปิดใช้งาน Login',
-          loginStatusColor: st.hasPin ? '#3B7A52' : '#9C8B78',
-          setPinLabel: st.hasPin ? 'เปลี่ยนรหัสผ่าน' : 'เปิดใช้งาน',
-          onSetPin: () => this.openStaffPinModal(st.id),
-          onDisableLogin: () => this.askDisableStaffLogin(st.id),
         };
       }),
       showStaffModal: s.showStaffModal, closeStaffModal: this.closeStaffModal,
@@ -8732,14 +8774,32 @@ class Component extends DCLogic {
       staffInactiveColor: s.newStaff.status === 'inactive' ? '#fff' : '#7C6E5F',
       showDeleteStaffConfirm: s.showDeleteStaffConfirm, closeDeleteStaffConfirm: this.closeDeleteStaffConfirm,
       confirmDeleteStaff: this.confirmDeleteStaff,
-      showStaffPinModal: s.showStaffPinModal, closeStaffPinModal: this.closeStaffPinModal,
-      staffPinValue: s.staffPinValue, onStaffPinValue: this.onStaffPinValue, submitStaffPin: this.submitStaffPin,
-      showStaffPinOwnerVerify: s.showStaffPinOwnerVerify, closeStaffPinOwnerVerify: this.closeStaffPinOwnerVerify,
-      staffPinOwnerVerifyDraft: s.staffPinOwnerVerifyDraft, onStaffPinOwnerVerifyDraft: this.onStaffPinOwnerVerifyDraft,
-      confirmStaffPinOwnerVerify: this.confirmStaffPinOwnerVerify,
-      staffPinOwnerVerifyLabel: s.staffPinDisableMode
-        ? 'ปิดใช้งาน Login ของพนักงานคนนี้ต้องยืนยันด้วยรหัสของเจ้าของก่อนครับ'
-        : 'ตั้ง/เปลี่ยนรหัสผ่าน Login ของพนักงานคนนี้ต้องยืนยันด้วยรหัสของเจ้าของก่อนครับ',
+      // "ผู้ดูแล" management popup — see admins.js state/handlers above.
+      showAdminsModal: s.showAdminsModal, openAdminsModal: this.openAdminsModal, closeAdminsModal: this.closeAdminsModal,
+      adminsList: s.admins.map(a => ({ id: a.id, name: a.name, phone: a.phone,
+        onEdit: () => this.openAdminFormEdit(a.id), onDelete: () => this.askDeleteAdmin(a.id) })),
+      noAdmins: s.admins.length === 0,
+      openAdminFormNew: this.openAdminFormNew,
+      showAdminFormModal: s.showAdminFormModal, closeAdminFormModal: this.closeAdminFormModal,
+      newAdmin: s.newAdmin, onNewAdminName: this.onNewAdminName, onNewAdminPhone: this.onNewAdminPhone,
+      onNewAdminPin: this.onNewAdminPin, submitAdminForm: this.submitAdminForm,
+      adminFormTitle: s.editingAdminId ? 'แก้ไขข้อมูลผู้ดูแล' : 'เพิ่มผู้ดูแลใหม่',
+      adminPinFieldLabel: s.editingAdminId ? 'รหัสผ่านใหม่ (เว้นว่างไว้ถ้าไม่เปลี่ยน)' : 'รหัสผ่าน (อย่างน้อย 4 ตัวอักษร)',
+      showAdminOwnerVerify: s.showAdminOwnerVerify, closeAdminOwnerVerify: this.closeAdminOwnerVerify,
+      adminOwnerVerifyDraft: s.adminOwnerVerifyDraft, onAdminOwnerVerifyDraft: this.onAdminOwnerVerifyDraft,
+      confirmAdminOwnerVerify: this.confirmAdminOwnerVerify,
+      adminOwnerVerifyLabel: s.adminOwnerVerifyAction === 'delete'
+        ? 'ลบผู้ดูแลคนนี้ต้องยืนยันด้วยรหัสของเจ้าของก่อนครับ'
+        : 'บันทึกข้อมูลผู้ดูแลคนนี้ต้องยืนยันด้วยรหัสของเจ้าของก่อนครับ',
+      // Sidebar account card — was hardcoded mock text, now shows the
+      // real logged-in person: owner sees propertyProfile.adminName
+      // (falls back if never set), an admin/"ผู้ดูแล" session sees their
+      // own name (resolved server-side in GET /api/auth/me, since the
+      // session itself only stores staffId — see auth.js).
+      sidebarAccountName: (s.authSession && s.authSession.role === 'staff' && s.authSession.adminName)
+        ? s.authSession.adminName
+        : (s.propertyProfile.adminName || 'เจ้าของกิจการ'),
+      sidebarAccountRole: (s.authSession && s.authSession.role === 'staff') ? 'ผู้ดูแล' : 'เจ้าของกิจการ',
       calMonthLabel, calCells, calWeekdays: ['อา','จ','อ','พ','พฤ','ศ','ส'],
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,

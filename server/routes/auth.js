@@ -145,28 +145,40 @@ router.post('/login', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Per explicit user request/discussion: a "ผู้ดูแล" (staff — in practice
-// an accounting clerk operating the site on the owner's behalf, per the
+// Per explicit user request/discussion: "ผู้ดูแล" (in practice an
+// accounting clerk operating the site on the owner's behalf, per the
 // owner's own description) logs in with a DIFFERENT 3-field flow than the
 // owner's phone+PIN: building code (buildingKeyId) + their OWN phone +
 // their OWN PIN. This is a completely separate credential set from the
 // owner's login — the owner never has to share their personal phone/PIN.
 //
+// UPDATE (explicit user correction the next day): originally checked
+// phone+pin against the Staff/สัญญาพนักงาน tab, but that conflated two
+// unrelated things — employment-contract data (salary, hours, position)
+// has nothing to do with app login access. Now checks against a
+// dedicated "Admins" tab instead (server/routes/admins.js) — Staff never
+// has a login concept at all anymore. Session shape (role: 'staff',
+// staffId: <row id>) intentionally left unchanged even though it now
+// sources from Admins — renaming it project-wide wasn't worth the
+// churn, and "staff" already meant "not the owner, but full access"
+// everywhere else in this codebase (isPlatformAdminSession, the
+// tenant-blocking middleware in index.js, etc.).
+//
 // Design: buildingKeyId is looked up in the shared Directory sheet (kept
 // in sync with each building's own Settings via the settings.js PUT route
 // — see that route's buildingKeyId sync block) to resolve WHICH building's
 // Sheet to check. Then phone+pin is checked against THAT building's own
-// Staff tab (not the Directory — staff records live per-building, same as
-// Rooms/Invoices/etc.), so one Staff phone+PIN can never accidentally
-// match a different building's staff member.
+// Admins tab (not the Directory — admin records live per-building, same
+// as Rooms/Invoices/etc.), so one Admins phone+PIN can never accidentally
+// match a different building's admin.
 //
-// Per explicit user request, staff sees the EXACT SAME full dashboard as
-// the owner once logged in (this is an accounting-clerk role, not a
+// Per explicit user request, an admin sees the EXACT SAME full dashboard
+// as the owner once logged in (this is an accounting-clerk role, not a
 // restricted view) — the only differences are: (1) a separate credential
 // from the owner's own, and (2) actions already gated behind
 // isPlatformAdminSession (delete/suspend building) or the adminEditPin
 // confirm-modal (ข้อมูลหอพัก card save) stay gated the exact same way
-// regardless of who's logged in, no special-casing needed for staff.
+// regardless of who's logged in, no special-casing needed.
 router.post('/staff-login', async (req, res, next) => {
   try {
     const { buildingKeyId, phone, pin } = req.body;
@@ -178,11 +190,11 @@ router.post('/staff-login', async (req, res, next) => {
     if (!building) return res.status(401).json({ error: 'ไม่พบรหัสตึกนี้ กรุณาตรวจสอบรหัสตึกอีกครั้ง' });
     if (building.status === 'suspended') return res.status(403).json({ error: 'ตึกนี้ถูกพักการใช้งานชั่วคราว กรุณาติดต่อผู้ดูแลระบบ' });
 
-    const staffRows = await runWithSheetId(building.customerSheetId, () => readTab('Staff'));
-    const staff = staffRows.find((s) => s.phone === phone && s.pin && s.pin === pin);
-    if (!staff) return res.status(401).json({ error: 'เบอร์โทรหรือรหัสผ่านไม่ถูกต้อง' });
+    const adminRows = await runWithSheetId(building.customerSheetId, () => readTab('Admins'));
+    const admin = adminRows.find((a) => a.phone === phone && a.pin && a.pin === pin);
+    if (!admin) return res.status(401).json({ error: 'เบอร์โทรหรือรหัสผ่านไม่ถูกต้อง' });
 
-    const session = { ownerId: null, role: 'staff', customerSheetId: building.customerSheetId, roomId: null, staffId: staff.id };
+    const session = { ownerId: null, role: 'staff', customerSheetId: building.customerSheetId, roomId: null, staffId: admin.id };
     setSessionCookie(res, session);
     res.json({ ok: true, ...session });
   } catch (err) { next(err); }
@@ -382,7 +394,19 @@ router.get('/me', async (req, res) => {
   // appear when the platform admin has switched INTO another customer's
   // building, never for his own or for a regular customer's own login.
   const isOwnBuildingActive = session.customerSheetId === process.env.GOOGLE_SHEET_ID;
-  res.json({ ...session, isPlatformAdmin, isOwnBuildingActive });
+  // Per explicit user request: the sidebar's account card shows the
+  // REAL logged-in person's name instead of the old hardcoded mock —
+  // for a staff/"ผู้ดูแล" session this means resolving their own name
+  // from the Admins tab (the session only stores staffId, not name).
+  let adminName = null;
+  if (session.role === 'staff' && session.staffId && session.customerSheetId) {
+    try {
+      const admins = await runWithSheetId(session.customerSheetId, () => readTab('Admins'));
+      const match = admins.find((a) => String(a.id) === String(session.staffId));
+      if (match) adminName = match.name;
+    } catch { /* non-fatal — sidebar falls back to a generic label */ }
+  }
+  res.json({ ...session, isPlatformAdmin, isOwnBuildingActive, adminName });
 });
 
 module.exports = router;
