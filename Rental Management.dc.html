@@ -192,6 +192,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div onclick="{{ goRooms }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navRooms.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navRooms.dot }}"></div>
               <span style="font-size:13.5px;color:{{ navRooms.color }};font-weight:{{ navRooms.weight }}">ห้องพัก</span>
+              <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:9px;font-weight:700;background:#2C6E8F;color:#fff;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="หน้านี้มีคำอธิบายในโหมดทดลองแล้ว">?</span>
+              </sc-if>
             </div>
             <div onclick="{{ goTenants }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navTenants.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navTenants.dot }}"></div>
@@ -215,6 +218,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div onclick="{{ goContracts }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navContract.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navContract.dot }}"></div>
               <span style="font-size:13.5px;color:{{ navContract.color }};font-weight:{{ navContract.weight }}">สัญญาเช่า</span>
+              <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:9px;font-weight:700;background:#2C6E8F;color:#fff;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="หน้านี้มีคำอธิบายในโหมดทดลองแล้ว">?</span>
+              </sc-if>
             </div>
             <div onclick="{{ goExpenses }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navExpense.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navExpense.dot }}"></div>
@@ -476,8 +482,11 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:21px;font-weight:700;color:#241812">รายการห้องพัก</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">{{ roomsCountLabel }}</div>
               </div>
-              <div style="display:flex;gap:8px">
+              <div style="display:flex;gap:8px;align-items:center">
                 <button onclick="{{ openAddRoomModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">+ เพิ่มห้อง</button>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipAddRoom }}" style="cursor:pointer;font-size:14px;background:#2C6E8F;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">❓</span>
+                </sc-if>
               </div>
             </div>
 
@@ -488,10 +497,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div style="margin:14px 0 10px">
               <input value="{{ roomSearch }}" onchange="{{ onRoomSearchChange }}" placeholder="ค้นหาห้องหรือผู้เช่า" style="width:100%;max-width:340px;background:#FFFFFF;border:1px solid #E3D8C8;border-radius:7px;padding:9px 12px;font-size:12.5px;color:#241812;outline:none;box-sizing:border-box;display:block">
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:center">
               <sc-for list="{{ roomFilterChips }}" as="c" hint-placeholder-count="4">
                 <div onclick="{{ c.onClick }}" style="border-radius:6px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;background:{{ c.bg }};color:{{ c.color }};border:{{ c.border }};white-space:nowrap">{{ c.label }}</div>
               </sc-for>
+              <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                <span onclick="{{ onDemoTipRoomFilterChips }}" style="cursor:pointer;font-size:14px;background:#2C6E8F;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">❓</span>
+              </sc-if>
             </div>
 
             <!-- Single-column: room list stacks ABOVE the detail panel instead
@@ -503,6 +515,11 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                  the ‹ › arrows instead of wrapping to more rows or scrolling. -->
             <div style="display:flex;flex-direction:column;gap:16px">
               <div>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:11.5px;color:#7C6E5F">แตะการ์ดห้องเพื่อดูรายละเอียด
+                    <span onclick="{{ onDemoTipRoomCard }}" style="cursor:pointer;font-size:14px;background:#2C6E8F;color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">❓</span>
+                  </div>
+                </sc-if>
                 <div ontouchstart="{{ onRoomTouchStart }}" ontouchend="{{ onRoomTouchEnd }}" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
                   <sc-for list="{{ roomsPageItems }}" as="r" hint-placeholder-count="3">
                     <div onclick="{{ r.onClick }}" style="background:#FFFFFF;border-radius:7px;padding:8px;cursor:pointer;box-sizing:border-box;border:{{ r.cardBorder }}">
@@ -553,7 +570,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div onclick="{{ selectedRoom.onOpenCreditReview }}" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:9px;border-radius:6px;cursor:pointer;background:#FBE7DC;color:#B85B27;font-size:12px;font-weight:600;margin-bottom:16px">💰 มีเงินล่วงหน้ารอตรวจสอบ ({{ selectedRoom.creditSlipCount }})</div>
                 </sc-if>
                 <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
-                  <button onclick="{{ openContractModal }}" style="background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:9px;font-size:12.5px;font-weight:600;cursor:pointer">ดูสัญญาเช่า</button>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <button onclick="{{ openContractModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:9px;font-size:12.5px;font-weight:600;cursor:pointer">ดูสัญญาเช่า</button>
+                    <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                      <span onclick="{{ onDemoTipRoomActions }}" style="cursor:pointer;font-size:14px;background:#2C6E8F;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">❓</span>
+                    </sc-if>
+                  </div>
                   <button onclick="{{ openRoomEdit }}" style="background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:9px;font-size:12.5px;font-weight:600;cursor:pointer">แก้ไขข้อมูล</button>
                   <button onclick="{{ openDeleteRoom }}" style="background:none;border:1px solid #E8C4BC;color:#B24336;border-radius:6px;padding:9px;font-size:12.5px;font-weight:600;cursor:pointer">ลบห้องนี้</button>
                 </div>
@@ -1499,12 +1521,22 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div>{{ contractsNearCount }} สัญญาใกล้ครบกำหนด</div>
                 </div>
               </div>
-              <div onclick="{{ newContractForm }}" style="background:#C1622D;color:#fff;font-size:12px;font-weight:600;padding:8px 12px;border-radius:7px;cursor:pointer;white-space:nowrap;flex-shrink:0">+ กรอกสัญญาใหม่</div>
+              <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+                <div onclick="{{ newContractForm }}" style="background:#C1622D;color:#fff;font-size:12px;font-weight:600;padding:8px 12px;border-radius:7px;cursor:pointer;white-space:nowrap">+ กรอกสัญญาใหม่</div>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span onclick="{{ onDemoTipNewContract }}" style="cursor:pointer;font-size:14px;background:#2C6E8F;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">❓</span>
+                </sc-if>
+              </div>
             </div>
             <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;overflow-x:auto">
               <div style="min-width:640px">
               <div style="display:grid;grid-template-columns:0.6fr 1.3fr 1fr 1fr 0.9fr 0.9fr 1fr 1.3fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
-                <div>ห้อง</div><div>ผู้เช่า</div><div>เริ่มสัญญา</div><div>สิ้นสุดสัญญา</div><div>ค่าเช่า</div><div>เงินประกัน</div><div>สถานะ</div><div></div>
+                <div>ห้อง</div><div>ผู้เช่า</div><div>เริ่มสัญญา</div><div>สิ้นสุดสัญญา</div><div>ค่าเช่า</div><div>เงินประกัน</div><div>สถานะ</div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                    <span onclick="{{ onDemoTipContractActions }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                  </sc-if>
+                </div>
               </div>
               <sc-for list="{{ contractsView }}" as="c" hint-placeholder-count="13">
                 <div style="display:grid;grid-template-columns:0.6fr 1.3fr 1fr 1fr 0.9fr 0.9fr 1fr 1.3fr;gap:10px;font-size:12.5px;color:#241812;padding:11px 0;border-bottom:1px solid #F0E9DC;align-items:center">
@@ -3492,6 +3524,12 @@ const DEMO_TIPS = {
   billActions: '"แก้ไข" ใช้ปรับยอด/วันครบกำหนดของบิลที่ยังไม่ได้จ่าย, "ลบ" ใช้ยกเลิกบิลทั้งใบ (ลบไม่ได้ถ้ามีสลิปส่งเข้ามาแล้ว), "ประวัติ" ดูบิลเก่าของห้องนั้นทั้งหมด',
   sendLine: 'กดเพื่อส่งใบแจ้งหนี้ไปให้ผู้เช่าทาง LINE โดยตรง พร้อมยอดที่ต้องชำระและ QR พร้อมเพย์ (ถ้าตั้งค่าไว้) — ผู้เช่าจะได้รับข้อความทันที',
   billingChips: 'การ์ดสรุปด้านบนกดกรองรายการด้านล่างได้เลย เช่น กด "เกินกำหนด" จะกรองให้เห็นเฉพาะบิลที่ค้างชำระเลยกำหนด',
+  addRoom: 'ปุ่มนี้ใช้เพิ่มห้องใหม่เข้าระบบ — กรอกเลขห้อง ชั้น ค่าเช่า และรายละเอียดอื่นๆ ได้เลย',
+  roomFilterChips: 'กดกรองรายการห้องตามสถานะได้ เช่น "ว่าง" "มีผู้เช่า" "ค้างชำระ" — ไม่ต้องเลื่อนหาทีละห้อง',
+  roomCard: 'แตะที่การ์ดห้องเพื่อดูรายละเอียดเต็มๆ ด้านล่าง — ชื่อผู้เช่า วันเข้าอยู่ วันหมดสัญญา และปุ่มจัดการต่างๆ',
+  roomActions: '"ดูสัญญาเช่า" เปิดฟอร์มกรอก/แก้ไขสัญญาเช่าเต็มรูปแบบ (รูปบัตร เอกสารแนบได้), "แก้ไขข้อมูล" ปรับข้อมูลห้องเบื้องต้น, "ลบห้องนี้" ลบห้องออกจากระบบ (ลบไม่ได้ถ้ายังมีผู้เช่าอยู่)',
+  newContract: 'ปุ่มนี้เปิดฟอร์มกรอกสัญญาเช่าฉบับใหม่ให้ห้องที่ยังว่าง — กรอกชื่อผู้เช่า วันเริ่ม/สิ้นสุดสัญญา ค่าเช่า เงินประกัน แนบรูปบัตรประชาชนและเอกสารสัญญาได้ในฟอร์มเดียวกันเลย',
+  contractActions: '"แก้ไข" เปิดฟอร์มเดิมให้ปรับข้อมูลสัญญา (ต่อสัญญา เปลี่ยนค่าเช่า ฯลฯ), "ลบ" ยกเลิกสัญญาห้องนั้น (ห้องจะกลับเป็นสถานะว่าง)',
 };
 class Component extends DCLogic {
   state = {
@@ -8891,6 +8929,12 @@ class Component extends DCLogic {
       onDemoTipBillActions: () => this.showDemoTip('billActions'),
       onDemoTipSendLine: () => this.showDemoTip('sendLine'),
       onDemoTipBillingChips: () => this.showDemoTip('billingChips'),
+      onDemoTipAddRoom: () => this.showDemoTip('addRoom'),
+      onDemoTipRoomFilterChips: () => this.showDemoTip('roomFilterChips'),
+      onDemoTipRoomCard: () => this.showDemoTip('roomCard'),
+      onDemoTipRoomActions: () => this.showDemoTip('roomActions'),
+      onDemoTipNewContract: () => this.showDemoTip('newContract'),
+      onDemoTipContractActions: () => this.showDemoTip('contractActions'),
       calMonthLabel, calCells, calWeekdays: ['อา','จ','อ','พ','พฤ','ศ','ส'],
       calPrevMonth: this.calPrevMonth, calNextMonth: this.calNextMonth,
       selectedDayEvents, selectedDateLabel, selectedDayCount: selectedDayEvents.length,
