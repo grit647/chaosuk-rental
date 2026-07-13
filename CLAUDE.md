@@ -198,8 +198,21 @@ was a deliberate one-off exception since the owner asked for it
 directly). Also **Set อุปกรณ์** (Tuya IoT page — 5 tips: page overview,
 room/ไฟ-น้ำ tab selector, อุปกรณ์ไฟฟ้า card, อุปกรณ์น้ำ card, and the
 สถานะอุปกรณ์ status lists incl. the ตัดไฟ/จ่ายไฟ button — explicitly
-requested for IoT-using customers). **Not done yet:** ผู้เช่า, แจ้งซ่อม,
-รายจ่าย.
+requested for IoT-using customers), **การใช้น้ำประปา** (Claude meter-
+photo reader, with an explicit note that it needs Claude API connected
+first), **การใช้ไฟฟ้า** (the 12/24/48-hour window chips, and why they
+disappear once a room has a real Tuya device linked), the **Claude
+ผู้ช่วยดูแลอัตโนมัติ** settings card (3 tips: overview, the text/voice
+command box, the "+"  attach menu, and the "เปิดใช้งานฟีเจอร์นี้"
+toggle — carefully worded to match actual code behavior, not the
+owner's initial mental model, since the toggle only gates scheduled
+messages, not the interactive chat box), the **sidebar account card**
+(bottom-left "จัดการผู้ดูแล" entry point), and finally **แจ้งซ่อม** +
+**บัญชีรายจ่าย** (2 tips each). This completes tooltip coverage for
+every page in the original 8-page scope plus several extra cards/
+controls the owner asked about along the way. **Not done:** ผู้เช่า
+(the owner never asked for this one specifically — revisit if
+requested).
 
 ### Known gap: a tenant who is ALSO staff could get mixed-up LINE messages
 
