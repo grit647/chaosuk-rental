@@ -8,6 +8,19 @@ https://chaosuk-rental.onrender.com, source at `grit647/chaosuk-rental` on GitHu
 Owner/maintainer: คุณต้น (not a programmer by training — explain changes in
 plain Thai, avoid assuming CS background).
 
+## Brand identity
+
+**The real/official logo** (per explicit owner confirmation): an orange
+(`#C1622D`) rounded-square badge with the character **"ช"** in it, next to
+the wordmark **"เช่าสุข"**. Used correctly on `login.html` and
+`my-buildings.html`. `staff-login.html` (blue badge, "ผ") and
+`tenant-login.html` (green badge, "ผ") currently do NOT match this — those
+were an intentional role-color-coding choice made when those pages were
+built, not yet reconciled with the confirmed real logo. Owner was asked
+whether to unify all login pages to the real logo and dismissed the
+question rather than deciding — revisit next time this comes up instead
+of assuming either way.
+
 ## Known issues / follow-ups
 
 ### Uploaded files (slip images, invoice PDFs, LINE broadcast images) don't survive a deploy
