@@ -287,7 +287,27 @@ router.post('/verify-admin-pin', async (req, res, next) => {
     const rows = await readTab('Settings');
     const row = rows.find((r) => r.key === 'adminEditPin');
     const storedPin = row ? row.value : '12345';
-    if (!pin || String(pin) !== String(storedPin)) return res.status(403).json({ error: 'รหัสไม่ถูกต้อง' });
+    let ok = !!pin && String(pin) === String(storedPin);
+    // Per explicit user request: the owner's own LOGIN PIN (the one used
+    // at /login, phone+pin) should ALSO be accepted here as a fallback,
+    // even when this building has its own separate adminEditPin set —
+    // this endpoint gates every "are you sure" confirm across the app
+    // (ข้อมูลหอพัก save, factory reset, จัดการผู้ดูแล add/edit/delete,
+    // etc.), and the owner shouldn't get stuck just because they forgot
+    // which of the two PINs applies here vs. at login. Looked up from the
+    // shared Directory sheet (source of truth for the login PIN, see
+    // server/routes/auth.js's POST /login), matched by this session's
+    // customerSheetId — never checked against a DIFFERENT building's PIN.
+    if (!ok && pin && DIRECTORY_SHEET_ID && req.session && req.session.customerSheetId) {
+      try {
+        const users = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+        const building = users.find((u) => u.customerSheetId === req.session.customerSheetId);
+        if (building && building.pin && String(pin) === String(building.pin)) ok = true;
+      } catch (err) {
+        console.error('[settings] verify-admin-pin login-PIN fallback check failed', err.message);
+      }
+    }
+    if (!ok) return res.status(403).json({ error: 'รหัสไม่ถูกต้อง' });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

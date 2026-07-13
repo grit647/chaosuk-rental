@@ -2686,7 +2686,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           <div onclick="{{ closeAdminInfoPinModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
               <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ยืนยันรหัสก่อนบันทึก</div>
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">การแก้ไขข้อมูลผู้ดูแลระบบ (รวมถึง LINE User ID ที่ใช้รับการแจ้งเตือน) ต้องใส่รหัสยืนยันก่อนทุกครั้ง</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">การแก้ไขข้อมูลผู้ดูแลระบบ (รวมถึง LINE User ID ที่ใช้รับการแจ้งเตือน) ต้องใส่รหัสยืนยันก่อนทุกครั้ง — ใช้รหัสยืนยันของตึกนี้ หรือรหัสผ่านที่ใช้ล็อกอินเข้าระบบก็ได้</div>
               <input type="password" value="{{ adminInfoPinDraft }}" onchange="{{ onAdminInfoPinDraftChange }}" placeholder="รหัสยืนยัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
               <div style="display:flex;gap:10px;margin-top:20px">
                 <button onclick="{{ closeAdminInfoPinModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
