@@ -194,6 +194,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div onclick="{{ goBilling }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navBilling.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navBilling.dot }}"></div>
               <span style="font-size:13.5px;color:{{ navBilling.color }};font-weight:{{ navBilling.weight }}">บิล &amp; ใบแจ้งหนี้</span>
+              <!-- Per explicit user request: a small "❓" marker in the
+                   sidebar itself, /demo only, showing which pages already
+                   have tap-to-explain tooltips built (currently just this
+                   one — see DEMO_TIPS). Copy this same badge next to
+                   whichever nav item's page gets tooltips added next. -->
+              <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:9px;font-weight:700;background:#2C6E8F;color:#fff;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="หน้านี้มีคำอธิบายในโหมดทดลองแล้ว">?</span>
+              </sc-if>
               <sc-if value="{{ hasSlipsNeedingReview }}" hint-placeholder-val="{{ false }}">
                 <span style="margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#B24336;color:#fff;font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace">{{ slipQueueCount }}</span>
               </sc-if>
