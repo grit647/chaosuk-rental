@@ -131,7 +131,14 @@
   function render() {
     const app = document.getElementById('app');
     const current = invoiceData.find((i) => i.status !== 'paid');
-    const history = invoiceData.filter((i) => i.status === 'paid');
+    // Per explicit user request: cap ประวัติบิล to the 4 most recent paid
+    // bills (roughly the last 4 months, since billing is monthly) — not
+    // every paid bill ever, which would grow unbounded over a long lease.
+    // invoiceData already arrives newest-first (see server/routes/
+    // tenant.js's GET /invoices sort), so .slice(0, 4) here is exactly
+    // "the last up-to-4 months that actually have recorded data" — fewer
+    // than 4 just shows however many exist, nothing padded/forced.
+    const history = invoiceData.filter((i) => i.status === 'paid').slice(0, 4);
 
     let currentHtml;
     if (current) {
@@ -184,7 +191,7 @@
       usageHtml() +
       currentHtml +
       '<div class="card">' +
-        '<div class="card-title">ประวัติบิล (การใช้น้ำ/ไฟ)</div>' +
+        '<div class="card-title">ประวัติบิล (การใช้น้ำ/ไฟ) — ย้อนหลัง 4 เดือนล่าสุด</div>' +
         historyHtml +
       '</div>' +
       '<div class="card">' +
