@@ -143,6 +143,34 @@ above), but an owner shouldn't get stuck on a confirm dialog just
 because they forgot which of the two applies here — this makes either
 one work, without merging the two concepts together.
 
+**Follow-up question the owner asked directly (2026-07-14):** "if a
+customer changes their login PIN from the one I originally gave them,
+can WE still find out their current PIN?" — **Yes, today.** Since
+nothing here is hashed, whatever the CURRENT value is (after any number
+of changes) is always readable in plain text by anyone who can open the
+underlying Google Sheet (คุณต้น himself, or anyone holding the service
+account credentials) — not just the original value handed out at
+signup. This is the direct practical consequence of the plain-text
+design above, called out explicitly because it matters most for the
+future resale/multi-tenant scenario: a real paying customer likely
+would NOT expect the platform operator to be able to look up their
+current password at will. **Owner asked to record this as a concrete
+TODO for a future session** (not started yet, no code changed for
+this): hash every PIN before it's ever written to a Sheet (`adminEditPin`,
+`dataResetPin`, the Directory sheet's login `pin` column, each Admins-tab
+row's own `pin`) — likely bcrypt, comparing hashes on verify instead of
+plain equality (`server/routes/settings.js`'s `verify-admin-pin`/
+`change-admin-pin`, `server/routes/auth.js`'s `/login`/`/staff-login`,
+`server/routes/line.js`'s several self-link PIN-match branches all
+currently do `===` plain-string comparison and would need updating).
+The `MASTER_RECOVERY_PIN` design (above) would need to stay as a
+separate, never-hashed bypass mechanism regardless, same reasoning as
+today — just needs to move out of a shared hardcoded constant into a
+real per-deployment secret first (already flagged above). Worth doing
+before any real second customer relies on this system for anything
+sensitive; not urgent for today's actual usage (คุณต้น + 1 known
+2nd building, both trusted).
+
 ### LINE webhook — now supports per-customer webhook URLs (FIXED)
 
 **Status:** Done. Was open (main property only) — fixed per explicit
