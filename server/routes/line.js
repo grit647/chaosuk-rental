@@ -791,17 +791,11 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
     // see handleSlipImage above). Per CLAUDE.md's permanent rule, wording
     // is careful to say "อ่านให้/รอตรวจสอบ", never "ยืนยันแล้ว" — OCR
     // extraction only, the owner always confirms manually.
-    //
-    // 'action=contact' kept as a temporary ALIAS to the exact same reply
-    // — the live Rich Menu image on LINE right now still has its old
-    // button baked in with THIS postback data (rich menu button actions
-    // are immutable once created; only a whole new menu image+upload
-    // changes them). Until the owner sends an updated tenant-richmenu.png
-    // (new label) and prototype-auth/setup-tenant-richmenu.js gets
-    // re-run, tapping the still-visually-old button must not go silent —
-    // remove this alias once the new image is live.
+    // (The temporary 'action=contact' alias — kept while the Rich Menu
+    // image still showed the old label — was removed once the owner sent
+    // the updated tenant-richmenu.png design and setup-tenant-richmenu.js
+    // was re-run.)
     case 'action=slip':
-    case 'action=contact':
       await reply(`ส่งรูปสลิปโอนเงินมาในแชทนี้ได้เลยครับ (กดปุ่มแนบรูป 📎 ของ LINE ตามปกติ) ระบบจะอ่านยอด/วันที่ให้อัตโนมัติ แล้วรอผู้ดูแลตรวจสอบและยืนยันอีกครั้งครับ`);
       return;
     case 'action=wifi': {
