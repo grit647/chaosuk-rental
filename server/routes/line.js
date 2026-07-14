@@ -852,8 +852,18 @@ async function handleOwnerRichMenuPostback(event, lineCreds) {
       const invoices = coerceInvoices(await readTab('Invoices'));
       const pendingSlips = invoices.filter((i) => i.slipPending);
       const unmatched = await readTab('UnmatchedSlips');
-      if (!pendingSlips.length && !unmatched.length) { await reply('ไม่มีสลิปรอตรวจสอบครับ ✅'); return; }
-      await reply(`สลิปรอตรวจสอบ: ${pendingSlips.length} รายการ (ผูกห้องแล้ว)${unmatched.length ? `\nสลิปที่ยังไม่ทราบห้อง: ${unmatched.length} รายการ (ต้องจับคู่เอง)` : ''}\nเข้าไปตรวจได้ที่หน้า Bills → สลิปรอตรวจสอบครับ`);
+      // Real bug the owner caught: a tenant's slip sent BEFORE any bill
+      // exists for that cycle (advance payment) never touches an
+      // invoice at all — attachSlipToRoom (above) files it as a credit
+      // slip directly on the ROOM (creditSlipsJson/creditSlips), a
+      // THIRD bucket this reply used to never check, so the bot said
+      // "ไม่มีสลิปรอตรวจสอบครับ ✅" even with a real slip sitting
+      // unconfirmed. The web Bills-page queue already correctly
+      // includes this bucket (creditQueueItems) — matching that here.
+      const creditRooms = coerceRooms(await readTab('Rooms')).filter((r) => r.creditSlipCount > 0);
+      if (!pendingSlips.length && !unmatched.length && !creditRooms.length) { await reply('ไม่มีสลิปรอตรวจสอบครับ ✅'); return; }
+      const creditCount = creditRooms.reduce((a, r) => a + r.creditSlipCount, 0);
+      await reply(`สลิปรอตรวจสอบ: ${pendingSlips.length} รายการ (ผูกห้องแล้ว)${unmatched.length ? `\nสลิปที่ยังไม่ทราบห้อง: ${unmatched.length} รายการ (ต้องจับคู่เอง)` : ''}${creditCount ? `\nสลิปโอนล่วงหน้าก่อนออกบิล (รอตรวจ): ${creditCount} รายการ (${creditRooms.map((r) => r.id).join(', ')})` : ''}\nเข้าไปตรวจได้ที่หน้า Bills → สลิปรอตรวจสอบครับ`);
       return;
     }
     case 'owner:dashboard': {
@@ -949,8 +959,18 @@ async function handleStaffRichMenuPostback(event, lineCreds) {
       const invoices = coerceInvoices(await readTab('Invoices'));
       const pendingSlips = invoices.filter((i) => i.slipPending);
       const unmatched = await readTab('UnmatchedSlips');
-      if (!pendingSlips.length && !unmatched.length) { await reply('ไม่มีสลิปรอตรวจสอบครับ ✅'); return; }
-      await reply(`สลิปรอตรวจสอบ: ${pendingSlips.length} รายการ (ผูกห้องแล้ว)${unmatched.length ? `\nสลิปที่ยังไม่ทราบห้อง: ${unmatched.length} รายการ (ต้องจับคู่เอง)` : ''}\nเข้าไปตรวจได้ที่หน้า Bills → สลิปรอตรวจสอบครับ`);
+      // Real bug the owner caught: a tenant's slip sent BEFORE any bill
+      // exists for that cycle (advance payment) never touches an
+      // invoice at all — attachSlipToRoom (above) files it as a credit
+      // slip directly on the ROOM (creditSlipsJson/creditSlips), a
+      // THIRD bucket this reply used to never check, so the bot said
+      // "ไม่มีสลิปรอตรวจสอบครับ ✅" even with a real slip sitting
+      // unconfirmed. The web Bills-page queue already correctly
+      // includes this bucket (creditQueueItems) — matching that here.
+      const creditRooms = coerceRooms(await readTab('Rooms')).filter((r) => r.creditSlipCount > 0);
+      if (!pendingSlips.length && !unmatched.length && !creditRooms.length) { await reply('ไม่มีสลิปรอตรวจสอบครับ ✅'); return; }
+      const creditCount = creditRooms.reduce((a, r) => a + r.creditSlipCount, 0);
+      await reply(`สลิปรอตรวจสอบ: ${pendingSlips.length} รายการ (ผูกห้องแล้ว)${unmatched.length ? `\nสลิปที่ยังไม่ทราบห้อง: ${unmatched.length} รายการ (ต้องจับคู่เอง)` : ''}${creditCount ? `\nสลิปโอนล่วงหน้าก่อนออกบิล (รอตรวจ): ${creditCount} รายการ (${creditRooms.map((r) => r.id).join(', ')})` : ''}\nเข้าไปตรวจได้ที่หน้า Bills → สลิปรอตรวจสอบครับ`);
       return;
     }
     case 'staff:rooms': {

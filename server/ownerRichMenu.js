@@ -22,7 +22,7 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const { readTab, updateRow, appendRow } = require('./sheets');
-const { coerceInvoices } = require('./coerce');
+const { coerceInvoices, coerceRooms } = require('./coerce');
 const { createRichMenu, uploadRichMenuImage, deleteRichMenu, linkRichMenuToUser } = require('./line');
 
 const WIDTH = 2500;
@@ -80,7 +80,16 @@ function buildOverlaySvg({ overdueCount, slipsCount }) {
 async function computeBadgeCounts() {
   const invoices = coerceInvoices(await readTab('Invoices'));
   const overdueCount = invoices.filter((i) => i.status === 'overdue' || i.status === 'pending' || i.status === 'partial').length;
-  const slipsCount = invoices.filter((i) => i.slipPending).length;
+  // Real bug the owner caught (same root cause as the "owner:slips"/
+  // "staff:slips" postback reply — see server/routes/line.js): a
+  // tenant's slip sent BEFORE any bill exists for that cycle (advance
+  // payment) never touches an invoice, it's filed as a credit slip
+  // directly on the Room row (creditSlipsJson/creditSlips via
+  // attachSlipToRoom) — a bucket this badge count used to miss
+  // entirely, undercounting the "สลิปรอตรวจสอบ" badge number.
+  const rooms = coerceRooms(await readTab('Rooms'));
+  const creditSlipsCount = rooms.reduce((a, r) => a + (r.creditSlipCount || 0), 0);
+  const slipsCount = invoices.filter((i) => i.slipPending).length + creditSlipsCount;
   return { overdueCount, slipsCount };
 }
 
