@@ -828,6 +828,33 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
               wifiReplyPending.set(`${sheetId}:${t}`, { roomId: room.id, tenantLineUserId: room.lineUserId, expiresAt: Date.now() + WIFI_REPLY_WINDOW_MS });
             }
           }
+          // Real gap the owner caught: without this, a tenant who never
+          // gets an admin reply within the 10-minute window just hears
+          // nothing ever again — the "หมดเวลา" message only ever went to
+          // an admin who replied LATE, never to the tenant who's the one
+          // actually left waiting. One timer per wifi-request (not one
+          // per admin — avoids sending the tenant duplicate "expired"
+          // messages if several admins were notified), firing exactly at
+          // the same window as WIFI_REPLY_WINDOW_MS: if any pending slot
+          // for this room is STILL unfulfilled at that point (nobody
+          // replied in time), clear all of them and tell the tenant to
+          // tap "ขอรหัส Wifi" again. If someone already answered before
+          // then, every slot for this room was already deleted by the
+          // fulfillment code above, so this is a silent no-op.
+          if (!hasWifiCode && targets.length) {
+            const roomId = room.id, tenantLineUserId = room.lineUserId;
+            setTimeout(async () => {
+              const stillPending = [...wifiReplyPending.entries()].filter(([, v]) => v.roomId === roomId);
+              if (!stillPending.length) return;
+              stillPending.forEach(([key]) => wifiReplyPending.delete(key));
+              if (!tenantLineUserId) return;
+              try {
+                await pushMessage(tenantLineUserId, `ขออภัยครับ รอรหัส Wifi ห้อง ${roomId} เกิน 10 นาทีแล้ว ยังไม่ได้รับจากผู้ดูแลครับ ลองกดปุ่ม "ขอรหัส Wifi" ใหม่อีกครั้งได้เลยครับ`, undefined, lineCreds);
+              } catch (err) {
+                console.error('[line] wifi-timeout tenant notify failed', err.message);
+              }
+            }, WIFI_REPLY_WINDOW_MS);
+          }
         }
       } catch (err) {
         console.error('[line] wifi-request notify failed', err.message);
