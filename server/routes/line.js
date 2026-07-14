@@ -610,7 +610,15 @@ async function handleOwnerAiText(event, lineCreds, rawText) {
     try {
       resp = await callWithTools(buildCommandSystemPrompt(), messages, TOOLS, 1024);
     } catch (err) {
-      await reply('เกิดข้อผิดพลาดตอนคุยกับ AI ครับ: ' + err.message);
+      // Per explicit owner request: never leak the raw Anthropic API error
+      // text into the chat (e.g. a JSON dump like {"type":"error",
+      // "error":{"type":"invalid_request_error","message":"Your credit
+      // balance is too low..."}}) — reply with one clear, polite Thai
+      // sentence instead, pointing at the one thing that's actually
+      // actionable for the owner (their own Anthropic account credit),
+      // regardless of the underlying error's exact shape.
+      console.error('[line] AI chat call failed', err.message);
+      await reply('ขณะนี้ระบบ AI ขัดข้องชั่วคราวครับ กรุณาตรวจสอบเครดิตบัญชี Anthropic (Plans & Billing ที่ console.anthropic.com) หรือลองใหม่อีกครั้งภายหลังครับ');
       return;
     }
     if (resp.stop_reason !== 'tool_use') {
