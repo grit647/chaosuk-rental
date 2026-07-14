@@ -41,34 +41,72 @@ const ROWS = 2;
 const CELL_W = WIDTH / COLS;
 const CELL_H = HEIGHT / ROWS;
 
-// [emoji, label, postback action data] — order fills left-to-right, top-to-bottom.
+// Per explicit user follow-up (shown a nicer mockup with rounded icon
+// cards): redesigned from flat emoji-on-solid-color blocks to white
+// rounded cards + a real drawn icon (Material Design icon paths, 24x24
+// viewBox each, scaled/translated into an orange circle badge) + a Thai
+// label — matches the "เช่าสุข" brand look (cream background, #C1622D
+// orange accent) used everywhere else in the app (login pages, sidebar).
+// Emoji intentionally dropped entirely — LINE's image renderer doesn't
+// reliably render emoji glyphs consistently across platforms, drawn SVG
+// paths always render the same everywhere.
+const ICONS = {
+  // ฿ — money/receipt, drawn as text (baht sign) rather than a generic
+  // receipt icon path, since it reads instantly as "this is about money".
+  baht: null,
+  // "description" (Material Icons) — a page with a folded corner + lines.
+  document: 'M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z',
+  // "build" (Material Icons) — wrench.
+  wrench: 'M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z',
+  // "call" (Material Icons) — phone handset.
+  phone: 'M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z',
+  // "wifi" (Material Icons) — concentric signal arcs.
+  wifi: 'M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.237 4.237 0 0 0-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z',
+  // "bolt" (Material Icons) — lightning bolt, for the water/elec usage button.
+  bolt: 'M7 2v11h3v9l7-12h-4l4-8z',
+};
+
+// [iconKey, label, postback action data] — order fills left-to-right, top-to-bottom.
 const BUTTONS = [
-  ['💰', 'ดูบิล/ยอดค้างชำระ', 'action=bill'],
-  ['📄', 'ดูสัญญาเช่า', 'action=contract'],
-  ['🔧', 'แจ้งซ่อม', 'action=maintenance'],
-  ['📞', 'ติดต่อผู้ดูแล', 'action=contact'],
-  ['🔑', 'ขอรหัส Wifi', 'action=wifi'],
-  ['⚡', 'การใช้น้ำ/ไฟปัจจุบัน', 'action=usage'],
+  ['baht', 'ดูบิล/ยอดค้างชำระ', 'action=bill'],
+  ['document', 'ดูสัญญาเช่า', 'action=contract'],
+  ['wrench', 'แจ้งซ่อม', 'action=maintenance'],
+  ['phone', 'ติดต่อผู้ดูแล', 'action=contact'],
+  ['wifi', 'ขอรหัส Wifi', 'action=wifi'],
+  ['bolt', 'การใช้น้ำ/ไฟปัจจุบัน', 'action=usage'],
 ];
 
-// Simple, legible 3x2 grid with alternating background shades so the tap
-// zones are visually distinct even without icons rendering (LINE's image
-// renderer doesn't reliably support emoji in SVG <text> on every
-// platform, so the emoji is decorative/best-effort, the Thai label is
-// what actually needs to always be readable).
 function buildSvg() {
-  const cells = BUTTONS.map(([emoji, label], i) => {
+  const MARGIN = 28;
+  const cells = BUTTONS.map(([iconKey, label], i) => {
     const col = i % COLS;
     const row = Math.floor(i / COLS);
-    const x = col * CELL_W;
-    const y = row * CELL_H;
-    const bg = (row + col) % 2 === 0 ? '#C1622D' : '#B85B27';
-    const cx = x + CELL_W / 2;
-    const cy = y + CELL_H / 2;
+    const cardX = col * CELL_W + MARGIN;
+    const cardY = row * CELL_H + MARGIN;
+    const cardW = CELL_W - MARGIN * 2;
+    const cardH = CELL_H - MARGIN * 2;
+    const centerX = cardX + cardW / 2;
+    const badgeCy = cardY + cardH * 0.36;
+    const badgeR = 110;
+
+    // Split long labels onto 2 lines at a natural word/slash break so
+    // nothing gets clipped at this font size within a ~750px-wide card.
+    const words = label.split(/(?<=\/)|(?<= )/); // keep the delimiter attached to the preceding chunk
+    let line1 = '', line2 = '';
+    for (const w of words) { if ((line1 + w).length <= 12 && !line2) line1 += w; else line2 += w; }
+    const labelLines = line2 ? [line1.trim(), line2.trim()] : [line1.trim()];
+    const labelY = cardY + cardH * 0.74;
+    const labelSvg = labelLines.map((ln, li) => `<text x="${centerX}" y="${labelY + li * 62}" font-size="50" font-family="sans-serif" font-weight="700" fill="#241812" text-anchor="middle" dominant-baseline="middle">${ln}</text>`).join('');
+
+    const iconSvg = iconKey === 'baht'
+      ? `<text x="${centerX}" y="${badgeCy}" font-size="120" font-family="sans-serif" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">฿</text>`
+      : `<g transform="translate(${centerX - 60},${badgeCy - 60}) scale(5)"><path d="${ICONS[iconKey]}" fill="#FFFFFF"/></g>`;
+
     return `
-      <rect x="${x}" y="${y}" width="${CELL_W}" height="${CELL_H}" fill="${bg}" stroke="#F7F1E6" stroke-width="4"/>
-      <text x="${cx}" y="${cy - 40}" font-size="120" text-anchor="middle" dominant-baseline="middle">${emoji}</text>
-      <text x="${cx}" y="${cy + 90}" font-size="52" font-family="sans-serif" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="middle">${label}</text>
+      <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="36" fill="#FFFFFF" stroke="#EDE1CE" stroke-width="4"/>
+      <circle cx="${centerX}" cy="${badgeCy}" r="${badgeR}" fill="#C1622D"/>
+      ${iconSvg}
+      ${labelSvg}
     `;
   }).join('');
   return `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
