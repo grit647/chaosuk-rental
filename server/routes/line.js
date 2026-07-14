@@ -297,12 +297,15 @@ router.post('/webhook', async (req, res) => {
             await updateSettingKV('adminLineUserId', event.source.userId);
             // Same reasoning as the tenant's rich-menu-linking above —
             // right after the owner's own self-link succeeds, give them
-            // the owner Rich Menu (see prototype-auth/setup-owner-
-            // richmenu.js) instead of leaving them on the OA's default
-            // menu. ownerRichMenuId is a Settings KV set once by that
-            // script; non-fatal if missing/failed.
+            // the owner Rich Menu matching the CURRENT lineAiModeEnabled
+            // state (see prototype-auth/setup-owner-richmenu.js, which
+            // creates an ON and an OFF variant — see
+            // handleOwnerRichMenuPostback's 'owner:ai' case for the
+            // toggle itself). Non-fatal if missing/failed.
             try {
-              const rmRow = settingsRows.find((r) => r.key === 'ownerRichMenuId');
+              const aiOn = settingsRows.some((r) => r.key === 'lineAiModeEnabled' && r.value === 'TRUE');
+              const rmKey = aiOn ? 'ownerRichMenuIdOn' : 'ownerRichMenuIdOff';
+              const rmRow = settingsRows.find((r) => r.key === rmKey);
               if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value);
             } catch (err) {
               console.error('[line] linkRichMenuToUser (owner) failed for', event.source.userId, err.message);
@@ -524,9 +527,32 @@ async function handleOwnerRichMenuPostback(event) {
       await replyMessage(event.replyToken, `สรุปห้องพักทั้งหมด ${rooms.length} ห้อง:\nมีผู้เช่าอยู่: ${occupied.length} ห้อง\nห้องว่าง: ${vacant.length} ห้อง${vacant.length ? ` (${vacant.map((r) => r.id).join(', ')})` : ''}`);
       return;
     }
-    case 'owner:ai':
-      await replyMessage(event.replyToken, 'โหมดคุยกับ Claude AI ผ่าน LINE กำลังอยู่ระหว่างพัฒนาครับ 🚧 ตอนนี้ยังใช้งานได้ผ่านช่องแชท "สั่งงาน Claude ด้วยข้อความ" ในหน้าตั้งค่าบนเว็บไปก่อนนะครับ');
+    case 'owner:ai': {
+      // Per explicit user request: tapping this button TOGGLES a status
+      // flag (lineAiModeEnabled) and re-links the owner to whichever Rich
+      // Menu variant (ON/OFF badge on this same cell — see prototype-auth/
+      // setup-owner-richmenu.js) matches the NEW state, so the next time
+      // they open the menu tray they see it reflected visually. The
+      // actual "chat with Claude through LINE" behavior this flag will
+      // eventually gate is a separate follow-up (needs stateful per-user
+      // routing of free-text messages through Claude's tool-calling flow)
+      // — for now this just tracks on/off and confirms in chat, matching
+      // what the owner explicitly asked to ship first.
+      const wasOn = settingsRows.some((r) => r.key === 'lineAiModeEnabled' && r.value === 'TRUE');
+      const nowOn = !wasOn;
+      await updateSettingKV('lineAiModeEnabled', nowOn ? 'TRUE' : 'FALSE');
+      try {
+        const rmKey = nowOn ? 'ownerRichMenuIdOn' : 'ownerRichMenuIdOff';
+        const rmRow = settingsRows.find((r) => r.key === rmKey);
+        if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value);
+      } catch (err) {
+        console.error('[line] linkRichMenuToUser (owner AI toggle) failed for', event.source.userId, err.message);
+      }
+      await replyMessage(event.replyToken, nowOn
+        ? '🟢 เปิดโหมด Claude AI แล้วครับ — เปิดเมนูอีกครั้งจะเห็นสถานะอัปเดตแล้ว (ฟีเจอร์คุยกับ AI ผ่าน LINE โดยตรงกำลังพัฒนาอยู่ครับ ตอนนี้ยังใช้ผ่านช่องแชทในหน้าตั้งค่าบนเว็บไปก่อนนะครับ)'
+        : '⚪ ปิดโหมด Claude AI แล้วครับ');
       return;
+    }
     default:
       return;
   }

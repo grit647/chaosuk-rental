@@ -62,6 +62,39 @@ const BUTTONS = [
   ['robot', 'เปิดโหมด Claude AI', 'owner:ai'],
 ];
 
+// Per explicit user request: the "เปิดโหมด Claude AI" button (cell index
+// 5 — bottom-right) needs to visibly show its current on/off STATE, not
+// just be a static button. Rich Menu images are static, so LINE's
+// standard pattern for this is: keep two separate rich menus (one per
+// state) and RELINK the user to whichever one matches reality every time
+// they tap the toggle (see handleOwnerRichMenuPostback's 'owner:ai' case
+// in server/routes/line.js) — LINE reloads the visible menu the next time
+// the user opens the menu tray.
+// Owner explicitly chose the cheaper option over generating 2 full
+// AI images: keep their real base photo as-is for the other 5 cells, and
+// overlay just a small status badge onto cell 6's own region
+// programmatically. This function draws ONLY that badge (transparent
+// everywhere else) at cell 6's exact pixel bounds, to be composited on
+// top of the resized base image via sharp.
+function buildStatusBadgeOverlay(isOn) {
+  const AI_CELL_INDEX = 5; // bottom-right — must match BUTTONS' 'owner:ai' entry position
+  const col = AI_CELL_INDEX % COLS;
+  const row = Math.floor(AI_CELL_INDEX / COLS);
+  const cellX = col * CELL_W;
+  const cellY = row * CELL_H;
+  const badgeW = CELL_W * 0.72;
+  const badgeH = 110;
+  const badgeX = cellX + (CELL_W - badgeW) / 2;
+  const badgeY = cellY + 40; // small margin from the cell's own top edge
+  const bg = isOn ? '#3B7A52' : '#9C8B78'; // green when on, muted grey when off — same green already used elsewhere in the app for "connected/active" states
+  const label = isOn ? '🟢 เปิดอยู่' : '⚪ ปิดอยู่';
+  const svg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+    <rect x="${badgeX}" y="${badgeY}" width="${badgeW}" height="${badgeH}" rx="${badgeH / 2}" fill="${bg}" stroke="#FFFFFF" stroke-width="5"/>
+    <text x="${badgeX + badgeW / 2}" y="${badgeY + badgeH / 2}" font-size="44" font-family="sans-serif" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${label}</text>
+  </svg>`;
+  return Buffer.from(svg);
+}
+
 function buildSvg() {
   const MARGIN = 28;
   const cells = BUTTONS.map(([iconKey, label], i) => {
@@ -150,59 +183,80 @@ async function main() {
     process.exit(1);
   }
 
-  const existingId = await readSettingKV(sheets, spreadsheetId, 'ownerRichMenuId');
-  if (existingId) {
-    console.log('Found existing ownerRichMenuId', existingId, '— deleting before creating a fresh one...');
-    try { await deleteRichMenu(existingId, creds); } catch (err) { console.warn('  (delete failed, continuing anyway:', err.message, ')'); }
+  // Per explicit user request: the "เปิดโหมด Claude AI" button needs to
+  // show its current on/off state — creates TWO rich menus now (ON/OFF
+  // variants, badge overlaid on cell 6 only, see buildStatusBadgeOverlay
+  // above), replacing the single ownerRichMenuId this script used to
+  // create. Deletes BOTH old keys if present (the old single-menu
+  // ownerRichMenuId from before this feature, AND any previous on/off
+  // pair from a prior run) so re-running never piles up orphaned menus.
+  for (const key of ['ownerRichMenuId', 'ownerRichMenuIdOn', 'ownerRichMenuIdOff']) {
+    const existingId = await readSettingKV(sheets, spreadsheetId, key);
+    if (existingId) {
+      console.log(`Found existing ${key}`, existingId, '— deleting before creating fresh ones...');
+      try { await deleteRichMenu(existingId, creds); } catch (err) { console.warn('  (delete failed, continuing anyway:', err.message, ')'); }
+    }
   }
 
   const fs = require('fs');
   const IMAGES_DIR = path.join(__dirname, '..', 'images');
   const sourceCandidates = ['owner-richmenu.png', 'owner-richmenu.jpg', 'owner-richmenu.jpeg'].map((f) => path.join(IMAGES_DIR, f));
   const sourcePath = sourceCandidates.find((p) => fs.existsSync(p));
-  let pngBuffer;
-  let contentType = 'image/png';
+
+  // Base image (before the on/off badge is composited on) — either the
+  // owner's real photo, resized, or the generated SVG placeholder. Kept
+  // as a raw PNG buffer at this stage (not yet JPEG-compressed) so sharp
+  // can composite the badge onto it cleanly before the final JPEG
+  // encode+size-check happens per variant below.
+  let baseBuffer;
   if (sourcePath) {
     console.log('Found real source image:', sourcePath, '— resizing to', WIDTH + 'x' + HEIGHT, '(exact fit, no crop)...');
-    contentType = 'image/jpeg';
-    let quality = 85;
-    do {
-      pngBuffer = await sharp(sourcePath).resize(WIDTH, HEIGHT, { fit: 'fill' }).jpeg({ quality }).toBuffer();
-      console.log(`  quality=${quality} → ${(pngBuffer.length / 1024 / 1024).toFixed(2)}MB`);
-      quality -= 15;
-    } while (pngBuffer.length > 1024 * 1024 && quality > 20);
-    if (pngBuffer.length > 1024 * 1024) throw new Error('Could not get the source image under LINE\'s 1MB limit even at low JPEG quality — try a smaller/simpler source image.');
+    baseBuffer = await sharp(sourcePath).resize(WIDTH, HEIGHT, { fit: 'fill' }).png().toBuffer();
   } else {
     console.log('No images/owner-richmenu.png/.jpg found — generating a placeholder image instead...');
-    const svg = buildSvg();
-    pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+    baseBuffer = await sharp(Buffer.from(buildSvg())).png().toBuffer();
   }
 
-  console.log('Creating rich menu on LINE...');
-  const richMenuId = await createRichMenu({
-    size: { width: WIDTH, height: HEIGHT },
-    selected: false,
-    name: 'เช่าสุข - เมนูเจ้าของ',
-    chatBarText: 'เมนู',
-    areas: BUTTONS.map(([, label, data], i) => {
-      const col = i % COLS;
-      const row = Math.floor(i / COLS);
-      return {
-        bounds: { x: col * CELL_W, y: row * CELL_H, width: CELL_W, height: CELL_H },
-        action: { type: 'postback', data, displayText: label },
-      };
-    }),
-  }, creds);
-  console.log('Created richMenuId:', richMenuId);
+  // Both variants share the exact same 6 tap zones/postback actions (the
+  // "owner:ai" tap always means "toggle", regardless of which state is
+  // currently showing) — only the composited badge on cell 6 differs.
+  const areas = BUTTONS.map(([, label, data], i) => {
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
+    return {
+      bounds: { x: col * CELL_W, y: row * CELL_H, width: CELL_W, height: CELL_H },
+      action: { type: 'postback', data, displayText: label },
+    };
+  });
 
-  console.log('Uploading image...');
-  await uploadRichMenuImage(richMenuId, pngBuffer, contentType, creds);
+  async function createVariant(isOn, settingsKey) {
+    const composited = await sharp(baseBuffer).composite([{ input: buildStatusBadgeOverlay(isOn) }]).png().toBuffer();
+    let jpegBuffer;
+    let quality = 85;
+    do {
+      jpegBuffer = await sharp(composited).jpeg({ quality }).toBuffer();
+      quality -= 15;
+    } while (jpegBuffer.length > 1024 * 1024 && quality > 20);
+    if (jpegBuffer.length > 1024 * 1024) throw new Error(`${settingsKey}: could not get under LINE's 1MB limit even at low JPEG quality.`);
+    console.log(`Creating ${isOn ? 'ON' : 'OFF'} variant rich menu on LINE (${(jpegBuffer.length / 1024 / 1024).toFixed(2)}MB)...`);
+    const richMenuId = await createRichMenu({
+      size: { width: WIDTH, height: HEIGHT },
+      selected: false,
+      name: `เช่าสุข - เมนูเจ้าของ (AI ${isOn ? 'เปิด' : 'ปิด'})`,
+      chatBarText: 'เมนู',
+      areas,
+    }, creds);
+    console.log(`  Created richMenuId: ${richMenuId}`);
+    await uploadRichMenuImage(richMenuId, jpegBuffer, 'image/jpeg', creds);
+    await upsertSettingKV(sheets, spreadsheetId, settingsKey, richMenuId);
+    return richMenuId;
+  }
 
-  console.log('Saving ownerRichMenuId to Settings sheet...');
-  await upsertSettingKV(sheets, spreadsheetId, 'ownerRichMenuId', richMenuId);
+  await createVariant(true, 'ownerRichMenuIdOn');
+  await createVariant(false, 'ownerRichMenuIdOff');
 
-  console.log('\nDone! The owner will get this menu automatically the next time they self-link (type their adminEditPin to the LINE OA).');
-  console.log('Note: if the owner already linked their LINE before this script ran, they will NOT retroactively get the menu — they can re-trigger it by typing their adminEditPin again (self-link is idempotent, re-typing it just re-runs the same linking step).');
+  console.log('\nDone! The owner will get the OFF-state menu automatically the next time they self-link (type their adminEditPin to the LINE OA) — lineAiModeEnabled defaults to off. Tapping the AI button then toggles between the two menus from there (see handleOwnerRichMenuPostback in server/routes/line.js).');
+  console.log('Note: if the owner already linked their LINE before this script ran, they will NOT retroactively get the new menu pair — they can re-trigger it by typing their adminEditPin again (self-link is idempotent, re-typing it just re-runs the same linking step).');
 }
 
 main().catch((err) => { console.error('Setup failed:', err.message); process.exit(1); });
