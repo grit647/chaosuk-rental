@@ -433,7 +433,18 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
               } catch (err) {
                 console.error('[line] linkRichMenuToUser (owner) failed for', event.source.userId, err.message);
               }
-              await reply(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลระบบเรียบร้อยแล้วครับ${nameRow && nameRow.value ? ' (' + nameRow.value + ')' : ''} ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ`);
+              // Per explicit owner request: whichever role's self-link runs
+              // MOST RECENTLY on this LINE account "wins" the visible Rich
+              // Menu — this is a deliberate design now (not a bug), since
+              // one LINE account CAN legitimately be linked to multiple
+              // roles at once (e.g. a tenant who's also the owner/ผู้ดูแล)
+              // but LINE only ever shows ONE menu at a time. Explicitly
+              // telling the user their menu just switched, and how to
+              // switch it back, turns what used to be a silent surprise
+              // (real incident: the owner's own menu flipped to the
+              // tenant one without warning) into an understood, reversible
+              // action.
+              await reply(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลระบบเรียบร้อยแล้วครับ${nameRow && nameRow.value ? ' (' + nameRow.value + ')' : ''} ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ\n\n(เมนูด้านล่างเปลี่ยนเป็นเมนูเจ้าของแล้วนะครับ — ถ้าเคยเชื่อมเป็นผู้เช่าห้องไว้ด้วย พิมพ์เบอร์โทรห้องนั้นอีกครั้งเมื่อไหร่ก็สลับกลับไปเมนูผู้เช่าได้เสมอครับ)`);
               continue;
             }
 
@@ -478,7 +489,10 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
                 } catch (err) {
                   console.error('[line] linkRichMenuToUser (staff) failed for', event.source.userId, err.message);
                 }
-                await reply(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลเรียบร้อยแล้วครับ (${pending.name || 'ผู้ดูแล'}) ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ`);
+                // Same "which role's menu is showing now" clarity as the
+                // owner self-link above — deliberate design, not a bug,
+                // see the comment there.
+                await reply(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลเรียบร้อยแล้วครับ (${pending.name || 'ผู้ดูแล'}) ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ\n\n(เมนูด้านล่างเปลี่ยนเป็นเมนูผู้ดูแลแล้วนะครับ — ถ้าเคยเชื่อมเป็นผู้เช่าห้องไว้ด้วย พิมพ์เบอร์โทรห้องนั้นอีกครั้งเมื่อไหร่ก็สลับกลับไปเมนูผู้เช่าได้เสมอครับ)`);
               } else {
                 await reply(event.replyToken, 'เบอร์โทรไม่ตรงกับที่ยืนยันครับ กรุณาพิมพ์รหัสผู้ดูแลใหม่อีกครั้งเพื่อเริ่มใหม่');
               }
@@ -538,7 +552,13 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
               } catch (err) {
                 console.error('[line] linkRichMenuToUser failed for', event.source.userId, err.message);
               }
-              await reply(event.replyToken, `เชื่อมต่อห้อง ${room.id} เรียบร้อยแล้วครับ จะแจ้งเตือนบิล/ข่าวสารมาทางไลน์นี้`);
+              // Same "which role's menu is showing now" clarity as the
+              // owner/ผู้ดูแล self-link replies above — deliberate design,
+              // not a bug (see the comment on the owner self-link reply):
+              // one LINE account can legitimately be linked to a Room AND
+              // an owner/ผู้ดูแล identity at once, but only one Rich Menu
+              // shows at a time — whichever self-link ran most recently.
+              await reply(event.replyToken, `เชื่อมต่อห้อง ${room.id} เรียบร้อยแล้วครับ จะแจ้งเตือนบิล/ข่าวสารมาทางไลน์นี้\n\n(เมนูด้านล่างเปลี่ยนเป็นเมนูผู้เช่าแล้วนะครับ — ถ้าเป็นเจ้าของ/ผู้ดูแลด้วย พิมพ์ PIN อีกครั้งเมื่อไหร่ก็สลับกลับไปเมนูนั้นได้เสมอครับ)`);
             } else {
               await reply(event.replyToken, 'ไม่พบเบอร์โทรนี้ในระบบครับ กรุณาพิมพ์เบอร์โทรศัพท์ตามที่ระบุในสัญญาเช่าให้ถูกต้อง');
             }

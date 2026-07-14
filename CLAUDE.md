@@ -312,14 +312,21 @@ app now has demo tooltip coverage** — the full tour is complete. If a
 new page/feature is added later, follow "How to add tips to another
 page" above to extend it.
 
-### Known gap: one LINE account linked to multiple roles gets its Rich Menu/messages overwritten — CONFIRMED, still open
+### One LINE account linked to multiple roles → menu switches on re-link — DELIBERATE design (not a bug)
 
-**Status:** Originally just a theoretical worry (see below) — **now
-confirmed as a REAL, reproduced incident** (2026-07-14, same session
-that built the ผู้ดูแล Rich Menu). Owner asked to double-check whether
-this had been fixed by anything done since — checked, and the answer
-is no; if anything, the risk surface got WIDER (see "expanded scope"
-below). Not fixed yet, just more concretely understood now.
+**Status:** Was a theoretical worry, then became a real reproduced
+incident (2026-07-14 — see below), then the owner explicitly decided
+NOT to build a technical fix and instead make this an intentional,
+understood mechanic: **whichever role you self-link as most recently
+is the menu you see** — type your PIN → owner/ผู้ดูแล menu; type your
+room's phone number → tenant menu; switch back and forth anytime just
+by re-typing the corresponding credential. `server/routes/line.js`'s 3
+self-link confirmation replies (owner PIN, ผู้ดูแล PIN+phone, tenant
+phone) now each explicitly say "เมนูด้านล่างเปลี่ยนเป็น...แล้วนะครับ"
+plus how to switch back, so nobody is silently surprised by their menu
+changing the way the owner was in the incident below. No blocking/
+warning logic was added — a LINE ID CAN still be linked to multiple
+roles at once with zero friction, that's the accepted trade-off.
 
 **What actually happened:** while re-linking every already-connected
 tenant to a newly-updated tenant Rich Menu image
@@ -362,17 +369,16 @@ ID" — nothing today checks whether a `lineUserId` value already
 appears on a DIFFERENT row/Settings-key before writing it to a new
 one.
 
-**Still not fixed, options to consider for a real fix (unchanged from
-before, still not decided):** (1) before writing a `lineUserId` to any
-new role, check whether that same value already exists elsewhere
-(Rooms, Admins, Settings.adminLineUserId) and warn/block instead of
-silently overwriting; (2) message-type prefixes so at least a
-NOTIFICATION (not just the Rich Menu) makes clear which role it
-concerns; (3) accept the trade-off explicitly and just document "don't
-test tenant flows with your own real owner/admin LINE account" as an
-operational rule instead of a code fix. Owner hasn't picked one yet —
-flagging again so a future session has the full, now-proven picture
-instead of just the original hypothetical.
+**Decision (2026-07-14):** owner chose option "explain it in chat, make
+switching a normal expected action" over building any check/warn/block
+logic — matches how the self-link flows already naturally work (a
+tenant only ever types a phone number, a ผู้ดูแล/owner only ever types
+a PIN, so which credential you type IS the role-switch action, no new
+UI needed). **Still NOT built:** per-message role framing for regular
+push notifications (bill reminders, maintenance updates, etc. still
+don't say "as your tenant hat" vs "as your ผู้ดูแล hat") — only the
+Rich Menu switch itself got the explicit callout. Low priority unless
+a real customer reports actual confusion from it in practice.
 
 ## Permanent rules (do not relax without the owner explicitly re-confirming)
 
