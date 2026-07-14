@@ -6,7 +6,9 @@ const crypto = require('crypto');
 const { readTab, updateRow, appendRow } = require('../sheets');
 const { coerceInvoices, coerceRooms, readSettings, readIntegrationCredentials } = require('../coerce');
 const { isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent, linkRichMenuToUser } = require('../line');
-const { isConfigured: claudeConfigured, readPaymentSlip } = require('../claude');
+const { isConfigured: claudeConfigured, readPaymentSlip, isWhisperConfigured, transcribeAudio, callWithTools } = require('../claude');
+const { TOOLS, READ_TOOL_NAMES, executeReadTool, describeWriteTool, executeWriteTool } = require('../claudeTools');
+const { buildCommandSystemPrompt, extractText } = require('./claude');
 const { isConfigured: cloudinaryConfigured, uploadBuffer: uploadToCloudinary } = require('../cloudinary');
 const { notifyAdmin } = require('../adminNotify');
 const { sign, verify, setSessionCookie } = require('../auth');
@@ -36,6 +38,35 @@ fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 // Map even though they share one Node process.
 const pendingAdminLinks = new Map();
 const ADMIN_LINK_CONFIRM_WINDOW_MS = 2 * 60 * 1000;
+
+// Per explicit owner request ("จัดให้เลยครับ จะพิมพ์หรือจะใช้ไมค์บนไลน์ ใช้ได้หมด
+// ใช้ความสามารถเดียวกับตัวที่อยู่ในเวปเลยครับ"): "คุยกับ Claude AI ผ่าน LINE"
+// — reuses the EXACT same tool-use loop/system prompt/tool list as the web
+// command box (server/routes/claude.js's POST /command), just adapted for
+// a chat surface with no popup UI. Two in-memory (module-level, same
+// reasoning as pendingAdminLinks above — short-lived, fine to lose on a
+// redeploy, self-link/AI-chat are both naturally re-startable) Maps:
+// - aiConversations: rolling message history per LINE user, so a reply can
+//   reference earlier turns in the same conversation (same idea as the web
+//   command box's client-held `history`, just held server-side here since
+//   LINE has no client-side state to round-trip).
+// - aiPendingWrites: a write/mutating tool Claude wants to run, awaiting
+//   the owner's "ยืนยัน"/"ยกเลิก" reply — the LINE-chat equivalent of the
+//   web command box's confirm popup (same underlying architecture: Claude
+//   is instructed to call the write tool immediately once it has the
+//   required params, and OUR code — not Claude — gates the actual
+//   execution behind an explicit human confirmation step).
+const aiConversations = new Map();
+const aiPendingWrites = new Map();
+const AI_CONVO_TTL_MS = 30 * 60 * 1000;
+const AI_CONFIRM_WINDOW_MS = 2 * 60 * 1000;
+// Same restriction as server/automation.js's FORM_ONLY_TOOLS, same
+// reasoning (per CLAUDE.md's permanent rule: lease/contract data + new
+// rooms must always go through the native form UI — some fields, like ID
+// photos or lease documents, simply cannot be filled via chat text at
+// all) — LINE chat has even less UI surface than the unattended scheduler
+// automation.js guards against, so the same hard block applies here.
+const FORM_ONLY_TOOLS = new Set(['create_room', 'open_contract_form']);
 
 // Same key/value upsert pattern as server/routes/settings.js's upsertKV —
 // duplicated locally (not imported) to avoid pulling an Express router
@@ -403,6 +434,26 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
               continue;
             }
 
+            // Per explicit owner request ("จัดให้เลยครับ...ใช้ความสามารถ
+            // เดียวกับตัวที่อยู่ในเวปเลยครับ"): once the owner's own LINE is
+            // already linked (adminLineUserId matches) AND the "เปิดโหมด
+            // Claude AI" Rich Menu toggle is on (see handleOwnerRichMenu
+            // Postback's 'owner:ai' case), ANY other text from that exact
+            // LINE account is treated as a command to the AI assistant —
+            // not a room-number self-link attempt. Checked here (after the
+            // owner's own PIN and the ผู้ดูแล two-step flow, both of which
+            // are always more specific matches) and BEFORE the tenant
+            // phone-number match below, so the owner's own account never
+            // accidentally falls into "trying to link a tenant's room" just
+            // because they typed something that happens to look like a
+            // phone number.
+            const adminLineIdRow = settingsRows.find((r) => r.key === 'adminLineUserId');
+            const aiModeOn = settingsRows.some((r) => r.key === 'lineAiModeEnabled' && r.value === 'TRUE');
+            if (adminLineIdRow && adminLineIdRow.value === event.source.userId && aiModeOn) {
+              await handleOwnerAiText(event, lineCreds, text);
+              continue;
+            }
+
             // Per explicit user request: match by PHONE NUMBER instead of
             // room number — a tenant might not type/know their room's exact
             // ID as labeled in the system (room numbering can be understood
@@ -438,6 +489,39 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
             await handleSlipImage(event, req, lineCreds);
             continue;
           }
+          // Voice input for "คุยกับ Claude AI ผ่าน LINE" (per explicit owner
+          // request — same mic capability as the web command box). Only
+          // meaningful for the owner's own AI-mode conversation — a
+          // tenant's voice message has no self-link mechanism to begin
+          // with (self-link only ever reads TEXT), so this branch is
+          // scoped tight: verified owner + AI mode on, otherwise politely
+          // explain instead of silently doing nothing.
+          if (event.type === 'message' && event.message && event.message.type === 'audio') {
+            const settingsRows = await readTab('Settings');
+            const adminLineIdRow = settingsRows.find((r) => r.key === 'adminLineUserId');
+            const aiModeOn = settingsRows.some((r) => r.key === 'lineAiModeEnabled' && r.value === 'TRUE');
+            if (!(adminLineIdRow && adminLineIdRow.value === event.source.userId && aiModeOn)) {
+              await reply(event.replyToken, 'ข้อความเสียงใช้ได้เฉพาะตอนเปิดโหมด Claude AI ในเมนูเจ้าของครับ');
+              continue;
+            }
+            if (!isWhisperConfigured()) {
+              await reply(event.replyToken, 'ยังไม่ได้ตั้งค่าระบบแปลงเสียงเป็นข้อความ (OPENAI_API_KEY) บนเซิร์ฟเวอร์ครับ');
+              continue;
+            }
+            try {
+              const audioBuffer = await getMessageContent(event.message.id, lineCreds);
+              const transcribed = await transcribeAudio(audioBuffer, 'audio/m4a');
+              if (!transcribed) {
+                await reply(event.replyToken, 'ฟังไม่ออกครับ ลองพูดใหม่อีกครั้งได้ไหมครับ');
+                continue;
+              }
+              await handleOwnerAiText(event, lineCreds, transcribed);
+            } catch (err) {
+              console.error('[line] voice transcription failed', err.message);
+              await reply(event.replyToken, 'แปลงเสียงเป็นข้อความไม่สำเร็จครับ ลองพิมพ์แทนได้ไหมครับ');
+            }
+            continue;
+          }
           // Per explicit user request: Rich Menu tap zones use postback
           // actions (not "uri" actions) specifically so the webhook always
           // learns WHO tapped (event.source.userId) — a plain link opened
@@ -471,6 +555,114 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
     }
   });
 });
+
+// "คุยกับ Claude AI ผ่าน LINE" — the owner's free-text (or transcribed-
+// voice, see the 'audio' message-type branch above) message once
+// lineAiModeEnabled is on. Same tool-use loop shape as server/routes/
+// claude.js's POST /command (imported buildCommandSystemPrompt/
+// extractText from there so the two never drift apart), adapted for a
+// reply-only chat surface: no popup for write confirmation (LINE-native
+// "พิมพ์ยืนยัน" text flow via aiPendingWrites instead) and no canvas for
+// show_chart (replies with Claude's own written insight text instead of
+// rendering a graph).
+async function handleOwnerAiText(event, lineCreds, rawText) {
+  const reply = (text) => replyMessage(event.replyToken, text, lineCreds);
+  const pendingKey = `${getCurrentSheetId() || process.env.GOOGLE_SHEET_ID}:${event.source.userId}`;
+  const text = rawText.trim();
+  if (!text) return;
+
+  // Step 1: this message might be answering a pending write-confirmation
+  // from the PREVIOUS turn ("พิมพ์ 'ยืนยัน'...ภายใน 2 นาที").
+  const pendingWrite = aiPendingWrites.get(pendingKey);
+  if (pendingWrite) {
+    aiPendingWrites.delete(pendingKey); // one attempt only, matches the admin-link two-step flow above
+    if (pendingWrite.expiresAt > Date.now()) {
+      if (/^(ยืนยัน|yes|y|ok|โอเค)$/i.test(text)) {
+        try {
+          const result = await executeWriteTool(pendingWrite.toolName, pendingWrite.params);
+          await reply((result && result.message) || 'ดำเนินการเรียบร้อยแล้วครับ ✅');
+        } catch (err) {
+          await reply('ทำรายการไม่สำเร็จครับ: ' + err.message);
+        }
+        return;
+      }
+      if (/^(ยกเลิก|cancel|no|n)$/i.test(text)) {
+        await reply('ยกเลิกรายการแล้วครับ');
+        return;
+      }
+      // Neither ยืนยัน nor ยกเลิก — the owner started typing something new
+      // instead of answering. Don't silently execute OR silently drop
+      // their new message; just let it fall through as a fresh command
+      // below (the stale pending write is already cleared above).
+    }
+  }
+
+  // Step 2: run the tool-use loop — read tools execute immediately, a
+  // write tool sets a new pending confirmation instead of running, a
+  // FORM_ONLY_TOOLS tool is refused outright (see CLAUDE.md's permanent
+  // rule — no chat surface, LINE included, can substitute for the native
+  // contract/room form).
+  const convo = aiConversations.get(pendingKey);
+  let messages = (convo && convo.expiresAt > Date.now() ? convo.messages : []).concat([{ role: 'user', content: text }]);
+
+  for (let i = 0; i < 4; i++) {
+    let resp;
+    try {
+      resp = await callWithTools(buildCommandSystemPrompt(), messages, TOOLS, 1024);
+    } catch (err) {
+      await reply('เกิดข้อผิดพลาดตอนคุยกับ AI ครับ: ' + err.message);
+      return;
+    }
+    if (resp.stop_reason !== 'tool_use') {
+      const answerText = extractText(resp) || 'ขอโทษครับ ไม่เข้าใจคำสั่งนี้';
+      messages.push({ role: 'assistant', content: resp.content });
+      aiConversations.set(pendingKey, { messages: messages.slice(-20), expiresAt: Date.now() + AI_CONVO_TTL_MS });
+      await reply(answerText);
+      return;
+    }
+    const toolUses = resp.content.filter((c) => c.type === 'tool_use');
+    if (!toolUses.length) {
+      await reply(extractText(resp) || 'ขอโทษครับ ไม่เข้าใจคำสั่งนี้');
+      return;
+    }
+
+    const chartTool = toolUses.find((t) => t.name === 'show_chart');
+    if (chartTool) {
+      // LINE chat has no canvas to render a graph on — reply with
+      // whatever written insight Claude produced alongside the chart
+      // call instead (same data, just described in words).
+      await reply(extractText(resp) || 'ดูกราฟสรุปได้ที่หน้าเว็บแดชบอร์ดครับ');
+      return;
+    }
+
+    const formOnlyTool = toolUses.find((t) => FORM_ONLY_TOOLS.has(t.name));
+    if (formOnlyTool) {
+      await reply('งานนี้ต้องทำผ่านฟอร์มบนหน้าเว็บครับ (มีข้อมูลบางส่วน เช่น รูปบัตรประชาชน/ไฟล์สัญญา ที่กรอกผ่านแชทไม่ได้) เข้าเว็บแล้วไปที่หน้าที่เกี่ยวข้องได้เลยครับ');
+      return;
+    }
+
+    const writeTool = toolUses.find((t) => !READ_TOOL_NAMES.has(t.name));
+    if (writeTool) {
+      const description = extractText(resp) || await describeWriteTool(writeTool.name, writeTool.input);
+      aiPendingWrites.set(pendingKey, { toolName: writeTool.name, params: writeTool.input, expiresAt: Date.now() + AI_CONFIRM_WINDOW_MS });
+      await reply(`${description}\n\nพิมพ์ "ยืนยัน" เพื่อดำเนินการ หรือ "ยกเลิก" ภายใน 2 นาทีครับ`);
+      return;
+    }
+
+    // Every tool_use this turn is read-only — execute all of them and pair
+    // each with its own tool_result, then loop so Claude can phrase a
+    // final natural-language answer from the real data (same "every
+    // tool_use needs a tool_result or Anthropic rejects the request"
+    // requirement as the web command box).
+    const toolResults = [];
+    for (const tu of toolUses) {
+      const result = await executeReadTool(tu.name, tu.input);
+      toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
+    }
+    messages = [...messages, { role: 'assistant', content: resp.content }, { role: 'user', content: toolResults }];
+  }
+  await reply('คำสั่งนี้ซับซ้อนเกินไป ลองถามให้ชัดเจนหรือแบ่งเป็นหลายคำสั่งครับ');
+}
 
 // Per explicit user request ("ทดสอบเมนูฝั่งผู้เช่าก่อน"): handles every
 // tap-zone on the tenant Rich Menu. Three actions reply with info

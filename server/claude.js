@@ -98,4 +98,38 @@ async function readPaymentSlip(dataUrl) {
   return JSON.parse(jsonText);
 }
 
-module.exports = { isConfigured, askClaude, askClaudeWithImage, callWithTools, readPaymentSlip };
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+function isWhisperConfigured() {
+  return !!OPENAI_API_KEY;
+}
+
+// Transcribes a LINE voice message (an .m4a audio buffer, from
+// getMessageContent in server/line.js) to Thai text — used so the owner
+// can talk to the Claude command-box assistant via LINE's mic button, the
+// same way the web command box already supports voice input. NOT built on
+// Anthropic's API at all: the Messages API used everywhere else in this
+// file has no audio content-block support, so this calls OpenAI's Whisper
+// API instead (a separate provider/API key, per explicit owner request —
+// OPENAI_API_KEY in server/.env). Uses Node's built-in fetch/FormData/Blob
+// (Node 18+) rather than adding a new npm dependency.
+async function transcribeAudio(buffer, mimeType = 'audio/m4a') {
+  if (!OPENAI_API_KEY) throw new Error('ยังไม่ได้ตั้งค่า OPENAI_API_KEY บนเซิร์ฟเวอร์');
+  const form = new FormData();
+  form.append('file', new Blob([buffer], { type: mimeType }), 'voice.m4a');
+  form.append('model', 'whisper-1');
+  form.append('language', 'th'); // owner speaks Thai — skip language auto-detection
+  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Whisper API failed (${res.status}): ${text}`);
+  }
+  const data = await res.json();
+  return (data.text || '').trim();
+}
+
+module.exports = { isConfigured, askClaude, askClaudeWithImage, callWithTools, readPaymentSlip, isWhisperConfigured, transcribeAudio };

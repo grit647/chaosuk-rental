@@ -190,3 +190,9 @@ router.post('/command/confirm', async (req, res, next) => {
 });
 
 module.exports = router;
+// Exported so server/routes/line.js's "คุยกับ Claude AI ผ่าน LINE" handler can
+// reuse the EXACT same system prompt + tool-use loop shape as this web
+// command box, instead of maintaining a second slightly-different copy
+// that could drift out of sync (e.g. the confirm-before-write wording).
+module.exports.buildCommandSystemPrompt = buildCommandSystemPrompt;
+module.exports.extractText = extractText;
