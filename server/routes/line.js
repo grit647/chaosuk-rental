@@ -321,6 +321,31 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
               continue;
             }
 
+            // Per explicit user request: "ผู้ดูแล" (Admins tab — the
+            // separate accounting-clerk login role, session role: 'staff',
+            // NOT the unrelated "Staff"/สัญญาพนักงาน employment-contract
+            // tab) self-links the SAME way the owner does — type a PIN,
+            // no phone number needed. Checked against every Admins row's
+            // OWN pin (each ผู้ดูแล has their own phone+pin credential —
+            // see POST /staff-login), so multiple admins can each link
+            // their own LINE account. Checked AFTER the owner's single
+            // adminEditPin above (an owner's PIN and an admin's PIN are
+            // different concepts, no collision expected in practice) and
+            // BEFORE the phone-number tenant match below.
+            const adminRows = await readTab('Admins');
+            const matchedAdmin = adminRows.find((a) => a.pin && a.pin === text);
+            if (matchedAdmin) {
+              await updateRow('Admins', matchedAdmin.id, { lineUserId: event.source.userId });
+              try {
+                const rmRow = settingsRows.find((r) => r.key === 'staffRichMenuId');
+                if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value, lineCreds);
+              } catch (err) {
+                console.error('[line] linkRichMenuToUser (staff) failed for', event.source.userId, err.message);
+              }
+              await reply(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลเรียบร้อยแล้วครับ (${matchedAdmin.name || 'ผู้ดูแล'}) ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ`);
+              continue;
+            }
+
             // Per explicit user request: match by PHONE NUMBER instead of
             // room number — a tenant might not type/know their room's exact
             // ID as labeled in the system (room numbering can be understood
@@ -375,6 +400,8 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
             const data = event.postback.data || '';
             if (data.startsWith('owner:')) {
               await handleOwnerRichMenuPostback(event, lineCreds);
+            } else if (data.startsWith('staff:')) {
+              await handleStaffRichMenuPostback(event, lineCreds);
             } else {
               await handleTenantRichMenuPostback(event, lineCreds);
             }
@@ -579,6 +606,94 @@ async function handleOwnerRichMenuPostback(event, lineCreds) {
   }
 }
 
+// "ผู้ดูแล" (Admins tab, session role 'staff' — see server/routes/
+// auth.js's POST /staff-login) Rich Menu handler. Per explicit user
+// request an admin sees the exact same full dashboard as the owner once
+// logged in — same principle applies here: same info buttons as the
+// owner menu (summary/overdue/slips/rooms/dashboard-link), MINUS the
+// owner-only "เปิดโหมด Claude AI" toggle (swapped for "งานซ่อมที่ยังไม่เสร็จ"
+// per the image the owner designed — see images/staff-richmenu.png).
+// Auth check is against the Admins tab's OWN lineUserId per row (set by
+// the PIN self-link above) rather than a single Settings key, since
+// there can be multiple ผู้ดูแล accounts.
+async function handleStaffRichMenuPostback(event, lineCreds) {
+  const data = event.postback.data || '';
+  const reply = (text) => replyMessage(event.replyToken, text, lineCreds);
+  const adminRows = await readTab('Admins');
+  const admin = adminRows.find((a) => a.lineUserId === event.source.userId);
+  if (!admin) {
+    await reply('บัญชี LINE นี้ยังไม่ได้เชื่อมต่อเป็นผู้ดูแลครับ');
+    return;
+  }
+
+  const monthPrefix = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7); // YYYY-MM
+
+  switch (data) {
+    case 'staff:summary': {
+      const [invoices, expenses] = await Promise.all([
+        readTab('Invoices').then(coerceInvoices),
+        readTab('Expenses').then((rows) => rows.map((r) => ({ ...r, amount: Number(r.amount) || 0 }))),
+      ]);
+      const monthPaid = invoices.filter((i) => i.status === 'paid' && i.paidDate && i.paidDate.startsWith(monthPrefix));
+      const monthExpenses = expenses.filter((e) => e.date && e.date.startsWith(monthPrefix) && !e.hidden);
+      const revenue = monthPaid.reduce((a, i) => a + i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0), 0);
+      const expenseTotal = monthExpenses.reduce((a, e) => a + e.amount, 0);
+      await reply(`สรุปเดือนนี้ครับ:\nรายรับ (บิลที่ชำระแล้ว): ${revenue.toLocaleString()} บาท (${monthPaid.length} บิล)\nรายจ่าย: ${expenseTotal.toLocaleString()} บาท (${monthExpenses.length} รายการ)\nกำไร-ขาดทุนสุทธิ: ${(revenue - expenseTotal).toLocaleString()} บาท`);
+      return;
+    }
+    case 'staff:overdue': {
+      const invoices = coerceInvoices(await readTab('Invoices'));
+      const overdue = invoices.filter((i) => i.status === 'overdue' || i.status === 'pending' || i.status === 'partial');
+      const total = overdue.reduce((a, i) => {
+        const full = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
+        const remaining = i.remainingDue != null ? i.remainingDue : Math.max(0, full - (i.amountPaid || 0));
+        return a + remaining;
+      }, 0);
+      if (!overdue.length) { await reply('ไม่มีบิลค้างชำระเลยครับ ✅'); return; }
+      const rooms = overdue.map((i) => i.room).join(', ');
+      await reply(`บิลค้างชำระ/เกินกำหนด: ${overdue.length} ห้อง รวม ${total.toLocaleString()} บาท\nห้อง: ${rooms}`);
+      return;
+    }
+    case 'staff:slips': {
+      const invoices = coerceInvoices(await readTab('Invoices'));
+      const pendingSlips = invoices.filter((i) => i.slipPending);
+      const unmatched = await readTab('UnmatchedSlips');
+      if (!pendingSlips.length && !unmatched.length) { await reply('ไม่มีสลิปรอตรวจสอบครับ ✅'); return; }
+      await reply(`สลิปรอตรวจสอบ: ${pendingSlips.length} รายการ (ผูกห้องแล้ว)${unmatched.length ? `\nสลิปที่ยังไม่ทราบห้อง: ${unmatched.length} รายการ (ต้องจับคู่เอง)` : ''}\nเข้าไปตรวจได้ที่หน้า Bills → สลิปรอตรวจสอบครับ`);
+      return;
+    }
+    case 'staff:rooms': {
+      const rooms = coerceRooms(await readTab('Rooms'));
+      const vacant = rooms.filter((r) => r.status === 'vacant');
+      const occupied = rooms.filter((r) => r.status !== 'vacant');
+      await reply(`สรุปห้องพักทั้งหมด ${rooms.length} ห้อง:\nมีผู้เช่าอยู่: ${occupied.length} ห้อง\nห้องว่าง: ${vacant.length} ห้อง${vacant.length ? ` (${vacant.map((r) => r.id).join(', ')})` : ''}`);
+      return;
+    }
+    case 'staff:maintenance': {
+      const maintenance = await readTab('Maintenance');
+      const open = maintenance.filter((m) => m.status !== 'done');
+      if (!open.length) { await reply('ไม่มีงานซ่อมค้างเลยครับ ✅'); return; }
+      const lines = open.slice(0, 15).map((m) => `- ห้อง ${m.room}: ${m.issue || '-'} (${m.status || 'pending'})`).join('\n');
+      await reply(`งานซ่อมที่ยังไม่เสร็จ: ${open.length} รายการ\n${lines}${open.length > 15 ? '\n...' : ''}`);
+      return;
+    }
+    case 'staff:dashboard': {
+      // Same no-relogin auto-login mechanism as the owner's
+      // "เข้าใช้งานหน้าเว็ปไซต์" button — session role 'staff' carries the
+      // SAME customerSheetId + staffId this admin logged in with normally
+      // (see POST /staff-login), so it lands on the exact same full
+      // dashboard, no separate scoping needed (ผู้ดูแล = full access by
+      // design, see server/routes/auth.js's staff-login comment).
+      const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://chaosuk-rental.onrender.com';
+      const token = sign({ role: 'staff', customerSheetId: getCurrentSheetId() || process.env.GOOGLE_SHEET_ID, staffId: admin.id, exp: Date.now() + 5 * 60 * 1000 });
+      await reply(`เข้าหน้าเว็บได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}`);
+      return;
+    }
+    default:
+      return;
+  }
+}
+
 // The other half of the Rich Menu's bill/contract/maintenance actions
 // above — verifies the short-lived signed token, sets a REAL tenant
 // session cookie (same setSessionCookie used by the normal tenant-login
@@ -605,6 +720,12 @@ router.get('/auto-login', (req, res) => {
   if (payload.role === 'owner') {
     if (!payload.customerSheetId) return res.status(401).send('ลิงก์ไม่ถูกต้องครับ กรุณากดปุ่มจากเมนูอีกครั้ง');
     const session = { ownerId: payload.ownerId || null, role: 'owner', customerSheetId: payload.customerSheetId, roomId: null, staffId: null };
+    setSessionCookie(res, session);
+    return res.redirect('/');
+  }
+  if (payload.role === 'staff') {
+    if (!payload.customerSheetId || !payload.staffId) return res.status(401).send('ลิงก์ไม่ถูกต้องครับ กรุณากดปุ่มจากเมนูอีกครั้ง');
+    const session = { ownerId: null, role: 'staff', customerSheetId: payload.customerSheetId, roomId: null, staffId: payload.staffId };
     setSessionCookie(res, session);
     return res.redirect('/');
   }
