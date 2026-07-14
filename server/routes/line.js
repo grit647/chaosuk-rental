@@ -73,6 +73,21 @@ function isAiSessionActive(pendingKey) {
   const session = aiConversations.get(pendingKey);
   return !!(session && session.expiresAt > Date.now());
 }
+
+// Per explicit owner follow-up ("ผู้เช่าขอรหัสมา เราทำเป็นช่องให้กรอกรหัส
+// พร้อมส่งกลับเลยครับ"): when a tenant taps "ขอรหัส Wifi" and the room has
+// no wifiCode saved yet, every admin/owner notified about it (see
+// action=wifi below) gets a LIVE pending slot here — their VERY NEXT text
+// message is captured as the WiFi code, saved to the room, and pushed
+// straight to the tenant automatically, no need to open the web app at
+// all. Keyed the same "<customerSheetId>:<lineUserId>" way as every other
+// pending Map in this file. Whichever admin replies FIRST wins; fulfilling
+// it clears every other admin's pending slot for that same room too (see
+// the fulfillment code in the text-message handler below), so a second
+// admin's unrelated later message never gets mistaken for a stale WiFi
+// code.
+const wifiReplyPending = new Map();
+const WIFI_REPLY_WINDOW_MS = 10 * 60 * 1000;
 // Same restriction as server/automation.js's FORM_ONLY_TOOLS, same
 // reasoning (per CLAUDE.md's permanent rule: lease/contract data + new
 // rooms must always go through the native form UI — some fields, like ID
@@ -358,6 +373,40 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
           }
           if (event.type === 'message' && event.message && event.message.type === 'text') {
             const text = String(event.message.text || '').trim();
+
+            // Checked FIRST, before every other branch — if this exact
+            // admin/owner has a live "waiting for a WiFi code" slot (see
+            // wifiReplyPending above, set in action=wifi below), this
+            // message IS that code, full stop — not a PIN, not an AI
+            // command, not anything else. Highest priority because it's
+            // the most narrowly time-boxed of all the pending states in
+            // this file, and a tenant is actively waiting on the other end.
+            const wifiPendingKey = `${getCurrentSheetId() || process.env.GOOGLE_SHEET_ID}:${event.source.userId}`;
+            const wifiPending = wifiReplyPending.get(wifiPendingKey);
+            if (wifiPending) {
+              wifiReplyPending.delete(wifiPendingKey);
+              if (wifiPending.expiresAt > Date.now()) {
+                await updateRow('Rooms', wifiPending.roomId, { wifiCode: text });
+                if (wifiPending.tenantLineUserId) {
+                  try {
+                    await pushMessage(wifiPending.tenantLineUserId, `รหัส Wifi ห้อง ${wifiPending.roomId}: ${text}`, undefined, lineCreds);
+                  } catch (err) {
+                    console.error('[line] wifi code push to tenant failed', err.message);
+                  }
+                }
+                // Whoever replied first wins — clear every OTHER admin's
+                // pending slot for this same room so a later, unrelated
+                // message from a different admin never gets mistaken for
+                // a stale/duplicate WiFi code answer.
+                for (const [key, val] of wifiReplyPending) {
+                  if (val.roomId === wifiPending.roomId) wifiReplyPending.delete(key);
+                }
+                await reply(event.replyToken, `เรียบร้อยครับ ส่งรหัส Wifi ให้ผู้เช่าห้อง ${wifiPending.roomId} แล้วครับ (บันทึกไว้ในระบบด้วย ครั้งหน้าจะตอบผู้เช่าอัตโนมัติเลย)`);
+              } else {
+                await reply(event.replyToken, 'หมดเวลารอรหัส Wifi แล้วครับ (เกิน 10 นาที) ถ้าผู้เช่ายังรออยู่ กรอกรหัสในหน้าเว็บที่ห้องนั้นได้เลยครับ');
+              }
+              continue;
+            }
 
             // Owner self-links by typing their admin PIN instead of a room
             // number — per explicit user request, avoids having to hunt down
@@ -739,7 +788,10 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
       return;
     }
     case 'action=wifi': {
-      await reply(room.wifiCode ? `รหัส Wifi ห้อง ${room.id}: ${room.wifiCode}` : 'ยังไม่ได้บันทึกรหัส Wifi ของห้องนี้ไว้ในระบบครับ ลองสอบถามผู้ดูแลโดยตรงครับ');
+      const hasWifiCode = !!room.wifiCode;
+      await reply(hasWifiCode
+        ? `รหัส Wifi ห้อง ${room.id}: ${room.wifiCode}`
+        : 'ยังไม่ได้บันทึกรหัส Wifi ของห้องนี้ไว้ในระบบครับ รอสักครู่นะครับ ระบบแจ้งผู้ดูแลให้แล้ว จะส่งรหัสให้ทันทีที่ได้รับครับ');
       // Per explicit owner request: notify the owner AND every linked
       // ผู้ดูแล whenever a tenant taps this button. Gated behind its own
       // Settings toggle now (adminNotify.wifiRequest, หน้าตั้งค่า → "LINE
@@ -750,6 +802,15 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
       // through adminNotify.js's single-recipient notifyAdmin() helper —
       // checked directly here instead. Best-effort: a failed notify must
       // never break the tenant's own reply above (already sent by now).
+      //
+      // Per explicit owner follow-up ("ผู้เช่าขอรหัสมา เราทำเป็นช่องให้
+      // กรอกรหัสพร้อมส่งกลับเลยครับ"): if the room has NO wifiCode saved
+      // yet, every notified admin ALSO gets a live wifiReplyPending slot
+      // (see the top-of-text-handler check above) — their next plain text
+      // message is captured as the code, saved, and relayed to the
+      // tenant automatically, no web app needed. If a code is already on
+      // file, this is purely informational (no action needed — the
+      // tenant already got their answer above).
       try {
         const settings = await readSettings();
         if (settings.adminNotify && settings.adminNotify.wifiRequest) {
@@ -757,8 +818,16 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
           if (settings.propertyProfile.adminLineUserId) targets.push(settings.propertyProfile.adminLineUserId);
           const adminRows = await readTab('Admins');
           adminRows.forEach((a) => { if (a.lineUserId) targets.push(a.lineUserId); });
-          const notifyText = `ผู้เช่าห้อง ${room.id} (${room.tenant || '-'}) ขอรหัส Wifi ผ่าน LINE ครับ`;
-          for (const t of targets) await pushMessage(t, notifyText, undefined, lineCreds);
+          const notifyText = hasWifiCode
+            ? `ผู้เช่าห้อง ${room.id} (${room.tenant || '-'}) ขอรหัส Wifi ผ่าน LINE ครับ (ระบบตอบให้อัตโนมัติแล้ว)`
+            : `ผู้เช่าห้อง ${room.id} (${room.tenant || '-'}) ขอรหัส Wifi ผ่าน LINE ครับ แต่ยังไม่มีรหัสบันทึกไว้ — พิมพ์รหัส Wifi ห้องนี้ตอบกลับมาที่นี่เลยครับ ระบบจะส่งต่อให้ผู้เช่าทันที (ภายใน 10 นาที)`;
+          const sheetId = getCurrentSheetId() || process.env.GOOGLE_SHEET_ID;
+          for (const t of targets) {
+            await pushMessage(t, notifyText, undefined, lineCreds);
+            if (!hasWifiCode) {
+              wifiReplyPending.set(`${sheetId}:${t}`, { roomId: room.id, tenantLineUserId: room.lineUserId, expiresAt: Date.now() + WIFI_REPLY_WINDOW_MS });
+            }
+          }
         }
       } catch (err) {
         console.error('[line] wifi-request notify failed', err.message);
