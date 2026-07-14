@@ -18,6 +18,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
   .stat-card { flex: 1 1 calc(50% - 7px) !important; min-width: 130px; }
   .split-col { flex: 1 1 100% !important; }
   .reminder-cards-grid { grid-template-columns: 1fr !important; }
+  /* Real bug the owner hit on a phone: the sticky page-title-+-action-
+     buttons row (used on ~15 pages — Bills, Rooms, Tenants, etc.) has no
+     wrap/shrink handling, so on a narrow screen an extra button (e.g.
+     "📎 สลิปรอตรวจสอบ" only appearing once there's a pending slip) pushed
+     the title's flex box down to almost zero width — the title text then
+     wrapped ONE WORD PER LINE ("บิล / & / ใบ / แจ้ง / หนี้") instead of the
+     buttons just moving to their own row. Structural :first-child/
+     :last-child selectors (not extra classes on every inner div) so this
+     one rule fixes all ~15 page headers that share this exact markup shape
+     at once. */
+  .page-header-row { flex-wrap: wrap !important; row-gap: 10px; }
+  .page-header-row > div:first-child { flex: 1 1 100% !important; min-width: 0; }
+  .page-header-row > div:last-child { flex-wrap: wrap !important; }
 }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 </style>
@@ -365,7 +378,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
           <div>
-            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">แดชบอร์ด</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">ภาพรวมประจำเดือนกรกฎาคม 2569</div>
@@ -521,7 +534,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isRooms }}" hint-placeholder-val="{{ false }}">
           <div style="display:flex;flex-direction:column;height:100%">
-            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">รายการห้องพัก</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">{{ roomsCountLabel }}</div>
@@ -739,7 +752,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isBilling }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">บิล &amp; ใบแจ้งหนี้</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรกฎาคม 2569 · คลิกการ์ดสรุปเพื่อกรองรายการ</div>
@@ -828,7 +841,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isMaintenance }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="display:flex;align-items:center;gap:8px">
                   <div style="font-size:21px;font-weight:700;color:#241812">แจ้งซ่อม</div>
@@ -1265,7 +1278,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isWaterReport }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">การใช้น้ำประปา</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรอกเลขมิเตอร์ปัจจุบันเพื่อคำนวณค่าน้ำรอบถัดไป</div>
@@ -1359,7 +1372,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isElecReport }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">การใช้ไฟฟ้า</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรอกเลขมิเตอร์ปัจจุบันเพื่อคำนวณค่าไฟรอบถัดไป</div>
@@ -1608,7 +1621,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isExpenses }}" hint-placeholder-val="{{ false }}">
           <div>
-            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="display:flex;align-items:center;gap:8px">
                   <div style="font-size:21px;font-weight:700;color:#241812">บัญชีรายจ่าย</div>
@@ -1685,7 +1698,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           <div>
             <sc-if value="{{ contractFormInactive }}" hint-placeholder-val="{{ true }}">
             <div>
-            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">สัญญาเช่า</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">
@@ -1727,7 +1740,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
             <sc-if value="{{ contractFormActive }}" hint-placeholder-val="{{ false }}">
             <div style="max-width:760px">
-              <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+              <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px">
                 <div>
                   <div style="font-size:21px;font-weight:700;color:#241812">กรอกข้อมูลสัญญาเช่า · ห้อง {{ contractFormRoomId }}</div>
                   <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรอกรายละเอียดให้ครบแล้วกดบันทึก</div>
@@ -1908,7 +1921,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isCalendar }}" hint-placeholder-val="{{ false }}">
           <div style="display:flex;flex-direction:column">
-            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">ปฏิทินงาน</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">บันทึกนัดหมาย กำหนดชำระ และงานที่ต้องติดตาม · {{ upcomingCount }} รายการที่จะถึง</div>
@@ -2034,7 +2047,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
           <sc-if value="{{ isStaffContracts }}" hint-placeholder-val="{{ false }}">
           <div style="display:flex;flex-direction:column">
-            <div style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">สัญญาพนักงาน</div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">จัดการสัญญาจ้างพนักงานหอพัก · {{ staffCount }} คน</div>
