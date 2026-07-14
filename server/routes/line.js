@@ -16,6 +16,27 @@ const { runWithSheetId, getCurrentSheetId } = require('../requestContext');
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+// Per explicit owner request: ผู้ดูแล self-link is a real, stateful TWO-STEP
+// chat flow now — type the PIN first, THEN (in a separate message) the
+// phone number to confirm — rather than one "phone pin" message. Reasoning
+// given: a tenant might be standing right there when the admin types, and
+// a single combined message risks visually reading like "just a phone
+// number" if misread/miscopied — splitting into two distinct steps makes
+// each step unambiguous, and critically, the FIRST message (a bare PIN)
+// can never accidentally match the tenant phone-number self-link path
+// below (a PIN and a phone number look nothing alike), whereas a
+// combined "phone pin" message text is more easily fumbled by a user
+// mid-conversation. In-memory only (module-level Map, not persisted to
+// the Sheet) — a short-lived (2 min) pending-confirmation state is exactly
+// the kind of thing that SHOULD reset on a server restart; the self-link
+// flow is idempotent (re-typing the PIN just restarts it), so there's no
+// real downside to it not surviving a redeploy. Keyed by
+// "<customerSheetId>:<lineUserId>" so two different buildings' webhooks
+// (see the per-customerSheetId route below) never collide in this shared
+// Map even though they share one Node process.
+const pendingAdminLinks = new Map();
+const ADMIN_LINK_CONFIRM_WINDOW_MS = 2 * 60 * 1000;
+
 // Same key/value upsert pattern as server/routes/settings.js's upsertKV —
 // duplicated locally (not imported) to avoid pulling an Express router
 // into this file just for one helper. Used only for the admin-PIN
@@ -326,47 +347,56 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
             // both the admin self-link below and the tenant self-link
             // further down) rather than twice.
             const normPhone = (s) => String(s || '').replace(/\D/g, '');
+            const pendingKey = `${getCurrentSheetId() || process.env.GOOGLE_SHEET_ID}:${event.source.userId}`;
 
-            // Per explicit user follow-up (real security concern the owner
-            // raised: "ถ้าผมเป็นผู้เช่าแล้วได้รหัสผู้ดูแลไป ผมเข้าได้ไหม" — yes,
-            // originally, because this only checked the PIN text with no
-            // second factor at all): "ผู้ดูแล" (Admins tab — the separate
-            // accounting-clerk login role, session role: 'staff', NOT the
-            // unrelated "Staff"/สัญญาพนักงาน employment-contract tab)
-            // self-links by typing BOTH their own phone number AND PIN,
-            // space-separated (e.g. "0812345678 1234") — matching the
-            // exact same two credentials POST /staff-login already
-            // requires, just typed in chat instead of a login form. A bare
-            // PIN with no phone (the old behavior) is deliberately no
-            // longer accepted — a leaked/guessed PIN alone can no longer
-            // grant staff access. Checked against every Admins row's own
-            // phone+pin (each ผู้ดูแล has their own credential), so multiple
-            // admins can each link their own LINE account. Checked AFTER
-            // the owner's single adminEditPin above (a different, PIN-only
-            // concept — the owner explicitly asked for that one to stay a
-            // simple PIN, see CLAUDE.md's PIN-gate notes) and BEFORE the
-            // phone-number-only tenant match below.
-            const adminMatch = text.match(/^(\S+)\s+(\S+)$/);
-            if (adminMatch) {
-              const [, typedPhone, typedPin] = adminMatch;
-              const adminRows = await readTab('Admins');
-              const matchedAdmin = adminRows.find((a) => a.pin && a.pin === typedPin && a.phone && normPhone(a.phone) === normPhone(typedPhone));
-              if (matchedAdmin) {
-                await updateRow('Admins', matchedAdmin.id, { lineUserId: event.source.userId });
+            // Per explicit owner follow-up (real security concern raised:
+            // "ถ้าผมเป็นผู้เช่าแล้วได้รหัสผู้ดูแลไป ผมเข้าได้ไหม" — yes,
+            // originally, since a bare PIN alone had no second factor at
+            // all): "ผู้ดูแล" (Admins tab — the separate accounting-clerk
+            // login role, session role: 'staff', NOT the unrelated "Staff"/
+            // สัญญาพนักงาน employment-contract tab) now self-links via a
+            // real TWO-STEP chat flow — STEP 1 (this block): type the PIN
+            // alone → if it matches an Admins row, don't link yet, just
+            // remember "this LINE user claims to be admin X" for 2 minutes
+            // and ask them to confirm by typing their phone number next.
+            // STEP 2 (further below, checked FIRST on every message so a
+            // pending confirmation is always caught before any other
+            // branch): if this LINE user has a live pending confirmation,
+            // check whatever they typed against THAT specific admin's own
+            // phone — matches → actually link; doesn't match → clear the
+            // pending state and tell them to start over. Per owner's own
+            // stated reasoning: this keeps each step unambiguous (a bare
+            // PIN can never be confused with the tenant phone-number flow
+            // below, unlike a combined "phone pin" single message which
+            // reads too much like "just a phone number" if a tenant is
+            // standing nearby watching). Checked AFTER the owner's own
+            // single adminEditPin above (different, deliberately
+            // PIN-only concept, see CLAUDE.md's PIN-gate notes).
+            const pending = pendingAdminLinks.get(pendingKey);
+            if (pending && pending.expiresAt > Date.now()) {
+              pendingAdminLinks.delete(pendingKey); // one attempt only, success or fail
+              if (normPhone(text) === normPhone(pending.phone)) {
+                await updateRow('Admins', pending.adminId, { lineUserId: event.source.userId });
                 try {
                   const rmRow = settingsRows.find((r) => r.key === 'staffRichMenuId');
                   if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value, lineCreds);
                 } catch (err) {
                   console.error('[line] linkRichMenuToUser (staff) failed for', event.source.userId, err.message);
                 }
-                await reply(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลเรียบร้อยแล้วครับ (${matchedAdmin.name || 'ผู้ดูแล'}) ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ`);
-                continue;
+                await reply(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลเรียบร้อยแล้วครับ (${pending.name || 'ผู้ดูแล'}) ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ`);
+              } else {
+                await reply(event.replyToken, 'เบอร์โทรไม่ตรงกับที่ยืนยันครับ กรุณาพิมพ์รหัสผู้ดูแลใหม่อีกครั้งเพื่อเริ่มใหม่');
               }
-              // Looked like a "phone pin" attempt but didn't match any
-              // admin — fall through to the tenant phone-number match
-              // below rather than erroring here, since a tenant's phone
-              // number could theoretically also contain a space by typo
-              // (rare, but this avoids a confusing dead-end reply).
+              continue;
+            }
+            if (pending) pendingAdminLinks.delete(pendingKey); // expired — clear before falling through
+
+            const adminRows = await readTab('Admins');
+            const matchedAdmin = adminRows.find((a) => a.pin && a.pin === text);
+            if (matchedAdmin) {
+              pendingAdminLinks.set(pendingKey, { adminId: matchedAdmin.id, phone: matchedAdmin.phone, name: matchedAdmin.name, expiresAt: Date.now() + ADMIN_LINK_CONFIRM_WINDOW_MS });
+              await reply(event.replyToken, `พบรหัสผู้ดูแลถูกต้องครับ (${matchedAdmin.name || 'ผู้ดูแล'}) กรุณาพิมพ์เบอร์โทรของคุณเพื่อยืนยัน ภายใน 2 นาทีครับ`);
+              continue;
             }
 
             // Per explicit user request: match by PHONE NUMBER instead of
