@@ -41,10 +41,10 @@ const ICONS = {
   warning: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
   // "attach_file" (Material Icons) — pending slips.
   clip: 'M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z',
-  // "build" (Material Icons) — wrench, reused from the tenant set.
-  wrench: 'M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z',
   // "home" (Material Icons) — room status.
   home: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
+  // "public" (Material Icons) — globe/www, for the "เข้าใช้งานหน้าเว็ปไซต์" button.
+  globe: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z',
   // "smart_toy" (Material Icons) — robot/AI.
   robot: 'M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7.5 11.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S9.83 13 9 13s-1.5-.67-1.5-1.5zm9 5c-1 1-2.87 1.5-4.5 1.5s-3.5-.5-4.5-1.5c-.28-.28-.28-.72 0-1 .28-.28.72-.28 1 0 .68.68 2.16 1 3.5 1s2.82-.32 3.5-1c.28-.28.72-.28 1 0 .28.28.28.72 0 1zm-.5-3.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z',
 };
@@ -53,12 +53,17 @@ const ICONS = {
 // top-to-bottom. "owner:" prefix on every data value is what server/
 // routes/line.js's postback dispatcher uses to tell owner taps apart
 // from tenant taps (see handleOwnerRichMenuPostback there).
+// Per explicit user follow-up (redesigned owner-richmenu.png): งานซ่อม
+// dropped from the menu entirely, replaced with a direct "เข้าใช้งานหน้า
+// เว็ปไซต์" no-re-login link into the main app (see 'owner:dashboard' in
+// server/routes/line.js's handleOwnerRichMenuPostback — same short-lived-
+// signed-token mechanism as the tenant menu's web-opening buttons).
 const BUTTONS = [
   ['baht', 'สรุปรายรับ-รายจ่ายเดือนนี้', 'owner:summary'],
   ['warning', 'บิลค้างชำระ/เกินกำหนด', 'owner:overdue'],
   ['clip', 'สลิปรอตรวจสอบ', 'owner:slips'],
-  ['wrench', 'งานซ่อมที่ยังไม่เสร็จ', 'owner:maintenance'],
   ['home', 'สรุปห้องว่าง/มีคนอยู่', 'owner:rooms'],
+  ['globe', 'เข้าใช้งานหน้าเว็ปไซต์', 'owner:dashboard'],
   ['robot', 'เปิดโหมด Claude AI', 'owner:ai'],
 ];
 

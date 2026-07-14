@@ -402,7 +402,7 @@ async function handleTenantRichMenuPostback(event) {
   // (customerSheetId + roomId only, matching a real tenant session's
   // shape). Verified + consumed by GET /auto-login below.
   function autoLoginLink(view) {
-    const token = sign({ customerSheetId: process.env.GOOGLE_SHEET_ID, roomId: room.id, exp: Date.now() + 5 * 60 * 1000 });
+    const token = sign({ role: 'tenant', customerSheetId: process.env.GOOGLE_SHEET_ID, roomId: room.id, exp: Date.now() + 5 * 60 * 1000 });
     return `${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}&view=${view}`;
   }
 
@@ -512,12 +512,15 @@ async function handleOwnerRichMenuPostback(event) {
       await replyMessage(event.replyToken, `สลิปรอตรวจสอบ: ${pendingSlips.length} รายการ (ผูกห้องแล้ว)${unmatched.length ? `\nสลิปที่ยังไม่ทราบห้อง: ${unmatched.length} รายการ (ต้องจับคู่เอง)` : ''}\nเข้าไปตรวจได้ที่หน้า Bills → สลิปรอตรวจสอบครับ`);
       return;
     }
-    case 'owner:maintenance': {
-      const maintenance = await readTab('Maintenance');
-      const open = maintenance.filter((m) => m.status !== 'done');
-      if (!open.length) { await replyMessage(event.replyToken, 'ไม่มีงานซ่อมค้างเลยครับ ✅'); return; }
-      const lines = open.slice(0, 10).map((m) => `- ห้อง ${m.room}: ${m.issue} (${m.status === 'inprogress' ? 'กำลังดำเนินการ' : 'รอดำเนินการ'})`);
-      await replyMessage(event.replyToken, `งานซ่อมที่ยังไม่เสร็จ: ${open.length} รายการ\n${lines.join('\n')}${open.length > 10 ? `\n...และอีก ${open.length - 10} รายการ` : ''}`);
+    case 'owner:dashboard': {
+      // Per explicit user follow-up (redesigned image — งานซ่อม cell
+      // replaced with this one): "เข้าใช้งานหน้าเว็ปไซต์" opens the main
+      // app with no re-login needed, same short-lived signed-token
+      // mechanism as the tenant menu's bill/contract/maintenance links
+      // (see GET /auto-login above, now branches on payload.role).
+      const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://chaosuk-rental.onrender.com';
+      const token = sign({ role: 'owner', customerSheetId: process.env.GOOGLE_SHEET_ID, exp: Date.now() + 5 * 60 * 1000 });
+      await replyMessage(event.replyToken, `เข้าหน้าเว็บได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}`);
       return;
     }
     case 'owner:rooms': {
@@ -566,12 +569,28 @@ async function handleOwnerRichMenuPostback(event) {
 // per explicit design — there's no separate bill/contract/maintenance
 // sub-page to route between), just carried through in case a future
 // version wants to auto-scroll/highlight a section.
+// Shared by both Rich Menus (tenant AND owner) — per explicit user
+// request, the owner's "เข้าใช้งานหน้าเว็ปไซต์" Rich Menu button
+// (server/routes/line.js's 'owner:dashboard' postback below) also needs
+// a no-re-login link into the main app, same mechanism as the tenant
+// bill/contract/maintenance links. Branches on payload.role rather than
+// assuming tenant — an owner token has no roomId at all (a room only
+// exists on a tenant's own session), which is why the old hardcoded
+// `!payload.roomId` validity check had to move into the tenant-only
+// branch instead of gating the whole route.
 router.get('/auto-login', (req, res) => {
   const { token } = req.query;
   const payload = token && verify(token);
-  if (!payload || !payload.roomId || !payload.exp || Date.now() > payload.exp) {
+  if (!payload || !payload.exp || Date.now() > payload.exp) {
     return res.status(401).send('ลิงก์หมดอายุหรือไม่ถูกต้องครับ กรุณากดปุ่มจากเมนูอีกครั้ง');
   }
+  if (payload.role === 'owner') {
+    if (!payload.customerSheetId) return res.status(401).send('ลิงก์ไม่ถูกต้องครับ กรุณากดปุ่มจากเมนูอีกครั้ง');
+    const session = { ownerId: payload.ownerId || null, role: 'owner', customerSheetId: payload.customerSheetId, roomId: null, staffId: null };
+    setSessionCookie(res, session);
+    return res.redirect('/');
+  }
+  if (!payload.roomId) return res.status(401).send('ลิงก์ไม่ถูกต้องครับ กรุณากดปุ่มจากเมนูอีกครั้ง');
   const session = { ownerId: null, role: 'tenant', customerSheetId: payload.customerSheetId, roomId: payload.roomId, staffId: null };
   setSessionCookie(res, session);
   res.redirect('/tenant-portal');
