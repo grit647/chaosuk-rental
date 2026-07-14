@@ -863,12 +863,15 @@ async function handleOwnerRichMenuPostback(event, lineCreds) {
       // flag (lineAiModeEnabled) and re-links the owner to whichever Rich
       // Menu variant (ON/OFF badge on this same cell — see prototype-auth/
       // setup-owner-richmenu.js) matches the NEW state, so the next time
-      // they open the menu tray they see it reflected visually. The
-      // actual "chat with Claude through LINE" behavior this flag will
-      // eventually gate is a separate follow-up (needs stateful per-user
-      // routing of free-text messages through Claude's tool-calling flow)
-      // — for now this just tracks on/off and confirms in chat, matching
-      // what the owner explicitly asked to ship first.
+      // they open the menu tray they see it reflected visually. This flag
+      // is now the actual live gate for "คุยกับ Claude AI ผ่าน LINE" (see
+      // handleOwnerAiText above, and the aiModeOn check right before it's
+      // called in the webhook's text-message branch) — was a placeholder
+      // ("coming soon") when this comment was first written, shipped for
+      // real later in the same session; the confirmation reply text below
+      // was caught out of date by the owner (real bug: still said
+      // "กำลังพัฒนาอยู่" after the feature had already shipped) and fixed
+      // to match reality.
       const wasOn = settingsRows.some((r) => r.key === 'lineAiModeEnabled' && r.value === 'TRUE');
       const nowOn = !wasOn;
       await updateSettingKV('lineAiModeEnabled', nowOn ? 'TRUE' : 'FALSE');
@@ -880,7 +883,7 @@ async function handleOwnerRichMenuPostback(event, lineCreds) {
         console.error('[line] linkRichMenuToUser (owner AI toggle) failed for', event.source.userId, err.message);
       }
       await reply(nowOn
-        ? '🟢 เปิดโหมด Claude AI แล้วครับ — เปิดเมนูอีกครั้งจะเห็นสถานะอัปเดตแล้ว (ฟีเจอร์คุยกับ AI ผ่าน LINE โดยตรงกำลังพัฒนาอยู่ครับ ตอนนี้ยังใช้ผ่านช่องแชทในหน้าตั้งค่าบนเว็บไปก่อนนะครับ)'
+        ? '🟢 เปิดโหมด Claude AI แล้วครับ — เปิดเมนูอีกครั้งจะเห็นสถานะอัปเดตแล้ว พิมพ์คุยกับ AI ในแชทนี้ได้เลย (หรือส่งข้อความเสียงก็ได้ถ้าตั้งค่าไว้แล้ว) ความสามารถเหมือนช่องแชทในหน้าตั้งค่าบนเว็บทุกอย่างครับ'
         : '⚪ ปิดโหมด Claude AI แล้วครับ');
       return;
     }
