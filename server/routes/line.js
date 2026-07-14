@@ -321,38 +321,59 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
               continue;
             }
 
-            // Per explicit user request: "ผู้ดูแล" (Admins tab — the
-            // separate accounting-clerk login role, session role: 'staff',
-            // NOT the unrelated "Staff"/สัญญาพนักงาน employment-contract
-            // tab) self-links the SAME way the owner does — type a PIN,
-            // no phone number needed. Checked against every Admins row's
-            // OWN pin (each ผู้ดูแล has their own phone+pin credential —
-            // see POST /staff-login), so multiple admins can each link
-            // their own LINE account. Checked AFTER the owner's single
-            // adminEditPin above (an owner's PIN and an admin's PIN are
-            // different concepts, no collision expected in practice) and
-            // BEFORE the phone-number tenant match below.
-            const adminRows = await readTab('Admins');
-            const matchedAdmin = adminRows.find((a) => a.pin && a.pin === text);
-            if (matchedAdmin) {
-              await updateRow('Admins', matchedAdmin.id, { lineUserId: event.source.userId });
-              try {
-                const rmRow = settingsRows.find((r) => r.key === 'staffRichMenuId');
-                if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value, lineCreds);
-              } catch (err) {
-                console.error('[line] linkRichMenuToUser (staff) failed for', event.source.userId, err.message);
+            // normPhone strips everything but digits, so "081-234-5671" and
+            // "0812345671" both match the same way. Declared here (used by
+            // both the admin self-link below and the tenant self-link
+            // further down) rather than twice.
+            const normPhone = (s) => String(s || '').replace(/\D/g, '');
+
+            // Per explicit user follow-up (real security concern the owner
+            // raised: "ถ้าผมเป็นผู้เช่าแล้วได้รหัสผู้ดูแลไป ผมเข้าได้ไหม" — yes,
+            // originally, because this only checked the PIN text with no
+            // second factor at all): "ผู้ดูแล" (Admins tab — the separate
+            // accounting-clerk login role, session role: 'staff', NOT the
+            // unrelated "Staff"/สัญญาพนักงาน employment-contract tab)
+            // self-links by typing BOTH their own phone number AND PIN,
+            // space-separated (e.g. "0812345678 1234") — matching the
+            // exact same two credentials POST /staff-login already
+            // requires, just typed in chat instead of a login form. A bare
+            // PIN with no phone (the old behavior) is deliberately no
+            // longer accepted — a leaked/guessed PIN alone can no longer
+            // grant staff access. Checked against every Admins row's own
+            // phone+pin (each ผู้ดูแล has their own credential), so multiple
+            // admins can each link their own LINE account. Checked AFTER
+            // the owner's single adminEditPin above (a different, PIN-only
+            // concept — the owner explicitly asked for that one to stay a
+            // simple PIN, see CLAUDE.md's PIN-gate notes) and BEFORE the
+            // phone-number-only tenant match below.
+            const adminMatch = text.match(/^(\S+)\s+(\S+)$/);
+            if (adminMatch) {
+              const [, typedPhone, typedPin] = adminMatch;
+              const adminRows = await readTab('Admins');
+              const matchedAdmin = adminRows.find((a) => a.pin && a.pin === typedPin && a.phone && normPhone(a.phone) === normPhone(typedPhone));
+              if (matchedAdmin) {
+                await updateRow('Admins', matchedAdmin.id, { lineUserId: event.source.userId });
+                try {
+                  const rmRow = settingsRows.find((r) => r.key === 'staffRichMenuId');
+                  if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value, lineCreds);
+                } catch (err) {
+                  console.error('[line] linkRichMenuToUser (staff) failed for', event.source.userId, err.message);
+                }
+                await reply(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลเรียบร้อยแล้วครับ (${matchedAdmin.name || 'ผู้ดูแล'}) ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ`);
+                continue;
               }
-              await reply(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลเรียบร้อยแล้วครับ (${matchedAdmin.name || 'ผู้ดูแล'}) ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ`);
-              continue;
+              // Looked like a "phone pin" attempt but didn't match any
+              // admin — fall through to the tenant phone-number match
+              // below rather than erroring here, since a tenant's phone
+              // number could theoretically also contain a space by typo
+              // (rare, but this avoids a confusing dead-end reply).
             }
 
             // Per explicit user request: match by PHONE NUMBER instead of
             // room number — a tenant might not type/know their room's exact
             // ID as labeled in the system (room numbering can be understood
             // differently between tenant and owner), but their own phone
-            // number is unambiguous. normPhone strips everything but digits
-            // so "081-234-5671" and "0812345671" both match the same way.
-            const normPhone = (s) => String(s || '').replace(/\D/g, '');
+            // number is unambiguous.
             const rooms = await readTab('Rooms');
             const room = rooms.find((r) => r.phone && normPhone(r.phone) === normPhone(text));
             if (room) {
