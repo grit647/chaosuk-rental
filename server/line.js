@@ -56,6 +56,31 @@ async function replyMessage(replyToken, text, creds) {
   return callLineApi('reply', { replyToken, messages: [{ type: 'text', text }] }, creds);
 }
 
+// Per explicit user request: the auto-login links this app replies with
+// (bill/contract/maintenance/dashboard buttons on the tenant/owner/staff
+// Rich Menus) used to show the raw long URL as plain chat text — the
+// owner asked for that to be hidden behind a real tappable button
+// instead, using LINE's "Buttons Template" message type (a single body
+// text + one action button, rendered as a proper button in the chat
+// bubble rather than a wall of URL text). Same short-lived signed link
+// underneath — this only changes how it's PRESENTED, not the 5-minute
+// expiry or any other security property. LINE constraints: template
+// `text` caps at 160 chars, button `label` caps at 20 chars — callers
+// should keep both short (they already are, these are one-line status
+// messages).
+async function replyLinkButton(replyToken, bodyText, buttonLabel, url, creds) {
+  const message = {
+    type: 'template',
+    altText: bodyText, // shown in push notifications / chat list preview, where templates can't render
+    template: {
+      type: 'buttons',
+      text: bodyText.slice(0, 160),
+      actions: [{ type: 'uri', label: buttonLabel.slice(0, 20), uri: url }],
+    },
+  };
+  return callLineApi('reply', { replyToken, messages: [message] }, creds);
+}
+
 // imageUrl (optional): a publicly reachable HTTPS URL — LINE fetches the
 // image from it directly, it cannot take inline/base64 image data.
 async function pushMessage(to, text, imageUrl, creds) {
@@ -176,6 +201,6 @@ async function deleteRichMenu(richMenuId, creds) {
 }
 
 module.exports = {
-  isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent,
+  isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, getMessageContent,
   createRichMenu, uploadRichMenuImage, setDefaultRichMenu, linkRichMenuToUser, listRichMenus, deleteRichMenu,
 };

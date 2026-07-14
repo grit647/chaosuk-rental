@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { readTab, updateRow, appendRow } = require('../sheets');
 const { coerceInvoices, coerceRooms, readSettings, readIntegrationCredentials } = require('../coerce');
-const { isConfigured, verifySignature, replyMessage, pushMessage, getMessageContent, linkRichMenuToUser } = require('../line');
+const { isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, getMessageContent, linkRichMenuToUser } = require('../line');
 const { isConfigured: claudeConfigured, readPaymentSlip, isWhisperConfigured, transcribeAudio, callWithTools } = require('../claude');
 const { TOOLS, READ_TOOL_NAMES, executeReadTool, describeWriteTool, executeWriteTool } = require('../claudeTools');
 const { buildCommandSystemPrompt, extractText } = require('./claude');
@@ -723,13 +723,13 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
 
   switch (data) {
     case 'action=bill':
-      await reply(`ดูยอดค้างชำระห้อง ${room.id} ได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${autoLoginLink('bill')}`);
+      await replyLinkButton(event.replyToken, `ดูยอดค้างชำระห้อง ${room.id} ได้เลยครับ (ลิงก์นี้ใช้ได้ 5 นาที)`, 'ดูยอดค้างชำระ', autoLoginLink('bill'), lineCreds);
       return;
     case 'action=contract':
-      await reply(`ดูสัญญาเช่าห้อง ${room.id} ได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${autoLoginLink('contract')}`);
+      await replyLinkButton(event.replyToken, `ดูสัญญาเช่าห้อง ${room.id} ได้เลยครับ (ลิงก์นี้ใช้ได้ 5 นาที)`, 'ดูสัญญาเช่า', autoLoginLink('contract'), lineCreds);
       return;
     case 'action=maintenance':
-      await reply(`แจ้งซ่อมห้อง ${room.id} ได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${autoLoginLink('maintenance')}`);
+      await replyLinkButton(event.replyToken, `แจ้งซ่อมห้อง ${room.id} ได้เลยครับ (ลิงก์นี้ใช้ได้ 5 นาที)`, 'แจ้งซ่อมเลย', autoLoginLink('maintenance'), lineCreds);
       return;
     case 'action=contact': {
       const settings = await readSettings();
@@ -877,7 +877,7 @@ async function handleOwnerRichMenuPostback(event, lineCreds) {
       // building's own webhook this event came through.
       const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://chaosuk-rental.onrender.com';
       const token = sign({ role: 'owner', customerSheetId: getCurrentSheetId() || process.env.GOOGLE_SHEET_ID, exp: Date.now() + 5 * 60 * 1000 });
-      await reply(`เข้าหน้าเว็บได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}`);
+      await replyLinkButton(event.replyToken, 'เข้าหน้าเว็บได้เลยครับ (ลิงก์นี้ใช้ได้ 5 นาที)', 'เข้าหน้าเว็บ', `${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}`, lineCreds);
       return;
     }
     case 'owner:rooms': {
@@ -997,7 +997,7 @@ async function handleStaffRichMenuPostback(event, lineCreds) {
       // design, see server/routes/auth.js's staff-login comment).
       const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://chaosuk-rental.onrender.com';
       const token = sign({ role: 'staff', customerSheetId: getCurrentSheetId() || process.env.GOOGLE_SHEET_ID, staffId: admin.id, exp: Date.now() + 5 * 60 * 1000 });
-      await reply(`เข้าหน้าเว็บได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}`);
+      await replyLinkButton(event.replyToken, 'เข้าหน้าเว็บได้เลยครับ (ลิงก์นี้ใช้ได้ 5 นาที)', 'เข้าหน้าเว็บ', `${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}`, lineCreds);
       return;
     }
     default:
