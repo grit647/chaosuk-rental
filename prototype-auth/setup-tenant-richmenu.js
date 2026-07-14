@@ -179,9 +179,45 @@ async function main() {
     try { await deleteRichMenu(existingId, creds); } catch (err) { console.warn('  (delete failed, continuing anyway:', err.message, ')'); }
   }
 
-  console.log('Generating rich menu image...');
-  const svg = buildSvg();
-  const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+  // Per explicit user follow-up: prefer a REAL source image (e.g.
+  // AI-generated externally, matching this same 3x2 grid layout) over the
+  // programmatically-drawn SVG one if it's been dropped at the repo root
+  // as richmenu-source.png/.jpg — resized (not cropped) to LINE's exact
+  // required 2500x1686, since a slight aspect-ratio stretch is
+  // imperceptible but a crop could cut off part of a button. The tap-zone
+  // coordinates below stay a clean, even 3x2 grid regardless of source —
+  // this only works because the requested image layout was SPECIFICALLY
+  // asked for as "3 columns x 2 rows, equal sections, no extra elements"
+  // (see the prompt given to the owner earlier in this conversation) so
+  // the real image's buttons land in the same places our grid math
+  // assumes. A visually different layout would need custom-measured
+  // per-button coordinates instead of this even-grid assumption.
+  const fs = require('fs');
+  const sourceCandidates = ['richmenu-source.png', 'richmenu-source.jpg', 'richmenu-source.jpeg'].map((f) => path.join(__dirname, '..', f));
+  const sourcePath = sourceCandidates.find((p) => fs.existsSync(p));
+  let pngBuffer;
+  let contentType = 'image/png';
+  if (sourcePath) {
+    console.log('Found real source image:', sourcePath, '— resizing to', WIDTH + 'x' + HEIGHT, '(exact fit, no crop)...');
+    // LINE caps rich menu images at 1MB — a full-res lossless PNG of a
+    // real (non-flat-color) photo easily blows past that (hit a real 413
+    // "Request Entity Too Large" here first). JPEG at quality 85 gets a
+    // photo-content image comfortably under the cap while staying visually
+    // indistinguishable at this display size; step quality down further
+    // only if still too big.
+    contentType = 'image/jpeg';
+    let quality = 85;
+    do {
+      pngBuffer = await sharp(sourcePath).resize(WIDTH, HEIGHT, { fit: 'fill' }).jpeg({ quality }).toBuffer();
+      console.log(`  quality=${quality} → ${(pngBuffer.length / 1024 / 1024).toFixed(2)}MB`);
+      quality -= 15;
+    } while (pngBuffer.length > 1024 * 1024 && quality > 20);
+    if (pngBuffer.length > 1024 * 1024) throw new Error('Could not get the source image under LINE\'s 1MB limit even at low JPEG quality — try a smaller/simpler source image.');
+  } else {
+    console.log('No richmenu-source.png/.jpg found at repo root — generating a placeholder image instead...');
+    const svg = buildSvg();
+    pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+  }
 
   console.log('Creating rich menu on LINE...');
   const richMenuId = await createRichMenu({
@@ -201,7 +237,7 @@ async function main() {
   console.log('Created richMenuId:', richMenuId);
 
   console.log('Uploading image...');
-  await uploadRichMenuImage(richMenuId, pngBuffer, 'image/png', creds);
+  await uploadRichMenuImage(richMenuId, pngBuffer, contentType, creds);
 
   console.log('Saving tenantRichMenuId to Settings sheet...');
   await upsertSettingKV(sheets, spreadsheetId, 'tenantRichMenuId', richMenuId);
