@@ -312,36 +312,67 @@ app now has demo tooltip coverage** — the full tour is complete. If a
 new page/feature is added later, follow "How to add tips to another
 page" above to extend it.
 
-### Known gap: a tenant who is ALSO staff could get mixed-up LINE messages
+### Known gap: one LINE account linked to multiple roles gets its Rich Menu/messages overwritten — CONFIRMED, still open
 
-**Status:** Flagged by the owner while building the staff-login feature
-(`server/routes/auth.js`'s `POST /staff-login`, `Rental Management.dc.html`'s
-staff PIN UI on the สัญญาพนักงาน page) — not yet a real scenario, not
-investigated further, just recorded so a future session doesn't miss it.
+**Status:** Originally just a theoretical worry (see below) — **now
+confirmed as a REAL, reproduced incident** (2026-07-14, same session
+that built the ผู้ดูแล Rich Menu). Owner asked to double-check whether
+this had been fixed by anything done since — checked, and the answer
+is no; if anything, the risk surface got WIDER (see "expanded scope"
+below). Not fixed yet, just more concretely understood now.
 
-**The concern:** a tenant and a staff member are currently two entirely
-separate identities in this app — a tenant's LINE link lives on their
-`Rooms` row (`lineUserId`, used for bill/receipt notifications), a
-staff member's own LINE link (if they ever get one — not currently
-wired to anything) would live on their own `Staff` row. If the SAME
-real person is both (e.g. a tenant who also helps manage the building),
-and their LINE account ends up linked in both places, they could
-receive both message types mixed together — a rent-due reminder text
-alongside a maintenance-ticket-assigned notification, no separation
-between "which hat they're wearing" when a message arrives. Nothing
-in the current LINE-sending code (`server/routes/line.js`,
-`server/automation.js`, `server/routes/scheduler.js`) makes any
-distinction between a tenant-role message and a staff-role one beyond
-which Sheet row triggered it — there's no per-message "sent to you as
-tenant vs. as staff" framing, and no dedup/merge logic if one LINE
-account is linked from two different rows.
+**What actually happened:** while re-linking every already-connected
+tenant to a newly-updated tenant Rich Menu image
+(`prototype-auth/relink-tenant-richmenu.js`), the owner's OWN personal
+LINE account — which was ALSO linked to a Room's `lineUserId` (most
+likely from early tenant-flow testing earlier in this project) — got
+swept up as "an already-linked tenant" and re-linked to the tenant
+(blue) Rich Menu, silently overwriting the owner (orange) Rich Menu
+he'd had before. He noticed the wrong-colored menu, we traced the
+cause, and fixed it with a one-off manual re-link back to the owner
+menu (`prototype-auth/relink-owner-richmenu.js`) — but the underlying
+architectural gap that CAUSED it is still there.
 
-**Not investigated:** whether this is likely to actually happen for
-this owner's real usage, and if so what the right fix looks like
-(message-type prefixes so it's at least clear which role a given
-message concerns? checking for and warning about a LINE ID already
-linked elsewhere when linking a new one? something else). Purely a
-"remember this exists" note for now.
+**The original concern (as first written), for reference:** a tenant
+and a staff member were worried to be two entirely separate identities
+whose LINE link could collide if the same real person was both. The
+specific scenario first imagined — a tenant ALSO linked via the
+`Staff` (สัญญาพนักงาน, employment-contract) tab's own `lineUserId`
+column — **is still not possible today**: that column is confirmed
+still unwired to anything (`server/coerce.js`'s comment: "reserved for
+a future LINE-linking feature... nothing writes to it yet"), so that
+exact pairing genuinely can't happen yet.
+
+**Expanded scope since the original note was written:** this session
+also built real LINE linking for **"ผู้ดูแล" (Admins tab, session role
+'staff', NOT the unwired Staff/สัญญาพนักงาน tab above)** — which did
+NOT exist when this gap was first flagged. So the real, CONFIRMED-
+possible pairings today are: **owner ↔ tenant** (the incident above)
+and **ผู้ดูแล ↔ tenant** (same mechanism, not yet witnessed but
+identical code path — a ผู้ดูแล's own personal LINE account could
+equally already be linked to a Room from earlier testing or genuinely
+being a tenant themselves).
+
+**Root cause, now well understood:** `linkRichMenuToUser(userId,
+richMenuId)` is a per-LINE-user-ID call with no memory of "this
+account already has a different role's menu" — whichever call happens
+LAST wins, silently, no warning to anyone. Same applies to any future
+push-notification logic that might branch on "which role is this LINE
+ID" — nothing today checks whether a `lineUserId` value already
+appears on a DIFFERENT row/Settings-key before writing it to a new
+one.
+
+**Still not fixed, options to consider for a real fix (unchanged from
+before, still not decided):** (1) before writing a `lineUserId` to any
+new role, check whether that same value already exists elsewhere
+(Rooms, Admins, Settings.adminLineUserId) and warn/block instead of
+silently overwriting; (2) message-type prefixes so at least a
+NOTIFICATION (not just the Rich Menu) makes clear which role it
+concerns; (3) accept the trade-off explicitly and just document "don't
+test tenant flows with your own real owner/admin LINE account" as an
+operational rule instead of a code fix. Owner hasn't picked one yet —
+flagging again so a future session has the full, now-proven picture
+instead of just the original hypothetical.
 
 ## Permanent rules (do not relax without the owner explicitly re-confirming)
 
