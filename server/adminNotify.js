@@ -10,7 +10,12 @@ const { pushMessage, isConfigured: lineConfigured } = require('./line');
 const { readSettings } = require('./coerce');
 
 // category must match one of the keys in readSettings()'s adminNotify:
-// taskFailure | slipPending | overdueBill | unmatchedSlip | maintenance | leaseExpiring
+// taskFailure | slipPending | overdueBill | unmatchedSlip | maintenance | leaseExpiring | wifiRequest
+// (wifiRequest is a special case — it fans out to the owner AND every
+// linked ผู้ดูแล, not just the owner, so server/routes/line.js's
+// action=wifi handler checks settings.adminNotify.wifiRequest directly
+// and pushes to multiple recipients itself, rather than calling this
+// single-recipient notifyAdmin() helper.)
 async function notifyAdmin(category, message) {
   if (!lineConfigured()) return;
   try {

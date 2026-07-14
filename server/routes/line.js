@@ -741,21 +741,25 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
     case 'action=wifi': {
       await reply(room.wifiCode ? `รหัส Wifi ห้อง ${room.id}: ${room.wifiCode}` : 'ยังไม่ได้บันทึกรหัส Wifi ของห้องนี้ไว้ในระบบครับ ลองสอบถามผู้ดูแลโดยตรงครับ');
       // Per explicit owner request: notify the owner AND every linked
-      // ผู้ดูแล whenever a tenant taps this button — separate from (and
-      // always-on, not gated behind) the opt-in adminNotify.js categories
-      // (taskFailure/slipPending/overdueBill/unmatchedSlip/maintenance/
-      // leaseExpiring) — this is its own always-on notification the owner
-      // asked for specifically for WiFi requests. Best-effort: a failed
-      // notify here must never break the tenant's own reply above (which
-      // has already been sent by this point).
+      // ผู้ดูแล whenever a tenant taps this button. Gated behind its own
+      // Settings toggle now (adminNotify.wifiRequest, หน้าตั้งค่า → "LINE
+      // แจ้งเตือนผู้ดูแล" — the owner asked for a toggle after this
+      // shipped always-on, hence defaulting TRUE in server/coerce.js
+      // unlike every other category there). Fans out to MULTIPLE
+      // recipients (owner + all staff), which is why this doesn't go
+      // through adminNotify.js's single-recipient notifyAdmin() helper —
+      // checked directly here instead. Best-effort: a failed notify must
+      // never break the tenant's own reply above (already sent by now).
       try {
         const settings = await readSettings();
-        const targets = [];
-        if (settings.propertyProfile.adminLineUserId) targets.push(settings.propertyProfile.adminLineUserId);
-        const adminRows = await readTab('Admins');
-        adminRows.forEach((a) => { if (a.lineUserId) targets.push(a.lineUserId); });
-        const notifyText = `ผู้เช่าห้อง ${room.id} (${room.tenant || '-'}) ขอรหัส Wifi ผ่าน LINE ครับ`;
-        for (const t of targets) await pushMessage(t, notifyText, undefined, lineCreds);
+        if (settings.adminNotify && settings.adminNotify.wifiRequest) {
+          const targets = [];
+          if (settings.propertyProfile.adminLineUserId) targets.push(settings.propertyProfile.adminLineUserId);
+          const adminRows = await readTab('Admins');
+          adminRows.forEach((a) => { if (a.lineUserId) targets.push(a.lineUserId); });
+          const notifyText = `ผู้เช่าห้อง ${room.id} (${room.tenant || '-'}) ขอรหัส Wifi ผ่าน LINE ครับ`;
+          for (const t of targets) await pushMessage(t, notifyText, undefined, lineCreds);
+        }
       } catch (err) {
         console.error('[line] wifi-request notify failed', err.message);
       }

@@ -366,6 +366,7 @@ router.put('/', async (req, res, next) => {
       notifyUnmatchedSlip: b.adminNotify && b.adminNotify.unmatchedSlip,
       notifyMaintenance: b.adminNotify && b.adminNotify.maintenance,
       notifyLeaseExpiring: b.adminNotify && b.adminNotify.leaseExpiring,
+      notifyWifiRequest: b.adminNotify && b.adminNotify.wifiRequest,
       // Per explicit user request: toggle whole nav sections on/off, PIN-
       // gated the same way as everything else in this route.
       featureWaterEnabled: b.featuresEnabled && b.featuresEnabled.water,

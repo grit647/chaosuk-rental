@@ -209,6 +209,14 @@ async function readSettings() {
       unmatchedSlip: bool(map.notifyUnmatchedSlip, false),
       maintenance: bool(map.notifyMaintenance, false),
       leaseExpiring: bool(map.notifyLeaseExpiring, false),
+      // Default TRUE (unlike every other category above, which default
+      // OFF) — per explicit owner request, this notification shipped as
+      // always-on first, then the owner asked for a toggle to be added
+      // afterward; defaulting it OFF here would have silently turned off
+      // behavior that was already live in production the moment this
+      // code deployed. New installs get it on by default; the owner can
+      // still turn it off from Settings like any other category.
+      wifiRequest: bool(map.notifyWifiRequest, true),
     },
     // Per explicit user request: lets the owner turn whole nav sections
     // on/off (e.g. selling this app to another building that doesn't use
