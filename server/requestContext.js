@@ -27,4 +27,28 @@ function getCurrentSheetId() {
   return store ? store.sheetId : undefined;
 }
 
-module.exports = { runWithSheetId, getCurrentSheetId };
+// Per explicit user bug report: "ส่งข้อมูล (LINE)" on the Bills page
+// started failing with "ยังไม่ได้ตั้งค่า LINE" for คุณต้น's own real
+// account — even though his real LINE OA has been working fine this
+// whole session (webhook, rich menus, slip photos, everything). Root
+// cause: server/routes/line.js's POST /send and GET /status (and the
+// equivalent Tuya routes) treat ANY session carrying a customerSheetId
+// as "a multi-tenant customer who must have their OWN saved
+// credentials, no falling back to the shared server/.env values" — a
+// deliberate security fix for genuinely separate customers (so customer
+// #2 never silently sends through คุณต้น's real LINE OA). But once the
+// login wall went in (requireLogin on '/'), คุณต้น's OWN account ALSO
+// always carries a session now — and he never saved his own
+// lineChannelAccessToken/lineChannelSecret into HIS OWN Settings sheet,
+// because server/.env already IS his real credentials (they always
+// were, from before the login system existed). The fix: a session
+// whose customerSheetId literally equals process.env.GOOGLE_SHEET_ID
+// (i.e. this IS the main/original account, not some other customer's
+// building) should still be allowed to fall back to the shared
+// server/.env values — only a session pointing at a DIFFERENT sheet
+// (an actual separate customer) needs its own saved credentials.
+function isMainAccountSheetId(sheetId) {
+  return !!sheetId && sheetId === process.env.GOOGLE_SHEET_ID;
+}
+
+module.exports = { runWithSheetId, getCurrentSheetId, isMainAccountSheetId };

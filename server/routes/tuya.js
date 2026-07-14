@@ -3,6 +3,7 @@ const router = express.Router();
 const { readTab, appendRow } = require('../sheets');
 const { isConfigured, listDevices, getElecReading, getWaterReading, sendCommand } = require('../tuya');
 const { readIntegrationCredentials } = require('../coerce');
+const { isMainAccountSheetId } = require('../requestContext');
 
 // ElectricityLog was writing a row on EVERY /status call — every 5-minute
 // auto-refresh tick from the frontend, plus every manual "รีเฟรช" click,
@@ -24,8 +25,12 @@ const LOG_INTERVAL_MS = 60 * 60 * 1000;
 // silently show/act on someone ELSE's real devices under this customer's
 // login. Once a session has its own customerSheetId, only THIS customer's
 // own saved credentials count — no falling back to the shared server ones.
+// EXCEPT the main account's own session (see the matching fix + comment
+// in server/routes/line.js for the identical bug hit there first) —
+// คุณต้น's own account always carries a session too now that login is
+// required, and server/.env genuinely ARE his own credentials.
 function isConfiguredForRequest(req, tuyaCreds) {
-  const sessionScoped = !!(req.session && req.session.customerSheetId);
+  const sessionScoped = !!(req.session && req.session.customerSheetId) && !isMainAccountSheetId(req.session.customerSheetId);
   if (sessionScoped) return !!tuyaCreds && isConfigured(tuyaCreds);
   return isConfigured(tuyaCreds);
 }

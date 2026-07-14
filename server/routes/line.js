@@ -11,7 +11,7 @@ const { isConfigured: cloudinaryConfigured, uploadBuffer: uploadToCloudinary } =
 const { notifyAdmin } = require('../adminNotify');
 const { sign, verify, setSessionCookie } = require('../auth');
 const { computeTenantUsage } = require('./tenant');
-const { runWithSheetId, getCurrentSheetId } = require('../requestContext');
+const { runWithSheetId, getCurrentSheetId, isMainAccountSheetId } = require('../requestContext');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -62,8 +62,12 @@ router.get('/status', async (req, res, next) => {
     // LINE OA was connected when it was actually silently using someone
     // else's. Once a session has its own customerSheetId, only THIS
     // customer's own saved credentials count — no falling back to the
-    // shared server ones for the status check.
-    const sessionScoped = !!(req.session && req.session.customerSheetId);
+    // shared server ones for the status check. EXCEPT when that
+    // customerSheetId is the main account's own sheet (see
+    // isMainAccountSheetId in requestContext.js) — คุณต้น's own account
+    // always carries a session too now that login is required, and
+    // server/.env genuinely ARE his own credentials, always were.
+    const sessionScoped = !!(req.session && req.session.customerSheetId) && !isMainAccountSheetId(req.session.customerSheetId);
     const connected = sessionScoped ? !!creds.line && isConfigured(creds.line) : isConfigured(creds.line);
     res.json({ connected });
   } catch (err) { next(err); }
@@ -825,7 +829,7 @@ router.post('/send', async (req, res, next) => {
     // just show a wrong status badge. See the matching fix + comment on
     // GET /status above for the read-only version of this same bug.
     const creds = await readIntegrationCredentials();
-    const sessionScoped = !!(req.session && req.session.customerSheetId);
+    const sessionScoped = !!(req.session && req.session.customerSheetId) && !isMainAccountSheetId(req.session.customerSheetId);
     const lineConfigured = sessionScoped ? !!creds.line && isConfigured(creds.line) : isConfigured(creds.line);
     if (!lineConfigured) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า LINE (ใส่ Token/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
     const { roomId, message, imageUrl } = req.body;
