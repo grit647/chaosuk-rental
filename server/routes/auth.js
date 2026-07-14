@@ -434,7 +434,17 @@ router.get('/me', async (req, res) => {
   // show the first one — no need to pick/rotate/list them all). Falls
   // through to the frontend's propertyProfile.adminName fallback if the
   // Admins tab is empty (nothing to show yet).
-  if (session.role === 'owner' && session.customerSheetId) {
+  //
+  // Deliberately NOT "session.role === 'owner'" — real bug this exact
+  // check hit on the owner's own primary account: POST /login (line
+  // ~155) sets role from the Directory sheet's own `role` COLUMN
+  // (`match.role`), which is blank/undefined for rows created before
+  // that column existed (คุณต้น's own original account predates it) —
+  // so his session.role was never literally the string 'owner' at all.
+  // The frontend's own sidebarAccountRole label already treats "anything
+  // that isn't 'staff'" as owner-like for display; matched that same
+  // looser condition here instead of requiring an exact 'owner' string.
+  if (session.role !== 'staff' && session.role !== 'tenant' && session.role !== 'demo' && session.customerSheetId) {
     try {
       const admins = await runWithSheetId(session.customerSheetId, () => readTab('Admins'));
       if (admins.length && admins[0].name) adminName = admins[0].name;
