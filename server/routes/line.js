@@ -295,6 +295,18 @@ router.post('/webhook', async (req, res) => {
           if (text === adminPin) {
             const nameRow = settingsRows.find((r) => r.key === 'adminName');
             await updateSettingKV('adminLineUserId', event.source.userId);
+            // Same reasoning as the tenant's rich-menu-linking above —
+            // right after the owner's own self-link succeeds, give them
+            // the owner Rich Menu (see prototype-auth/setup-owner-
+            // richmenu.js) instead of leaving them on the OA's default
+            // menu. ownerRichMenuId is a Settings KV set once by that
+            // script; non-fatal if missing/failed.
+            try {
+              const rmRow = settingsRows.find((r) => r.key === 'ownerRichMenuId');
+              if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value);
+            } catch (err) {
+              console.error('[line] linkRichMenuToUser (owner) failed for', event.source.userId, err.message);
+            }
             await replyMessage(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลระบบเรียบร้อยแล้วครับ${nameRow && nameRow.value ? ' (' + nameRow.value + ')' : ''} ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ`);
             continue;
           }
@@ -344,7 +356,18 @@ router.post('/webhook', async (req, res) => {
         // layout/postback-data values created; this switch is the other
         // half of that contract.
         if (event.type === 'postback' && event.postback) {
-          await handleTenantRichMenuPostback(event);
+          // Per explicit user request: owner Rich Menu buttons use a
+          // distinct "owner:" data prefix (see prototype-auth/setup-owner-
+          // richmenu.js) specifically so this dispatcher can tell owner
+          // taps apart from tenant taps — the two are looked up completely
+          // differently (owner via Settings.adminLineUserId, tenant via a
+          // Rooms row's lineUserId), so they can't share one lookup path.
+          const data = event.postback.data || '';
+          if (data.startsWith('owner:')) {
+            await handleOwnerRichMenuPostback(event);
+          } else {
+            await handleTenantRichMenuPostback(event);
+          }
           continue;
         }
       } catch (err) {
@@ -420,6 +443,90 @@ async function handleTenantRichMenuPostback(event) {
       await replyMessage(event.replyToken, lines.join('\n'));
       return;
     }
+    default:
+      return;
+  }
+}
+
+// Per explicit user request: owner Rich Menu — 5 buttons reply with a
+// quick data summary directly in the chat (no web page needed, same
+// "answer in chat" pattern as 3 of the tenant menu's buttons), the 6th
+// (การเปิดโหมด Claude AI) is a placeholder for now — the owner explicitly
+// asked to build the image/menu first and design the actual "chat with
+// Claude through LINE" mode as a separate follow-up (it needs a stateful
+// per-user "AI mode on/off" flag plus routing subsequent free-text
+// messages through Claude's tool-calling flow, materially different from
+// the other 5 buttons' one-shot replies).
+async function handleOwnerRichMenuPostback(event) {
+  const data = event.postback.data || '';
+  const settingsRows = await readTab('Settings');
+  const adminLineIdRow = settingsRows.find((r) => r.key === 'adminLineUserId');
+  if (!adminLineIdRow || adminLineIdRow.value !== event.source.userId) {
+    // Never reveal building financials to a LINE account that isn't the
+    // verified owner — same trust boundary as every other admin-only
+    // action in this app (see CLAUDE.md's PIN-gate notes).
+    await replyMessage(event.replyToken, 'บัญชี LINE นี้ยังไม่ได้เชื่อมต่อเป็นผู้ดูแลระบบครับ');
+    return;
+  }
+
+  const monthPrefix = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7); // YYYY-MM
+
+  switch (data) {
+    case 'owner:summary': {
+      const [invoices, expenses] = await Promise.all([
+        readTab('Invoices').then(coerceInvoices),
+        readTab('Expenses').then((rows) => rows.map((r) => ({ ...r, amount: Number(r.amount) || 0 }))),
+      ]);
+      // "เดือนนี้" — paidDate/date are both YYYY-MM-DD (see
+      // Rental Management.dc.html's markInvoicePaid/submitExpense), so a
+      // plain string-prefix match against the current YYYY-MM is exact
+      // and doesn't need a Date object at all.
+      const monthPaid = invoices.filter((i) => i.status === 'paid' && i.paidDate && i.paidDate.startsWith(monthPrefix));
+      const monthExpenses = expenses.filter((e) => e.date && e.date.startsWith(monthPrefix) && !e.hidden);
+      const revenue = monthPaid.reduce((a, i) => a + i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0), 0);
+      const expenseTotal = monthExpenses.reduce((a, e) => a + e.amount, 0);
+      await replyMessage(event.replyToken, `สรุปเดือนนี้ครับ:\nรายรับ (บิลที่ชำระแล้ว): ${revenue.toLocaleString()} บาท (${monthPaid.length} บิล)\nรายจ่าย: ${expenseTotal.toLocaleString()} บาท (${monthExpenses.length} รายการ)\nกำไร-ขาดทุนสุทธิ: ${(revenue - expenseTotal).toLocaleString()} บาท`);
+      return;
+    }
+    case 'owner:overdue': {
+      const invoices = coerceInvoices(await readTab('Invoices'));
+      const overdue = invoices.filter((i) => i.status === 'overdue' || i.status === 'pending' || i.status === 'partial');
+      const total = overdue.reduce((a, i) => {
+        const full = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
+        const remaining = i.remainingDue != null ? i.remainingDue : Math.max(0, full - (i.amountPaid || 0));
+        return a + remaining;
+      }, 0);
+      if (!overdue.length) { await replyMessage(event.replyToken, 'ไม่มีบิลค้างชำระเลยครับ ✅'); return; }
+      const rooms = overdue.map((i) => i.room).join(', ');
+      await replyMessage(event.replyToken, `บิลค้างชำระ/เกินกำหนด: ${overdue.length} ห้อง รวม ${total.toLocaleString()} บาท\nห้อง: ${rooms}`);
+      return;
+    }
+    case 'owner:slips': {
+      const invoices = coerceInvoices(await readTab('Invoices'));
+      const pendingSlips = invoices.filter((i) => i.slipPending);
+      const unmatched = await readTab('UnmatchedSlips');
+      if (!pendingSlips.length && !unmatched.length) { await replyMessage(event.replyToken, 'ไม่มีสลิปรอตรวจสอบครับ ✅'); return; }
+      await replyMessage(event.replyToken, `สลิปรอตรวจสอบ: ${pendingSlips.length} รายการ (ผูกห้องแล้ว)${unmatched.length ? `\nสลิปที่ยังไม่ทราบห้อง: ${unmatched.length} รายการ (ต้องจับคู่เอง)` : ''}\nเข้าไปตรวจได้ที่หน้า Bills → สลิปรอตรวจสอบครับ`);
+      return;
+    }
+    case 'owner:maintenance': {
+      const maintenance = await readTab('Maintenance');
+      const open = maintenance.filter((m) => m.status !== 'done');
+      if (!open.length) { await replyMessage(event.replyToken, 'ไม่มีงานซ่อมค้างเลยครับ ✅'); return; }
+      const lines = open.slice(0, 10).map((m) => `- ห้อง ${m.room}: ${m.issue} (${m.status === 'inprogress' ? 'กำลังดำเนินการ' : 'รอดำเนินการ'})`);
+      await replyMessage(event.replyToken, `งานซ่อมที่ยังไม่เสร็จ: ${open.length} รายการ\n${lines.join('\n')}${open.length > 10 ? `\n...และอีก ${open.length - 10} รายการ` : ''}`);
+      return;
+    }
+    case 'owner:rooms': {
+      const rooms = coerceRooms(await readTab('Rooms'));
+      const vacant = rooms.filter((r) => r.status === 'vacant');
+      const occupied = rooms.filter((r) => r.status !== 'vacant');
+      await replyMessage(event.replyToken, `สรุปห้องพักทั้งหมด ${rooms.length} ห้อง:\nมีผู้เช่าอยู่: ${occupied.length} ห้อง\nห้องว่าง: ${vacant.length} ห้อง${vacant.length ? ` (${vacant.map((r) => r.id).join(', ')})` : ''}`);
+      return;
+    }
+    case 'owner:ai':
+      await replyMessage(event.replyToken, 'โหมดคุยกับ Claude AI ผ่าน LINE กำลังอยู่ระหว่างพัฒนาครับ 🚧 ตอนนี้ยังใช้งานได้ผ่านช่องแชท "สั่งงาน Claude ด้วยข้อความ" ในหน้าตั้งค่าบนเว็บไปก่อนนะครับ');
+      return;
     default:
       return;
   }
