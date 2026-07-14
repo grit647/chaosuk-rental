@@ -552,6 +552,35 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
 // per-user "AI mode on/off" flag plus routing subsequent free-text
 // messages through Claude's tool-calling flow, materially different from
 // the other 5 buttons' one-shot replies).
+// Per explicit user request (screenshot of the web app's "ใบแจ้งหนี้ที่รอ
+// ชำระ" table): the บิลค้างชำระ/เกินกำหนด Rich Menu button should list each
+// bill individually (room, tenant, amount owed, due date, status) instead
+// of just a room-number list — same underlying data as that table, just
+// rendered as chat text. Shared between the owner and ผู้ดูแล postback
+// handlers below (identical info, just gated behind a different auth
+// check per role) so the two don't drift out of sync. Same status-label
+// wording as Rental Management.dc.html's own invStatusMeta (partial →
+// "ชำระบางส่วน", overdue → "เกินกำหนด", default → "รอชำระ") so a ผู้ดูแล/
+// owner reading this in LINE sees the exact same words as on the web
+// page. Capped at 15 lines (same cap already used for staff:maintenance)
+// — LINE text messages have a length limit, and a wall of 50+ bills
+// wouldn't be readable in a chat bubble anyway; the total/count line
+// above the list still reflects the TRUE full total, not just the
+// capped subset shown.
+function formatOverdueList(overdue) {
+  const statusLabel = (status) => {
+    if (status === 'partial') return 'ชำระบางส่วน';
+    if (status === 'overdue') return 'เกินกำหนด';
+    return 'รอชำระ';
+  };
+  const lines = overdue.slice(0, 15).map((i) => {
+    const full = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
+    const remaining = i.remainingDue != null ? i.remainingDue : Math.max(0, full - (i.amountPaid || 0));
+    return `- ห้อง ${i.room}${i.tenant ? ' (' + i.tenant + ')' : ''}: ${remaining.toLocaleString()} บาท ครบกำหนด ${i.due || '-'} [${statusLabel(i.status)}]`;
+  }).join('\n');
+  return lines + (overdue.length > 15 ? `\n...และอีก ${overdue.length - 15} รายการ` : '');
+}
+
 async function handleOwnerRichMenuPostback(event, lineCreds) {
   const data = event.postback.data || '';
   const reply = (text) => replyMessage(event.replyToken, text, lineCreds);
@@ -593,8 +622,7 @@ async function handleOwnerRichMenuPostback(event, lineCreds) {
         return a + remaining;
       }, 0);
       if (!overdue.length) { await reply('ไม่มีบิลค้างชำระเลยครับ ✅'); return; }
-      const rooms = overdue.map((i) => i.room).join(', ');
-      await reply(`บิลค้างชำระ/เกินกำหนด: ${overdue.length} ห้อง รวม ${total.toLocaleString()} บาท\nห้อง: ${rooms}`);
+      await reply(`บิลค้างชำระ/เกินกำหนด: ${overdue.length} ห้อง รวม ${total.toLocaleString()} บาท\n${formatOverdueList(overdue)}`);
       return;
     }
     case 'owner:slips': {
@@ -701,8 +729,7 @@ async function handleStaffRichMenuPostback(event, lineCreds) {
         return a + remaining;
       }, 0);
       if (!overdue.length) { await reply('ไม่มีบิลค้างชำระเลยครับ ✅'); return; }
-      const rooms = overdue.map((i) => i.room).join(', ');
-      await reply(`บิลค้างชำระ/เกินกำหนด: ${overdue.length} ห้อง รวม ${total.toLocaleString()} บาท\nห้อง: ${rooms}`);
+      await reply(`บิลค้างชำระ/เกินกำหนด: ${overdue.length} ห้อง รวม ${total.toLocaleString()} บาท\n${formatOverdueList(overdue)}`);
       return;
     }
     case 'staff:slips': {
