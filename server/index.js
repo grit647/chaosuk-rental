@@ -52,8 +52,20 @@ const noCache = (req, res, next) => { res.set('Cache-Control', 'no-store, no-cac
 // here rather than patching each of the ~15 admin route files
 // individually — simpler to reason about, and any NEW admin route added
 // later is protected automatically without remembering to gate it.
+// Real bug found by the owner (LINE Rich Menu link "เข้าดูไม่ได้", screenshot
+// showed exactly {"error":"ไม่มีสิทธิ์เข้าถึงส่วนนี้"}): GET /api/line/
+// auto-login (server/routes/line.js) is a SESSION-CREATION endpoint, same
+// category as /api/auth/* — a tenant taps a Rich Menu button, gets a
+// signed one-time link, opens it to get logged in. But once that tenant
+// ALREADY has a valid tenant session cookie (from a previous tap, or from
+// having visited /tenant-portal before), this blanket block caught their
+// NEXT request to /api/line/auto-login too, since /api/line/* wasn't in
+// the exclusion list — the tenant was blocked from re-authenticating via
+// a fresh link even though the route's whole purpose is establishing/
+// refreshing that exact session. Excluded the same way /api/auth already
+// is.
 app.use((req, res, next) => {
-  const isRestrictedApi = req.path.startsWith('/api/') && !req.path.startsWith('/api/tenant') && !req.path.startsWith('/api/auth');
+  const isRestrictedApi = req.path.startsWith('/api/') && !req.path.startsWith('/api/tenant') && !req.path.startsWith('/api/auth') && req.path !== '/api/line/auto-login';
   if (req.session && req.session.role === 'tenant' && isRestrictedApi) {
     return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงส่วนนี้' });
   }
