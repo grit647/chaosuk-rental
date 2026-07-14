@@ -780,13 +780,30 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
     case 'action=maintenance':
       await replyLinkButton(event.replyToken, `แจ้งซ่อมห้อง ${room.id} ได้เลยครับ (ลิงก์นี้ใช้ได้ 5 นาที)`, 'แจ้งซ่อมเลย', autoLoginLink('maintenance'), lineCreds);
       return;
-    case 'action=contact': {
-      const settings = await readSettings();
-      const name = settings.propertyProfile.adminName || 'เจ้าของหอพัก';
-      const phone = settings.propertyProfile.adminPhone;
-      await reply(phone ? `ติดต่อผู้ดูแล (${name}) ได้ที่เบอร์ ${phone} ครับ` : 'ยังไม่ได้ตั้งค่าเบอร์ติดต่อผู้ดูแลไว้ในระบบครับ');
+    // Per explicit owner request: replaced the old "ติดต่อผู้ดูแล" button
+    // (just replied with a phone number) with a "ส่งสลิป" button —
+    // there's no LINE API to make a Rich Menu tap open the photo
+    // picker/camera automatically (postback actions are text-only), so
+    // this is purely an instructional reply reminding the tenant they
+    // can attach a slip photo via LINE's own normal image-send function
+    // right in this same chat — which already works today regardless of
+    // this button (event.message.type === 'image' is handled unconditionally,
+    // see handleSlipImage above). Per CLAUDE.md's permanent rule, wording
+    // is careful to say "อ่านให้/รอตรวจสอบ", never "ยืนยันแล้ว" — OCR
+    // extraction only, the owner always confirms manually.
+    //
+    // 'action=contact' kept as a temporary ALIAS to the exact same reply
+    // — the live Rich Menu image on LINE right now still has its old
+    // button baked in with THIS postback data (rich menu button actions
+    // are immutable once created; only a whole new menu image+upload
+    // changes them). Until the owner sends an updated tenant-richmenu.png
+    // (new label) and prototype-auth/setup-tenant-richmenu.js gets
+    // re-run, tapping the still-visually-old button must not go silent —
+    // remove this alias once the new image is live.
+    case 'action=slip':
+    case 'action=contact':
+      await reply(`ส่งรูปสลิปโอนเงินมาในแชทนี้ได้เลยครับ (กดปุ่มแนบรูป 📎 ของ LINE ตามปกติ) ระบบจะอ่านยอด/วันที่ให้อัตโนมัติ แล้วรอผู้ดูแลตรวจสอบและยืนยันอีกครั้งครับ`);
       return;
-    }
     case 'action=wifi': {
       const hasWifiCode = !!room.wifiCode;
       await reply(hasWifiCode

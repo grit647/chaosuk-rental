@@ -1,5 +1,5 @@
 // One-time setup: creates the tenant-facing LINE Rich Menu (6 buttons:
-// ดูบิล/ดูสัญญาเช่า/แจ้งซ่อม/ติดต่อผู้ดูแล/ขอรหัส wifi/การใช้น้ำ-ไฟปัจจุบัน),
+// ดูบิล/ดูสัญญาเช่า/แจ้งซ่อม/ส่งสลิปโอนเงิน/ขอรหัส wifi/การใช้น้ำ-ไฟปัจจุบัน),
 // generates its image, uploads it to LINE, and saves the resulting
 // richMenuId into this building's own Settings sheet as `tenantRichMenuId`
 // — server/routes/line.js's webhook reads that key and links this menu to
@@ -64,6 +64,11 @@ const ICONS = {
   wifi: 'M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.237 4.237 0 0 0-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z',
   // "bolt" (Material Icons) — lightning bolt, for the water/elec usage button.
   bolt: 'M7 2v11h3v9l7-12h-4l4-8z',
+  // "attach_file" (Material Icons) — same icon already used for สลิปรอตรวจสอบ
+  // on the owner/staff Rich Menus (prototype-auth/setup-owner-richmenu.js),
+  // reused here for the tenant's own "ส่งสลิป" button (replaced the old
+  // "ติดต่อผู้ดูแล" phone-number button per explicit owner request).
+  clip: 'M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z',
 };
 
 // [iconKey, label, postback action data] — order fills left-to-right, top-to-bottom.
@@ -71,7 +76,7 @@ const BUTTONS = [
   ['baht', 'ดูบิล/ยอดค้างชำระ', 'action=bill'],
   ['document', 'ดูสัญญาเช่า', 'action=contract'],
   ['wrench', 'แจ้งซ่อม', 'action=maintenance'],
-  ['phone', 'ติดต่อผู้ดูแล', 'action=contact'],
+  ['clip', 'ส่งสลิปโอนเงิน', 'action=slip'],
   ['wifi', 'ขอรหัส Wifi', 'action=wifi'],
   ['bolt', 'การใช้น้ำ/ไฟปัจจุบัน', 'action=usage'],
 ];
