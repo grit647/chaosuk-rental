@@ -100,37 +100,51 @@ above), but an owner shouldn't get stuck on a confirm dialog just
 because they forgot which of the two applies here — this makes either
 one work, without merging the two concepts together.
 
-### LINE webhook only receives messages for the main property — other customers' LINE OAs can send but not receive
+### LINE webhook — now supports per-customer webhook URLs (FIXED)
 
-**Status:** Open — decided on an approach (per-customer webhook URLs),
-not yet built. Revisit when a second customer (e.g. บ้านพักครูโจ) actually
-needs tenants to reply/send slips via their own LINE OA.
+**Status:** Done. Was open (main property only) — fixed per explicit
+user request while building the Rich Menu features, once a real "เข้าใช้
+งานหน้าเว็ปไซต์"/multi-building conversation surfaced that this was
+actually blocking something concrete (not just a theoretical gap
+anymore).
 
-`server/routes/line.js`'s `POST /webhook` is ONE shared URL
-(`https://chaosuk-rental.onrender.com/api/line/webhook`) registered in the
-main property's LINE Developers Console, and it verifies every incoming
-signature against ONLY the main property's Channel Secret (see the
-"KNOWN LIMITATION" comment right above the route). This means:
+`server/routes/line.js`'s webhook route is now `POST /webhook/
+:customerSheetId?` — the segment is OPTIONAL, so the existing
+registration for the main property (plain `/webhook`, already live in
+its LINE Developers Console) keeps working unchanged. A second
+building (e.g. บ้านพักครูโจ) registers its OWN distinct URL
+(`https://chaosuk-rental.onrender.com/api/line/webhook/<their
+customerSheetId>`) in ITS OWN LINE Developers Console, using its own
+saved Channel Secret/Access Token (Settings gear-icon form, same
+`readIntegrationCredentials()` the outbound `/send`/`/status` routes
+already used).
 
-- ✅ Every customer (main property + บ้านพักครูโจ, etc.) can already SEND
-  messages through their own LINE OA fine — outbound `/send`/`/status`
-  already resolve each customer's own saved credentials correctly.
-- ❌ A tenant replying, sending a room number to self-link, or sending a
-  payment slip photo to a customer OTHER than the main property's LINE
-  OA is silently dropped — signature verification fails against the
-  wrong Channel Secret, so the event never reaches our handlers at all.
+**How it works:** the whole handler body runs inside
+`runWithSheetId(targetSheetId, ...)` — same AsyncLocalStorage-based
+per-request Sheet scoping every other route in this app already uses.
+Once wrapped, credential resolution and every `readTab`/`updateRow`/
+`appendRow` call inside naturally resolves to that building's own
+Sheet without needing to touch individual call sites. The resolved
+LINE credentials are threaded down through every outgoing LINE API
+call (`verifySignature`, `replyMessage`, `getMessageContent`,
+`linkRichMenuToUser`) via a small `reply(text)` closure defined in
+each handler function — replaced ~20 individual call sites this way,
+safer than editing each one by hand and impossible to miss threading
+creds through a new call added later.
 
-**Decided approach when this gets built:** per-customer webhook URLs
-(e.g. `/api/line/webhook/:customerSheetId` or similar), each customer
-registers their OWN distinct URL in their OWN LINE Developers Console —
-chosen over the alternative (one shared URL that tries every customer's
-Channel Secret until one verifies) for clarity and to avoid O(n) signature
-checks per webhook call as the customer count grows.
+Also fixed the last hardcoded main-property assumption found while
+doing this: the tenant/owner Rich Menu auto-login token builders now
+use `getCurrentSheetId()` (the same ambient context) instead of a
+hardcoded `process.env.GOOGLE_SHEET_ID`, so a tenant/owner tapping a
+Rich Menu button on a SECOND building's own LINE OA gets linked back
+into THAT building specifically.
 
-**Not yet done because:** no customer currently needs tenant-side LINE
-reception through their own OA — บ้านพักครูโจ's outbound sending already
-works, and the owner asked to just record the decision for now rather
-than implement it speculatively.
+**Still needed for a second building to actually use this:** they
+need their own Rich Menus set up too — re-run `prototype-auth/setup-
+tenant-richmenu.js`/`setup-owner-richmenu.js` passing their
+`customerSheetId` as the CLI arg (uses their own saved LINE
+credentials automatically), and register their own webhook URL in
+their own LINE Developers Console as described above.
 
 ### Interactive demo/tutorial site (tap-to-explain, real save, resets hourly)
 
