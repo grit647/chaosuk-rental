@@ -738,9 +738,29 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
       await reply(phone ? `ติดต่อผู้ดูแล (${name}) ได้ที่เบอร์ ${phone} ครับ` : 'ยังไม่ได้ตั้งค่าเบอร์ติดต่อผู้ดูแลไว้ในระบบครับ');
       return;
     }
-    case 'action=wifi':
+    case 'action=wifi': {
       await reply(room.wifiCode ? `รหัส Wifi ห้อง ${room.id}: ${room.wifiCode}` : 'ยังไม่ได้บันทึกรหัส Wifi ของห้องนี้ไว้ในระบบครับ ลองสอบถามผู้ดูแลโดยตรงครับ');
+      // Per explicit owner request: notify the owner AND every linked
+      // ผู้ดูแล whenever a tenant taps this button — separate from (and
+      // always-on, not gated behind) the opt-in adminNotify.js categories
+      // (taskFailure/slipPending/overdueBill/unmatchedSlip/maintenance/
+      // leaseExpiring) — this is its own always-on notification the owner
+      // asked for specifically for WiFi requests. Best-effort: a failed
+      // notify here must never break the tenant's own reply above (which
+      // has already been sent by this point).
+      try {
+        const settings = await readSettings();
+        const targets = [];
+        if (settings.propertyProfile.adminLineUserId) targets.push(settings.propertyProfile.adminLineUserId);
+        const adminRows = await readTab('Admins');
+        adminRows.forEach((a) => { if (a.lineUserId) targets.push(a.lineUserId); });
+        const notifyText = `ผู้เช่าห้อง ${room.id} (${room.tenant || '-'}) ขอรหัส Wifi ผ่าน LINE ครับ`;
+        for (const t of targets) await pushMessage(t, notifyText, undefined, lineCreds);
+      } catch (err) {
+        console.error('[line] wifi-request notify failed', err.message);
+      }
       return;
+    }
     case 'action=usage': {
       const usage = await computeTenantUsage(room);
       if (!usage.hasElecDevice && !usage.hasWaterDevice) {
