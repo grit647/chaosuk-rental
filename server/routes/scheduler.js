@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { readTab, updateRow } = require('../sheets');
-const { readSettings, coerceRecurringTasks, coerceInvoices } = require('../coerce');
+const { readSettings, coerceRecurringTasks, coerceInvoices, readIntegrationCredentials } = require('../coerce');
 const { pushMessage, isConfigured: lineConfigured } = require('../line');
 const { runAutomatedInstruction } = require('../automation');
 const { isConfigured: claudeConfigured } = require('../claude');
 const { notifyAdmin } = require('../adminNotify');
+const { syncOwnerRichMenuBadges } = require('../ownerRichMenu');
 
 // Called periodically by an external trigger (GitHub Actions cron — see
 // .github/workflows/scheduler.yml) rather than an in-process setInterval,
@@ -44,8 +45,24 @@ router.get('/run', async (req, res, next) => {
       console.error('[scheduler] overdue check failed', err.message);
     }
 
+    // Per explicit user request: keep the owner Rich Menu's "บิลค้างชำระ"/
+    // "สลิปรอตรวจสอบ" badge numbers roughly current — same unconditional
+    // treatment as the overdue-bill check right above (basic upkeep, not
+    // an "AI automation" feature the claudeAutomationEnabled switch should
+    // gate). Deliberately only refreshes on this hourly-ish external cron
+    // tick, not live on every new slip — owner's own explicit choice to
+    // keep this simple; syncOwnerRichMenuBadges() itself is a no-op unless
+    // the counts actually changed since the last tick.
+    let ownerRichMenuResult = null;
+    try {
+      const creds = await readIntegrationCredentials();
+      ownerRichMenuResult = await syncOwnerRichMenuBadges(creds.line);
+    } catch (err) {
+      console.error('[scheduler] owner rich menu badge sync failed', err.message);
+    }
+
     if (!settings.claudeAutomationEnabled) {
-      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew } });
+      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew }, ownerRichMenu: ownerRichMenuResult });
     }
 
     let sentCount = 0, scheduledChecked = 0, scheduledDue = 0;
@@ -119,6 +136,7 @@ router.get('/run', async (req, res, next) => {
       overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew },
       scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount },
       recurringTasks: { checked: recurringChecked, ran: recurringRan },
+      ownerRichMenu: ownerRichMenuResult,
     });
   } catch (err) { next(err); }
 });
