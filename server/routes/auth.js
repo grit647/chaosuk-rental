@@ -423,6 +423,23 @@ router.get('/me', async (req, res) => {
       if (match) adminName = match.name;
     } catch { /* non-fatal — sidebar falls back to a generic label */ }
   }
+  // Per explicit owner follow-up (real bug caught: the sidebar name
+  // "ไม่เปลี่ยน" for an owner-role session — it was reading a single
+  // fixed propertyProfile.adminName Settings text field, completely
+  // disconnected from whoever's actually in the Admins tab, so it stayed
+  // frozen at whatever was typed there once, or the generic default).
+  // For an owner session (not staff), show the FIRST Admins-tab row's
+  // name instead — explicit owner request: "ถ้ามีผู้ดูแลมากกว่า 1 ให้
+  // แสดงแค่คนแรกสุดคนเดียวพอ" (if there's more than one ผู้ดูแล, just
+  // show the first one — no need to pick/rotate/list them all). Falls
+  // through to the frontend's propertyProfile.adminName fallback if the
+  // Admins tab is empty (nothing to show yet).
+  if (session.role === 'owner' && session.customerSheetId) {
+    try {
+      const admins = await runWithSheetId(session.customerSheetId, () => readTab('Admins'));
+      if (admins.length && admins[0].name) adminName = admins[0].name;
+    } catch { /* non-fatal — sidebar falls back to propertyProfile.adminName */ }
+  }
   // Per explicit user request: lets the frontend show the demo-only
   // tap-to-explain tooltips (see Rental Management.dc.html's Bills page)
   // ONLY when running against the dedicated Demo Sheet — never for a
