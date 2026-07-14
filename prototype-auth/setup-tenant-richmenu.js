@@ -181,19 +181,26 @@ async function main() {
 
   // Per explicit user follow-up: prefer a REAL source image (e.g.
   // AI-generated externally, matching this same 3x2 grid layout) over the
-  // programmatically-drawn SVG one if it's been dropped at the repo root
-  // as richmenu-source.png/.jpg — resized (not cropped) to LINE's exact
-  // required 2500x1686, since a slight aspect-ratio stretch is
-  // imperceptible but a crop could cut off part of a button. The tap-zone
-  // coordinates below stay a clean, even 3x2 grid regardless of source —
-  // this only works because the requested image layout was SPECIFICALLY
-  // asked for as "3 columns x 2 rows, equal sections, no extra elements"
-  // (see the prompt given to the owner earlier in this conversation) so
-  // the real image's buttons land in the same places our grid math
-  // assumes. A visually different layout would need custom-measured
-  // per-button coordinates instead of this even-grid assumption.
+  // programmatically-drawn SVG one if it's present under images/ — resized
+  // (not cropped) to LINE's exact required 2500x1686, since a slight
+  // aspect-ratio stretch is imperceptible but a crop could cut off part of
+  // a button. The tap-zone coordinates below stay a clean, even 3x2 grid
+  // regardless of source — this only works because the requested image
+  // layout was SPECIFICALLY asked for as "3 columns x 2 rows, equal
+  // sections, no extra elements" (see the prompt given to the owner
+  // earlier in this conversation) so the real image's buttons land in the
+  // same places our grid math assumes. A visually different layout would
+  // need custom-measured per-button coordinates instead of this even-grid
+  // assumption.
+  //
+  // Per explicit user follow-up ("สร้างโฟลเดอร์ image แยกไว้ดีกว่าครับ"):
+  // moved out of the repo root into a dedicated images/ folder — keeps
+  // static design assets organized separately from server/uploads/
+  // (dynamic, user-generated content: slip photos, invoice PDFs — a
+  // completely different category that shouldn't live alongside these).
   const fs = require('fs');
-  const sourceCandidates = ['richmenu-source.png', 'richmenu-source.jpg', 'richmenu-source.jpeg'].map((f) => path.join(__dirname, '..', f));
+  const IMAGES_DIR = path.join(__dirname, '..', 'images');
+  const sourceCandidates = ['tenant-richmenu.png', 'tenant-richmenu.jpg', 'tenant-richmenu.jpeg'].map((f) => path.join(IMAGES_DIR, f));
   const sourcePath = sourceCandidates.find((p) => fs.existsSync(p));
   let pngBuffer;
   let contentType = 'image/png';
@@ -214,7 +221,7 @@ async function main() {
     } while (pngBuffer.length > 1024 * 1024 && quality > 20);
     if (pngBuffer.length > 1024 * 1024) throw new Error('Could not get the source image under LINE\'s 1MB limit even at low JPEG quality — try a smaller/simpler source image.');
   } else {
-    console.log('No richmenu-source.png/.jpg found at repo root — generating a placeholder image instead...');
+    console.log('No images/tenant-richmenu.png/.jpg found — generating a placeholder image instead...');
     const svg = buildSvg();
     pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
   }
