@@ -11,6 +11,7 @@ const { isConfigured: cloudinaryConfigured, uploadBuffer: uploadToCloudinary } =
 const { notifyAdmin } = require('../adminNotify');
 const { sign, verify, setSessionCookie } = require('../auth');
 const { computeTenantUsage } = require('./tenant');
+const { runWithSheetId, getCurrentSheetId } = require('../requestContext');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -126,7 +127,11 @@ async function attachSlipToRoom(roomId, newSlip) {
 // flag with the extracted amount for the owner to review and confirm
 // manually on the Bills page, same as every other financially consequential
 // action in this app requires a human's final say.
-async function handleSlipImage(event, req) {
+async function handleSlipImage(event, req, lineCreds) {
+  // Per-customer-webhook-URL support: every reply below goes through THIS
+  // building's own LINE credentials (see the /webhook/:customerSheetId?
+  // route below for how lineCreds gets resolved and threaded down here).
+  const reply = (text) => replyMessage(event.replyToken, text, lineCreds);
   const rooms = await readTab('Rooms');
   const room = rooms.find((r) => r.lineUserId === event.source.userId);
   // Note: unlike before, an unlinked LINE user is NOT rejected here anymore
@@ -140,10 +145,10 @@ async function handleSlipImage(event, req) {
 
   let buffer;
   try {
-    buffer = await getMessageContent(event.message.id);
+    buffer = await getMessageContent(event.message.id, lineCreds);
   } catch (err) {
     console.error('[line] failed to fetch slip image', err.message);
-    await replyMessage(event.replyToken, 'ขออภัยครับ รับรูปไม่สำเร็จ ลองส่งใหม่อีกครั้งครับ');
+    await reply('ขออภัยครับ รับรูปไม่สำเร็จ ลองส่งใหม่อีกครั้งครับ');
     return;
   }
 
@@ -168,7 +173,7 @@ async function handleSlipImage(event, req) {
   }
 
   if (!claudeConfigured()) {
-    await replyMessage(event.replyToken, 'ได้รับรูปสลิปแล้วครับ แต่ระบบอ่านสลิปอัตโนมัติยังไม่พร้อมใช้งาน รอเจ้าของตรวจสอบด้วยตนเองครับ');
+    await reply('ได้รับรูปสลิปแล้วครับ แต่ระบบอ่านสลิปอัตโนมัติยังไม่พร้อมใช้งาน รอเจ้าของตรวจสอบด้วยตนเองครับ');
     return;
   }
 
@@ -201,7 +206,7 @@ async function handleSlipImage(event, req) {
   // itself failed (ocrFailed) — that's a different situation (see above),
   // not evidence the photo isn't a real slip.
   if (!ocrFailed && slip.amount == null && !slip.date && !slip.senderName) {
-    await replyMessage(event.replyToken, 'รูปที่ส่งมาไม่เหมือนสลิปโอนเงินครับ (อ่านยอด/วันที่/ชื่อผู้โอนไม่เจอเลย) กรุณาส่งรูปสลิปที่ถ่ายหรือแคปมาจากแอปธนาคารโดยตรงอีกครั้งนะครับ');
+    await reply('รูปที่ส่งมาไม่เหมือนสลิปโอนเงินครับ (อ่านยอด/วันที่/ชื่อผู้โอนไม่เจอเลย) กรุณาส่งรูปสลิปที่ถ่ายหรือแคปมาจากแอปธนาคารโดยตรงอีกครั้งนะครับ');
     return;
   }
 
@@ -220,166 +225,169 @@ async function handleSlipImage(event, req) {
       amount: newSlip.amount != null ? newSlip.amount : '', date: newSlip.date,
       senderName: newSlip.senderName, imageUrl: newSlip.imageUrl, uploadedAt: newSlip.uploadedAt,
     });
-    await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ${amountLabel} — แต่ระบบยังไม่ทราบว่าเป็นห้องไหน (LINE นี้ยังไม่เชื่อมต่อกับห้อง) กรุณาพิมพ์เบอร์โทรศัพท์ของคุณครับ (ตามที่ระบุในสัญญาเช่า) เจ้าของจะตรวจสอบและจับคู่ให้เร็วๆ นี้ครับ ขอบคุณครับ 🙏`);
+    await reply(`ได้รับสลิปแล้วครับ ${amountLabel} — แต่ระบบยังไม่ทราบว่าเป็นห้องไหน (LINE นี้ยังไม่เชื่อมต่อกับห้อง) กรุณาพิมพ์เบอร์โทรศัพท์ของคุณครับ (ตามที่ระบุในสัญญาเช่า) เจ้าของจะตรวจสอบและจับคู่ให้เร็วๆ นี้ครับ ขอบคุณครับ 🙏`);
     notifyAdmin('unmatchedSlip', `มีสลิปใหม่ที่ยังไม่ทราบว่าเป็นห้องไหนครับ (${amountLabel}) เข้าไปจับคู่ห้องได้ที่หน้า Bills → สลิปรอตรวจสอบ`).catch(() => {});
     return;
   }
 
   const result = await attachSlipToRoom(room.id, newSlip);
-  await replyMessage(event.replyToken, `ได้รับสลิปแล้วครับ ${amountLabel} ${result.note} ขอบคุณครับ 🙏`);
+  await reply(`ได้รับสลิปแล้วครับ ${amountLabel} ${result.note} ขอบคุณครับ 🙏`);
   notifyAdmin('slipPending', `ห้อง ${room.id} ส่งสลิปเข้ามาแล้วครับ (${amountLabel}) รอตรวจสอบที่หน้า Bills → สลิปรอตรวจสอบ`).catch(() => {});
 }
 
-router.post('/webhook', async (req, res) => {
+// Per explicit user request ("จัดการให้เลยครับ" — fixing the previously
+// KNOWN LIMITATION documented here and in CLAUDE.md): route now accepts
+// an OPTIONAL :customerSheetId segment — DECIDED (2026-07-12, discussed
+// re: บ้านพักครูโจ) as per-customer webhook URLs over the alternative of
+// trying every customer's Channel Secret until one matches (clearer, no
+// O(n) signature checks as the customer count grows). Each building
+// registers its OWN distinct URL (e.g. .../api/line/webhook/<their
+// customerSheetId>) in ITS OWN LINE Developers Console, using ITS OWN
+// Channel Secret/Access Token (saved via the Settings gear-icon form,
+// same readIntegrationCredentials() already used by the outgoing /send
+// route and /status check). Omitting the segment (plain /webhook, the
+// URL already registered for the main property) falls back to
+// process.env.GOOGLE_SHEET_ID + the shared server/.env credentials —
+// zero migration needed for the existing registration.
+router.post('/webhook/:customerSheetId?', async (req, res) => {
   // Always ack quickly so LINE doesn't retry/disable the webhook, even if something
   // downstream fails — we log failures instead of surfacing them to LINE.
   res.status(200).json({ ok: true });
 
-  // KNOWN LIMITATION, flagged per explicit user follow-up discussion:
-  // this webhook still only uses the SHARED server/.env LINE credentials
-  // (no `creds` passed to verifySignature/replyMessage below), unlike the
-  // outgoing /send route and /status check, which now resolve each
-  // customer's own credentials. LINE calls this ONE webhook URL with no
-  // way for us to know in advance which customer's Channel Secret to
-  // verify against, since there's no session cookie on an incoming
-  // webhook call the way there is on a browser request — routing this
-  // per-customer needs either per-customer webhook URLs or trying every
-  // customer's secret until one's signature matches, neither of which is
-  // built yet. For now, a second customer's own LINE OA (if they set one
-  // up via the new Settings form) can only SEND messages through this
-  // app; tenants replying/sending slips to THAT OA won't be received
-  // here until this gets built out further.
-  //
-  // DECIDED (2026-07-12, discussed with owner re: บ้านพักครูโจ): when this
-  // gets built, go with per-customer webhook URLs (e.g.
-  // /api/line/webhook/:customerSheetId), NOT the try-every-secret
-  // alternative — clearer, and avoids O(n) signature checks per call as
-  // the customer count grows. Not implemented yet — no customer currently
-  // needs tenant-side LINE reception through their own OA; see CLAUDE.md's
-  // "Known issues / follow-ups" for the full writeup.
+  const targetSheetId = req.params.customerSheetId || process.env.GOOGLE_SHEET_ID;
+  await runWithSheetId(targetSheetId, async () => {
+    try {
+      // Resolved INSIDE runWithSheetId so readIntegrationCredentials()
+      // (which itself calls readTab('Settings')) reads THIS building's
+      // own Sheet, not whichever one a previous concurrent request left
+      // as the ambient default — same per-request-isolation guarantee
+      // AsyncLocalStorage already gives every other route in this app.
+      const creds = await readIntegrationCredentials();
+      const lineCreds = creds.line;
+      const reply = (replyToken, text) => replyMessage(replyToken, text, lineCreds);
 
-  try {
-    const signature = req.headers['x-line-signature'];
-    if (!verifySignature(req.rawBody || Buffer.from(''), signature)) {
-      console.error('[line] invalid webhook signature — ignoring payload');
-      return;
-    }
-    const events = (req.body && req.body.events) || [];
-    for (const event of events) {
-      try {
-        if (event.type === 'follow') {
-          // Per explicit user request: changed from "type your room number"
-          // to "type your phone number" — a room number can be understood
-          // differently between the tenant and owner (e.g. "22/3" typed as
-          // "223", or a tenant simply not sure what their own room's ID is
-          // labeled as in the system), while the phone number is
-          // unambiguous and is also what the room record is keyed to
-          // everywhere else (contract, tenant-login). Matched against
-          // room.phone below via normPhone (digits-only) so dashes/spaces
-          // in what the tenant types don't matter.
-          await replyMessage(event.replyToken, 'ยินดีต้อนรับสู่เช่าสุข! กรุณาพิมพ์เบอร์โทรศัพท์ของคุณ (ตามที่ระบุในสัญญาเช่า) เพื่อเชื่อมต่อระบบแจ้งเตือนครับ');
-          continue;
-        }
-        if (event.type === 'message' && event.message && event.message.type === 'text') {
-          const text = String(event.message.text || '').trim();
-
-          // Owner self-links by typing their admin PIN instead of a room
-          // number — per explicit user request, avoids having to hunt down
-          // and manually paste their own opaque LINE User ID into Settings.
-          // Same PIN as the "ผู้ดูแลระบบ" card's save-confirmation gate
-          // (server/routes/settings.js's verify-admin-pin), defaults to
-          // "12345" until the owner sets their own adminEditPin.
-          const settingsRows = await readTab('Settings');
-          const pinRow = settingsRows.find((r) => r.key === 'adminEditPin');
-          const adminPin = pinRow ? pinRow.value : '12345';
-          if (text === adminPin) {
-            const nameRow = settingsRows.find((r) => r.key === 'adminName');
-            await updateSettingKV('adminLineUserId', event.source.userId);
-            // Same reasoning as the tenant's rich-menu-linking above —
-            // right after the owner's own self-link succeeds, give them
-            // the owner Rich Menu matching the CURRENT lineAiModeEnabled
-            // state (see prototype-auth/setup-owner-richmenu.js, which
-            // creates an ON and an OFF variant — see
-            // handleOwnerRichMenuPostback's 'owner:ai' case for the
-            // toggle itself). Non-fatal if missing/failed.
-            try {
-              const aiOn = settingsRows.some((r) => r.key === 'lineAiModeEnabled' && r.value === 'TRUE');
-              const rmKey = aiOn ? 'ownerRichMenuIdOn' : 'ownerRichMenuIdOff';
-              const rmRow = settingsRows.find((r) => r.key === rmKey);
-              if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value);
-            } catch (err) {
-              console.error('[line] linkRichMenuToUser (owner) failed for', event.source.userId, err.message);
-            }
-            await replyMessage(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลระบบเรียบร้อยแล้วครับ${nameRow && nameRow.value ? ' (' + nameRow.value + ')' : ''} ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ`);
+      const signature = req.headers['x-line-signature'];
+      if (!verifySignature(req.rawBody || Buffer.from(''), signature, lineCreds)) {
+        console.error('[line] invalid webhook signature for sheet', targetSheetId, '— ignoring payload');
+        return;
+      }
+      const events = (req.body && req.body.events) || [];
+      for (const event of events) {
+        try {
+          if (event.type === 'follow') {
+            // Per explicit user request: changed from "type your room number"
+            // to "type your phone number" — a room number can be understood
+            // differently between the tenant and owner (e.g. "22/3" typed as
+            // "223", or a tenant simply not sure what their own room's ID is
+            // labeled as in the system), while the phone number is
+            // unambiguous and is also what the room record is keyed to
+            // everywhere else (contract, tenant-login). Matched against
+            // room.phone below via normPhone (digits-only) so dashes/spaces
+            // in what the tenant types don't matter.
+            await reply(event.replyToken, 'ยินดีต้อนรับสู่เช่าสุข! กรุณาพิมพ์เบอร์โทรศัพท์ของคุณ (ตามที่ระบุในสัญญาเช่า) เพื่อเชื่อมต่อระบบแจ้งเตือนครับ');
             continue;
           }
+          if (event.type === 'message' && event.message && event.message.type === 'text') {
+            const text = String(event.message.text || '').trim();
 
-          // Per explicit user request: match by PHONE NUMBER instead of
-          // room number — a tenant might not type/know their room's exact
-          // ID as labeled in the system (room numbering can be understood
-          // differently between tenant and owner), but their own phone
-          // number is unambiguous. normPhone strips everything but digits
-          // so "081-234-5671" and "0812345671" both match the same way.
-          const normPhone = (s) => String(s || '').replace(/\D/g, '');
-          const rooms = await readTab('Rooms');
-          const room = rooms.find((r) => r.phone && normPhone(r.phone) === normPhone(text));
-          if (room) {
-            await updateRow('Rooms', room.id, { lineUserId: event.source.userId });
-            // Per explicit user request: right after a tenant successfully
-            // self-links, give them the tenant-specific Rich Menu (see
-            // prototype-auth/setup-tenant-richmenu.js for how it's
-            // created) instead of leaving them on the OA's default menu —
-            // this is the actual mechanism behind "different menu per
-            // role" even though everyone messages the same shared LINE
-            // OA. tenantRichMenuId is a Settings KV set once by that setup
-            // script; non-fatal if missing/not set up yet or if the link
-            // call itself fails — the tenant is still fully linked either
-            // way, just without the nicer menu.
-            try {
-              const rmRow = settingsRows.find((r) => r.key === 'tenantRichMenuId');
-              if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value);
-            } catch (err) {
-              console.error('[line] linkRichMenuToUser failed for', event.source.userId, err.message);
+            // Owner self-links by typing their admin PIN instead of a room
+            // number — per explicit user request, avoids having to hunt down
+            // and manually paste their own opaque LINE User ID into Settings.
+            // Same PIN as the "ผู้ดูแลระบบ" card's save-confirmation gate
+            // (server/routes/settings.js's verify-admin-pin), defaults to
+            // "12345" until the owner sets their own adminEditPin.
+            const settingsRows = await readTab('Settings');
+            const pinRow = settingsRows.find((r) => r.key === 'adminEditPin');
+            const adminPin = pinRow ? pinRow.value : '12345';
+            if (text === adminPin) {
+              const nameRow = settingsRows.find((r) => r.key === 'adminName');
+              await updateSettingKV('adminLineUserId', event.source.userId);
+              // Same reasoning as the tenant's rich-menu-linking above —
+              // right after the owner's own self-link succeeds, give them
+              // the owner Rich Menu matching the CURRENT lineAiModeEnabled
+              // state (see prototype-auth/setup-owner-richmenu.js, which
+              // creates an ON and an OFF variant — see
+              // handleOwnerRichMenuPostback's 'owner:ai' case for the
+              // toggle itself). Non-fatal if missing/failed.
+              try {
+                const aiOn = settingsRows.some((r) => r.key === 'lineAiModeEnabled' && r.value === 'TRUE');
+                const rmKey = aiOn ? 'ownerRichMenuIdOn' : 'ownerRichMenuIdOff';
+                const rmRow = settingsRows.find((r) => r.key === rmKey);
+                if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value, lineCreds);
+              } catch (err) {
+                console.error('[line] linkRichMenuToUser (owner) failed for', event.source.userId, err.message);
+              }
+              await reply(event.replyToken, `เชื่อมต่อบัญชีผู้ดูแลระบบเรียบร้อยแล้วครับ${nameRow && nameRow.value ? ' (' + nameRow.value + ')' : ''} ระบบจะส่งการแจ้งเตือนมาทางไลน์นี้ครับ`);
+              continue;
             }
-            await replyMessage(event.replyToken, `เชื่อมต่อห้อง ${room.id} เรียบร้อยแล้วครับ จะแจ้งเตือนบิล/ข่าวสารมาทางไลน์นี้`);
-          } else {
-            await replyMessage(event.replyToken, 'ไม่พบเบอร์โทรนี้ในระบบครับ กรุณาพิมพ์เบอร์โทรศัพท์ตามที่ระบุในสัญญาเช่าให้ถูกต้อง');
+
+            // Per explicit user request: match by PHONE NUMBER instead of
+            // room number — a tenant might not type/know their room's exact
+            // ID as labeled in the system (room numbering can be understood
+            // differently between tenant and owner), but their own phone
+            // number is unambiguous. normPhone strips everything but digits
+            // so "081-234-5671" and "0812345671" both match the same way.
+            const normPhone = (s) => String(s || '').replace(/\D/g, '');
+            const rooms = await readTab('Rooms');
+            const room = rooms.find((r) => r.phone && normPhone(r.phone) === normPhone(text));
+            if (room) {
+              await updateRow('Rooms', room.id, { lineUserId: event.source.userId });
+              // Per explicit user request: right after a tenant successfully
+              // self-links, give them the tenant-specific Rich Menu (see
+              // prototype-auth/setup-tenant-richmenu.js for how it's
+              // created) instead of leaving them on the OA's default menu —
+              // this is the actual mechanism behind "different menu per
+              // role" even though everyone messages the same shared LINE
+              // OA. tenantRichMenuId is a Settings KV set once by that setup
+              // script; non-fatal if missing/not set up yet or if the link
+              // call itself fails — the tenant is still fully linked either
+              // way, just without the nicer menu.
+              try {
+                const rmRow = settingsRows.find((r) => r.key === 'tenantRichMenuId');
+                if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value, lineCreds);
+              } catch (err) {
+                console.error('[line] linkRichMenuToUser failed for', event.source.userId, err.message);
+              }
+              await reply(event.replyToken, `เชื่อมต่อห้อง ${room.id} เรียบร้อยแล้วครับ จะแจ้งเตือนบิล/ข่าวสารมาทางไลน์นี้`);
+            } else {
+              await reply(event.replyToken, 'ไม่พบเบอร์โทรนี้ในระบบครับ กรุณาพิมพ์เบอร์โทรศัพท์ตามที่ระบุในสัญญาเช่าให้ถูกต้อง');
+            }
+            continue;
           }
-          continue;
-        }
-        if (event.type === 'message' && event.message && event.message.type === 'image') {
-          await handleSlipImage(event, req);
-          continue;
-        }
-        // Per explicit user request: Rich Menu tap zones use postback
-        // actions (not "uri" actions) specifically so the webhook always
-        // learns WHO tapped (event.source.userId) — a plain link opened
-        // from a rich menu carries no identifying info back to us at all.
-        // See prototype-auth/setup-tenant-richmenu.js for the actual menu
-        // layout/postback-data values created; this switch is the other
-        // half of that contract.
-        if (event.type === 'postback' && event.postback) {
-          // Per explicit user request: owner Rich Menu buttons use a
-          // distinct "owner:" data prefix (see prototype-auth/setup-owner-
-          // richmenu.js) specifically so this dispatcher can tell owner
-          // taps apart from tenant taps — the two are looked up completely
-          // differently (owner via Settings.adminLineUserId, tenant via a
-          // Rooms row's lineUserId), so they can't share one lookup path.
-          const data = event.postback.data || '';
-          if (data.startsWith('owner:')) {
-            await handleOwnerRichMenuPostback(event);
-          } else {
-            await handleTenantRichMenuPostback(event);
+          if (event.type === 'message' && event.message && event.message.type === 'image') {
+            await handleSlipImage(event, req, lineCreds);
+            continue;
           }
-          continue;
+          // Per explicit user request: Rich Menu tap zones use postback
+          // actions (not "uri" actions) specifically so the webhook always
+          // learns WHO tapped (event.source.userId) — a plain link opened
+          // from a rich menu carries no identifying info back to us at all.
+          // See prototype-auth/setup-tenant-richmenu.js for the actual menu
+          // layout/postback-data values created; this switch is the other
+          // half of that contract.
+          if (event.type === 'postback' && event.postback) {
+            // Per explicit user request: owner Rich Menu buttons use a
+            // distinct "owner:" data prefix (see prototype-auth/setup-owner-
+            // richmenu.js) specifically so this dispatcher can tell owner
+            // taps apart from tenant taps — the two are looked up completely
+            // differently (owner via Settings.adminLineUserId, tenant via a
+            // Rooms row's lineUserId), so they can't share one lookup path.
+            const data = event.postback.data || '';
+            if (data.startsWith('owner:')) {
+              await handleOwnerRichMenuPostback(event, lineCreds);
+            } else {
+              await handleTenantRichMenuPostback(event, lineCreds);
+            }
+            continue;
+          }
+        } catch (err) {
+          console.error('[line] error handling event', err.message);
         }
-      } catch (err) {
-        console.error('[line] error handling event', err.message);
       }
+    } catch (err) {
+      console.error('[line] webhook error', err.message);
     }
-  } catch (err) {
-    console.error('[line] webhook error', err.message);
-  }
+  });
 });
 
 // Per explicit user request ("ทดสอบเมนูฝั่งผู้เช่าก่อน"): handles every
@@ -388,48 +396,54 @@ router.post('/webhook', async (req, res) => {
 // portal via a short-lived signed auto-login link, since a postback event
 // has no browser session to carry — see GET /auto-login below for the
 // other half.
-async function handleTenantRichMenuPostback(event) {
+async function handleTenantRichMenuPostback(event, lineCreds) {
   const data = event.postback.data || '';
+  const reply = (text) => replyMessage(event.replyToken, text, lineCreds);
   const rooms = coerceRooms(await readTab('Rooms'));
   const room = rooms.find((r) => r.lineUserId === event.source.userId);
   if (!room) {
-    await replyMessage(event.replyToken, 'บัญชี LINE นี้ยังไม่ได้เชื่อมต่อกับห้องไหนเลยครับ กรุณาพิมพ์เบอร์โทรศัพท์ของคุณ (ตามที่ระบุในสัญญาเช่า) ก่อนครับ');
+    await reply('บัญชี LINE นี้ยังไม่ได้เชื่อมต่อกับห้องไหนเลยครับ กรุณาพิมพ์เบอร์โทรศัพท์ของคุณ (ตามที่ระบุในสัญญาเช่า) ก่อนครับ');
     return;
   }
 
   const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://chaosuk-rental.onrender.com';
   // Short-lived (5 min) signed token — payload deliberately minimal
   // (customerSheetId + roomId only, matching a real tenant session's
-  // shape). Verified + consumed by GET /auto-login below.
+  // shape). Verified + consumed by GET /auto-login below. customerSheetId
+  // comes from getCurrentSheetId() (the ambient context runWithSheetId set
+  // up in the webhook route above) rather than a hardcoded env var, so this
+  // correctly reflects whichever building's own webhook this event
+  // actually came through — was the last hardcoded main-property
+  // assumption remaining after the per-customer-webhook-URL fix.
   function autoLoginLink(view) {
-    const token = sign({ role: 'tenant', customerSheetId: process.env.GOOGLE_SHEET_ID, roomId: room.id, exp: Date.now() + 5 * 60 * 1000 });
+    const token = sign({ role: 'tenant', customerSheetId: getCurrentSheetId() || process.env.GOOGLE_SHEET_ID, roomId: room.id, exp: Date.now() + 5 * 60 * 1000 });
     return `${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}&view=${view}`;
   }
 
   switch (data) {
     case 'action=bill':
-      await replyMessage(event.replyToken, `ดูยอดค้างชำระห้อง ${room.id} ได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${autoLoginLink('bill')}`);
+      await reply(`ดูยอดค้างชำระห้อง ${room.id} ได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${autoLoginLink('bill')}`);
       return;
     case 'action=contract':
-      await replyMessage(event.replyToken, `ดูสัญญาเช่าห้อง ${room.id} ได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${autoLoginLink('contract')}`);
+      await reply(`ดูสัญญาเช่าห้อง ${room.id} ได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${autoLoginLink('contract')}`);
       return;
     case 'action=maintenance':
-      await replyMessage(event.replyToken, `แจ้งซ่อมห้อง ${room.id} ได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${autoLoginLink('maintenance')}`);
+      await reply(`แจ้งซ่อมห้อง ${room.id} ได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${autoLoginLink('maintenance')}`);
       return;
     case 'action=contact': {
       const settings = await readSettings();
       const name = settings.propertyProfile.adminName || 'เจ้าของหอพัก';
       const phone = settings.propertyProfile.adminPhone;
-      await replyMessage(event.replyToken, phone ? `ติดต่อผู้ดูแล (${name}) ได้ที่เบอร์ ${phone} ครับ` : 'ยังไม่ได้ตั้งค่าเบอร์ติดต่อผู้ดูแลไว้ในระบบครับ');
+      await reply(phone ? `ติดต่อผู้ดูแล (${name}) ได้ที่เบอร์ ${phone} ครับ` : 'ยังไม่ได้ตั้งค่าเบอร์ติดต่อผู้ดูแลไว้ในระบบครับ');
       return;
     }
     case 'action=wifi':
-      await replyMessage(event.replyToken, room.wifiCode ? `รหัส Wifi ห้อง ${room.id}: ${room.wifiCode}` : 'ยังไม่ได้บันทึกรหัส Wifi ของห้องนี้ไว้ในระบบครับ ลองสอบถามผู้ดูแลโดยตรงครับ');
+      await reply(room.wifiCode ? `รหัส Wifi ห้อง ${room.id}: ${room.wifiCode}` : 'ยังไม่ได้บันทึกรหัส Wifi ของห้องนี้ไว้ในระบบครับ ลองสอบถามผู้ดูแลโดยตรงครับ');
       return;
     case 'action=usage': {
       const usage = await computeTenantUsage(room);
       if (!usage.hasElecDevice && !usage.hasWaterDevice) {
-        await replyMessage(event.replyToken, `ห้อง ${room.id} ยังไม่ได้เชื่อมต่ออุปกรณ์วัดน้ำ/ไฟกับระบบครับ`);
+        await reply(`ห้อง ${room.id} ยังไม่ได้เชื่อมต่ออุปกรณ์วัดน้ำ/ไฟกับระบบครับ`);
         return;
       }
       const lines = [`การใช้น้ำ/ไฟห้อง ${room.id} (นับจากบิลล่าสุด):`];
@@ -443,7 +457,7 @@ async function handleTenantRichMenuPostback(event) {
         if (!(usage.waterLive && usage.waterLive.online)) lines.push('💧 อุปกรณ์น้ำ: ออฟไลน์');
         if (usage.waterUsage != null) lines.push(`น้ำที่ใช้รอบนี้: ${usage.waterUsage} หน่วย (฿${usage.waterCost})`);
       }
-      await replyMessage(event.replyToken, lines.join('\n'));
+      await reply(lines.join('\n'));
       return;
     }
     default:
@@ -460,15 +474,16 @@ async function handleTenantRichMenuPostback(event) {
 // per-user "AI mode on/off" flag plus routing subsequent free-text
 // messages through Claude's tool-calling flow, materially different from
 // the other 5 buttons' one-shot replies).
-async function handleOwnerRichMenuPostback(event) {
+async function handleOwnerRichMenuPostback(event, lineCreds) {
   const data = event.postback.data || '';
+  const reply = (text) => replyMessage(event.replyToken, text, lineCreds);
   const settingsRows = await readTab('Settings');
   const adminLineIdRow = settingsRows.find((r) => r.key === 'adminLineUserId');
   if (!adminLineIdRow || adminLineIdRow.value !== event.source.userId) {
     // Never reveal building financials to a LINE account that isn't the
     // verified owner — same trust boundary as every other admin-only
     // action in this app (see CLAUDE.md's PIN-gate notes).
-    await replyMessage(event.replyToken, 'บัญชี LINE นี้ยังไม่ได้เชื่อมต่อเป็นผู้ดูแลระบบครับ');
+    await reply('บัญชี LINE นี้ยังไม่ได้เชื่อมต่อเป็นผู้ดูแลระบบครับ');
     return;
   }
 
@@ -488,7 +503,7 @@ async function handleOwnerRichMenuPostback(event) {
       const monthExpenses = expenses.filter((e) => e.date && e.date.startsWith(monthPrefix) && !e.hidden);
       const revenue = monthPaid.reduce((a, i) => a + i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0), 0);
       const expenseTotal = monthExpenses.reduce((a, e) => a + e.amount, 0);
-      await replyMessage(event.replyToken, `สรุปเดือนนี้ครับ:\nรายรับ (บิลที่ชำระแล้ว): ${revenue.toLocaleString()} บาท (${monthPaid.length} บิล)\nรายจ่าย: ${expenseTotal.toLocaleString()} บาท (${monthExpenses.length} รายการ)\nกำไร-ขาดทุนสุทธิ: ${(revenue - expenseTotal).toLocaleString()} บาท`);
+      await reply(`สรุปเดือนนี้ครับ:\nรายรับ (บิลที่ชำระแล้ว): ${revenue.toLocaleString()} บาท (${monthPaid.length} บิล)\nรายจ่าย: ${expenseTotal.toLocaleString()} บาท (${monthExpenses.length} รายการ)\nกำไร-ขาดทุนสุทธิ: ${(revenue - expenseTotal).toLocaleString()} บาท`);
       return;
     }
     case 'owner:overdue': {
@@ -499,17 +514,17 @@ async function handleOwnerRichMenuPostback(event) {
         const remaining = i.remainingDue != null ? i.remainingDue : Math.max(0, full - (i.amountPaid || 0));
         return a + remaining;
       }, 0);
-      if (!overdue.length) { await replyMessage(event.replyToken, 'ไม่มีบิลค้างชำระเลยครับ ✅'); return; }
+      if (!overdue.length) { await reply('ไม่มีบิลค้างชำระเลยครับ ✅'); return; }
       const rooms = overdue.map((i) => i.room).join(', ');
-      await replyMessage(event.replyToken, `บิลค้างชำระ/เกินกำหนด: ${overdue.length} ห้อง รวม ${total.toLocaleString()} บาท\nห้อง: ${rooms}`);
+      await reply(`บิลค้างชำระ/เกินกำหนด: ${overdue.length} ห้อง รวม ${total.toLocaleString()} บาท\nห้อง: ${rooms}`);
       return;
     }
     case 'owner:slips': {
       const invoices = coerceInvoices(await readTab('Invoices'));
       const pendingSlips = invoices.filter((i) => i.slipPending);
       const unmatched = await readTab('UnmatchedSlips');
-      if (!pendingSlips.length && !unmatched.length) { await replyMessage(event.replyToken, 'ไม่มีสลิปรอตรวจสอบครับ ✅'); return; }
-      await replyMessage(event.replyToken, `สลิปรอตรวจสอบ: ${pendingSlips.length} รายการ (ผูกห้องแล้ว)${unmatched.length ? `\nสลิปที่ยังไม่ทราบห้อง: ${unmatched.length} รายการ (ต้องจับคู่เอง)` : ''}\nเข้าไปตรวจได้ที่หน้า Bills → สลิปรอตรวจสอบครับ`);
+      if (!pendingSlips.length && !unmatched.length) { await reply('ไม่มีสลิปรอตรวจสอบครับ ✅'); return; }
+      await reply(`สลิปรอตรวจสอบ: ${pendingSlips.length} รายการ (ผูกห้องแล้ว)${unmatched.length ? `\nสลิปที่ยังไม่ทราบห้อง: ${unmatched.length} รายการ (ต้องจับคู่เอง)` : ''}\nเข้าไปตรวจได้ที่หน้า Bills → สลิปรอตรวจสอบครับ`);
       return;
     }
     case 'owner:dashboard': {
@@ -518,16 +533,19 @@ async function handleOwnerRichMenuPostback(event) {
       // app with no re-login needed, same short-lived signed-token
       // mechanism as the tenant menu's bill/contract/maintenance links
       // (see GET /auto-login above, now branches on payload.role).
+      // customerSheetId comes from getCurrentSheetId() — same reasoning as
+      // the tenant menu's autoLoginLink above, correctly reflects whichever
+      // building's own webhook this event came through.
       const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://chaosuk-rental.onrender.com';
-      const token = sign({ role: 'owner', customerSheetId: process.env.GOOGLE_SHEET_ID, exp: Date.now() + 5 * 60 * 1000 });
-      await replyMessage(event.replyToken, `เข้าหน้าเว็บได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}`);
+      const token = sign({ role: 'owner', customerSheetId: getCurrentSheetId() || process.env.GOOGLE_SHEET_ID, exp: Date.now() + 5 * 60 * 1000 });
+      await reply(`เข้าหน้าเว็บได้ที่นี่ครับ (ลิงก์นี้ใช้ได้ 5 นาที)\n${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}`);
       return;
     }
     case 'owner:rooms': {
       const rooms = coerceRooms(await readTab('Rooms'));
       const vacant = rooms.filter((r) => r.status === 'vacant');
       const occupied = rooms.filter((r) => r.status !== 'vacant');
-      await replyMessage(event.replyToken, `สรุปห้องพักทั้งหมด ${rooms.length} ห้อง:\nมีผู้เช่าอยู่: ${occupied.length} ห้อง\nห้องว่าง: ${vacant.length} ห้อง${vacant.length ? ` (${vacant.map((r) => r.id).join(', ')})` : ''}`);
+      await reply(`สรุปห้องพักทั้งหมด ${rooms.length} ห้อง:\nมีผู้เช่าอยู่: ${occupied.length} ห้อง\nห้องว่าง: ${vacant.length} ห้อง${vacant.length ? ` (${vacant.map((r) => r.id).join(', ')})` : ''}`);
       return;
     }
     case 'owner:ai': {
@@ -547,11 +565,11 @@ async function handleOwnerRichMenuPostback(event) {
       try {
         const rmKey = nowOn ? 'ownerRichMenuIdOn' : 'ownerRichMenuIdOff';
         const rmRow = settingsRows.find((r) => r.key === rmKey);
-        if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value);
+        if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value, lineCreds);
       } catch (err) {
         console.error('[line] linkRichMenuToUser (owner AI toggle) failed for', event.source.userId, err.message);
       }
-      await replyMessage(event.replyToken, nowOn
+      await reply(nowOn
         ? '🟢 เปิดโหมด Claude AI แล้วครับ — เปิดเมนูอีกครั้งจะเห็นสถานะอัปเดตแล้ว (ฟีเจอร์คุยกับ AI ผ่าน LINE โดยตรงกำลังพัฒนาอยู่ครับ ตอนนี้ยังใช้ผ่านช่องแชทในหน้าตั้งค่าบนเว็บไปก่อนนะครับ)'
         : '⚪ ปิดโหมด Claude AI แล้วครับ');
       return;
