@@ -1,23 +1,34 @@
 // One-time setup: creates the owner-facing LINE Rich Menu (6 buttons:
-// สรุปรายรับ-รายจ่ายเดือนนี้/บิลค้างชำระ-เกินกำหนด/สลิปรอตรวจสอบ/งานซ่อมที่ยังไม่
-// เสร็จ/สรุปห้องว่าง-มีคนอยู่/เปิดโหมด Claude AI), generates its image,
+// สรุปรายรับ-รายจ่ายเดือนนี้/บิลค้างชำระ-เกินกำหนด/สลิปรอตรวจสอบ/สรุปห้องว่าง-
+// มีคนอยู่/เข้าใช้งานหน้าเว็ปไซต์/เปิดโหมด Claude AI), generates its image,
 // uploads it to LINE, and saves the resulting richMenuId into this
 // building's own Settings sheet as `ownerRichMenuId` — server/routes/
 // line.js's webhook reads that key and links this menu to the owner
-// automatically right after their admin-PIN self-link succeeds (see the
-// "linkRichMenuToUser" call there, right next to the tenant one).
+// automatically right after their admin-PIN self-link succeeds.
 //
-// Sibling script to setup-tenant-richmenu.js — same structure/reasoning
-// throughout, just a different button set and a different Settings key
-// (ownerRichMenuId vs tenantRichMenuId) so the two menus never collide.
+// Sibling script to setup-tenant-richmenu.js/setup-staff-richmenu.js —
+// same structure/reasoning throughout, just a different button set.
+// SINGLE variant now (per explicit owner follow-up: the "เปิดโหมด Claude
+// AI" button used to need TWO image variants — an ON/OFF status badge
+// composited onto cell 6 — but that whole on/off-with-a-visual-badge
+// design was replaced with a 5-minute auto-expiring chat session that has
+// no persistent visual state at all, see AI_SESSION_TTL_MS in
+// server/routes/line.js). Deleting that dual-variant complexity here
+// brought this script back to the same simple shape as the tenant/staff
+// ones.
 //
 // Deliberately does NOT call setDefaultRichMenu — same reasoning as the
 // tenant script: an unidentified LINE follower shouldn't see either
 // role-specific menu until they've proven who they are. Safe to re-run:
-// deletes the previously-saved ownerRichMenuId first if one's on file.
+// deletes any previously-saved richMenuId(s) first — checks the CURRENT
+// single-variant key (ownerRichMenuId) plus the two now-retired dual-
+// variant keys (ownerRichMenuIdOn/Off) so a re-run after upgrading from
+// the old dual-variant version cleans those up too, not just leaves them
+// orphaned on the LINE account forever.
 //
 // Usage: node prototype-auth/setup-owner-richmenu.js [customerSheetId]
 const path = require('path');
+const fs = require('fs');
 const SERVER_MODULES = path.join(__dirname, '..', 'server', 'node_modules');
 require(path.join(SERVER_MODULES, 'dotenv')).config({ path: path.join(__dirname, '..', 'server', '.env') });
 const sharp = require(path.join(SERVER_MODULES, 'sharp'));
@@ -33,108 +44,23 @@ const ROWS = 2;
 const CELL_W = WIDTH / COLS;
 const CELL_H = HEIGHT / ROWS;
 
-// Same Material Design icon path set as the tenant menu, plus 2 new ones
-// (warning triangle for overdue bills, robot for the AI mode button).
-const ICONS = {
-  baht: null,
-  // "warning" (Material Icons) — overdue/urgent.
-  warning: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
-  // "attach_file" (Material Icons) — pending slips.
-  clip: 'M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z',
-  // "home" (Material Icons) — room status.
-  home: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
-  // "public" (Material Icons) — globe/www, for the "เข้าใช้งานหน้าเว็ปไซต์" button.
-  globe: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z',
-  // "smart_toy" (Material Icons) — robot/AI.
-  robot: 'M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7.5 11.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S9.83 13 9 13s-1.5-.67-1.5-1.5zm9 5c-1 1-2.87 1.5-4.5 1.5s-3.5-.5-4.5-1.5c-.28-.28-.28-.72 0-1 .28-.28.72-.28 1 0 .68.68 2.16 1 3.5 1s2.82-.32 3.5-1c.28-.28.72-.28 1 0 .28.28.28.72 0 1zm-.5-3.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z',
-};
-
-// [iconKey, label, postback action data] — order fills left-to-right,
-// top-to-bottom. "owner:" prefix on every data value is what server/
-// routes/line.js's postback dispatcher uses to tell owner taps apart
-// from tenant taps (see handleOwnerRichMenuPostback there).
-// Per explicit user follow-up (redesigned owner-richmenu.png): งานซ่อม
-// dropped from the menu entirely, replaced with a direct "เข้าใช้งานหน้า
-// เว็ปไซต์" no-re-login link into the main app (see 'owner:dashboard' in
-// server/routes/line.js's handleOwnerRichMenuPostback — same short-lived-
-// signed-token mechanism as the tenant menu's web-opening buttons).
+// [label, postback action data] — order matches images/owner-richmenu.png
+// left-to-right, top-to-bottom. "owner:" prefix on every data value is
+// what server/routes/line.js's postback dispatcher uses to tell owner
+// taps apart from tenant/staff taps (see handleOwnerRichMenuPostback).
 const BUTTONS = [
-  ['baht', 'สรุปรายรับ-รายจ่ายเดือนนี้', 'owner:summary'],
-  ['warning', 'บิลค้างชำระ/เกินกำหนด', 'owner:overdue'],
-  ['clip', 'สลิปรอตรวจสอบ', 'owner:slips'],
-  ['home', 'สรุปห้องว่าง/มีคนอยู่', 'owner:rooms'],
-  ['globe', 'เข้าใช้งานหน้าเว็ปไซต์', 'owner:dashboard'],
-  ['robot', 'เปิดโหมด Claude AI', 'owner:ai'],
+  ['สรุปรายรับ-รายจ่ายเดือนนี้', 'owner:summary'],
+  ['บิลค้างชำระ/เกินกำหนด', 'owner:overdue'],
+  ['สลิปรอตรวจสอบ', 'owner:slips'],
+  ['สรุปห้องว่าง/มีคนอยู่', 'owner:rooms'],
+  ['เข้าใช้งานหน้าเว็ปไซต์', 'owner:dashboard'],
+  ['เปิดโหมด Claude AI', 'owner:ai'],
 ];
 
-// Per explicit user request: the "เปิดโหมด Claude AI" button (cell index
-// 5 — bottom-right) needs to visibly show its current on/off STATE, not
-// just be a static button. Rich Menu images are static, so LINE's
-// standard pattern for this is: keep two separate rich menus (one per
-// state) and RELINK the user to whichever one matches reality every time
-// they tap the toggle (see handleOwnerRichMenuPostback's 'owner:ai' case
-// in server/routes/line.js) — LINE reloads the visible menu the next time
-// the user opens the menu tray.
-// Owner explicitly chose the cheaper option over generating 2 full
-// AI images: keep their real base photo as-is for the other 5 cells, and
-// overlay just a small status badge onto cell 6's own region
-// programmatically. This function draws ONLY that badge (transparent
-// everywhere else) at cell 6's exact pixel bounds, to be composited on
-// top of the resized base image via sharp.
-function buildStatusBadgeOverlay(isOn) {
-  const AI_CELL_INDEX = 5; // bottom-right — must match BUTTONS' 'owner:ai' entry position
-  const col = AI_CELL_INDEX % COLS;
-  const row = Math.floor(AI_CELL_INDEX / COLS);
-  const cellX = col * CELL_W;
-  const cellY = row * CELL_H;
-  const badgeW = CELL_W * 0.72;
-  const badgeH = 110;
-  const badgeX = cellX + (CELL_W - badgeW) / 2;
-  const badgeY = cellY + 40; // small margin from the cell's own top edge
-  const bg = isOn ? '#3B7A52' : '#9C8B78'; // green when on, muted grey when off — same green already used elsewhere in the app for "connected/active" states
-  const label = isOn ? '🟢 เปิดอยู่' : '⚪ ปิดอยู่';
-  const svg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-    <rect x="${badgeX}" y="${badgeY}" width="${badgeW}" height="${badgeH}" rx="${badgeH / 2}" fill="${bg}" stroke="#FFFFFF" stroke-width="5"/>
-    <text x="${badgeX + badgeW / 2}" y="${badgeY + badgeH / 2}" font-size="44" font-family="sans-serif" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${label}</text>
-  </svg>`;
-  return Buffer.from(svg);
-}
-
-function buildSvg() {
-  const MARGIN = 28;
-  const cells = BUTTONS.map(([iconKey, label], i) => {
-    const col = i % COLS;
-    const row = Math.floor(i / COLS);
-    const cardX = col * CELL_W + MARGIN;
-    const cardY = row * CELL_H + MARGIN;
-    const cardW = CELL_W - MARGIN * 2;
-    const cardH = CELL_H - MARGIN * 2;
-    const centerX = cardX + cardW / 2;
-    const badgeCy = cardY + cardH * 0.36;
-    const badgeR = 110;
-
-    const words = label.split(/(?<=\/)|(?<= )/);
-    let line1 = '', line2 = '';
-    for (const w of words) { if ((line1 + w).length <= 12 && !line2) line1 += w; else line2 += w; }
-    const labelLines = line2 ? [line1.trim(), line2.trim()] : [line1.trim()];
-    const labelY = cardY + cardH * 0.74;
-    const labelSvg = labelLines.map((ln, li) => `<text x="${centerX}" y="${labelY + li * 62}" font-size="50" font-family="sans-serif" font-weight="700" fill="#241812" text-anchor="middle" dominant-baseline="middle">${ln}</text>`).join('');
-
-    const iconSvg = iconKey === 'baht'
-      ? `<text x="${centerX}" y="${badgeCy}" font-size="120" font-family="sans-serif" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">฿</text>`
-      : `<g transform="translate(${centerX - 60},${badgeCy - 60}) scale(5)"><path d="${ICONS[iconKey]}" fill="#FFFFFF"/></g>`;
-
-    return `
-      <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="36" fill="#FFFFFF" stroke="#EDE1CE" stroke-width="4"/>
-      <circle cx="${centerX}" cy="${badgeCy}" r="${badgeR}" fill="#C1622D"/>
-      ${iconSvg}
-      ${labelSvg}
-    `;
-  }).join('');
-  return `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-    <rect width="${WIDTH}" height="${HEIGHT}" fill="#F7F1E6"/>
-    ${cells}
-  </svg>`;
+function cellBounds(i) {
+  const col = i % COLS;
+  const row = Math.floor(i / COLS);
+  return { x: col * CELL_W, y: row * CELL_H, width: CELL_W, height: CELL_H };
 }
 
 async function upsertSettingKV(sheets, spreadsheetId, key, value) {
@@ -188,80 +114,48 @@ async function main() {
     process.exit(1);
   }
 
-  // Per explicit user request: the "เปิดโหมด Claude AI" button needs to
-  // show its current on/off state — creates TWO rich menus now (ON/OFF
-  // variants, badge overlaid on cell 6 only, see buildStatusBadgeOverlay
-  // above), replacing the single ownerRichMenuId this script used to
-  // create. Deletes BOTH old keys if present (the old single-menu
-  // ownerRichMenuId from before this feature, AND any previous on/off
-  // pair from a prior run) so re-running never piles up orphaned menus.
   for (const key of ['ownerRichMenuId', 'ownerRichMenuIdOn', 'ownerRichMenuIdOff']) {
     const existingId = await readSettingKV(sheets, spreadsheetId, key);
     if (existingId) {
-      console.log(`Found existing ${key}`, existingId, '— deleting before creating fresh ones...');
+      console.log(`Found existing ${key}`, existingId, '— deleting before creating a fresh one...');
       try { await deleteRichMenu(existingId, creds); } catch (err) { console.warn('  (delete failed, continuing anyway:', err.message, ')'); }
     }
   }
 
-  const fs = require('fs');
   const IMAGES_DIR = path.join(__dirname, '..', 'images');
   const sourceCandidates = ['owner-richmenu.png', 'owner-richmenu.jpg', 'owner-richmenu.jpeg'].map((f) => path.join(IMAGES_DIR, f));
   const sourcePath = sourceCandidates.find((p) => fs.existsSync(p));
-
-  // Base image (before the on/off badge is composited on) — either the
-  // owner's real photo, resized, or the generated SVG placeholder. Kept
-  // as a raw PNG buffer at this stage (not yet JPEG-compressed) so sharp
-  // can composite the badge onto it cleanly before the final JPEG
-  // encode+size-check happens per variant below.
-  let baseBuffer;
-  if (sourcePath) {
-    console.log('Found real source image:', sourcePath, '— resizing to', WIDTH + 'x' + HEIGHT, '(exact fit, no crop)...');
-    baseBuffer = await sharp(sourcePath).resize(WIDTH, HEIGHT, { fit: 'fill' }).png().toBuffer();
-  } else {
-    console.log('No images/owner-richmenu.png/.jpg found — generating a placeholder image instead...');
-    baseBuffer = await sharp(Buffer.from(buildSvg())).png().toBuffer();
+  if (!sourcePath) {
+    console.error('No images/owner-richmenu.png/.jpg/.jpeg found — save the design image there first.');
+    process.exit(1);
   }
+  console.log('Found source image:', sourcePath, '— resizing to', WIDTH + 'x' + HEIGHT, '(exact fit, no crop)...');
+  const resizedBuffer = await sharp(sourcePath).resize(WIDTH, HEIGHT, { fit: 'fill' }).png().toBuffer();
 
-  // Both variants share the exact same 6 tap zones/postback actions (the
-  // "owner:ai" tap always means "toggle", regardless of which state is
-  // currently showing) — only the composited badge on cell 6 differs.
-  const areas = BUTTONS.map(([, label, data], i) => {
-    const col = i % COLS;
-    const row = Math.floor(i / COLS);
-    return {
-      bounds: { x: col * CELL_W, y: row * CELL_H, width: CELL_W, height: CELL_H },
-      action: { type: 'postback', data, displayText: label },
-    };
-  });
+  let jpegBuffer;
+  let quality = 85;
+  do {
+    jpegBuffer = await sharp(resizedBuffer).jpeg({ quality }).toBuffer();
+    quality -= 15;
+  } while (jpegBuffer.length > 1024 * 1024 && quality > 20);
+  if (jpegBuffer.length > 1024 * 1024) throw new Error('Could not get owner-richmenu image under LINE\'s 1MB limit even at low JPEG quality.');
+  console.log(`Uploading rich menu image (${(jpegBuffer.length / 1024 / 1024).toFixed(2)}MB)...`);
 
-  async function createVariant(isOn, settingsKey) {
-    const composited = await sharp(baseBuffer).composite([{ input: buildStatusBadgeOverlay(isOn) }]).png().toBuffer();
-    let jpegBuffer;
-    let quality = 85;
-    do {
-      jpegBuffer = await sharp(composited).jpeg({ quality }).toBuffer();
-      quality -= 15;
-    } while (jpegBuffer.length > 1024 * 1024 && quality > 20);
-    if (jpegBuffer.length > 1024 * 1024) throw new Error(`${settingsKey}: could not get under LINE's 1MB limit even at low JPEG quality.`);
-    console.log(`Creating ${isOn ? 'ON' : 'OFF'} variant rich menu on LINE (${(jpegBuffer.length / 1024 / 1024).toFixed(2)}MB)...`);
-    const richMenuId = await createRichMenu({
-      size: { width: WIDTH, height: HEIGHT },
-      selected: false,
-      name: `เช่าสุข - เมนูเจ้าของ (AI ${isOn ? 'เปิด' : 'ปิด'})`,
-      chatBarText: 'เมนู',
-      areas,
-    }, creds);
-    console.log(`  Created richMenuId: ${richMenuId}`);
-    await uploadRichMenuImage(richMenuId, jpegBuffer, 'image/jpeg', creds);
-    await upsertSettingKV(sheets, spreadsheetId, settingsKey, richMenuId);
-    return richMenuId;
-  }
+  const areas = BUTTONS.map(([label, data], i) => ({ bounds: cellBounds(i), action: { type: 'postback', data, displayText: label } }));
 
-  await createVariant(true, 'ownerRichMenuIdOn');
-  await createVariant(false, 'ownerRichMenuIdOff');
+  const richMenuId = await createRichMenu({
+    size: { width: WIDTH, height: HEIGHT },
+    selected: false,
+    name: 'เช่าสุข - เมนูเจ้าของ',
+    chatBarText: 'เมนู',
+    areas,
+  }, creds);
+  console.log('Created richMenuId:', richMenuId);
+  await uploadRichMenuImage(richMenuId, jpegBuffer, 'image/jpeg', creds);
+  await upsertSettingKV(sheets, spreadsheetId, 'ownerRichMenuId', richMenuId);
 
-  console.log('\nDone! The owner will get the OFF-state menu automatically the next time they self-link (type their adminEditPin to the LINE OA) — lineAiModeEnabled defaults to off. Tapping the AI button then toggles between the two menus from there (see handleOwnerRichMenuPostback in server/routes/line.js).');
-  console.log('Note: if the owner already linked their LINE before this script ran, they will NOT retroactively get the new menu pair — they can re-trigger it by typing their adminEditPin again (self-link is idempotent, re-typing it just re-runs the same linking step).');
+  console.log('\nDone! The owner will get this menu automatically the next time they self-link (type their adminEditPin to the LINE OA).');
+  console.log('Note: if the owner already linked their LINE before this script ran, they will NOT retroactively get the new menu — they can re-trigger it by typing their adminEditPin again (self-link is idempotent), or run prototype-auth/relink-owner-richmenu.js to re-link them directly without needing to re-type anything.');
 }
 
 main().catch((err) => { console.error('Setup failed:', err.message); process.exit(1); });

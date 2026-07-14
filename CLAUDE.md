@@ -24,20 +24,32 @@ logo badge, use this exact same styling.
 
 ### "คุยกับ Claude AI ผ่าน LINE" — text works, voice needs OPENAI_API_KEY (pending)
 
-**Status:** Built and deployed (commit `355da75`). Text part is fully live
-— once the owner's own LINE is linked and "เปิดโหมด Claude AI" is on (Rich
-Menu toggle), any text message from that LINE account routes through the
-exact same tool-calling assistant as the web command box (see
-`server/routes/line.js`'s `handleOwnerAiText`, reusing
-`buildCommandSystemPrompt`/`extractText` exported from
+**Status:** Built and deployed (commit `355da75`, session redesigned
+after that in commit around `owner:ai` postback + `AI_SESSION_TTL_MS`).
+Text part is fully live — tapping "เปิดโหมด Claude AI" on the owner's Rich
+Menu starts a 5-minute AI chat session (in-memory `aiConversations` Map,
+keyed per LINE user); any text message from that LINE account while the
+session is live routes through the exact same tool-calling assistant as
+the web command box (see `server/routes/line.js`'s `handleOwnerAiText`,
+reusing `buildCommandSystemPrompt`/`extractText` exported from
 `server/routes/claude.js` and the same `TOOLS`/`executeReadTool`/
 `executeWriteTool` from `claudeTools.js` — kept in sync with the web
-version deliberately, not a separate copy). Write actions ask for a
-"ยืนยัน"/"ยกเลิก" reply in chat instead of the web's popup (in-memory
-`aiPendingWrites` Map, 2-minute window). `create_room`/`open_contract_form`
-are hard-blocked same as `automation.js`'s `FORM_ONLY_TOOLS` (CLAUDE.md's
-permanent rule below — chat can never substitute for the native
-contract/room form).
+version deliberately, not a separate copy). **Per explicit owner
+follow-up, this replaced an earlier persistent on/off toggle design**
+(a `lineAiModeEnabled` Settings flag + a visual 🟢/⚪ badge on the Rich
+Menu image itself, requiring TWO pre-built menu variants) — the owner
+found the on/off-with-a-visible-badge concept unnecessary complexity and
+asked for a simple auto-expiring session instead: every message sent
+resets the 5-minute idle clock (`touchAiSession()`); no message for 5
+minutes = the session silently lapses, no explicit "turn it off" action
+needed, and the Rich Menu image itself has no on/off state to show
+anymore (`ownerRichMenuId` is a SINGLE variant again, same as the
+tenant/staff menus — `ownerRichMenuIdOn`/`ownerRichMenuIdOff` are
+retired). Write actions ask for a "ยืนยัน"/"ยกเลิก" reply in chat instead
+of the web's popup (in-memory `aiPendingWrites` Map, separate 2-minute
+window). `create_room`/`open_contract_form` are hard-blocked same as
+`automation.js`'s `FORM_ONLY_TOOLS` (CLAUDE.md's permanent rule below —
+chat can never substitute for the native contract/room form).
 
 **Voice/mic is coded but NOT usable yet** — needs an `OPENAI_API_KEY` env
 var (OpenAI's Whisper API, a separate provider from `ANTHROPIC_API_KEY` —

@@ -1,11 +1,13 @@
-// One-off: re-links the already-connected owner to whichever new owner
-// Rich Menu variant (ON/OFF) matches their current lineAiModeEnabled
-// state, WITHOUT requiring them to re-type their adminEditPin. Used right
-// after setup-owner-richmenu.js regenerates the menu images (e.g. an
-// updated button label) — otherwise an already-linked owner keeps seeing
-// the OLD menu until they happen to re-link some other way. Not meant to
-// be a permanent script — same one-shot utility pattern as the other
-// migrate-*/setup-* scripts in this folder.
+// One-off: re-links the already-connected owner to the current owner
+// Rich Menu (ownerRichMenuId), WITHOUT requiring them to re-type their
+// adminEditPin. Used right after setup-owner-richmenu.js regenerates the
+// menu image (e.g. an updated button label) — otherwise an already-
+// linked owner keeps seeing the OLD menu until they happen to re-link
+// some other way. Single-variant now (no more ON/OFF — see
+// AI_SESSION_TTL_MS in server/routes/line.js for why the on/off badge
+// concept was retired). Not meant to be a permanent script — same
+// one-shot utility pattern as the other migrate-*/setup-* scripts in
+// this folder.
 const path = require('path');
 const SERVER_MODULES = path.join(__dirname, '..', 'server', 'node_modules');
 require(path.join(SERVER_MODULES, 'dotenv')).config({ path: path.join(__dirname, '..', 'server', '.env') });
@@ -31,12 +33,11 @@ async function main() {
   if (!isConfigured(creds)) { console.error('No LINE credentials found.'); process.exit(1); }
 
   if (!map.adminLineUserId) { console.log('No adminLineUserId on file — owner not linked yet, nothing to do.'); return; }
-  const aiOn = map.lineAiModeEnabled === 'TRUE';
-  const richMenuId = aiOn ? map.ownerRichMenuIdOn : map.ownerRichMenuIdOff;
-  if (!richMenuId) { console.error(`Missing ${aiOn ? 'ownerRichMenuIdOn' : 'ownerRichMenuIdOff'} in Settings.`); process.exit(1); }
+  const richMenuId = map.ownerRichMenuId;
+  if (!richMenuId) { console.error('Missing ownerRichMenuId in Settings.'); process.exit(1); }
 
   await linkRichMenuToUser(map.adminLineUserId, richMenuId, creds);
-  console.log(`Re-linked owner to ${aiOn ? 'ON' : 'OFF'} variant (${richMenuId}).`);
+  console.log(`Re-linked owner to ${richMenuId}.`);
 }
 
 main().catch((err) => { console.error('Failed:', err.message); process.exit(1); });

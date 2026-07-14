@@ -46,10 +46,15 @@ const ADMIN_LINK_CONFIRM_WINDOW_MS = 2 * 60 * 1000;
 // a chat surface with no popup UI. Two in-memory (module-level, same
 // reasoning as pendingAdminLinks above — short-lived, fine to lose on a
 // redeploy, self-link/AI-chat are both naturally re-startable) Maps:
-// - aiConversations: rolling message history per LINE user, so a reply can
-//   reference earlier turns in the same conversation (same idea as the web
-//   command box's client-held `history`, just held server-side here since
-//   LINE has no client-side state to round-trip).
+// - aiConversations: this Map's mere PRESENCE (with a live, non-expired
+//   entry) for a given user IS "AI mode is on" — per explicit owner
+//   follow-up, replaced the original persistent lineAiModeEnabled
+//   Settings toggle + ON/OFF Rich Menu badge entirely with a session
+//   that auto-expires after 5 minutes of no new message (sliding window
+//   — every message, success or failure, refreshes expiresAt another 5
+//   minutes via touchAiSession() below). Tapping "เปิดโหมด Claude AI"
+//   just starts an empty session; there is no separate "turn off" step
+//   or visual on/off state anymore — it silently lapses on its own.
 // - aiPendingWrites: a write/mutating tool Claude wants to run, awaiting
 //   the owner's "ยืนยัน"/"ยกเลิก" reply — the LINE-chat equivalent of the
 //   web command box's confirm popup (same underlying architecture: Claude
@@ -58,8 +63,16 @@ const ADMIN_LINK_CONFIRM_WINDOW_MS = 2 * 60 * 1000;
 //   execution behind an explicit human confirmation step).
 const aiConversations = new Map();
 const aiPendingWrites = new Map();
-const AI_CONVO_TTL_MS = 30 * 60 * 1000;
+const AI_SESSION_TTL_MS = 5 * 60 * 1000; // per explicit owner request — auto-off after 5 min of no new message
 const AI_CONFIRM_WINDOW_MS = 2 * 60 * 1000;
+
+function touchAiSession(pendingKey, messages) {
+  aiConversations.set(pendingKey, { messages, expiresAt: Date.now() + AI_SESSION_TTL_MS });
+}
+function isAiSessionActive(pendingKey) {
+  const session = aiConversations.get(pendingKey);
+  return !!(session && session.expiresAt > Date.now());
+}
 // Same restriction as server/automation.js's FORM_ONLY_TOOLS, same
 // reasoning (per CLAUDE.md's permanent rule: lease/contract data + new
 // rooms must always go through the native form UI — some fields, like ID
@@ -360,15 +373,13 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
               await updateSettingKV('adminLineUserId', event.source.userId);
               // Same reasoning as the tenant's rich-menu-linking above —
               // right after the owner's own self-link succeeds, give them
-              // the owner Rich Menu matching the CURRENT lineAiModeEnabled
-              // state (see prototype-auth/setup-owner-richmenu.js, which
-              // creates an ON and an OFF variant — see
-              // handleOwnerRichMenuPostback's 'owner:ai' case for the
-              // toggle itself). Non-fatal if missing/failed.
+              // the owner Rich Menu (see prototype-auth/setup-owner-
+              // richmenu.js). Single menu now, no ON/OFF variant — per
+              // explicit owner follow-up, the AI mode toggle no longer has
+              // a persistent visual state on the menu image itself (see
+              // AI_SESSION_TTL_MS above). Non-fatal if missing/failed.
               try {
-                const aiOn = settingsRows.some((r) => r.key === 'lineAiModeEnabled' && r.value === 'TRUE');
-                const rmKey = aiOn ? 'ownerRichMenuIdOn' : 'ownerRichMenuIdOff';
-                const rmRow = settingsRows.find((r) => r.key === rmKey);
+                const rmRow = settingsRows.find((r) => r.key === 'ownerRichMenuId');
                 if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value, lineCreds);
               } catch (err) {
                 console.error('[line] linkRichMenuToUser (owner) failed for', event.source.userId, err.message);
@@ -448,8 +459,7 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
             // because they typed something that happens to look like a
             // phone number.
             const adminLineIdRow = settingsRows.find((r) => r.key === 'adminLineUserId');
-            const aiModeOn = settingsRows.some((r) => r.key === 'lineAiModeEnabled' && r.value === 'TRUE');
-            if (adminLineIdRow && adminLineIdRow.value === event.source.userId && aiModeOn) {
+            if (adminLineIdRow && adminLineIdRow.value === event.source.userId && isAiSessionActive(pendingKey)) {
               await handleOwnerAiText(event, lineCreds, text);
               continue;
             }
@@ -499,8 +509,8 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
           if (event.type === 'message' && event.message && event.message.type === 'audio') {
             const settingsRows = await readTab('Settings');
             const adminLineIdRow = settingsRows.find((r) => r.key === 'adminLineUserId');
-            const aiModeOn = settingsRows.some((r) => r.key === 'lineAiModeEnabled' && r.value === 'TRUE');
-            if (!(adminLineIdRow && adminLineIdRow.value === event.source.userId && aiModeOn)) {
+            const audioPendingKey = `${getCurrentSheetId() || process.env.GOOGLE_SHEET_ID}:${event.source.userId}`;
+            if (!(adminLineIdRow && adminLineIdRow.value === event.source.userId && isAiSessionActive(audioPendingKey))) {
               await reply(event.replyToken, 'ข้อความเสียงใช้ได้เฉพาะตอนเปิดโหมด Claude AI ในเมนูเจ้าของครับ');
               continue;
             }
@@ -557,8 +567,8 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
 });
 
 // "คุยกับ Claude AI ผ่าน LINE" — the owner's free-text (or transcribed-
-// voice, see the 'audio' message-type branch above) message once
-// lineAiModeEnabled is on. Same tool-use loop shape as server/routes/
+// voice, see the 'audio' message-type branch above) message once there's
+// a live AI session (isAiSessionActive). Same tool-use loop shape as server/routes/
 // claude.js's POST /command (imported buildCommandSystemPrompt/
 // extractText from there so the two never drift apart), adapted for a
 // reply-only chat surface: no popup for write confirmation (LINE-native
@@ -570,6 +580,15 @@ async function handleOwnerAiText(event, lineCreds, rawText) {
   const pendingKey = `${getCurrentSheetId() || process.env.GOOGLE_SHEET_ID}:${event.source.userId}`;
   const text = rawText.trim();
   if (!text) return;
+
+  // Per explicit owner request: ANY message that reaches this handler at
+  // all — regardless of what happens after — refreshes the 5-minute idle
+  // window right away (sliding expiry from the LAST message, not from
+  // when the session first started). Preserves whatever conversation
+  // history already existed; the "final answer" branch further below
+  // additionally updates the STORED messages content once Claude's
+  // actual reply is known.
+  touchAiSession(pendingKey, (aiConversations.get(pendingKey) || { messages: [] }).messages);
 
   // Step 1: this message might be answering a pending write-confirmation
   // from the PREVIOUS turn ("พิมพ์ 'ยืนยัน'...ภายใน 2 นาที").
@@ -624,7 +643,7 @@ async function handleOwnerAiText(event, lineCreds, rawText) {
     if (resp.stop_reason !== 'tool_use') {
       const answerText = extractText(resp) || 'ขอโทษครับ ไม่เข้าใจคำสั่งนี้';
       messages.push({ role: 'assistant', content: resp.content });
-      aiConversations.set(pendingKey, { messages: messages.slice(-20), expiresAt: Date.now() + AI_CONVO_TTL_MS });
+      touchAiSession(pendingKey, messages.slice(-20));
       await reply(answerText);
       return;
     }
@@ -859,32 +878,19 @@ async function handleOwnerRichMenuPostback(event, lineCreds) {
       return;
     }
     case 'owner:ai': {
-      // Per explicit user request: tapping this button TOGGLES a status
-      // flag (lineAiModeEnabled) and re-links the owner to whichever Rich
-      // Menu variant (ON/OFF badge on this same cell — see prototype-auth/
-      // setup-owner-richmenu.js) matches the NEW state, so the next time
-      // they open the menu tray they see it reflected visually. This flag
-      // is now the actual live gate for "คุยกับ Claude AI ผ่าน LINE" (see
-      // handleOwnerAiText above, and the aiModeOn check right before it's
-      // called in the webhook's text-message branch) — was a placeholder
-      // ("coming soon") when this comment was first written, shipped for
-      // real later in the same session; the confirmation reply text below
-      // was caught out of date by the owner (real bug: still said
-      // "กำลังพัฒนาอยู่" after the feature had already shipped) and fixed
-      // to match reality.
-      const wasOn = settingsRows.some((r) => r.key === 'lineAiModeEnabled' && r.value === 'TRUE');
-      const nowOn = !wasOn;
-      await updateSettingKV('lineAiModeEnabled', nowOn ? 'TRUE' : 'FALSE');
-      try {
-        const rmKey = nowOn ? 'ownerRichMenuIdOn' : 'ownerRichMenuIdOff';
-        const rmRow = settingsRows.find((r) => r.key === rmKey);
-        if (rmRow && rmRow.value) await linkRichMenuToUser(event.source.userId, rmRow.value, lineCreds);
-      } catch (err) {
-        console.error('[line] linkRichMenuToUser (owner AI toggle) failed for', event.source.userId, err.message);
-      }
-      await reply(nowOn
-        ? '🟢 เปิดโหมด Claude AI แล้วครับ — เปิดเมนูอีกครั้งจะเห็นสถานะอัปเดตแล้ว พิมพ์คุยกับ AI ในแชทนี้ได้เลย (หรือส่งข้อความเสียงก็ได้ถ้าตั้งค่าไว้แล้ว) ความสามารถเหมือนช่องแชทในหน้าตั้งค่าบนเว็บทุกอย่างครับ'
-        : '⚪ ปิดโหมด Claude AI แล้วครับ');
+      // Per explicit owner follow-up: no more persistent on/off toggle or
+      // visual badge on the menu image — tapping this button just STARTS
+      // a 5-minute AI chat session (see AI_SESSION_TTL_MS/touchAiSession
+      // above). Every message sent while chatting refreshes the window
+      // another 5 minutes from THAT message; if nothing's sent for 5
+      // minutes straight, the session silently lapses and the next text
+      // message goes back to being treated as a normal (non-AI) message —
+      // no explicit "turn off" action needed, and no Settings write / Rich
+      // Menu re-link needed either, since there's nothing left to make
+      // visually different on the menu itself.
+      const aiPendingKey = `${getCurrentSheetId() || process.env.GOOGLE_SHEET_ID}:${event.source.userId}`;
+      touchAiSession(aiPendingKey, []);
+      await reply('🟢 เปิดโหมด Claude AI แล้วครับ พิมพ์คุยได้เลย (หรือส่งข้อความเสียงก็ได้ถ้าตั้งค่าไว้แล้ว) — ถ้าไม่มีข้อความใหม่ภายใน 5 นาที โหมดนี้จะปิดเองอัตโนมัติครับ');
       return;
     }
     default:
