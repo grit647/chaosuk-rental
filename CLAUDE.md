@@ -22,6 +22,37 @@ logo badge, use this exact same styling.
 
 ## Known issues / follow-ups
 
+### "คุยกับ Claude AI ผ่าน LINE" — text works, voice needs OPENAI_API_KEY (pending)
+
+**Status:** Built and deployed (commit `355da75`). Text part is fully live
+— once the owner's own LINE is linked and "เปิดโหมด Claude AI" is on (Rich
+Menu toggle), any text message from that LINE account routes through the
+exact same tool-calling assistant as the web command box (see
+`server/routes/line.js`'s `handleOwnerAiText`, reusing
+`buildCommandSystemPrompt`/`extractText` exported from
+`server/routes/claude.js` and the same `TOOLS`/`executeReadTool`/
+`executeWriteTool` from `claudeTools.js` — kept in sync with the web
+version deliberately, not a separate copy). Write actions ask for a
+"ยืนยัน"/"ยกเลิก" reply in chat instead of the web's popup (in-memory
+`aiPendingWrites` Map, 2-minute window). `create_room`/`open_contract_form`
+are hard-blocked same as `automation.js`'s `FORM_ONLY_TOOLS` (CLAUDE.md's
+permanent rule below — chat can never substitute for the native
+contract/room form).
+
+**Voice/mic is coded but NOT usable yet** — needs an `OPENAI_API_KEY` env
+var (OpenAI's Whisper API, a separate provider from `ANTHROPIC_API_KEY` —
+Anthropic's Messages API has no audio content-block support) set on
+Render's production environment variables. The owner chose this option
+explicitly ("ต่อ Whisper API เลยตอนนี้") over a text-only-for-now MVP.
+**Waiting on the owner to paste an OpenAI API key in chat** (get one at
+platform.openai.com) — once received: add `OPENAI_API_KEY` to `server/.env`
+locally AND Render's environment variables, redeploy, then voice messages
+sent to the LINE OA (while AI mode is on) will transcribe via
+`transcribeAudio()` in `server/claude.js` and feed into the same
+`handleOwnerAiText` handler as typed text. Until then, a voice message
+sent to the bot gets a polite Thai error explaining it's not set up yet —
+no crash, no silent failure.
+
 ### Uploaded files (slip images, invoice PDFs, LINE broadcast images) don't survive a deploy
 
 **Status:** Open — accepted as a known trade-off for now, revisit if it becomes
