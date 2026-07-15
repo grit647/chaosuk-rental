@@ -212,10 +212,24 @@ into THAT building specifically.
 
 **Still needed for a second building to actually use this:** they
 need their own Rich Menus set up too — re-run `prototype-auth/setup-
-tenant-richmenu.js`/`setup-owner-richmenu.js` passing their
-`customerSheetId` as the CLI arg (uses their own saved LINE
-credentials automatically), and register their own webhook URL in
+tenant-richmenu.js`/`setup-owner-richmenu.js`/`setup-staff-richmenu.js`
+passing their `customerSheetId` as the CLI arg (uses their own saved
+LINE credentials automatically), and register their own webhook URL in
 their own LINE Developers Console as described above.
+
+**A second building is now actually live (2026-07-15): "บ้านพักครูโจ"**
+(OB1บ้านพักครูโจ, `customerSheetId`
+`1_018tkPfe3OLIyeA_lyek8o0H8esbi15-hBiuAqWzvA`) — own dedicated GCP
+project + service account (NOT shared with the main property's), own
+LINE OA channel with Messaging API enabled, own Channel Access
+Token/Secret saved via the Settings gear-icon form, own webhook URL
+registered and verified, all 3 Rich Menus (tenant/owner/staff)
+generated and confirmed working live (at least one real tenant self-
+linked and saw their menu correctly). This is the first real proof the
+per-customer-webhook multi-building design above actually works
+end-to-end for a genuinely separate customer, not just the main
+property. If a THIRD building ever gets added, follow the exact same
+steps this one went through as a template.
 
 ### Interactive demo/tutorial site (tap-to-explain, real save, resets hourly)
 
@@ -379,6 +393,49 @@ push notifications (bill reminders, maintenance updates, etc. still
 don't say "as your tenant hat" vs "as your ผู้ดูแล hat") — only the
 Rich Menu switch itself got the explicit callout. Low priority unless
 a real customer reports actual confusion from it in practice.
+
+### "ขอรหัส Wifi" — owner/ผู้ดูแล can now answer via LINE chat directly, relayed to the tenant automatically
+
+**Status:** Built and deployed (2026-07-15), per explicit owner
+request ("ผู้เช่าขอรหัสมา เราทำเป็นช่องให้กรอกรหัสพร้อมส่งกลับเลยครับ").
+
+If a tenant taps "ขอรหัส Wifi" on their Rich Menu and the room's
+`wifiCode` field is already set, they get it instantly, unchanged from
+before. **New behavior when it's NOT set:** the tenant is told to wait
+("ระบบแจ้งผู้ดูแลให้แล้ว"), and every owner/ผู้ดูแล who has WiFi-request
+notifications on (see the `wifiRequest` category below) gets a push
+message AND a live 10-minute `wifiReplyPending` slot
+(`server/routes/line.js`) — their VERY NEXT plain text message in LINE
+is captured as the WiFi code, written to the room (`updateRow('Rooms',
+..., { wifiCode: text })`), and pushed straight to the tenant
+automatically. This check runs with the HIGHEST priority of any
+pending state in the text-message handler (before PIN self-link, AI
+session, everything) since a tenant is actively waiting on the other
+end. First admin to reply wins — fulfilling it clears every other
+notified admin's pending slot for that same room. If nobody answers in
+time, a `setTimeout` (one per wifi-request, not one per notified
+admin) fires at the same 10-minute mark and tells the TENANT (not just
+a late-replying admin) to tap the button again — this was a real gap
+the owner caught (only the admin used to get told "หมดเวลา", the
+tenant left waiting with total silence).
+
+**New Settings notification category `wifiRequest`** (added to the
+existing 6 in `adminNotify` — `taskFailure/slipPending/overdueBill/
+unmatchedSlip/maintenance/leaseExpiring`) — **defaults to TRUE**
+unlike every other category there (which default OFF), because this
+shipped always-on first and the toggle was added as a follow-up; a
+default of OFF would have silently disabled behavior that was already
+live. Checked directly in the `action=wifi` handler (fans out to
+MULTIPLE recipients — owner + every linked ผู้ดูแล), not through
+`adminNotify.js`'s single-recipient `notifyAdmin()` helper.
+
+**Known limitation:** the 10-minute timer relies on the Node process
+staying alive the whole time (`setTimeout`, in-memory, not a real job
+queue) — if Render's free-tier instance sleeps/restarts mid-window,
+the tenant-facing timeout message won't fire (though the hourly
+external-ping cron reduces how often that's actually a risk). Accepted
+trade-off, not fixed — same category of limitation as the ephemeral-
+disk upload issue documented above.
 
 ## Permanent rules (do not relax without the owner explicitly re-confirming)
 
