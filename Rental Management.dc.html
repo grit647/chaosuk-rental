@@ -529,6 +529,40 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 </div>
               </div>
             </div>
+
+            <div class="split-row" style="display:flex;gap:14px;margin-top:14px">
+              <div class="split-col" style="flex:1;max-width:420px;background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
+                <div style="font-size:14px;font-weight:600;color:#241812;margin-bottom:2px">การใช้งาน LINE OA เดือนนี้</div>
+                <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:14px">จำนวนข้อความที่ส่งเทียบกับโควต้ารายเดือนของแพ็กเกจ</div>
+                <sc-if value="{{ lineUsageNotConfigured }}" hint-placeholder-val="{{ false }}">
+                  <div style="text-align:center;padding:20px 0;color:#A89A88;font-size:12.5px">ยังไม่ได้เชื่อมต่อ LINE Official Account ของตึกนี้ — ไปที่ตั้งค่าเพื่อเชื่อมต่อก่อน</div>
+                </sc-if>
+                <sc-if value="{{ lineUsageConfigured }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:24px">
+                    <svg width="120" height="120" viewBox="0 0 100 100" style="flex-shrink:0">
+                      <circle cx="50" cy="50" r="{{ lineUsageR }}" fill="none" stroke="#EDE4D6" stroke-width="12"></circle>
+                      <circle cx="50" cy="50" r="{{ lineUsageR }}" fill="none" stroke="{{ lineUsageColor }}" stroke-width="12" stroke-linecap="round" stroke-dasharray="{{ lineUsageDashArray }}" transform="rotate(-90 50 50)"></circle>
+                      <text x="50" y="56" text-anchor="middle" font-size="20" font-weight="700" fill="#241812">{{ lineUsageCenterLabel }}</text>
+                    </svg>
+                    <div style="display:flex;flex-direction:column;gap:10px">
+                      <div>
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#241812">{{ lineUsageUsedDisplay }}</div>
+                        <div style="font-size:11.5px;color:#7C6E5F">ข้อความที่ส่งไปแล้ว</div>
+                      </div>
+                      <sc-if value="{{ lineUsageLimited }}" hint-placeholder-val="{{ false }}">
+                        <div>
+                          <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#7C6E5F">จากโควต้า {{ lineUsageLimitDisplay }} ข้อความ/เดือน</div>
+                          <div style="font-size:11px;color:{{ lineUsageColor }};font-weight:600;margin-top:2px">ใช้ไปแล้ว {{ lineUsagePercentLabel }}</div>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{ lineUsageUnlimited }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:11.5px;color:#3B7A52;font-weight:600">แพ็กเกจนี้ไม่จำกัดจำนวนข้อความ</div>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
           </div>
           </sc-if>
 
@@ -4058,6 +4092,12 @@ class Component extends DCLogic {
     claudeAttachedImage: '',
     lineConn: { channelId: '', channelSecret: '', accessToken: '', connected: false },
     lineEnvConnected: false,
+    // Dashboard "การใช้งาน LINE OA" donut-chart card — how much of this
+    // month's free message quota this building's own LINE channel has used.
+    // used/limit start at 0 until loadLineUsage() resolves; limit stays
+    // null for an unlimited/paid plan (LINE's quota API returns
+    // { type: 'none' } for those — see server/routes/line.js's /usage).
+    lineUsage: { configured: false, used: 0, limit: null },
     sheetEnvConnected: false,
     propertyProfile: { name: 'หอพักเช่าสุข', adminName: 'คุณสมหมาย ผู้จัดการ', adminPhone: '081-000-0000', paymentQrUrl: '', buildingKeyId: '' },
     // A newly-picked QR image (dataURL) or a pending removal — staged here
@@ -4193,6 +4233,7 @@ class Component extends DCLogic {
     window.addEventListener('resize', this._onResize);
     this.loadFromServer();
     this.loadLineStatus();
+    this.loadLineUsage();
     this.loadTuyaDevices();
     this.refreshTuyaLive();
     this.loadTuyaHealth();
@@ -7852,6 +7893,19 @@ class Component extends DCLogic {
       return connected;
     } catch (err) { console.error(err); return false; }
   };
+  // Dashboard donut-chart card — pulls this month's LINE message quota
+  // usage (server/routes/line.js's /usage, backed by server/line.js's
+  // getMessageQuota/getMessageQuotaConsumption). Not part of the 30s
+  // auto-refresh bootstrap poll (usage doesn't change fast enough to need
+  // it) — loaded once on mount, same as loadTuyaDevices.
+  loadLineUsage = async () => {
+    try {
+      const res = await fetch('/api/line/usage');
+      if (!res.ok) return;
+      const data = await res.json();
+      this.setState({ lineUsage: { configured: !!data.configured, used: data.used || 0, limit: data.limit == null ? null : data.limit } });
+    } catch (err) { console.error(err); }
+  };
   // This now gates whether scheduled LINE sends (from the command box or
   // calendar reminders) are actually allowed to fire — persisted server-side
   // in the Settings sheet, since the scheduler check runs independently of
@@ -8361,6 +8415,20 @@ class Component extends DCLogic {
     const dashMonthRevenue = (s.paymentLog || [])
       .filter(p => (p.date || '').slice(0, 7) === currentYm)
       .reduce((a, p) => a + (p.amount || 0), 0);
+
+    // "การใช้งาน LINE OA" Dashboard card — donut chart of this month's LINE
+    // message quota usage (see loadLineUsage / server/routes/line.js's
+    // /usage). limit is null for an unlimited/paid LINE plan — shown as a
+    // full ring with no percentage, since there's nothing to run out of.
+    const lineUsageLimit = s.lineUsage.limit;
+    const lineUsageUsed = s.lineUsage.used || 0;
+    const lineUsageUnlimited = s.lineUsage.configured && lineUsageLimit == null;
+    const lineUsagePercent = lineUsageLimit ? Math.max(0, Math.min(100, (lineUsageUsed / lineUsageLimit) * 100)) : 0;
+    const lineUsageR = 42;
+    const lineUsageCircumference = 2 * Math.PI * lineUsageR;
+    const lineUsageRingPercent = lineUsageUnlimited ? 100 : lineUsagePercent;
+    const lineUsageColor = lineUsageUnlimited ? '#3B7A52' : lineUsagePercent >= 90 ? '#B24336' : lineUsagePercent >= 70 ? '#C1872E' : '#3B7A52';
+    const lineUsageDashArray = ((lineUsageRingPercent / 100) * lineUsageCircumference).toFixed(1) + ' ' + lineUsageCircumference.toFixed(1);
 
     const billingChips = [
       { key: 'all', label: 'รวมเดือนนี้', count: s.invoices.length, sumDisplay: this.fmt(totalSum), accent: '#241812' },
@@ -9363,6 +9431,19 @@ class Component extends DCLogic {
       kpiVacantFraction: s.rooms.filter(r => r.status === 'vacant').length + ' / ' + s.rooms.length,
       kpiOverdueCount: overdueList.length + ' ห้อง',
       kpiOverdueSum: 'รวม ' + this.fmt(overdueSum),
+      // "การใช้งาน LINE OA" Dashboard donut-chart card.
+      lineUsageConfigured: s.lineUsage.configured,
+      lineUsageNotConfigured: !s.lineUsage.configured,
+      lineUsageUnlimited,
+      lineUsageLimited: s.lineUsage.configured && !lineUsageUnlimited,
+      lineUsageColor,
+      lineUsageDashArray,
+      lineUsageCircumference: lineUsageCircumference.toFixed(1),
+      lineUsageR,
+      lineUsagePercentLabel: Math.round(lineUsagePercent) + '%',
+      lineUsageUsedDisplay: lineUsageUsed.toLocaleString('th-TH'),
+      lineUsageLimitDisplay: lineUsageLimit == null ? '' : lineUsageLimit.toLocaleString('th-TH'),
+      lineUsageCenterLabel: lineUsageUnlimited ? '∞' : Math.round(lineUsagePercent) + '%',
       toggleAutoRefresh: this.toggleAutoRefresh,
       autoRefreshEnabled: s.autoRefreshEnabled, autoRefreshCountdown: s.autoRefreshCountdown,
       autoRefreshBg: s.autoRefreshEnabled ? '#C1622D' : '#E3D8C8',

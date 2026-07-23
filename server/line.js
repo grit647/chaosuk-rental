@@ -91,6 +91,40 @@ async function pushMessage(to, text, imageUrl, creds) {
   return callLineApi('push', { to, messages }, creds);
 }
 
+// Per explicit user request: a Dashboard card showing "how much of this
+// month's free LINE message quota has been used" as a donut chart. LINE
+// exposes this as two separate read-only GET endpoints (different from
+// everything else in this file, which are all POSTs) — quota is the PLAN's
+// monthly cap ({ type: 'limited', value } for a free/light plan, or
+// { type: 'none' } for an unlimited paid plan), consumption is how many
+// push+reply+multicast messages have actually gone out so far this month
+// (LINE resets this counter itself on the 1st, nothing this app needs to
+// track). Both are per-channel, so each building's own credentials show
+// only THEIR OWN usage — never คุณต้น's or another customer's.
+async function getMessageQuota(creds) {
+  const c = resolveCreds(creds);
+  const res = await fetch(`${LINE_API}/quota`, {
+    headers: { Authorization: `Bearer ${c.accessToken}` },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`LINE quota fetch failed (${res.status}): ${text}`);
+  }
+  return res.json(); // { type: 'limited'|'none', value? }
+}
+
+async function getMessageQuotaConsumption(creds) {
+  const c = resolveCreds(creds);
+  const res = await fetch(`${LINE_API}/quota/consumption`, {
+    headers: { Authorization: `Bearer ${c.accessToken}` },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`LINE quota consumption fetch failed (${res.status}): ${text}`);
+  }
+  return res.json(); // { totalUsage }
+}
+
 // Fetches the actual binary content of an image/video/audio message a user
 // sent to the bot — LINE's webhook payload only carries a message id, the
 // content itself lives on a separate "data" API (different host) and needs
@@ -202,5 +236,6 @@ async function deleteRichMenu(richMenuId, creds) {
 
 module.exports = {
   isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, getMessageContent,
+  getMessageQuota, getMessageQuotaConsumption,
   createRichMenu, uploadRichMenuImage, setDefaultRichMenu, linkRichMenuToUser, listRichMenus, deleteRichMenu,
 };

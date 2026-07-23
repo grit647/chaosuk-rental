@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { readTab, updateRow, appendRow } = require('../sheets');
 const { coerceInvoices, coerceRooms, readSettings, readIntegrationCredentials } = require('../coerce');
-const { isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, getMessageContent, linkRichMenuToUser } = require('../line');
+const { isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, getMessageContent, linkRichMenuToUser, getMessageQuota, getMessageQuotaConsumption } = require('../line');
 const { isConfigured: claudeConfigured, readPaymentSlip, isWhisperConfigured, transcribeAudio, callWithTools } = require('../claude');
 const { TOOLS, READ_TOOL_NAMES, executeReadTool, describeWriteTool, executeWriteTool } = require('../claudeTools');
 const { buildCommandSystemPrompt, extractText } = require('./claude');
@@ -129,6 +129,32 @@ router.get('/status', async (req, res, next) => {
     const sessionScoped = !!(req.session && req.session.customerSheetId) && !isMainAccountSheetId(req.session.customerSheetId);
     const connected = sessionScoped ? !!creds.line && isConfigured(creds.line) : isConfigured(creds.line);
     res.json({ connected });
+  } catch (err) { next(err); }
+});
+
+// Per explicit user request: Dashboard donut-chart card showing how much of
+// this month's free LINE message quota this BUILDING'S OWN LINE OA has used
+// so far — see server/line.js's getMessageQuota/getMessageQuotaConsumption.
+// Same session-scoping rule as /status just above (a logged-in customer
+// only ever sees their OWN channel's usage, never falls back to คุณต้น's
+// shared server/.env credentials once they have a real session pointing at
+// a different building).
+router.get('/usage', async (req, res, next) => {
+  try {
+    const creds = await readIntegrationCredentials();
+    const sessionScoped = !!(req.session && req.session.customerSheetId) && !isMainAccountSheetId(req.session.customerSheetId);
+    const configured = sessionScoped ? !!creds.line && isConfigured(creds.line) : isConfigured(creds.line);
+    if (!configured) return res.json({ configured: false });
+
+    const [quota, consumption] = await Promise.all([
+      getMessageQuota(creds.line),
+      getMessageQuotaConsumption(creds.line),
+    ]);
+    res.json({
+      configured: true,
+      used: consumption.totalUsage || 0,
+      limit: quota.type === 'limited' ? quota.value : null,
+    });
   } catch (err) { next(err); }
 });
 
