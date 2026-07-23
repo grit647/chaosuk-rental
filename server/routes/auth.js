@@ -5,6 +5,7 @@ const { readTab, updateRow, appendRow } = require('../sheets');
 const { runWithSheetId } = require('../requestContext');
 const { getSession, setSessionCookie, clearSessionCookie } = require('../auth');
 const { readSettings } = require('../coerce');
+const { CURRENT_PLATFORM_VERSION } = require('../platformVersion');
 
 // The "เช่าสุข - สมุดรายชื่อกลาง (ทดลอง)" sheet — completely separate from
 // any customer's own data Sheet. Maps phone+PIN -> role + which
@@ -302,7 +303,15 @@ async function resolveBuildingNames(rows, session) {
       const settings = await runWithSheetId(u.customerSheetId, () => readSettings());
       if (settings.propertyProfile && settings.propertyProfile.name) name = settings.propertyProfile.name;
     } catch { /* fall back to the generic label above */ }
-    return { customerSheetId: u.customerSheetId, name, isActive: u.customerSheetId === session.customerSheetId, status: u.status || 'active', handoffStatus: u.handoffStatus || 'ready' };
+    return {
+      customerSheetId: u.customerSheetId, name, isActive: u.customerSheetId === session.customerSheetId,
+      status: u.status || 'active', handoffStatus: u.handoffStatus || 'ready',
+      // Staged-rollout gate (server/platformVersion.js) — a legacy row with
+      // no value yet reads as 0, which is always < CURRENT_PLATFORM_VERSION,
+      // so it correctly shows as needing an update rather than silently
+      // being treated as already current.
+      platformVersion: Number(u.platformVersion) || 0,
+    };
   }));
 }
 
@@ -337,7 +346,7 @@ router.get('/my-buildings', async (req, res, next) => {
       allBuildings = await resolveBuildingNames(everyBuildingRow, session);
     }
 
-    res.json({ buildings, allBuildings });
+    res.json({ buildings, allBuildings, currentPlatformVersion: CURRENT_PLATFORM_VERSION });
   } catch (err) { next(err); }
 });
 
@@ -455,7 +464,24 @@ router.get('/me', async (req, res) => {
   // ONLY when running against the dedicated Demo Sheet — never for a
   // real customer's own building.
   const isDemo = session.role === 'demo';
-  res.json({ ...session, isPlatformAdmin, isOwnBuildingActive, adminName, isDemo });
+  // Staged-rollout gate (server/platformVersion.js) — lets the CUSTOMER-
+  // FACING frontend gate a brand-new feature behind
+  // `platformVersion >= <version it shipped in>`, same mechanism the
+  // platform-admin-only my-buildings picker uses. Looked up from the
+  // Directory sheet's own row for the ACTIVE building (not every building
+  // this owner has, unlike /my-buildings) — best-effort: any lookup
+  // failure (e.g. DIRECTORY_SHEET_ID not set on an older/local deploy)
+  // falls back to CURRENT_PLATFORM_VERSION so a glitch here never
+  // spuriously hides an already-shipped feature.
+  let platformVersion = CURRENT_PLATFORM_VERSION;
+  if (DIRECTORY_SHEET_ID && session.customerSheetId) {
+    try {
+      const rows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+      const row = rows.find((u) => u.customerSheetId === session.customerSheetId);
+      if (row) platformVersion = Number(row.platformVersion) || 0;
+    } catch { /* non-fatal — falls back to CURRENT_PLATFORM_VERSION above */ }
+  }
+  res.json({ ...session, isPlatformAdmin, isOwnBuildingActive, adminName, isDemo, platformVersion, currentPlatformVersion: CURRENT_PLATFORM_VERSION });
 });
 
 module.exports = router;

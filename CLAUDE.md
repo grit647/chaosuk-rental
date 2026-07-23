@@ -493,3 +493,34 @@ disk upload issue documented above.
   (`slipPending`) on the matching invoice, but never auto-marks an invoice
   paid — the owner always reviews and confirms manually (Bills page →
   slip queue / per-row badge).
+- **Staged-rollout gate — new customer-facing features must NOT go live for
+  every building the instant they're deployed.** Per explicit owner request
+  (2026-07-23): Render redeploys on every push and there's no separate
+  staging environment, so a code push instantly affects every real
+  customer at once unless gated. `server/platformVersion.js` exports
+  `CURRENT_PLATFORM_VERSION` (bump it every time a new feature ships); each
+  building's Directory row (`GOOGLE_DIRECTORY_SHEET_ID`'s `Users` tab) has
+  its own `platformVersion` column, defaulting to 0 for anything never
+  updated. **Every new customer-facing feature from now on must be wrapped
+  in a check against the version it shipped in** (e.g.
+  `session.platformVersion >= 2`), and `CURRENT_PLATFORM_VERSION` bumped in
+  the same change. An existing building stays pinned at whatever version it
+  last accepted until คุณต้น explicitly clicks **"🆕 อัปเดต"** for that
+  specific building — the button only appears in the platform-admin-only
+  "🔧 ทุกตึกในระบบ (Server only)" section of `my-buildings.html`, calls
+  `POST /api/settings/update-building-version`, and disappears once that
+  building's version matches current. A **brand-new** building (added via
+  "+ เพิ่มตึกใหม่" / `prototype-auth/add-building.js`) is created ALREADY at
+  `CURRENT_PLATFORM_VERSION` — there's nothing to protect a customer who
+  hasn't started using the app yet from, so they get everything current
+  immediately, no update click needed. `v1` (the baseline every existing
+  building was backfilled to via `prototype-auth/
+  migrate-add-platform-version.js`) marks "everything shipped up to and
+  including the Dashboard's LINE OA message-quota usage card" — that card
+  itself was NOT retroactively gated (it shipped before this mechanism
+  existed); the first feature that should actually use this gate is
+  whatever ships AFTER this note was written. Exposed to the frontend via
+  `GET /api/auth/me`'s `platformVersion`/`currentPlatformVersion` fields
+  (current ACTIVE building only) and `GET /api/auth/my-buildings`'s
+  `currentPlatformVersion` + each building's own `platformVersion` (used by
+  the admin picker).

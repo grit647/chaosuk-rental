@@ -92,6 +92,10 @@
       const listRes = await fetch('/api/auth/my-buildings');
       if (!listRes.ok) throw new Error('โหลดรายชื่อตึกไม่สำเร็จ');
       const data = await listRes.json();
+      // Staged-rollout gate (server/platformVersion.js) — stashed on window
+      // (not React-style state, this page has none) so buildAdminCard can
+      // read it without threading it through as a param everywhere.
+      window._currentPlatformVersion = data.currentPlatformVersion || 0;
 
       renderContent(data);
     } catch (e) {
@@ -115,11 +119,25 @@
   function buildAdminCard(b) {
     const suspended = b.status === 'suspended';
     const pendingHandoff = b.handoffStatus !== 'ready';
+    // Staged-rollout gate (server/platformVersion.js) — this building is
+    // behind whatever's currently live on the server. currentPlatformVersion
+    // comes from the /my-buildings response (set on window in init()) so
+    // this function doesn't need it threaded through as a param.
+    const needsUpdate = (b.platformVersion || 0) < (window._currentPlatformVersion || 0);
     const sid = b.customerSheetId.replace(/'/g, "\\'");
     const badges = [
       suspended ? '<span style="font-size:10px;font-weight:700;color:#B24336;background:#F5E1DC;padding:2px 7px;border-radius:4px;margin-left:4px">พักการใช้งาน</span>' : '',
       pendingHandoff ? '<span style="font-size:10px;font-weight:700;color:#9C7A2E;background:#F5EFDC;padding:2px 7px;border-radius:4px;margin-left:4px">🟡 กำลังตั้งค่า</span>' : '<span style="font-size:10px;font-weight:700;color:#3B7A52;background:#E4EFE7;padding:2px 7px;border-radius:4px;margin-left:4px">✅ พร้อมส่งมอบ</span>',
+      needsUpdate ? '<span style="font-size:10px;font-weight:700;color:#2C6E8F;background:#DCEAF2;padding:2px 7px;border-radius:4px;margin-left:4px">🆕 มีอัปเดตใหม่</span>' : '',
     ].join('');
+    // Per explicit owner request: server-side work can deploy to production
+    // without instantly changing what a live customer sees — this building
+    // stays on its last-accepted platformVersion until this button is
+    // clicked, then it disappears (needsUpdate becomes false on the next
+    // render, since the building's version now matches current).
+    const updateBtn = needsUpdate
+      ? '<span onclick="updateBuildingVersion(\'' + sid + '\')" style="font-size:10px;font-weight:600;padding:4px 8px;border-radius:5px;cursor:pointer;border:1px solid #A9CBDB;color:#2C6E8F;background:#fff;text-align:center">🆕 อัปเดต</span>'
+      : '';
     return '<div class="building-card" style="cursor:default;' + (suspended ? 'opacity:0.6' : '') + '">' +
         '<div class="building-icon" onclick="' + (suspended ? '' : "selectBuilding('" + sid + "')") + '" style="cursor:' + (suspended ? 'default' : 'pointer') + '">🏢</div>' +
         '<div style="flex:1;min-width:0" onclick="' + (suspended ? '' : "selectBuilding('" + sid + "')") + '" style="cursor:' + (suspended ? 'default' : 'pointer') + '">' +
@@ -127,6 +145,7 @@
           '<div class="building-sub">' + (suspended ? 'ถูกพักการใช้งาน — แตะ "เปิดใช้งาน" เพื่อเข้าอีกครั้ง' : 'แตะรูปตึก/ชื่อ เพื่อเข้าจัดการ') + '</div>' +
         '</div>' +
         '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">' +
+          updateBtn +
           '<span onclick="toggleHandoffStatus(\'' + sid + '\')" style="font-size:10px;font-weight:600;padding:4px 8px;border-radius:5px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;background:#fff;text-align:center">' + (pendingHandoff ? '✅ พร้อมส่งมอบแล้ว' : '↩ ยังไม่พร้อม') + '</span>' +
           '<span onclick="toggleBuildingStatus(\'' + sid + '\')" style="font-size:10px;font-weight:600;padding:4px 8px;border-radius:5px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;background:#fff;text-align:center">' + (suspended ? '▶ เปิดใช้งาน' : '⏸ พัก') + '</span>' +
           '<span onclick="deleteBuilding(\'' + sid + '\')" style="font-size:10px;font-weight:600;padding:4px 8px;border-radius:5px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336;background:#fff;text-align:center">🗑 ลบ</span>' +
@@ -204,6 +223,25 @@
       init();
     } catch (e) {
       alert(e.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+    }
+  }
+
+  // Per explicit owner request (staged-rollout gate, server/
+  // platformVersion.js): bumps this ONE building to whatever's currently
+  // live on the server — server-side work can deploy without instantly
+  // changing what any live customer sees, until this button is clicked
+  // for them specifically. One-way forward only, no "revert" button.
+  async function updateBuildingVersion(customerSheetId) {
+    try {
+      const res = await fetch('/api/settings/update-building-version', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerSheetId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'อัปเดตไม่สำเร็จ');
+      init();
+    } catch (e) {
+      alert(e.message || 'อัปเดตไม่สำเร็จ');
     }
   }
 

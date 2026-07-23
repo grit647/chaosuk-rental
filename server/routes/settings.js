@@ -6,6 +6,7 @@ const { runWithSheetId } = require('../requestContext');
 const { cloneSchemaToNewSheet } = require('../setupBuilding');
 const { trashSheet } = require('../googleDrive');
 const { genOwnerId, isPlatformAdminSession } = require('./auth');
+const { CURRENT_PLATFORM_VERSION } = require('../platformVersion');
 
 // Ownership-based (see auth.js's isPlatformAdminSession) — stays true
 // even while the platform admin is browsing another customer's building
@@ -180,8 +181,15 @@ router.post('/add-building', async (req, res, next) => {
     // before handing the real login over, vs which are done — defaults to
     // "pending" for every new building, toggled via
     // POST /toggle-handoff-status once configuration is actually done.
+    //
+    // platformVersion starts at CURRENT_PLATFORM_VERSION (not 0) — see
+    // server/platformVersion.js's staged-rollout gate: a brand-new
+    // building has never used the app yet, so there's nothing to protect
+    // it from by holding back new features the way an existing customer's
+    // building is (they stay pinned until คุณต้น explicitly clicks "🆕
+    // อัปเดต" for that specific building).
     await runWithSheetId(DIRECTORY_SHEET_ID, () => appendRow('Users', {
-      ownerId, phone, pin: effectivePin, role: 'owner', customerSheetId, roomId: '', staffId: '', status: 'active', handoffStatus: 'pending',
+      ownerId, phone, pin: effectivePin, role: 'owner', customerSheetId, roomId: '', staffId: '', status: 'active', handoffStatus: 'pending', platformVersion: CURRENT_PLATFORM_VERSION,
     }));
 
     // One-time bootstrap only (NOT an ongoing sync), and only when we
@@ -243,6 +251,29 @@ router.post('/toggle-handoff-status', async (req, res, next) => {
     const newStatus = row.handoffStatus === 'ready' ? 'pending' : 'ready';
     await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', customerSheetId, { handoffStatus: newStatus }, 'customerSheetId'));
     res.json({ ok: true, handoffStatus: newStatus });
+  } catch (err) { next(err); }
+});
+
+// Per explicit owner request (staged-rollout gate — see server/
+// platformVersion.js): bumps ONE building's platformVersion to the
+// server's current CURRENT_PLATFORM_VERSION, so it starts seeing whatever
+// new customer-facing features have shipped since it last accepted an
+// update. One-way ratchet forward only — there's no "downgrade" button,
+// since the server only ever runs ONE version of the code at a time (no
+// separate staging environment); this just controls which buildings are
+// ALLOWED to see features already live on that one running server.
+router.post('/update-building-version', async (req, res, next) => {
+  try {
+    if (!DIRECTORY_SHEET_ID) return res.status(500).json({ error: 'ยังไม่ได้ตั้งค่า GOOGLE_DIRECTORY_SHEET_ID บนเซิร์ฟเวอร์' });
+    if (!(await isPlatformAdminReq(req))) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
+    const { customerSheetId } = req.body;
+    if (!customerSheetId) return res.status(400).json({ error: 'ต้องระบุตึกที่ต้องการอัปเดต' });
+
+    const rows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+    const row = rows.find((u) => u.customerSheetId === customerSheetId);
+    if (!row) return res.status(404).json({ error: 'ไม่พบตึกนี้ในสมุดรายชื่อกลาง' });
+    await runWithSheetId(DIRECTORY_SHEET_ID, () => updateRow('Users', customerSheetId, { platformVersion: CURRENT_PLATFORM_VERSION }, 'customerSheetId'));
+    res.json({ ok: true, platformVersion: CURRENT_PLATFORM_VERSION });
   } catch (err) { next(err); }
 });
 

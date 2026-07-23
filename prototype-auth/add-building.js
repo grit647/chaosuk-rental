@@ -28,6 +28,7 @@ require(path.join(__dirname, '..', 'server', 'node_modules', 'dotenv')).config({
 });
 const { google } = require(path.join(__dirname, '..', 'server', 'node_modules', 'googleapis'));
 const crypto = require('crypto');
+const { CURRENT_PLATFORM_VERSION } = require(path.join(__dirname, '..', 'server', 'platformVersion'));
 
 const SOURCE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const DIRECTORY_SHEET_ID = process.env.GOOGLE_DIRECTORY_SHEET_ID;
@@ -170,7 +171,7 @@ async function main() {
   const dirHeader = (dirHeaderRes.data.values || [[]])[0] || [];
   const newRowObj = {
     ownerId, phone, pin: effectivePin, role: 'owner', customerSheetId: targetSheetId,
-    roomId: '', staffId: '', status: 'active', handoffStatus: 'pending',
+    roomId: '', staffId: '', status: 'active', handoffStatus: 'pending', platformVersion: CURRENT_PLATFORM_VERSION,
   };
   const newRow = dirHeader.map((key) => {
     const v = newRowObj[key];
