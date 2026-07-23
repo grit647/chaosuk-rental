@@ -174,13 +174,24 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
         <div style="width:224px;flex-shrink:0;height:100%;background:#2B1D14;display:flex;flex-direction:column;padding:0 16px 24px;box-sizing:border-box;overflow-y:auto;position:{{ navPos }};left:0;top:0;transform:{{ navTransform }};transition:{{ navTransition }};z-index:{{ navZ }};box-shadow:{{ navShadow }}">
           <div style="position:sticky;top:0;z-index:3;background:#2B1D14;margin:0 -16px 0;padding:24px 16px 20px;display:flex;align-items:center;gap:10px">
             <div style="width:36px;height:36px;border-radius:9px;background:#C1622D;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;flex-shrink:0">ช</div>
-            <div style="font-weight:700;font-size:16px;color:#F1EBE0">เช่าสุข</div>
-            <!-- Per explicit user request: "Demo" tag right next to the
-                 brand name at the very top, so it's visible even when
-                 scrolled/collapsed elsewhere — /demo only. -->
-            <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
-              <span style="font-size:10px;font-weight:700;background:#3B7A52;color:#fff;padding:2px 7px;border-radius:5px;flex-shrink:0">Demo</span>
-            </sc-if>
+            <div style="min-width:0">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="font-weight:700;font-size:16px;color:#F1EBE0">เช่าสุข</div>
+                <!-- Per explicit user request: "Demo" tag right next to the
+                     brand name at the very top, so it's visible even when
+                     scrolled/collapsed elsewhere — /demo only. -->
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:10px;font-weight:700;background:#3B7A52;color:#fff;padding:2px 7px;border-radius:5px;flex-shrink:0">Demo</span>
+                </sc-if>
+              </div>
+              <!-- Per explicit user request: shows which BUILDING's data is
+                   on screen right under the logo, always visible (even
+                   scrolled, since it's inside the same sticky header) —
+                   for an owner/ผู้ดูแล managing more than one building
+                   (see "เลือกโครงการ" sidebar button above), it's easy to
+                   forget which one is currently active without this. -->
+              <div style="font-size:10.5px;color:rgba(241,235,224,0.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">{{ propertyProfile.name }}</div>
+            </div>
           </div>
           <sc-if value="{{ viewingOtherAccount }}" hint-placeholder-val="{{ false }}">
             <div style="margin:0 0 8px;padding:9px 11px;border-radius:8px;background:#4A3418;border:1px solid #C1622D;display:flex;flex-direction:column;gap:5px">
