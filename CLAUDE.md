@@ -46,6 +46,65 @@ logo badge, use this exact same styling.
 
 ## Known issues / follow-ups
 
+### Permanent gotcha: multi-tenant = separate physical Google Sheets — new columns/tabs must be retrofitted to EVERY existing customer's Sheet, not just the main one
+
+**Discovered concretely 2026-07-23**, same investigation as the Tuya
+water section right below. This app's multi-tenant model isn't
+row-filtering within one shared spreadsheet (like the check-service-24
+sister project) — each customer/building genuinely has its own
+separate Google Spreadsheet (`customerSheetId` in the Directory,
+`runWithSheetId()` swaps `sheets.js` to read/write that specific one
+for the request). That means **any time a new column gets added to an
+existing tab, or a new tab gets added, the migration only ever touches
+whichever ONE spreadsheet was open at the time** (almost always the
+main/test account's own `GOOGLE_SHEET_ID`) — every other customer's
+physically separate spreadsheet silently stays on the old schema
+forever, with no error anywhere, until someone actually tries to use
+the new field and it silently no-ops.
+
+**Concrete real-world case that surfaced this:** `tuyaWaterDeviceId`/
+`tuyaWaterMaxLiters` columns exist on the main account's `Rooms` tab
+and on "บ้านพักครูโจ"'s own separate `Rooms` tab, but were **missing
+entirely** from "บ้านเลขที่1873"'s own separate `Rooms` tab (a building
+added later than when those columns were migrated in). The owner
+typed a real water Device ID into the Set อุปกรณ์ form, got a "บันทึก
+สำเร็จ" success toast (the PATCH request itself succeeded, HTTP 200),
+but the value never actually persisted — `updateRow()` rewrites a row
+based on the header row's column positions, and there was no
+`tuyaWaterDeviceId` header to place the value under, so it silently
+dropped. Symptom the owner reported: "พอกดรีเฟรชหน้าเว็บ แล้วอุปกรณ์
+หายไป" (after refreshing the page, the device disappeared) — looked
+like data loss, was actually "never saved in the first place, no error
+surfaced anywhere in the whole chain." Same root-cause class as the
+missing `WaterLog` tab covered below (that one silently no-op'd the
+cumulative-total merge instead of a room field, but identical
+mechanism: assume every customer Sheet has the latest schema, when in
+fact only whichever one was open during the original migration does).
+
+**Fixed for now:** added the 2 missing `Rooms` columns to
+"บ้านเลขที่1873"'s spreadsheet directly (appended at the end,
+preserving existing column positions/data — the same safe pattern as
+every other one-off Sheet migration in this project). Also created the
+missing `WaterLog` tab there and in "บ้านพักครูโจ"'s spreadsheet (see
+below).
+
+**Not fixed architecturally — a real gap for a future session:** there
+is currently **no systematic way to know which of N customer
+spreadsheets are missing which columns/tabs**, and no migration-runner
+that applies a schema change to all of them at once. Every future
+schema change (new `Rooms` column, new log tab, etc.) needs to be
+manually re-applied to every existing customer's spreadsheet
+one-by-one, the same ad-hoc way this session just did for 2 buildings
+— easy to forget one, especially as more customers get added. If this
+becomes a recurring pain point, worth building either (a) a proper
+migration runner that iterates every `customerSheetId` in the
+Directory and applies pending schema changes, or (b) a lazy
+column-repair step in `sheets.js`'s `readTab()`/`updateRow()` that
+notices a target column is missing and appends it on the fly before
+writing. Neither exists today — flagging so a future session
+doesn't have to re-discover this the hard way (via another silent
+"my save didn't work" report).
+
 ### Tuya water flowmeter — 2 separate Cloud Projects (fixed), scale bug (fixed), cumulative total (new tracking built, not yet wired into billing) — 2026-07-23
 
 **Backstory, for context on why 2 Tuya Cloud Projects existed:** the very
