@@ -1804,6 +1804,18 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <input value="{{ cf.rentPrice }}" onchange="{{ onCfRent }}" placeholder="4900" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   </div>
                 </div>
+                <sc-if value="{{ cfShowDepositFields }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+                    <div>
+                      <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่ามัดจำห้อง (บาท)</div>
+                      <input value="{{ cf.deposit }}" onchange="{{ onCfDeposit }}" placeholder="10400" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                    </div>
+                    <div>
+                      <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าเช่าล่วงหน้า (บาท)</div>
+                      <input value="{{ cf.advanceRent }}" onchange="{{ onCfAdvanceRent }}" placeholder="0" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                    </div>
+                  </div>
+                </sc-if>
               </div>
 
               <!-- SECTION: rates -->
@@ -4686,6 +4698,15 @@ class Component extends DCLogic {
       contractForm: {
         room: roomId,
         rentPrice: r.rent != null ? String(r.rent) : '',
+        // ค่ามัดจำห้อง (deposit) and ค่าเช่าล่วงหน้า (advance rent) — per
+        // explicit owner request, added to the contract form itself
+        // (previously deposit could only ever be auto-calculated at
+        // 2x rent when a room was first created, with no way to set it
+        // — or advance rent, a brand-new concept — through any form at
+        // all). Gated behind cfShowDepositFields (platformVersion >= 2,
+        // see server/platformVersion.js) — staged-rollout gate.
+        deposit: r.deposit != null ? String(r.deposit) : '',
+        advanceRent: r.advanceRent != null ? String(r.advanceRent) : '',
         // Prefer this room's own saved rate; fall back to the property-wide
         // default only if this room never had its own rate set yet.
         waterRate: String(r.waterRate > 0 ? r.waterRate : this.state.waterRate),
@@ -4730,6 +4751,8 @@ class Component extends DCLogic {
   closeContractForm = () => this.setState({ contractFormRoomId: null });
   onCfRoom = (e) => this.openContractForm(e.target.value);
   onCfRent = (e) => this._cf('rentPrice', e.target.value);
+  onCfDeposit = (e) => this._cf('deposit', e.target.value);
+  onCfAdvanceRent = (e) => this._cf('advanceRent', e.target.value);
   onCfWater = (e) => this._cf('waterRate', e.target.value);
   onCfElec = (e) => this._cf('elecRate', e.target.value);
   // Per explicit user request: a minimum monthly charge — if the usage-
@@ -4815,6 +4838,14 @@ class Component extends DCLogic {
       tenant: fullName || undefined,
       phone: cf.phone || undefined,
       rent: Number(cf.rentPrice) || undefined,
+      // Per explicit owner request: only sent when the platform version
+      // gate (cfShowDepositFields) actually shows these fields — an
+      // older/not-yet-updated building's contractForm never has these
+      // keys populated with anything meaningful, so this avoids
+      // accidentally zeroing out deposit/advanceRent for a building that
+      // can't even see the fields to set them correctly yet.
+      deposit: cf.deposit !== '' && cf.deposit != null ? Number(cf.deposit) || 0 : undefined,
+      advanceRent: cf.advanceRent !== '' && cf.advanceRent != null ? Number(cf.advanceRent) || 0 : undefined,
       moveIn: cf.startDate || undefined,
       contractEnd: cf.endDate || undefined,
       tenantIdImg: cf.tenantIdImg,
@@ -10123,6 +10154,10 @@ class Component extends DCLogic {
       contractFormRoomId: s.contractFormRoomId,
       cf: s.contractForm,
       cfRoomOptions: s.rooms.map(r => ({ id: r.id, label: 'ห้อง ' + r.id + (r.tenant ? ' · ' + r.tenant : ' · (ว่าง)') })),
+      // Staged-rollout gate (server/platformVersion.js v2) — "ค่ามัดจำห้อง"
+      // และ "ค่าเช่าล่วงหน้า" fields only show once this building's
+      // platformVersion has been explicitly updated by the platform admin.
+      cfShowDepositFields: !!(s.authSession && s.authSession.platformVersion >= 2),
       newContractForm: this.newContractForm,
       openContractForm: this.openContractForm,
       closeContractForm: this.closeContractForm,

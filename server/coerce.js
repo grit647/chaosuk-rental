@@ -27,6 +27,10 @@ function coerceRooms(rows) {
       floor: num(r.floor, 1),
       rent: num(r.rent, 0),
       deposit: num(r.deposit, 0),
+      // ค่าเช่าล่วงหน้า — advance rent collected at contract signing,
+      // separate from เงินประกัน/deposit above (a different line item on
+      // the lease, per explicit owner request). 0 means "none collected."
+      advanceRent: num(r.advanceRent, 0),
       waterPrev: num(r.waterPrev, 0),
       elecPrev: num(r.elecPrev, 0),
       // Per-room water/elec rate, per explicit user request: rates used to

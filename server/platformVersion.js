@@ -26,10 +26,20 @@
 // including the Dashboard's LINE OA message-quota usage card" — that card
 // was NOT gated behind this mechanism (it shipped before this system
 // existed), so v1 is the starting point every existing building is
-// backfilled to (see prototype-auth/migrate-add-platform-version.js),
-// not something anyone needs to click "อัปเดต" to unlock. The NEXT new
-// feature after this is the first one that should actually bump this to
-// 2 and gate behind `platformVersion >= 2`.
-const CURRENT_PLATFORM_VERSION = 1;
+// backfilled to (see prototype-auth/migrate-add-platform-version.js).
+//
+// v2 (2026-07-23): first REAL use of this gate — adds "ค่ามัดจำห้อง"
+// (deposit) and "ค่าเช่าล่วงหน้า" (advance rent, a brand-new
+// `advanceRent` Rooms-tab column — see prototype-auth/
+// migrate-add-advance-rent.js) fields to the "กรอกข้อมูลสัญญาเช่า"
+// contract form. Gated in Rental Management.dc.html behind
+// `authSession.platformVersion >= 2` (render var `cfShowDepositFields`).
+// IMPORTANT: unlike the Directory-sheet platformVersion column (shared,
+// migrated once), migrate-add-advance-rent.js writes to EACH building's
+// OWN Rooms tab — it must be re-run (passing that building's
+// customerSheetId as the CLI arg) for every building BEFORE clicking
+// "🆕 อัปเดต" for it, or the new field will show in the UI but silently
+// fail to persist (the sheet has no column to write into yet).
+const CURRENT_PLATFORM_VERSION = 2;
 
 module.exports = { CURRENT_PLATFORM_VERSION };
