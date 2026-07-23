@@ -118,12 +118,23 @@ at 677.3 L vs the app's 932.5 L, which is the expected kind of gap
 plus any sessions genuinely still in-progress at poll time are
 correctly excluded until they complete).
 
-**Explicitly NOT done yet, needs a follow-up decision:** the water
-billing flow (`deviceCharge('water', ...)` equivalent, mirroring how
-elec's `total_forward_energy` feeds invoices) still reads the raw
-(now scale-fixed, but permanently-zero) `usage` field from
-`getWaterReading()`, not the new `WaterLog` cumulative total. Wiring
-billing to read from `WaterLog` instead needs the owner to watch it
+**2026-07-23 same-day follow-up — dashboard display now wired (billing
+still is not):** the "Set อุปกรณ์" page's "ลิตร (L) สะสม" readout was
+still showing the permanently-stuck 0 (it reads straight off
+`getWaterReading()`'s `usage` field). Per explicit owner request
+("ค่าตรงนี้พร้อมอัปเดทยังครับ" → "เชื่อมเลยครับ"), `routes/tuya.js`'s
+`GET /status` now overwrites `resultMap[roomId].usage` with that room's
+latest `WaterLog.cumulativeLiters` right before responding — no
+frontend change needed since `Rental Management.dc.html`'s
+`equipSelLiveWaterUsage` already just reads `.usage` off the merged
+per-room object. This is a **read-only dashboard display change
+only**.
+
+**Still explicitly NOT done, needs a follow-up decision:** the water
+*billing* flow (`deviceCharge('water', ...)` equivalent, mirroring how
+elec's `total_forward_energy` feeds invoices) still computes off the
+old always-zero path, not `WaterLog`. Wiring billing to read from
+`WaterLog` needs the owner to watch the dashboard's now-live number
 accumulate correctly over a few real poll cycles first before trusting
 it for a real invoice — this is money-affecting, same caution level as
 the `Lease contracts are core data` rule below. Flagging here so a

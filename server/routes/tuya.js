@@ -86,6 +86,28 @@ router.get('/status', async (req, res, next) => {
       }
     }));
 
+    // "เชื่อมยอดสะสมจริงเข้าหน้าจอ" (2026-07-23 ตามคำขอคุณต้น "ค่าตรงนี้
+    // พร้อมอัปเดทยังครับ") — `usage` จาก getWaterReading() (ด้านบน) ค้าง
+    // ที่ 0 ถาวรเสมอ (ดู server/tuya.js's getWaterReading comment เต็ม —
+    // DP ของอุปกรณ์ไม่เคยอัปเดตจริง) เลยเอายอดสะสมที่คำนวณเองจาก WaterLog
+    // (ดู getWaterUsageDeltaLiters ด้านล่าง) มาทับ `usage` ก่อนส่งกลับ
+    // แทน — ไม่กระทบ error handling เดิม เพราะยังอ่านแค่แถวล่าสุดที่มีอยู่
+    // แล้ว ไม่เรียก Tuya API เพิ่ม
+    if (waterLinked.length) {
+      try {
+        const waterLog = await readTab('WaterLog');
+        waterLinked.forEach((r) => {
+          const roomRows = waterLog.filter((row) => row.room === r.id.toString());
+          const latest = roomRows.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+          if (latest && resultMap[r.id]) {
+            resultMap[r.id].usage = Number(latest.cumulativeLiters) || 0;
+          }
+        });
+      } catch (err) {
+        console.error('[tuya] WaterLog cumulative merge failed:', err.message);
+      }
+    }
+
     res.json(resultMap);
 
     // Fire-and-forget historical log for future usage analysis — never let a
