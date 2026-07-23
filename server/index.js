@@ -13,6 +13,12 @@ const app = express();
 app.set('trust proxy', 1); // behind Render's proxy — needed so req.protocol reports https, not http
 app.use(express.json({ limit: '5mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// "แอปเช่าสุข" APK (android-app/, 2026-07-23) — build อัตโนมัติจาก
+// .github/workflows/build-android.yml เขียนไฟล์ตรงเข้า server/downloads/
+// ตรงๆ (เก็บใน repo จริง ไม่ใช่ ephemeral uploads/ กันลิงก์ดาวน์โหลดหาย
+// ตอน deploy ใหม่ — เหตุผลเดียวกับที่ check-service-24 ใช้) เสิร์ฟแบบ
+// static ตรงๆ ที่ /downloads/chaosuk-rental-app.apk + /downloads/apk-build-info.json
+app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
 
 // Per explicit user request (multi-tenant login prototype): if this
 // request carries a valid signed session cookie, resolve every

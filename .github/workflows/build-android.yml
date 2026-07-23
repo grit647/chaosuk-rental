@@ -1,0 +1,63 @@
+name: Build Android APK
+
+# สร้างไฟล์ APK ของแอปเช่าสุข (ดู android-app/) อัตโนมัติทุกครั้งที่มีการ
+# แก้ไขในโฟลเดอร์นั้น + กดรันเองได้ (workflow_dispatch) — build เสร็จแล้ว
+# commit ไฟล์ APK ทับเข้า server/downloads/ ตรงๆ (เก็บใน repo จริง ไม่ใช่
+# ephemeral uploads/ กันลิงก์ดาวน์โหลดหายตอน deploy ใหม่) แล้ว push เข้า
+# main ซึ่งจะไปกระตุ้น deploy.yml (trigger จาก push→main อยู่แล้ว) ให้
+# deploy เว็บใหม่พร้อมไฟล์ APK ล่าสุดโดยอัตโนมัติ ไม่ต้องทำอะไรเพิ่มเอง —
+# build แบบ debug (ไม่ได้เซ็นด้วย key จริงสำหรับขึ้น Play Store) เหมาะกับ
+# แจกติดตั้งตรงๆ ผ่านปุ่มดาวน์โหลดบนเว็บเท่านั้น (ต้องกด "อนุญาตติดตั้ง
+# จากแหล่งอื่น" ตอนติดตั้ง — ปกติสำหรับ APK นอก Play Store) — สำเนา
+# workflow เดียวกับที่ใช้ในโปรเจกต์ check-service-24
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android-app/**'
+      - '.github/workflows/build-android.yml'
+  workflow_dispatch: {}
+
+# ประกาศสิทธิ์ contents: write ตรงๆ ในไฟล์นี้เลย (ค่าเริ่มต้นความปลอดภัย
+# ของ GitHub ให้ GITHUB_TOKEN อ่านได้อย่างเดียวบางครั้งแม้ repo settings
+# จะเปิด "Read and write" ไว้ทั่วไปแล้วก็ตาม)
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        working-directory: android-app
+        run: gradle assembleDebug --no-daemon
+
+      - name: Copy APK to server/downloads
+        run: |
+          mkdir -p server/downloads
+          cp android-app/app/build/outputs/apk/debug/app-debug.apk server/downloads/chaosuk-rental-app.apk
+
+      - name: Write build info
+        run: |
+          mkdir -p server/downloads
+          BUILT_AT=$(TZ=Asia/Bangkok date +"%Y-%m-%dT%H:%M:%S+07:00")
+          echo "{\"buildNumber\": ${{ github.run_number }}, \"builtAt\": \"$BUILT_AT\"}" > server/downloads/apk-build-info.json
+
+      - name: Commit and push APK
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add server/downloads/chaosuk-rental-app.apk server/downloads/apk-build-info.json
+          git diff --staged --quiet || git commit -m "Build Android APK (auto, run #${{ github.run_number }})"
+          git push

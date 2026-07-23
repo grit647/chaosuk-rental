@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- โลโก้ "ช" ของแบรนด์เช่าสุข — สำเนาเส้น vector เดียวกับที่ใช้ในโปรเจกต์
+     check-service-24/android-app (ตัวอักษรไทยตัวเดียวกัน "ช") พยายามวาด
+     เป็นเส้น vector เอง (ไม่มีเครื่องมือแปลง/render ฟอนต์จริงในเครื่องที่
+     ทำงานอยู่) เป็นการ "ประมาณรูปทรง" ด้วยเส้นเดียว (single stroke) ไม่ใช่
+     ตัวอักษรจากฟอนต์จริง — **ถ้าดูแล้วไม่เหมือน/ไม่สวยพอ แนะนำสลับไปใช้
+     Android Studio's Image Asset แทน** (คลิกขวา res > New > Image Asset >
+     ถ่ายภาพหน้าจอตราสัญลักษณ์ "ช" จริงจากเว็บเช่าสุขมาอัปโหลด จะได้ไอคอน
+     ที่แม่นยำ 100% ง่ายกว่านี้เยอะ — ดู login.html/my-buildings.html ที่มี
+     badge จริงให้ใช้เป็นต้นแบบ)
+     สีพื้นหลังส้ม #C1622D มาจาก ic_launcher_background.xml อยู่แล้ว ตัวนี้
+     วาดแค่เส้นสีขาวของตัวอักษรทับไปเท่านั้น -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="11"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M52,28 C42,22 26,28 26,42 C26,54 38,60 48,52 C52,49 50,44 45,42 C42,55 34,64 36,72 C38,80 48,84 58,80 C66,77 70,70 66,64 C64,61 60,62 58,66" />
+</vector>
