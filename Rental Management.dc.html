@@ -1589,9 +1589,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <span style="font-size:11px;font-weight:700;color:#7C6E5F">ข้อมูลน้ำแบบเรียลไทม์</span>
                       <span onclick="{{ refreshTuyaLive }}" style="font-size:10.5px;color:#2C6E8F;font-weight:600;cursor:pointer">{{ tuyaRefreshLabel }}</span>
                     </div>
+                    <!-- "แสดงแค่ลิตรกับแบตพอครับ" (2026-07-23 ตามคำขอคุณต้น
+                         "กรณีการออกบิล เราแปลงเป็นหน่วยอยู่แล้วครับ") —
+                         ตัดช่อง "อัตราไหล (L/นาที)" ออก เหลือแค่ 2 ค่าที่
+                         ใช้จริง (equipSelLiveFlowRate ยังคำนวณอยู่เผื่อ
+                         ใช้ที่อื่นในอนาคต แค่ไม่โชว์ตรงนี้แล้ว) -->
                     <div style="display:flex;gap:14px;flex-wrap:wrap">
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveWaterUsage }}</div><div style="font-size:10px;color:#A89A88">ลิตร (L) สะสม</div></div>
-                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveFlowRate }}</div><div style="font-size:10px;color:#A89A88">อัตราไหล (L/นาที)</div></div>
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:{{ equipSelBatteryColor }}">🔋 {{ equipSelLiveBattery }}</div><div style="font-size:10px;color:#A89A88">แบตเตอรี่ (%)</div></div>
                     </div>
                   </div>
