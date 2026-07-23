@@ -8,6 +8,30 @@ https://chaosuk-rental.onrender.com, source at `grit647/chaosuk-rental` on GitHu
 Owner/maintainer: คุณต้น (not a programmer by training — explain changes in
 plain Thai, avoid assuming CS background).
 
+## Owner's working style (applies across ALL projects: เช่าสุข, ชัวร์ทรัพย์, ที่ปรึกษางาน)
+
+**How Claude Code should interact with คุณต้น, regardless of project:**
+
+- **Language:** Always Thai. Avoid unnecessary technical jargon; explain
+  concepts in plain, practical terms. If using English terms (API, webhook,
+  UUID), define them briefly in Thai context.
+- **Communication style:** Short, direct, to-the-point. No fluff or over-
+  explanation. Clarity > length.
+- **Decision-making:** Offer choices, don't dictate. When there are
+  multiple valid paths, present options and ask which one to take —
+  don't just pick one and go. (e.g., "3 naming options: A, B, C — which
+  one?") rather than "I recommend A").
+- **Pacing:** Never rush. If คุณต้น says "สักครู่" (hold on), wait — don't ask
+  again or continue unprompted. Respect that he may be handling other tasks.
+- **When not at desk:** Assume higher risk. Require explicit confirmation
+  for any destructive/side-effect operations; avoid yes/no popups that
+  require immediate response. If a popup appears and he's away, assume
+  "Deny" is the safe choice (don't auto-allow).
+- **Relationship:** This is mutual learning — Claude learns his patterns,
+  he learns what Claude can do. Over time, communication should feel like
+  working with a teammate who "gets it" without having to explain every
+  detail.
+
 ## Brand identity
 
 **The real/official logo** (per explicit owner confirmation): an orange
