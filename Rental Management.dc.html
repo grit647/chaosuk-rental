@@ -354,6 +354,11 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <span onclick="{{ onDemoTipSidebarAccount }}" style="position:absolute;top:6px;right:6px;cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center" title="อธิบาย">?</span>
               </sc-if>
             </div>
+            <sc-if value="{{ showSelectBuildingBtn }}" hint-placeholder-val="{{ false }}">
+              <div onclick="{{ goSelectBuilding }}" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:8px;border:1px solid rgba(241,235,224,0.18);color:rgba(241,235,224,0.75);font-size:12.5px;font-weight:600;cursor:pointer">
+                <span style="font-size:14px">🏢</span> เลือกโครงการ
+              </div>
+            </sc-if>
             <div onclick="{{ logout }}" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:8px;border:1px solid rgba(241,235,224,0.18);color:#E8B4A0;font-size:12.5px;font-weight:600;cursor:pointer">
               <span style="font-size:14px">⏻</span> ออกจากระบบ
             </div>
@@ -8045,6 +8050,15 @@ class Component extends DCLogic {
     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch { /* clear cookie best-effort even if this call fails */ }
     window.location.href = '/login';
   });
+  // Per explicit user request: a way back to the "เลือกตึกที่ต้องการจัดการ"
+  // picker (my-buildings.html) WITHOUT logging out first — useful for an
+  // owner who manages more than one building (see the multi-building-per-
+  // owner design in server/routes/auth.js) and wants to switch which one
+  // is active. Plain full-page navigation (not a fetch) since
+  // my-buildings.html is its own separate static page, not part of this
+  // app's render tree — the existing session cookie is still valid, so it
+  // loads straight into the picker with zero re-login needed.
+  goSelectBuilding = () => { window.location.href = '/my-buildings'; };
 
   // Double-click / double-tap guard for anything that hits the server and
   // shouldn't run twice (create invoice, mark paid, send LINE, delete, etc.)
@@ -9323,6 +9337,12 @@ class Component extends DCLogic {
         ? s.authSession.adminName
         : (s.propertyProfile.adminName || 'เจ้าของกิจการ'),
       sidebarAccountRole: (s.authSession && s.authSession.role === 'staff') ? 'ผู้ดูแล' : 'เจ้าของกิจการ',
+      // Per explicit user request: "เลือกโครงการ" sidebar button — only for
+      // genuine owner sessions (not staff/tenant/demo), since /my-buildings
+      // itself only accepts role==='owner' and would otherwise bounce a
+      // staff/tenant/demo session straight back to /login.
+      showSelectBuildingBtn: !!(s.authSession && s.authSession.role !== 'staff' && s.authSession.role !== 'tenant' && s.authSession.role !== 'demo'),
+      goSelectBuilding: this.goSelectBuilding,
       // Per explicit user request: tap-to-explain tooltips, /demo only.
       isDemo: !!(s.authSession && s.authSession.isDemo),
       demoTipVisible: !!s.demoTipId,
