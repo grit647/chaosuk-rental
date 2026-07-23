@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { readTab, appendRow } = require('../sheets');
-const { isConfigured, listDevices, getElecReading, getWaterReading, sendCommand } = require('../tuya');
+const { isConfigured, listDevices, getElecReading, getWaterReading, getWaterUsageDeltaLiters, sendCommand } = require('../tuya');
 const { readIntegrationCredentials } = require('../coerce');
 const { isMainAccountSheetId } = require('../requestContext');
 
@@ -106,6 +106,47 @@ router.get('/status', async (req, res, next) => {
         power: reading.power,
         energy: reading.energy,
       }).catch((err) => console.error('[tuya] ElectricityLog append failed:', err.message));
+    });
+
+    // "ปริมาณน้ำสะสมจริง" (2026-07-23) — see the big comment on
+    // getWaterUsageDeltaLiters (server/tuya.js): the device's own
+    // cumulative-total DP (water_use_data) never updates on this device
+    // family, so we build our own running total by replaying the
+    // water_once event history via the Report Logs API and adding only
+    // CONFIRMED-complete sessions since the last poll. Throttled hourly
+    // per room like ElectricityLog (separate map key prefix so the two
+    // don't collide for a room that has both device types linked).
+    waterLinked.forEach((r) => {
+      const throttleKey = 'water-' + r.id;
+      const last = lastLoggedAt.get(throttleKey) || 0;
+      if (now - last < LOG_INTERVAL_MS) return;
+      lastLoggedAt.set(throttleKey, now);
+      (async () => {
+        try {
+          const waterLog = await readTab('WaterLog');
+          const roomRows = waterLog.filter((row) => row.room === r.id.toString());
+          const latest = roomRows.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+          const prevCumulative = latest ? Number(latest.cumulativeLiters) || 0 : 0;
+          const sinceEventTimeMs = latest ? Number(latest.lastProcessedEventTimeMs) || 0 : 0;
+          const { deltaLiters, lastProcessedEventTimeMs } = await getWaterUsageDeltaLiters(r.tuyaWaterDeviceId, sinceEventTimeMs, creds.tuya);
+          // No new confirmed-complete sessions since last poll — nothing
+          // worth writing a row for (avoids a Sheet full of identical
+          // zero-delta rows every hour when the room is simply unoccupied).
+          if (deltaLiters <= 0 && lastProcessedEventTimeMs === sinceEventTimeMs) return;
+          const currentReading = resultMap[r.id] || {};
+          await appendRow('WaterLog', {
+            id: Date.now() + '-' + r.id,
+            timestamp: new Date().toISOString(),
+            room: r.id,
+            cumulativeLiters: prevCumulative + deltaLiters,
+            lastProcessedEventTimeMs,
+            flowRate: currentReading.flowRate,
+            batteryPercent: currentReading.batteryPercent,
+          });
+        } catch (err) {
+          console.error('[tuya] WaterLog append failed for room', r.id, ':', err.message);
+        }
+      })();
     });
   } catch (err) { next(err); }
 });

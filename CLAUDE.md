@@ -46,6 +46,89 @@ logo badge, use this exact same styling.
 
 ## Known issues / follow-ups
 
+### Tuya water flowmeter — 2 separate Cloud Projects (fixed), scale bug (fixed), cumulative total (new tracking built, not yet wired into billing) — 2026-07-23
+
+**Backstory, for context on why 2 Tuya Cloud Projects existed:** the very
+first Tuya integration (see the old Phase 3 plan notes) was built by
+temporarily linking the actual property owner's ("น้อง's") real Tuya
+account into a project on the developer's own side, purely to test
+against real device data during development. Once the feature was
+delivered, that dev-side project was deleted and น้อง was told to link
+her own phone directly to her own project instead — but the elec
+breaker device had been set up under a DIFFERENT Smart Life account
+than the one used to re-link water flowmeters later, so the two device
+types ended up authorized under two genuinely separate Tuya Cloud
+Projects with different Access ID/Secret pairs. Confirmed by testing:
+old project (Access ID `3cr4wn7...`, still in `server/.env` at the time)
+could read the elec breaker but got "permission deny" on any water
+flowmeter; a newer project "ช.เช่าสุข" (Access ID `d83edt9...`, the one
+actually open in the Tuya console) had all 56 water flowmeters
+authorized via App Account `ribo_new@hotmail.com` but couldn't see the
+elec device at all. **Fixed** by linking the elec device's own Smart
+Life account into the "ช.เช่าสุข" project too (Cloud > Devices > Link
+App Account > Tuya App Account Authorization) — confirmed both device
+types (`ห้อง14` breaker, `Flowmeter 14` etc.) now read successfully
+under the single `d83edt9...` credential pair. `server/.env`'s
+`TUYA_ACCESS_ID`/`TUYA_ACCESS_SECRET` should be updated to this pair
+once the owner confirms he's ready (not yet swapped as of this
+writing — the old pair still works for existing linked elec devices,
+so nothing is broken right now, just not yet consolidated).
+
+**Real bug found + fixed in `server/tuya.js`'s `getWaterReading()`:**
+this device family ("Bluetooth Flowmeter", category `slj`) reports its
+own DP scale metadata WRONG — `/specifications` claims `water_use_data`/
+`water_once` have `scale: 0` (i.e. divide raw value by 1), but the true
+scale is ÷10 (values are in units of 0.1 L). Confirmed by comparing the
+phone app's own "Single Use: 5.2 L" readout against the exact same
+moment's raw `water_once` value (52) — 52 ÷ 10 = 5.2, not 52 ÷ 1 = 52.
+Hardcoded scale=10 for these two DP codes specifically (the general
+`findScale()`-from-spec approach, still used for `cur_voltage`/
+`cur_current`/etc. in `getElecReading`, is NOT trustworthy for this
+device family — don't assume other water-flowmeter DP codes are safe
+without similarly verifying against the app first).
+
+**Real gap found:** `water_use_data` — meant to be this device family's
+cumulative lifetime total, the water equivalent of the elec meter's
+`total_forward_energy` — never actually updates on real hardware
+(confirmed: zero Report Logs entries over a 24h window, permanently
+stuck reporting `0`). The phone app's own "Total Use" (932.5 L at time
+of testing) is a real, continuously-growing number the app computes
+server-side by summing individual `water_once` "single-use session"
+events — not readable from a simple device-status poll.
+
+**Built (not yet wired into invoices):** `getWaterUsageDeltaLiters()`
+in `server/tuya.js` replays `water_once` history via Tuya's Report
+Logs API (`GET /v2.0/cloud/thing/{id}/report-logs`) and detects
+CONFIRMED-complete sessions (a session's peak = whatever value came
+right before the next log entry drops lower, i.e. a reset). Only
+counts sessions with a confirmed reset after them — an in-progress
+session's events are left for the next poll to pick up once its own
+reset eventually shows up, so nothing gets double-counted or counted
+prematurely. New `WaterLog` Sheet tab (`id, timestamp, room,
+cumulativeLiters, lastProcessedEventTimeMs, flowRate, batteryPercent`)
+— `routes/tuya.js`'s `GET /status` now also fire-and-forget-appends a
+row per water-linked room, hourly-throttled like `ElectricityLog`,
+building its own running total going forward from each room's latest
+logged watermark. **Reconstructing an exact match to Tuya's own
+lifetime "Total Use" isn't possible retroactively** (their own
+accounting isn't fully exposed via this API) — a first full-history
+test run (30-day lookback, first-ever poll for a fresh device) landed
+at 677.3 L vs the app's 932.5 L, which is the expected kind of gap
+(the app's total likely includes usage from before the 30-day window,
+plus any sessions genuinely still in-progress at poll time are
+correctly excluded until they complete).
+
+**Explicitly NOT done yet, needs a follow-up decision:** the water
+billing flow (`deviceCharge('water', ...)` equivalent, mirroring how
+elec's `total_forward_energy` feeds invoices) still reads the raw
+(now scale-fixed, but permanently-zero) `usage` field from
+`getWaterReading()`, not the new `WaterLog` cumulative total. Wiring
+billing to read from `WaterLog` instead needs the owner to watch it
+accumulate correctly over a few real poll cycles first before trusting
+it for a real invoice — this is money-affecting, same caution level as
+the `Lease contracts are core data` rule below. Flagging here so a
+future session doesn't have to re-derive this whole investigation.
+
 ### "คุยกับ Claude AI ผ่าน LINE" — text works, voice needs OPENAI_API_KEY (pending)
 
 **Status:** Built and deployed (commit `355da75`, session redesigned
