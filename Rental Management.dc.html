@@ -1571,6 +1571,15 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <span style="font-size:11px;color:#7C6E5F">{{ equipSelWaterOnline }}</span>
                     </div>
                   </div>
+                  <!-- "เช็คให้หน่อยทำไมอุปกรณ์น้ำไม่เชื่อมต่อ" (2026-07-23) —
+                       server ตอบ waterError กลับมาอยู่แล้ว (ดู
+                       routes/tuya.js's GET /status) แต่ไม่เคยถูกเอามาโชว์
+                       ที่ไหนเลย ผู้ใช้เลยเห็นแค่ "ออฟไลน์" เฉยๆ ไม่รู้สาเหตุ
+                       จริง — เพิ่มบรรทัดข้อความ error ตัวจริงจาก Tuya ให้
+                       เห็นตรงนี้เลย -->
+                  <sc-if value="{{ hasEquipSelWaterError }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:11px;color:#B24336;background:#FBEAE7;border:1px solid #E3B7AC;border-radius:6px;padding:7px 9px;margin-bottom:8px">⚠️ {{ equipSelWaterErrorDetail }}</div>
+                  </sc-if>
                   <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">Tuya Device ID (น้ำ) · คัดลอกจากหน้า Devices ใน Tuya IoT Platform</div>
                   <input value="{{ tuyaForm.waterDeviceId }}" onchange="{{ onTuyaWaterDeviceId }}" placeholder="เช่น eb22f277jcxrhzmf" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   <div style="font-size:11.5px;color:#7C6E5F;margin-top:10px;margin-bottom:5px">ค่าสูงสุดก่อนมิเตอร์รีเซ็ต (ลิตร) · เว้นว่างได้ถ้าไม่ทราบ</div>
@@ -4471,8 +4480,25 @@ class Component extends DCLogic {
       const res = await fetch('/api/bootstrap');
       if (!res.ok) throw new Error('bootstrap failed');
       const data = await res.json();
-      this.setState((s) => ({
-        rooms: data.rooms,
+      // "เลือกห้อง 1 แต่แสดงห้อง 101" (2026-07-23) — จุดจริงที่พังคือ
+      // state เริ่มต้น (`equipSelectedRoom: '101'` เขียนไว้ตายตัวตอน
+      // สร้าง state ครั้งแรก) เป็นแค่ห้อง "เดา" ไว้ก่อนที่ยังไม่รู้ว่าห้อง
+      // จริงมีอะไรบ้าง (ข้อมูลห้องยังโหลดจาก server ไม่เสร็จตอนนั้น) — ถ้า
+      // ร้าน/ตึกนี้ไม่มีห้องชื่อ "101" อยู่จริง (เช่น มีแต่ห้อง 1, 2, 3)
+      // ตัวเลือก dropdown (equipRoomOptions, สร้างจาก rooms จริง) จะไม่มี
+      // option ไหนตรงกับค่านี้เลย — dropdown เลยโชว์ตัวเลือกแรกที่มีจริง
+      // ("ห้อง 1") ไปเฉยๆ แต่ป้ายชื่อห้อง/ข้อมูลอุปกรณ์ (ที่อ่านจาก state
+      // ตรงๆ ไม่ผ่าน dropdown) ยังอ้างอิงห้อง "101" ที่ไม่มีอยู่จริงอยู่ —
+      // เกิดข้อมูลไม่ตรงกันแบบที่คุณต้นเจอเป๊ะๆ (แถมอาจเป็นสาเหตุที่
+      // อุปกรณ์น้ำดูเหมือนไม่เชื่อมต่อด้วย เพราะกำลังดูห้องผีที่ไม่มีอยู่จริง
+      // อยู่) — แก้โดยเช็คหลังโหลดห้องจริงเสร็จ ถ้า equipSelectedRoom ปัจจุบัน
+      // ไม่ตรงกับห้องไหนเลยจริงๆ ให้สลับไปห้องแรกที่มีจริงแทนอัตโนมัติ
+      this.setState((s) => {
+        const rooms = data.rooms || [];
+        const equipRoomStillValid = rooms.some((r) => r.id === s.equipSelectedRoom);
+        return {
+        rooms,
+        equipSelectedRoom: equipRoomStillValid ? s.equipSelectedRoom : (rooms[0] ? rooms[0].id : s.equipSelectedRoom),
         invoices: data.invoices,
         maintenance: data.maintenance,
         expenses: data.expenses,
@@ -4493,7 +4519,8 @@ class Component extends DCLogic {
         hasLineCredentials: !!data.hasLineCredentials,
         hasTuyaCredentials: !!data.hasTuyaCredentials,
         sheetEnvConnected: true,
-      }));
+        };
+      });
     } catch (err) {
       console.error(err);
       this.setState({ sheetEnvConnected: false });
@@ -10126,6 +10153,11 @@ class Component extends DCLogic {
       equipSelBatteryColor: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent != null && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent <= 20) ? '#B24336' : '#241812',
       equipSelWaterOnline: equipSelRoom.tuyaWaterDeviceId ? ((s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].waterOnline) ? 'ออนไลน์' : 'ออฟไลน์') : '—',
       equipSelWaterDot: equipSelRoom.tuyaWaterDeviceId ? ((s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].waterOnline) ? '#3B7A52' : '#B24336') : '#C9B79E',
+      // "เช็คให้หน่อยทำไมอุปกรณ์น้ำไม่เชื่อมต่อ" (2026-07-23) — โชว์ข้อความ
+      // error ตัวจริงจาก Tuya (routes/tuya.js's GET /status ส่ง waterError
+      // มาให้อยู่แล้ว แค่ไม่เคยถูกอ่านมาโชว์เลย)
+      equipSelWaterErrorDetail: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].waterError) || '',
+      hasEquipSelWaterError: Boolean(s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].waterError),
       elecDeviceRows, waterDeviceRows, elecOnlineCount, waterOnlineCount, deviceTotalCount: elecDeviceRows.length,
       expensesView, expenseTotalDisplay: this.fmt(expenseTotal), expenseCategoryOptions,
       hiddenExpenseCount, hasHiddenExpenses: hiddenExpenseCount > 0,
