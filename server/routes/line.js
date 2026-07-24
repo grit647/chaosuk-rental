@@ -76,7 +76,7 @@ function isAiSessionActive(pendingKey) {
 
 // Per explicit owner follow-up ("ผู้เช่าขอรหัสมา เราทำเป็นช่องให้กรอกรหัส
 // พร้อมส่งกลับเลยครับ"): when a tenant taps "ขอรหัส Wifi" and the room has
-// no wifiCode saved yet, every admin/owner notified about it (see
+// no wifiUsername saved yet, every admin/owner notified about it (see
 // action=wifi below) gets a LIVE pending slot here — their VERY NEXT text
 // message is captured as the WiFi code, saved to the room, and pushed
 // straight to the tenant automatically, no need to open the web app at
@@ -412,22 +412,35 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
             if (wifiPending) {
               wifiReplyPending.delete(wifiPendingKey);
               if (wifiPending.expiresAt > Date.now()) {
-                await updateRow('Rooms', wifiPending.roomId, { wifiCode: text });
+                // Per explicit owner request: "รหัส WiFi" is really an
+                // internet/router login pair (ชื่อผู้ใช้ + รหัสผ่าน — see
+                // prototype-auth/migrate-wifi-credentials.js), typed back
+                // as ONE line, split on the first whitespace run (e.g.
+                // "Room1 z1x1" -> username "Room1", password "z1x1"). If
+                // the admin only types one word, that's saved as the
+                // username with a blank password rather than erroring —
+                // still better than losing the reply entirely.
+                const [wifiUsername, ...passParts] = text.split(/\s+/);
+                const wifiPassword = passParts.join(' ');
+                await updateRow('Rooms', wifiPending.roomId, { wifiUsername, wifiPassword });
                 if (wifiPending.tenantLineUserId) {
                   try {
-                    await pushMessage(wifiPending.tenantLineUserId, `รหัส Wifi ห้อง ${wifiPending.roomId}: ${text}`, undefined, lineCreds);
+                    const credsText = wifiPassword
+                      ? `ชื่อผู้ใช้: ${wifiUsername}\nรหัสผ่าน: ${wifiPassword}`
+                      : `ชื่อผู้ใช้/รหัสผ่าน: ${wifiUsername}`;
+                    await pushMessage(wifiPending.tenantLineUserId, `ข้อมูล WiFi/Internet ห้อง ${wifiPending.roomId}\n${credsText}`, undefined, lineCreds);
                   } catch (err) {
-                    console.error('[line] wifi code push to tenant failed', err.message);
+                    console.error('[line] wifi credentials push to tenant failed', err.message);
                   }
                 }
                 // Whoever replied first wins — clear every OTHER admin's
                 // pending slot for this same room so a later, unrelated
                 // message from a different admin never gets mistaken for
-                // a stale/duplicate WiFi code answer.
+                // a stale/duplicate WiFi credentials answer.
                 for (const [key, val] of wifiReplyPending) {
                   if (val.roomId === wifiPending.roomId) wifiReplyPending.delete(key);
                 }
-                await reply(event.replyToken, `เรียบร้อยครับ ส่งรหัส Wifi ให้ผู้เช่าห้อง ${wifiPending.roomId} แล้วครับ (บันทึกไว้ในระบบด้วย ครั้งหน้าจะตอบผู้เช่าอัตโนมัติเลย)`);
+                await reply(event.replyToken, `เรียบร้อยครับ ส่งข้อมูล WiFi/Internet ให้ผู้เช่าห้อง ${wifiPending.roomId} แล้วครับ (บันทึกไว้ในระบบด้วย ครั้งหน้าจะตอบผู้เช่าอัตโนมัติเลย)`);
               } else {
                 await reply(event.replyToken, 'หมดเวลารอรหัส Wifi แล้วครับ (เกิน 10 นาที) ถ้าผู้เช่ายังรออยู่ กรอกรหัสในหน้าเว็บที่ห้องนั้นได้เลยครับ');
               }
@@ -845,10 +858,10 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
       await reply(`ส่งรูปสลิปโอนเงินมาในแชทนี้ได้เลยครับ (กดปุ่มแนบรูป 📎 ของ LINE ตามปกติ) ระบบจะอ่านยอด/วันที่ให้อัตโนมัติ แล้วรอผู้ดูแลตรวจสอบและยืนยันอีกครั้งครับ`);
       return;
     case 'action=wifi': {
-      const hasWifiCode = !!room.wifiCode;
+      const hasWifiCode = !!room.wifiUsername;
       await reply(hasWifiCode
-        ? `รหัส Wifi ห้อง ${room.id}: ${room.wifiCode}`
-        : 'ยังไม่ได้บันทึกรหัส Wifi ของห้องนี้ไว้ในระบบครับ รอสักครู่นะครับ ระบบแจ้งผู้ดูแลให้แล้ว จะส่งรหัสให้ทันทีที่ได้รับครับ');
+        ? `ข้อมูล WiFi/Internet ห้อง ${room.id}\nชื่อผู้ใช้: ${room.wifiUsername}${room.wifiPassword ? `\nรหัสผ่าน: ${room.wifiPassword}` : ''}`
+        : 'ยังไม่ได้บันทึกข้อมูล WiFi/Internet ของห้องนี้ไว้ในระบบครับ รอสักครู่นะครับ ระบบแจ้งผู้ดูแลให้แล้ว จะส่งให้ทันทีที่ได้รับครับ');
       // Per explicit owner request: notify the owner AND every linked
       // ผู้ดูแล whenever a tenant taps this button. Gated behind its own
       // Settings toggle now (adminNotify.wifiRequest, หน้าตั้งค่า → "LINE
@@ -861,7 +874,7 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
       // never break the tenant's own reply above (already sent by now).
       //
       // Per explicit owner follow-up ("ผู้เช่าขอรหัสมา เราทำเป็นช่องให้
-      // กรอกรหัสพร้อมส่งกลับเลยครับ"): if the room has NO wifiCode saved
+      // กรอกรหัสพร้อมส่งกลับเลยครับ"): if the room has NO wifiUsername saved
       // yet, every notified admin ALSO gets a live wifiReplyPending slot
       // (see the top-of-text-handler check above) — their next plain text
       // message is captured as the code, saved, and relayed to the
@@ -877,7 +890,7 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
           adminRows.forEach((a) => { if (a.lineUserId) targets.push(a.lineUserId); });
           const notifyText = hasWifiCode
             ? `ผู้เช่าห้อง ${room.id} (${room.tenant || '-'}) ขอรหัส Wifi ผ่าน LINE ครับ (ระบบตอบให้อัตโนมัติแล้ว)`
-            : `ผู้เช่าห้อง ${room.id} (${room.tenant || '-'}) ขอรหัส Wifi ผ่าน LINE ครับ แต่ยังไม่มีรหัสบันทึกไว้ — พิมพ์รหัส Wifi ห้องนี้ตอบกลับมาที่นี่เลยครับ ระบบจะส่งต่อให้ผู้เช่าทันที (ภายใน 10 นาที)`;
+            : `ผู้เช่าห้อง ${room.id} (${room.tenant || '-'}) ขอรหัส Wifi ผ่าน LINE ครับ แต่ยังไม่มีข้อมูลบันทึกไว้ — พิมพ์ชื่อผู้ใช้ตามด้วยรหัสผ่าน คั่นด้วยเว้นวรรค (เช่น Room1 z1x1) ตอบกลับมาที่นี่เลยครับ ระบบจะส่งต่อให้ผู้เช่าทันที (ภายใน 10 นาที)`;
           const sheetId = getCurrentSheetId() || process.env.GOOGLE_SHEET_ID;
           for (const t of targets) {
             await pushMessage(t, notifyText, undefined, lineCreds);

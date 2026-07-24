@@ -28,7 +28,7 @@ router.get('/me', requireTenant, async (req, res, next) => {
     res.json({
       id: room.id, tenant: room.tenant, phone: room.phone, rent: room.rent,
       deposit: room.deposit, moveIn: room.moveIn, contractEnd: room.contractEnd,
-      dueDay: room.dueDay, wifiCode: room.wifiCode,
+      dueDay: room.dueDay, wifiUsername: room.wifiUsername, wifiPassword: room.wifiPassword,
       creditBalance: room.creditBalance,
     });
   } catch (err) { next(err); }

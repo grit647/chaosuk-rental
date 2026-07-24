@@ -1954,8 +1954,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#C1622D;margin-bottom:14px">WiFi และเงื่อนไขการชำระ</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
                   <div>
-                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รหัส WiFi ห้อง</div>
-                    <input value="{{ cf.wifiCode }}" onchange="{{ onCfWifi }}" placeholder="room302wifi" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ชื่อผู้ใช้ WiFi/Internet</div>
+                    <input value="{{ cf.wifiUsername }}" onchange="{{ onCfWifiUsername }}" placeholder="Room302" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  </div>
+                  <div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">รหัสผ่าน WiFi/Internet</div>
+                    <input value="{{ cf.wifiPassword }}" onchange="{{ onCfWifiPassword }}" placeholder="z1x1" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   </div>
                   <div>
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระทุกวันที่ (ของเดือน)</div>
@@ -3569,7 +3573,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#7C6E5F">ค่าเก็บขยะ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812;font-weight:500">{{ selectedRoom.trashRateLabel }}</span></div>
                 <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#7C6E5F">ค่า Internet</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812;font-weight:500">{{ selectedRoom.internetRateLabel }}</span></div>
                 <div style="height:1px;background:#F0E9DC;margin:3px 0"></div>
-                <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#7C6E5F">รหัส WiFi ห้อง</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812;font-weight:500">{{ selectedRoom.wifiCode }}</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#7C6E5F">ชื่อผู้ใช้ WiFi/Internet</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812;font-weight:500">{{ selectedRoom.wifiUsername }}</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#7C6E5F">รหัสผ่าน WiFi/Internet</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812;font-weight:500">{{ selectedRoom.wifiPassword }}</span></div>
                 <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#7C6E5F">เอกสารสัญญา</span><span style="color:#241812;font-weight:500">📄 {{ selectedRoom.leaseDocLabel }}</span></div>
               </div>
               <button onclick="{{ closeContractModal }}" style="width:100%;background:#241812;color:#fff;border:none;border-radius:6px;padding:11px;font-size:13px;font-weight:600;cursor:pointer">ปิด</button>
@@ -3939,7 +3944,7 @@ class Component extends DCLogic {
       waterMeterStart: '', elecMeterStart: '',
       tenantFirstName: '', tenantLastName: '', phone: '',
       tenantIdImg: '', tenantIdExpiry: '', ownerIdImg: '', ownerIdExpiry: '',
-      wifiCode: '', dueDay: '', startDate: '', endDate: '', leaseDocName: '',
+      wifiUsername: '', wifiPassword: '', dueDay: '', startDate: '', endDate: '', leaseDocName: '',
     },
     trashRate: 40,
     internetRate: 200,
@@ -4791,7 +4796,8 @@ class Component extends DCLogic {
         tenantIdExpiry: r.tenantIdExpiry || '',
         ownerIdImg: '',
         ownerIdExpiry: '',
-        wifiCode: r.wifiCode || '',
+        wifiUsername: r.wifiUsername || '',
+        wifiPassword: r.wifiPassword || '',
         dueDay: r.dueDay || '5',
         startDate: r.moveIn || '',
         endDate: r.contractEnd || '',
@@ -4827,7 +4833,8 @@ class Component extends DCLogic {
   onCfPhone = (e) => this._cf('phone', e.target.value);
   onCfTenantExpiry = (e) => this._cf('tenantIdExpiry', e.target.value);
   onCfOwnerExpiry = (e) => this._cf('ownerIdExpiry', e.target.value);
-  onCfWifi = (e) => this._cf('wifiCode', e.target.value);
+  onCfWifiUsername = (e) => this._cf('wifiUsername', e.target.value);
+  onCfWifiPassword = (e) => this._cf('wifiPassword', e.target.value);
   onCfLineQr = (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
@@ -4935,7 +4942,8 @@ class Component extends DCLogic {
       contractEnd: cf.endDate || undefined,
       tenantIdImg: cf.tenantIdImg,
       tenantIdExpiry: cf.tenantIdExpiry,
-      wifiCode: cf.wifiCode,
+      wifiUsername: cf.wifiUsername,
+      wifiPassword: cf.wifiPassword,
       dueDay: cf.dueDay,
       leaseDocName: cf.leaseDocName,
       // Per explicit user request: water/elec rate now saves onto THIS room
@@ -5010,7 +5018,7 @@ class Component extends DCLogic {
   closeDeleteContract = () => this.setState({ showDeleteContract: false, deleteContractRoom: null });
   confirmDeleteContract = () => this._guard('confirmDeleteContract:' + this.state.deleteContractRoom, async () => {
     const id = this.state.deleteContractRoom;
-    const clearPatch = { status: 'vacant', tenant: '', phone: '', moveIn: '', contractEnd: '', wifiCode: '', dueDay: '', tenantIdImg: '', tenantIdExpiry: '', leaseDocName: '', lineQrImg: '' };
+    const clearPatch = { status: 'vacant', tenant: '', phone: '', moveIn: '', contractEnd: '', wifiUsername: '', wifiPassword: '', dueDay: '', tenantIdImg: '', tenantIdExpiry: '', leaseDocName: '', lineQrImg: '' };
     try {
       const res = await fetch('/api/rooms/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -8363,7 +8371,7 @@ class Component extends DCLogic {
 
     const selectedRoomRaw = s.rooms.find(r => r.id === s.selectedRoomId) || s.rooms[0] || {
       id: '', status: 'vacant', tenant: '', phone: '', moveIn: '', contractEnd: '',
-      rent: 0, deposit: 0, dueDay: '', wifiCode: '', tenantIdExpiry: '', leaseDocName: '',
+      rent: 0, deposit: 0, dueDay: '', wifiUsername: '', wifiPassword: '', tenantIdExpiry: '', leaseDocName: '',
     };
     const selMeta = roomMeta(selectedRoomRaw.status);
     const selInvoice = s.invoices.find(i => i.room === selectedRoomRaw.id);
@@ -8381,7 +8389,8 @@ class Component extends DCLogic {
       elecRateLabel: this.roomRate(selectedRoomRaw.id, 'elec') + '/หน่วย',
       trashRateLabel: s.trashRate + '/เดือน',
       internetRateLabel: s.internetRate + '/เดือน',
-      wifiCode: selectedRoomRaw.wifiCode || '-',
+      wifiUsername: selectedRoomRaw.wifiUsername || '-',
+      wifiPassword: selectedRoomRaw.wifiPassword || '-',
       tenantIdExpiry: selectedRoomRaw.tenantIdExpiry || '-',
       leaseDocLabel: selectedRoomRaw.leaseDocName || 'ยังไม่แนบเอกสาร',
       hasLeaseDoc: !!selectedRoomRaw.leaseDocName,

@@ -267,7 +267,8 @@ async function executeReadTool(name, input) {
     case 'get_rooms':
       return coerceRooms(await readTab('Rooms')).map((r) => ({
         id: r.id, status: r.status, tenant: r.tenant, phone: r.phone, rent: r.rent, deposit: r.deposit,
-        moveIn: r.moveIn, contractEnd: r.contractEnd, dueDay: r.dueDay, wifiCode: r.wifiCode,
+        moveIn: r.moveIn, contractEnd: r.contractEnd, dueDay: r.dueDay,
+        wifiUsername: r.wifiUsername, wifiPassword: r.wifiPassword,
         waterPrev: r.waterPrev, waterCurr: r.waterCurr, elecPrev: r.elecPrev, elecCurr: r.elecCurr,
         lineConnected: !!r.lineUserId,
       }));
@@ -282,7 +283,8 @@ async function executeReadTool(name, input) {
         ['moveIn', 'วันที่เข้าอยู่'],
         ['contractEnd', 'วันสิ้นสุดสัญญา'],
         ['dueDay', 'วันครบกำหนดชำระรายเดือน'],
-        ['wifiCode', 'รหัส WiFi'],
+        ['wifiUsername', 'ชื่อผู้ใช้ WiFi/Internet'],
+        ['wifiPassword', 'รหัสผ่าน WiFi/Internet'],
         ['tenantIdImg', 'รูปบัตรประชาชนผู้เช่า'],
         ['tenantIdExpiry', 'วันหมดอายุบัตรประชาชน'],
         ['leaseDocName', 'ไฟล์สัญญาเช่า'],
@@ -621,7 +623,7 @@ async function executeWriteTool(name, input) {
         id, floor: Number(input.floor) || 1, status: 'vacant', tenant: '', phone: '', rent,
         moveIn: '', contractEnd: '', deposit: input.deposit != null ? Number(input.deposit) : rent * 2,
         waterMeterNo: 'W-' + id, elecMeterNo: 'E-' + id, waterPrev: 0, waterCurr: '0', elecPrev: 0, elecCurr: '0',
-        wifiCode: '', dueDay: '', tenantIdImg: '', tenantIdExpiry: '', leaseDocName: '',
+        wifiUsername: '', wifiPassword: '', dueDay: '', tenantIdImg: '', tenantIdExpiry: '', leaseDocName: '',
       };
       await appendRow('Rooms', room);
       return { ok: true, message: `เปิดห้อง ${id} แล้ว (ห้องว่าง)` };

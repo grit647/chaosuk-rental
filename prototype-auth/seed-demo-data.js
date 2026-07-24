@@ -62,10 +62,10 @@ async function main() {
   const addDays = (base, n) => { const d = new Date(base); d.setDate(d.getDate() + n); return d; };
 
   const rooms = [
-    { id: '101', floor: 1, status: 'occupied', tenant: 'สมชาย ใจดี (ตัวอย่าง)', phone: '081-234-5671', rent: 3500, moveIn: iso(addDays(today, -180)), contractEnd: iso(addDays(today, 185)), deposit: 7000, waterMeterNo: 'W-101', elecMeterNo: 'E-101', waterPrev: 120, waterCurr: '125', elecPrev: 300, elecCurr: '320', wifiCode: 'demo1234', dueDay: '5' },
-    { id: '102', floor: 1, status: 'overdue', tenant: 'สายฝน รุ่งเรือง (ตัวอย่าง)', phone: '081-234-5672', rent: 4000, moveIn: iso(addDays(today, -90)), contractEnd: iso(addDays(today, 275)), deposit: 8000, waterMeterNo: 'W-102', elecMeterNo: 'E-102', waterPrev: 80, waterCurr: '86', elecPrev: 210, elecCurr: '235', wifiCode: 'demo1234', dueDay: '1' },
-    { id: '103', floor: 2, status: 'occupied', tenant: 'ประยุทธ มั่งมี (ตัวอย่าง)', phone: '081-234-5673', rent: 4500, moveIn: iso(addDays(today, -30)), contractEnd: iso(addDays(today, 335)), deposit: 9000, waterMeterNo: 'W-103', elecMeterNo: 'E-103', waterPrev: 40, waterCurr: '44', elecPrev: 150, elecCurr: '168', wifiCode: 'demo1234', dueDay: '10' },
-    { id: '104', floor: 2, status: 'vacant', tenant: '', phone: '', rent: 3800, moveIn: '', contractEnd: '', deposit: 7600, waterMeterNo: 'W-104', elecMeterNo: 'E-104', waterPrev: 0, waterCurr: '0', elecPrev: 0, elecCurr: '0', wifiCode: '', dueDay: '' },
+    { id: '101', floor: 1, status: 'occupied', tenant: 'สมชาย ใจดี (ตัวอย่าง)', phone: '081-234-5671', rent: 3500, moveIn: iso(addDays(today, -180)), contractEnd: iso(addDays(today, 185)), deposit: 7000, waterMeterNo: 'W-101', elecMeterNo: 'E-101', waterPrev: 120, waterCurr: '125', elecPrev: 300, elecCurr: '320', wifiUsername: 'demo1234', wifiPassword: 'demo1234', dueDay: '5' },
+    { id: '102', floor: 1, status: 'overdue', tenant: 'สายฝน รุ่งเรือง (ตัวอย่าง)', phone: '081-234-5672', rent: 4000, moveIn: iso(addDays(today, -90)), contractEnd: iso(addDays(today, 275)), deposit: 8000, waterMeterNo: 'W-102', elecMeterNo: 'E-102', waterPrev: 80, waterCurr: '86', elecPrev: 210, elecCurr: '235', wifiUsername: 'demo1234', wifiPassword: 'demo1234', dueDay: '1' },
+    { id: '103', floor: 2, status: 'occupied', tenant: 'ประยุทธ มั่งมี (ตัวอย่าง)', phone: '081-234-5673', rent: 4500, moveIn: iso(addDays(today, -30)), contractEnd: iso(addDays(today, 335)), deposit: 9000, waterMeterNo: 'W-103', elecMeterNo: 'E-103', waterPrev: 40, waterCurr: '44', elecPrev: 150, elecCurr: '168', wifiUsername: 'demo1234', wifiPassword: 'demo1234', dueDay: '10' },
+    { id: '104', floor: 2, status: 'vacant', tenant: '', phone: '', rent: 3800, moveIn: '', contractEnd: '', deposit: 7600, waterMeterNo: 'W-104', elecMeterNo: 'E-104', waterPrev: 0, waterCurr: '0', elecPrev: 0, elecCurr: '0', wifiUsername: '', wifiPassword: '', dueDay: '' },
   ];
 
   const invoices = [
