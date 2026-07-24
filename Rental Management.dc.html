@@ -1589,6 +1589,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <span style="font-size:11px;font-weight:700;color:#7C6E5F">ข้อมูลน้ำแบบเรียลไทม์</span>
                       <span onclick="{{ refreshTuyaLive }}" style="font-size:10.5px;color:#2C6E8F;font-weight:600;cursor:pointer">{{ tuyaRefreshLabel }}</span>
                     </div>
+                    <!-- "กำลังใช้น้ำอยู่หรือไม่" (2026-07-24 ตามคำขอคุณต้น
+                         "เราไม่เอาค่า แค่ดึงพัลส์มาแสดงว่ามันทำงานอยู่หรือ
+                         ปล่าว") — badge สถานะง่ายๆ ไม่ใช่ตัวเลข อ่านจาก
+                         isFlowing (server เช็คพัลส์ล่าสุดจริงให้ ไม่พึ่ง
+                         flow_velocity ที่ไม่น่าเชื่อถือ) -->
+                    <div style="font-size:11px;font-weight:600;padding:4px 9px;border-radius:20px;display:inline-block;margin-bottom:8px;{{ equipSelWaterFlowingStyle }}">{{ equipSelWaterFlowingLabel }}</div>
                     <!-- "แสดงแค่ลิตรกับแบตพอครับ" (2026-07-23 ตามคำขอคุณต้น
                          "กรณีการออกบิล เราแปลงเป็นหน่วยอยู่แล้วครับ") —
                          ตัดช่อง "อัตราไหล (L/นาที)" ออก เหลือแค่ 2 ค่าที่
@@ -9030,6 +9036,17 @@ class Component extends DCLogic {
     });
     const equipSelRoom = s.rooms.find(r => r.id === s.equipSelectedRoom) || {};
     const equipSelDevice = s.tuyaDevices[s.equipSelectedRoom] || null;
+    // "กำลังใช้น้ำอยู่หรือไม่" (2026-07-24) — badge สถานะจาก isFlowing
+    // (server เช็คพัลส์ล่าสุดจริงให้ ดู server/tuya.js's
+    // getWaterFlowActivity) — 3 สถานะ: true (กำลังไหล), false (นิ่ง),
+    // undefined/null (ยังไม่มีข้อมูล/เช็คไม่ได้ตอนนั้น)
+    const equipSelWaterLive = s.tuyaLiveReadings[s.equipSelectedRoom];
+    const equipSelWaterFlowingLabel = !equipSelWaterLive || equipSelWaterLive.isFlowing === undefined || equipSelWaterLive.isFlowing === null
+      ? '❓ ยังไม่มีข้อมูล'
+      : (equipSelWaterLive.isFlowing ? '🚰 กำลังใช้น้ำอยู่' : '💤 ไม่มีการใช้น้ำ');
+    const equipSelWaterFlowingStyle = equipSelWaterLive && equipSelWaterLive.isFlowing === true
+      ? 'background:#D4EDDA;color:#155724;'
+      : (equipSelWaterLive && equipSelWaterLive.isFlowing === false ? 'background:#F1EBE0;color:#7C6E5F;' : 'background:#F1EBE0;color:#9C8B78;');
     const buildDeviceRow = (r, kind) => {
       if (kind === 'elec' && r.tuyaElecDeviceId) {
         const live = s.tuyaLiveReadings[r.id];
@@ -10157,6 +10174,7 @@ class Component extends DCLogic {
       equipSelBatteryColor: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent != null && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent <= 20) ? '#B24336' : '#241812',
       equipSelWaterOnline: equipSelRoom.tuyaWaterDeviceId ? ((s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].waterOnline) ? 'ออนไลน์' : 'ออฟไลน์') : '—',
       equipSelWaterDot: equipSelRoom.tuyaWaterDeviceId ? ((s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].waterOnline) ? '#3B7A52' : '#B24336') : '#C9B79E',
+      equipSelWaterFlowingLabel, equipSelWaterFlowingStyle,
       // "เช็คให้หน่อยทำไมอุปกรณ์น้ำไม่เชื่อมต่อ" (2026-07-23) — โชว์ข้อความ
       // error ตัวจริงจาก Tuya (routes/tuya.js's GET /status ส่ง waterError
       // มาให้อยู่แล้ว แค่ไม่เคยถูกอ่านมาโชว์เลย)

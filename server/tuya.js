@@ -217,10 +217,36 @@ async function getElecReading(deviceId, creds) {
 // field as a cumulative meter reading — do NOT wire `usage` from this
 // function directly into invoice "baseline reading" math without that
 // follow-up; flagged in CLAUDE.md.
+// "กำลังใช้น้ำอยู่หรือไม่" (2026-07-24 ตามคำขอคุณต้น "เราไม่เอาค่า แค่
+// ดึงพัลส์มาแสดงว่ามันทำงานอยู่หรือปล่าว") — ไม่พึ่ง `flow_velocity` (ค่า
+// ที่ไม่น่าเชื่อถือ อ่านได้ 0 ตลอดในทุกการทดสอบที่ผ่านมา) แต่เช็คจาก
+// "พัลส์ล่าสุด" ของ `water_once` ผ่าน Report Logs API แทน — ระหว่างน้ำ
+// ไหลจริง พัลส์เข้าทุก 2-3 วินาที (ยืนยันจากประวัติจริงที่เคยดึงมาดู) ถ้า
+// เจอพัลส์ล่าสุดภายใน ACTIVE_WINDOW_MS วินาทีที่แล้ว = กำลังใช้น้ำอยู่จริง
+// ถ้าไม่มีพัลส์เลยในช่วงนี้ = ไม่มีการใช้น้ำ (นิ่งสนิท ไม่ใช่แค่ไหลช้าๆ)
+const WATER_ACTIVITY_LOOKBACK_MS = 2 * 60 * 1000; // ดึงย้อนหลัง 2 นาที (พอสำหรับหาพัลส์ล่าสุดถ้ามี)
+const WATER_ACTIVITY_ACTIVE_WINDOW_MS = 15 * 1000; // พัลส์ล่าสุดต้องมาไม่เกิน 15 วิที่แล้ว ถึงนับว่า "กำลังไหล"
+async function getWaterFlowActivity(deviceId, creds) {
+  try {
+    const now = Date.now();
+    const params = { codes: 'water_once', start_time: now - WATER_ACTIVITY_LOOKBACK_MS, end_time: now, size: 20 };
+    const result = await tuyaRequestSortedQuery(`/v2.0/cloud/thing/${deviceId}/report-logs`, params, creds);
+    const logs = (result && result.logs) || [];
+    if (!logs.length) return { isFlowing: false, lastPulseAt: null };
+    const latestEventTime = Math.max(...logs.map((l) => l.event_time));
+    return { isFlowing: (now - latestEventTime) <= WATER_ACTIVITY_ACTIVE_WINDOW_MS, lastPulseAt: latestEventTime };
+  } catch {
+    // เช็คไม่ได้ (network hiccup ฯลฯ) — ไม่ให้กระทบข้อมูลอื่นที่อ่านสำเร็จ
+    // อยู่แล้ว แค่บอกว่า "ไม่รู้" (ไม่ใช่ฟันธงว่าไม่ไหล)
+    return { isFlowing: null, lastPulseAt: null };
+  }
+}
+
 async function getWaterReading(deviceId, creds) {
-  const [status, spec] = await Promise.all([
+  const [status, spec, activity] = await Promise.all([
     getDeviceStatus(deviceId, creds),
     getDeviceSpec(deviceId, creds).catch(() => null),
+    getWaterFlowActivity(deviceId, creds),
   ]);
   const map = {};
   status.forEach((s) => { map[s.code] = s.value; });
@@ -243,6 +269,9 @@ async function getWaterReading(deviceId, creds) {
     // Battery percentage — despite the DP's confusing "voltage_current"
     // name, its actual meaning (per this device's own spec) is 0-100%.
     batteryPercent: pick('voltage_current', 1),
+    // "กำลังใช้น้ำอยู่หรือไม่" (2026-07-24) — true/false/null (null = เช็ค
+    // ไม่ได้ตอนนั้น) ดู getWaterFlowActivity ด้านบน
+    isFlowing: activity.isFlowing,
   };
 }
 
