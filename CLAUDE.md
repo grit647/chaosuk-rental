@@ -105,6 +105,36 @@ writing. Neither exists today — flagging so a future session
 doesn't have to re-discover this the hard way (via another silent
 "my save didn't work" report).
 
+**Recurred again 2026-07-24, exact same mechanism:** owner reported
+"ช่องนี้...กรอกข้อมูลอะไรไม่ได้ครับ" (this field won't accept input) for
+the "ค่าเช่าล่วงหน้า" (advance rent) field on the lease contract form,
+specifically on "บ้านเลขที่1873". Investigation initially chased the
+wrong lead (checked the frontend `<input>`/`onchange` wiring
+extensively — found nothing wrong, deposit's identical sibling field
+worked fine) before checking the actual Sheet columns directly and
+finding `migrate-add-advance-rent.js` (run when the feature first
+shipped, per `server/platformVersion.js`'s v2 changelog note) had only
+ever been run against the main account — บ้านเลขที่1873's own separate
+spreadsheet was still missing the `advanceRent` column entirely,
+identical to the `tuyaWaterDeviceId` incident above. Typing DID work
+fine the whole time; the value just silently never persisted on save
+(reopening the form always showed it blank again), which from the
+owner's side was indistinguishable from "can't type here at all."
+**Lesson for next time a "field won't take input" report comes in:**
+check the target building's actual Sheet header row for the column
+BEFORE spending time on frontend event-binding archaeology — this is
+now the second time that's been the real cause. Fixed by re-running
+`migrate-add-advance-rent.js` against บ้านเลขที่1873 AND บ้านพักครูโจ
+(both were missing it) with each building's `customerSheetId` as the
+CLI arg. Also proactively re-ran the newer
+`migrate-add-owner-lineqr-columns.js` (added earlier the same session,
+for `ownerIdImg`/`ownerIdExpiry`/`lineQrImg` — see the "Uploaded
+files...don't survive a deploy" section's neighboring note about those
+3 fields having working UI but never persisting) against both of those
+buildings too, since it had only been run against the main account
+when first written — pre-emptively closing the same gap before it
+became a third support report.
+
 ### Tuya water flowmeter — 2 separate Cloud Projects (fixed), scale bug (fixed), cumulative total (new tracking built, not yet wired into billing) — 2026-07-23
 
 **สรุปสั้นๆ สำหรับคนอ่านใหม่ (TL;DR) — บันทึกไว้ตามคำขอคุณต้น "บันทึก
@@ -720,6 +750,80 @@ the tenant-facing timeout message won't fire (though the hourly
 external-ping cron reduces how often that's actually a risk). Accepted
 trade-off, not fixed — same category of limitation as the ephemeral-
 disk upload issue documented above.
+
+### Two production bugs found together 2026-07-24: lease-contract-form save silently blocked (oversized image cells) + Google Sheets read-quota exhaustion
+
+**Bug 1 — "มันทำให้บันทึกไม่ได้ด้วย" (save blocked entirely):** the
+"กรอกข้อมูลสัญญาเช่า" (lease contract) form's ID-card photo upload
+(`_readImg` in `Rental Management.dc.html`, feeding
+`tenantIdImg`/`ownerIdImg`) downscaled the photo client-side then
+stored the result as a raw base64 `data:image/...` string directly in
+component state, which `saveContractForm` then sent straight into a
+Google Sheets cell via `PATCH /api/rooms/:id`. Even downscaled to
+1400px, a real photo's base64 easily exceeds Sheets' **50,000
+character-per-cell hard limit** — the owner saw the browser-native
+toast "Your input contains more than the maximum of 50000 characters
+in a single cell" and the whole contract save failed, with no
+indication of which field caused it. **Fixed** by uploading to
+Cloudinary first (new `POST /api/uploads/document`,
+`server/routes/uploads.js` — reuses the same persistent-storage
+pattern already established for `payment-qr`) and storing the short
+returned URL instead of the raw base64 blob. Applied to both
+`tenantIdImg` (`_readImg`, shared by `onCfTenantId`/`onCfOwnerId`) and
+`lineQrImg` (`onCfLineQr`) — both now upload-then-store-URL instead of
+embedding base64 directly. If a *third* base64-in-state field ever
+gets added to this form in the future, it needs the same treatment
+from day one, not after someone hits the 50k-char wall in production.
+
+**While investigating Bug 1, found a second, unrelated pre-existing
+gap:** `ownerIdImg`/`ownerIdExpiry`/`lineQrImg` had fully working
+upload/preview UI but were **never actually included in
+`saveContractForm`'s `roomPatch`, and the `Rooms` sheet didn't even
+have those 3 columns** — meaning even before today's photo-size bug,
+these 3 fields silently never persisted at all (reopening the contract
+form always showed them blank). Fixed: added the missing columns
+(`prototype-auth/migrate-add-owner-lineqr-columns.js`, run against the
+main account + both other buildings — see the "Permanent gotcha"
+section above for why every building's own separate spreadsheet needs
+this run individually), wired them into `roomPatch`/`clearPatch`, and
+fixed `openContractForm` to actually load them back from the room
+(`ownerIdImg`/`ownerIdExpiry` were hardcoded to always reset blank on
+every open, regardless of what was saved).
+
+**Bug 2 — real "Quota exceeded for quota metric 'Read requests' and
+limit 'Read requests per minute per user' of service
+'sheets.googleapis.com'" errors, seen live in the owner's browser:**
+`GET /api/bootstrap` (loaded on every dashboard page load, and every
+30 seconds while the "รีเฟรชอัตโนมัติ" dashboard toggle is left on) was
+firing **9 separate Google Sheets API read requests** every single
+time (`Rooms`, `Invoices`, `Maintenance`, `Expenses`,
+`CalendarEvents`, `UnmatchedSlips`, `Staff`, `PaymentLog`, `Settings`
+— each its own `readTab()` call via `Promise.allSettled`). Because
+**every customer building shares the same Google service
+account/project** (see the "Permanent gotcha" section above — separate
+spreadsheets, but one shared set of API credentials), this quota
+pressure is platform-wide, not scoped to one building's own usage.
+**Fixed:** added `readTabs(tabs)` to `server/sheets.js`, using Google's
+`spreadsheets.values.batchGet` to fetch all 9 ranges in **one** HTTP
+request instead of 9 — cuts `/api/bootstrap`'s Google API footprint
+~9x. `coerce.js`'s `readSettings()` now accepts an optional
+`preloadedRows` param so it can reuse the same batched fetch instead
+of triggering a 10th separate read (every other existing call site
+that calls `readSettings()` with no args is unaffected, still does its
+own single `readTab('Settings')` as before). **Trade-off accepted:**
+the old per-tab `Promise.allSettled` let one flaky tab fail
+independently without taking the rest down; a single `batchGet` either
+succeeds or fails as a whole. Wrapped in a try/catch that falls back to
+the same empty-array/default-settings values as before (never a hard
+500) — reasoned to be an acceptable trade given `batchGet` is one
+atomic call to the same API or one already-authenticated connection,
+unlikely to fail in a way the 9 individual calls wouldn't also have
+failed together. **Not done:** other endpoints in this app likely have
+similar multi-`readTab()`-per-request patterns that weren't touched
+this session (only `/api/bootstrap` was fixed, since it's the
+highest-frequency one) — if quota errors recur, `readTabs()` is now
+available as a drop-in tool to batch any other multi-tab endpoint the
+same way.
 
 ## Permanent rules (do not relax without the owner explicitly re-confirming)
 
