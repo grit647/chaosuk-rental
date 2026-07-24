@@ -1840,23 +1840,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <input value="{{ cf.rentPrice }}" onchange="{{ onCfRent }}" placeholder="4900" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   </div>
                 </div>
-                <sc-if value="{{ cfShowDepositFields }}" hint-placeholder-val="{{ false }}">
-                  <div style="display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px">
-                    <div>
-                      <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่ามัดจำห้อง (บาท)</div>
-                      <input value="{{ cf.deposit }}" onchange="{{ onCfDeposit }}" placeholder="10400" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
-                    </div>
-                    <!-- "ลบช่องนี้ออกไปก่อนครับ แต่ตัว exc เก็บไว้ครับ" (2026-07-24)
-                         — ถอด "ค่าเช่าล่วงหน้า" ออกจากหน้าจอชั่วคราวตามคำขอ
-                         คุณต้น (ยืนยันครบทุกทางว่าพิมพ์/ลบไม่ได้เลยจริงๆ ทั้ง
-                         ที่โค้ด onCfAdvanceRent/state/roomPatch/คอลัมน์ในชีต
-                         ถูกต้องหมดทุกจุดที่ตรวจสอบได้ — ยังหาสาเหตุที่แท้จริง
-                         ไม่เจอ) เก็บ state/handler/roomPatch/คอลัมน์ในชีตไว้
-                         ครบทุกอย่างเหมือนเดิม แค่ไม่แสดงช่องกรอกให้เห็นตอนนี้
-                         เท่านั้น กู้กลับมาแสดงได้ทันทีเมื่อไหร่ก็ได้โดยแค่เอา
-                         <input> กลับเข้ามาในนี้ ไม่ต้องแก้อะไรที่อื่นเลย -->
-                  </div>
-                </sc-if>
+                <!-- "เอาปุ่มช่องออกให้หน่อย หลังจากที่เอาช่องค่าเช่าล่วงหน้า
+                     ออก ช่องนี้กรอกไม่ได้อีก" (2026-07-24) — สำคัญมาก:
+                     พอถอด "ค่าเช่าล่วงหน้า" ออกไปแล้ว ช่อง "ค่ามัดจำห้อง"
+                     (ที่เคยพิมพ์ได้ปกติ) กลับพิมพ์ไม่ได้ทันที — ตัวปัญหาไม่ได้
+                     ติดอยู่กับฟิลด์ใดฟิลด์หนึ่งเลย แต่ "ย้ายไปอยู่กับใครก็ตาม
+                     ที่อยู่ตำแหน่งนี้ในหน้าจอ" แทน — เป็นหลักฐานชัดเจนว่าน่า
+                     จะเป็นบั๊กระดับ dc-runtime (support.js, ตัวจัดการ
+                     React key/reconciliation) ไม่ใช่บั๊กในโค้ดหน้านี้เอง
+                     (ตรวจสอบ onCfDeposit/onCfAdvanceRent เองแล้วถูกต้องทั้ง
+                     คู่) — ถอดออกทั้ง section ตามคำขอ (ค่ามัดจำห้อง +
+                     ค่าเช่าล่วงหน้า) ไปก่อน เก็บ state/handler/roomPatch/
+                     คอลัมน์ในชีตไว้ครบทุกอย่างเหมือนเดิมทั้งคู่ ยังไม่ได้ลบ
+                     อะไรจริงจัง แค่ไม่แสดงในหน้าจอเท่านั้น -->
               </div>
 
               <!-- SECTION: rates -->
