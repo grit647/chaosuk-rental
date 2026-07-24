@@ -25,7 +25,13 @@ router.post('/', async (req, res, next) => {
       rent,
       moveIn: '',
       contractEnd: '',
-      deposit: Number(b.deposit) || rent * 2,
+      // 2026-07-24 — was `|| rent * 2` (auto-calc 2x rent when no deposit
+      // given). Owner asked to change this default to 0 while the contract
+      // form's own deposit input field is still hidden/broken (see the
+      // "ค่ามัดจำห้อง input" bug notes in CLAUDE.md) — no auto-calculated
+      // value gets silently baked in anymore; deposit only ever holds
+      // whatever was explicitly passed in, defaulting to 0 otherwise.
+      deposit: Number(b.deposit) || 0,
       waterMeterNo: 'W-' + id,
       elecMeterNo: 'E-' + id,
       waterPrev: 0,

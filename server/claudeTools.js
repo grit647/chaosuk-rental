@@ -173,7 +173,7 @@ const TOOLS = [
         roomId: { type: 'string', description: 'เลขห้อง เช่น 103 (ต้องไม่ซ้ำกับห้องที่มีอยู่)' },
         floor: { type: 'number', description: 'ชั้นที่ตั้งของห้อง' },
         rent: { type: 'number', description: 'ค่าเช่ารายเดือน (บาท)' },
-        deposit: { type: 'number', description: 'เงินมัดจำ (บาท) — ถ้าไม่ระบุ ระบบจะตั้งเป็น 2 เท่าของค่าเช่าให้อัตโนมัติ' },
+        deposit: { type: 'number', description: 'เงินมัดจำ (บาท) — ถ้าไม่ระบุ ระบบจะตั้งเป็น 0' },
       },
       required: ['roomId'],
     },
@@ -396,7 +396,10 @@ async function describeWriteTool(name, input) {
       return `ลบนัดหมายรหัส "${input.eventId}" (ลบแล้วกู้คืนไม่ได้)`;
     case 'create_room': {
       const rent = Number(input.rent) || 0;
-      const deposit = input.deposit != null ? Number(input.deposit) : rent * 2;
+      // 2026-07-24 — was `: rent * 2` (auto-calc 2x rent when no deposit
+      // given). Changed to 0, matching the same default-fallback change
+      // made to POST /api/rooms — see the comment there.
+      const deposit = input.deposit != null ? Number(input.deposit) : 0;
       return `เปิดห้องใหม่ ${input.roomId} (ชั้น ${input.floor || 1}, ค่าเช่า ${rent} บาท, มัดจำ ${deposit} บาท) เป็นห้องว่าง`;
     }
     case 'delete_room': {
@@ -621,7 +624,7 @@ async function executeWriteTool(name, input) {
       const rent = Number(input.rent) || 0;
       const room = {
         id, floor: Number(input.floor) || 1, status: 'vacant', tenant: '', phone: '', rent,
-        moveIn: '', contractEnd: '', deposit: input.deposit != null ? Number(input.deposit) : rent * 2,
+        moveIn: '', contractEnd: '', deposit: input.deposit != null ? Number(input.deposit) : 0,
         waterMeterNo: 'W-' + id, elecMeterNo: 'E-' + id, waterPrev: 0, waterCurr: '0', elecPrev: 0, elecCurr: '0',
         wifiUsername: '', wifiPassword: '', dueDay: '', tenantIdImg: '', tenantIdExpiry: '', leaseDocName: '',
       };
