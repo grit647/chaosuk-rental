@@ -196,7 +196,7 @@ async function readSettings(preloadedRows) {
     waterRate: num(map.waterRate, 18),
     elecRate: num(map.elecRate, 8),
     trashRate: num(map.trashRate, 40),
-    internetRate: num(map.internetRate, 200),
+    internetRate: num(map.internetRate, 0),
     settings: {
       autoInvoice: bool(map.autoInvoice, true),
       dueReminder: bool(map.dueReminder, true),
