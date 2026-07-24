@@ -1,53 +1,50 @@
 const express = require('express');
 const router = express.Router();
-const { readTab } = require('../sheets');
+const { readTabs } = require('../sheets');
 const {
   coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceUnmatchedSlips, coerceStaff, coercePaymentLog, readSettings,
 } = require('../coerce');
 
-// Uses allSettled (not all) on purpose: if one tab's request is briefly flaky,
-// the others should still come back instead of one bad promise taking the
-// whole response (and, worse, leaving an unhandled rejection lying around).
+const TABS = ['Rooms', 'Invoices', 'Maintenance', 'Expenses', 'CalendarEvents', 'UnmatchedSlips', 'Staff', 'PaymentLog', 'Settings'];
+
+// 2026-07-24 — was 9 separate readTab() calls via Promise.allSettled (one
+// per tab, kept independent on purpose so one flaky tab's request couldn't
+// take the whole response down with it). Real "Quota exceeded for quota
+// metric 'Read requests'" errors hit production, traced to this endpoint
+// firing ~9 separate Google Sheets API requests EVERY single load — worse,
+// every 30 seconds while the dashboard's auto-refresh toggle is on. All
+// customer buildings share the same Google service account, so this quota
+// pressure is platform-wide, not just one dashboard's problem. Switched to
+// ONE batched values.batchGet call (readTabs, server/sheets.js) covering
+// all 9 tabs at once — cuts this endpoint's Google API footprint ~9x.
+//
+// Trade-off: batchGet either succeeds or fails as a whole (can't have one
+// tab fail independently the way 9 separate calls could). Handled with a
+// try/catch that falls back to the same graceful empty-array/default
+// values as before instead of a hard 500 — batchGet is one atomic HTTP
+// call to Google, much less likely to fail in a way the old individual
+// calls wouldn't also have failed together anyway (same network, same
+// auth, same spreadsheet).
 router.get('/', async (req, res, next) => {
   try {
-    const [rooms, invoices, maintenance, expenses, calEvents, unmatchedSlips, staff, paymentLog, settingsData] = await Promise.allSettled([
-      readTab('Rooms').then(coerceRooms),
-      readTab('Invoices').then(coerceInvoices),
-      readTab('Maintenance').then(coerceMaintenance),
-      readTab('Expenses').then(coerceExpenses),
-      readTab('CalendarEvents').then(coerceCalendar),
-      readTab('UnmatchedSlips').then(coerceUnmatchedSlips),
-      readTab('Staff').then(coerceStaff),
-      readTab('PaymentLog').then(coercePaymentLog),
-      readSettings(),
-    ]);
-
-    const errors = [];
-    const pick = (result, label, fallback) => {
-      if (result.status === 'fulfilled') return result.value;
-      errors.push(label + ': ' + result.reason.message);
-      return fallback;
-    };
+    let data = {};
+    try {
+      data = await readTabs(TABS);
+    } catch (err) {
+      console.error('[bootstrap] batch read failed:', err.message);
+    }
 
     const payload = {
-      rooms: pick(rooms, 'rooms', []),
-      invoices: pick(invoices, 'invoices', []),
-      maintenance: pick(maintenance, 'maintenance', []),
-      expenses: pick(expenses, 'expenses', []),
-      calEvents: pick(calEvents, 'calEvents', []),
-      unmatchedSlips: pick(unmatchedSlips, 'unmatchedSlips', []),
-      staff: pick(staff, 'staff', []),
-      paymentLog: pick(paymentLog, 'paymentLog', []),
-      ...pick(settingsData, 'settings', {
-        propertyProfile: { name: '', adminName: '', adminPhone: '' },
-        waterRate: 18, elecRate: 8, trashRate: 40, internetRate: 200,
-        settings: { autoInvoice: true, dueReminder: true },
-      }),
+      rooms: coerceRooms(data.Rooms || []),
+      invoices: coerceInvoices(data.Invoices || []),
+      maintenance: coerceMaintenance(data.Maintenance || []),
+      expenses: coerceExpenses(data.Expenses || []),
+      calEvents: coerceCalendar(data.CalendarEvents || []),
+      unmatchedSlips: coerceUnmatchedSlips(data.UnmatchedSlips || []),
+      staff: coerceStaff(data.Staff || []),
+      paymentLog: coercePaymentLog(data.PaymentLog || []),
+      ...(await readSettings(data.Settings || [])),
     };
-    if (errors.length) {
-      console.error('[bootstrap] partial failure:', errors.join('; '));
-      payload._partialErrors = errors;
-    }
     res.json(payload);
   } catch (err) { next(err); }
 });

@@ -3943,7 +3943,7 @@ class Component extends DCLogic {
       rentPrice: '', waterRate: '', elecRate: '', trashRate: '', internetRate: '',
       waterMeterStart: '', elecMeterStart: '',
       tenantFirstName: '', tenantLastName: '', phone: '',
-      tenantIdImg: '', tenantIdExpiry: '', ownerIdImg: '', ownerIdExpiry: '',
+      tenantIdImg: '', tenantIdExpiry: '', ownerIdImg: '', ownerIdExpiry: '', lineQrImg: '',
       wifiUsername: '', wifiPassword: '', dueDay: '', startDate: '', endDate: '', leaseDocName: '',
     },
     trashRate: 40,
@@ -4794,8 +4794,15 @@ class Component extends DCLogic {
         phone: r.phone || '',
         tenantIdImg: r.tenantIdImg || '',
         tenantIdExpiry: r.tenantIdExpiry || '',
-        ownerIdImg: '',
-        ownerIdExpiry: '',
+        // "จัดการเลย" (2026-07-24) — เดิม 3 ฟิลด์นี้ (ownerIdImg/
+        // ownerIdExpiry/lineQrImg) ไม่เคยถูกโหลดกลับมาจากห้องเลย (reset
+        // เป็นค่าว่างทุกครั้งที่เปิดฟอร์ม) เพราะไม่เคยมีคอลัมน์ในชีต Rooms
+        // มาก่อน (เพิ่งเพิ่มคอลัมน์ผ่าน prototype-auth/
+        // migrate-add-owner-lineqr-columns.js) — ตอนนี้โหลดค่าที่เคย
+        // บันทึกไว้กลับมาแสดง เหมือน tenantIdImg ด้านบนทุกประการ
+        ownerIdImg: r.ownerIdImg || '',
+        ownerIdExpiry: r.ownerIdExpiry || '',
+        lineQrImg: r.lineQrImg || '',
         wifiUsername: r.wifiUsername || '',
         wifiPassword: r.wifiPassword || '',
         dueDay: r.dueDay || '5',
@@ -4835,11 +4842,29 @@ class Component extends DCLogic {
   onCfOwnerExpiry = (e) => this._cf('ownerIdExpiry', e.target.value);
   onCfWifiUsername = (e) => this._cf('wifiUsername', e.target.value);
   onCfWifiPassword = (e) => this._cf('wifiPassword', e.target.value);
+  // "จัดการเลย" (2026-07-24) — เดียวกับ _readImg ด้านล่าง: อัปโหลดขึ้น
+  // Cloudinary ก่อนเก็บลิงก์ แทนเก็บ base64 ตรงๆ (กันปัญหาเกิน 50,000
+  // ตัวอักษรต่อเซลล์เหมือนรูปบัตรประชาชน)
   onCfLineQr = (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
-    this._downscaleImage(f, 1000, (data) => { if (data) this._cf('lineQrImg', data); });
     e.target.value = '';
+    this._downscaleImage(f, 1000, async (data) => {
+      if (!data) return;
+      this.showAdminToast('กำลังอัปโหลดรูป...');
+      try {
+        const res = await fetch('/api/uploads/document', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl: data, folder: 'line-qr' }),
+        });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(result.error || 'อัปโหลดรูปไม่สำเร็จ');
+        this._cf('lineQrImg', result.url);
+        this.showAdminToast('อัปโหลดรูปสำเร็จ');
+      } catch (err) {
+        this.showAdminToast(err.message || 'อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่ครับ');
+      }
+    });
   };
   removeCfLineQr = () => this._cf('lineQrImg', '');
   openLeaseDocs = () => this.setState({ showLeaseDocsModal: true });
@@ -4942,6 +4967,12 @@ class Component extends DCLogic {
       contractEnd: cf.endDate || undefined,
       tenantIdImg: cf.tenantIdImg,
       tenantIdExpiry: cf.tenantIdExpiry,
+      // "จัดการเลย" (2026-07-24) — 3 ฟิลด์นี้มี UI มานานแล้วแต่ไม่เคยถูก
+      // ส่งไปบันทึกเลยสักครั้ง (ดู prototype-auth/
+      // migrate-add-owner-lineqr-columns.js ที่เพิ่งเพิ่มคอลัมน์ในชีตให้)
+      ownerIdImg: cf.ownerIdImg,
+      ownerIdExpiry: cf.ownerIdExpiry,
+      lineQrImg: cf.lineQrImg,
       wifiUsername: cf.wifiUsername,
       wifiPassword: cf.wifiPassword,
       dueDay: cf.dueDay,
@@ -5018,7 +5049,7 @@ class Component extends DCLogic {
   closeDeleteContract = () => this.setState({ showDeleteContract: false, deleteContractRoom: null });
   confirmDeleteContract = () => this._guard('confirmDeleteContract:' + this.state.deleteContractRoom, async () => {
     const id = this.state.deleteContractRoom;
-    const clearPatch = { status: 'vacant', tenant: '', phone: '', moveIn: '', contractEnd: '', wifiUsername: '', wifiPassword: '', dueDay: '', tenantIdImg: '', tenantIdExpiry: '', leaseDocName: '', lineQrImg: '' };
+    const clearPatch = { status: 'vacant', tenant: '', phone: '', moveIn: '', contractEnd: '', wifiUsername: '', wifiPassword: '', dueDay: '', tenantIdImg: '', tenantIdExpiry: '', leaseDocName: '', lineQrImg: '', ownerIdImg: '', ownerIdExpiry: '' };
     try {
       const res = await fetch('/api/rooms/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },

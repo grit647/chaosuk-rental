@@ -68,6 +68,31 @@ async function readTab(tab) {
   return rowsToObjects(res.data.values || []);
 }
 
+// Batch version of readTab — reads MULTIPLE tabs in a SINGLE Google Sheets
+// API call (values.batchGet) instead of one HTTP request per tab. Google's
+// read quota counts each HTTP request as one unit no matter how many ranges
+// it covers, so this cuts quota usage roughly Nx for N tabs — added to fix
+// a real "Quota exceeded for quota metric 'Read requests'" error hit in
+// production (2026-07-24), traced to GET /api/bootstrap firing ~9 separate
+// readTab calls on every single load (and every 30s while the dashboard's
+// auto-refresh toggle is on) — all customer buildings share the same
+// Google service account, so this quota pressure is platform-wide, not
+// just one dashboard. Returns an object keyed by tab name, each value
+// already parsed into row-objects via rowsToObjects (identical shape to
+// what readTab returns, so existing coerce* functions work unchanged).
+async function readTabs(tabs) {
+  const sheets = await client();
+  const res = await sheets.spreadsheets.values.batchGet({
+    spreadsheetId: SHEET_ID(),
+    ranges: tabs.map((tab) => `${tab}!A1:${MAX_COL}1000`),
+  });
+  const result = {};
+  (res.data.valueRanges || []).forEach((vr, i) => {
+    result[tabs[i]] = rowsToObjects(vr.values || []);
+  });
+  return result;
+}
+
 async function appendRow(tab, obj) {
   const sheets = await client();
   const header = await getHeader(sheets, tab);
@@ -145,4 +170,4 @@ async function clearTab(tab) {
   });
 }
 
-module.exports = { readTab, appendRow, updateRow, deleteRow, clearTab };
+module.exports = { readTab, readTabs, appendRow, updateRow, deleteRow, clearTab };

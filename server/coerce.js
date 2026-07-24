@@ -161,8 +161,14 @@ function coerceRecurringTasks(rows) {
   }));
 }
 
-async function readSettings() {
-  const rows = await readTab('Settings');
+// Optional preloadedRows param (2026-07-24) — lets a caller that already
+// fetched the 'Settings' tab as part of a batched readTabs() call (see
+// server/sheets.js's readTabs, added to fix a real "Quota exceeded" error)
+// pass those rows in directly instead of triggering a second separate
+// Google Sheets API read. Every existing call site keeps working unchanged
+// (still calls readTab('Settings') itself if no rows are passed in).
+async function readSettings(preloadedRows) {
+  const rows = preloadedRows || await readTab('Settings');
   const map = {};
   rows.forEach((r) => { map[r.key] = r.value; });
   return {
