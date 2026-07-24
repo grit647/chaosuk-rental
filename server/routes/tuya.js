@@ -264,4 +264,42 @@ router.post('/switch', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// "คาลิเบรตมิเตอร์น้ำ" — ตามคำขอคุณต้น (2026-07-24): ให้พิมพ์ค่า "Total Use"
+// จากแอป Tuya บนมือถือ กด "คาลิเบรต" แล้วปรับยอดสะสมในเว็บให้ตรงกับแอปทันที
+// แทนที่จะต้องให้ผมรันสคริปต์ one-off ทีละห้องแบบก่อนหน้านี้ — เขียนแถวใหม่ลง
+// WaterLog เหมือน manual calibration ที่ทำไปก่อนหน้า (คงค่า watermark เดิม
+// ไว้ ไม่ให้รอบโพลถัดไปนับ event ซ้ำ/ข้าม) และคืนค่าความแม่นยำก่อนคาลิเบรต
+// (ค่าเว็บเดิม / ค่าแอปที่พิมพ์เข้ามา) ให้ frontend แสดงผลด้วย
+router.post('/calibrate-water', async (req, res, next) => {
+  try {
+    const { roomId, appLiters } = req.body;
+    const parsedLiters = Number(appLiters);
+    if (!roomId || !Number.isFinite(parsedLiters) || parsedLiters < 0) {
+      return res.status(400).json({ error: 'ต้องระบุห้องและค่าลิตรจากแอป (ตัวเลขที่ถูกต้อง)' });
+    }
+    const rooms = await readTab('Rooms');
+    const room = rooms.find((r) => r.id === roomId);
+    if (!room || !room.tuyaWaterDeviceId) {
+      return res.status(400).json({ error: `ห้อง ${roomId} ยังไม่ได้เชื่อมต่ออุปกรณ์น้ำ` });
+    }
+    const waterLog = await readTab('WaterLog');
+    const roomRows = waterLog.filter((r) => r.room === roomId.toString())
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const latest = roomRows[0];
+    const beforeLiters = latest ? Number(latest.cumulativeLiters) || 0 : 0;
+    const watermark = latest ? latest.lastProcessedEventTimeMs : 0;
+    await appendRow('WaterLog', {
+      id: Date.now() + '-' + roomId + '-calibration',
+      timestamp: new Date().toISOString(),
+      room: roomId,
+      cumulativeLiters: parsedLiters,
+      lastProcessedEventTimeMs: watermark,
+      flowRate: 0,
+      batteryPercent: 100,
+    });
+    const accuracyPercent = parsedLiters > 0 ? Math.round((beforeLiters / parsedLiters) * 1000) / 10 : null;
+    res.json({ ok: true, before: beforeLiters, after: parsedLiters, accuracyPercent });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

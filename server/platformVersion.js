@@ -40,6 +40,17 @@
 // customerSheetId as the CLI arg) for every building BEFORE clicking
 // "🆕 อัปเดต" for it, or the new field will show in the UI but silently
 // fail to persist (the sheet has no column to write into yet).
-const CURRENT_PLATFORM_VERSION = 2;
+// v3 (2026-07-24): "คาลิเบรตมิเตอร์น้ำ" (water meter calibration) — a new
+// input+button in the Equipment page's water device panel that lets an
+// owner type a device's real "Total Use" reading from the Tuya mobile app
+// and instantly correct the web's own pulse-reconstructed cumulative total
+// to match (POST /api/tuya/calibrate-water, server/routes/tuya.js). Gated
+// because it only works for buildings whose own spreadsheet already has the
+// `WaterLog` tab (see the "Permanent gotcha" note above — not every
+// customer Sheet has it) and are actually using Tuya water flowmeters; a
+// building without either would see a button that silently errors on click.
+// Gated in Rental Management.dc.html behind `authSession.platformVersion >=
+// 3` (render var `cfShowWaterCalibrate`).
+const CURRENT_PLATFORM_VERSION = 3;
 
 module.exports = { CURRENT_PLATFORM_VERSION };
