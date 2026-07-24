@@ -4955,6 +4955,20 @@ class Component extends DCLogic {
       this.showAdminToast('กรุณากรอกเลขมิเตอร์น้ำและไฟเริ่มต้นก่อนบันทึกสัญญา');
       return;
     }
+    // "ทำไมสวนนี้เราทำได้...บันทึกสัญญาเรียบร้อยแล้ว แต่ห้องที่บันทึกไม่
+    // แสดง" (2026-07-24) — real bug the owner hit: a contract could be
+    // saved with everything filled in EXCEPT tenant name, which silently
+    // left the room's `tenant` field blank — the "สัญญาเช่า" list page only
+    // shows rooms with a tenant name set (occupiedRooms = rooms.filter(r =>
+    // r.tenant)), so the save looked like it vanished into nothing even
+    // though the PATCH itself succeeded. Same validation pattern as the
+    // meter-reading check right above — block the save with a clear reason
+    // instead of letting it silently produce a room stuck in this
+    // confusing state.
+    if (!fullName) {
+      this.showAdminToast('กรุณากรอกชื่อผู้เช่าก่อนบันทึกสัญญา');
+      return;
+    }
     const roomPatch = {
       status: fullName ? (s.rooms.find(r => r.id === id).status === 'vacant' ? 'occupied' : undefined) : undefined,
       tenant: fullName || undefined,
