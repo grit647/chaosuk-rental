@@ -248,6 +248,64 @@ it for a real invoice — this is money-affecting, same caution level as
 the `Lease contracts are core data` rule below. Flagging here so a
 future session doesn't have to re-derive this whole investigation.
 
+**2026-07-24 follow-up — manual calibration workflow, now a real UI
+feature (`v3` gate):** confirmed with the owner that the reconstructed
+`WaterLog` cumulative total is directionally correct but always
+UNDER-counts vs. the Tuya app's own real "Total Use" (expected — see
+"can't retroactively reconstruct" note above), so a "calibration" step
+was needed: type the app's real number in, overwrite the web's running
+total to match, keep accumulating from there. First did this by hand
+for 4 devices in "บ้านเลขที่1873" (rooms 1, 2, 3, 14 — writing a new
+`WaterLog` row with the confirmed liters + the existing
+`lastProcessedEventTimeMs` watermark preserved, via one-off scripts).
+Results (all 4 rooms, web reading BEFORE calibration ÷ app's real
+reading): room 2 91.1%, room 1 81.9%, room 3 77.4%, room 14 71.7% —
+average ~80.5%, always under never over, confirming the pulse-counting
+formula itself has no bug, it just starts counting later than the
+device's true lifetime total.
+
+Owner then asked for this to be a real button instead of me running
+ad-hoc scripts every time ("แบบนี้ง่ายกว่า ครับ เพิ่มช่อง คาริเบท
+มิเตอร์น้ำ ใส่ค่าน้ำ ในหน้า App กด คาริเบท") — **built and shipped**:
+- **`POST /api/tuya/calibrate-water`** (`server/routes/tuya.js`) — body
+  `{ roomId, appLiters }`, writes a new `WaterLog` row with
+  `cumulativeLiters: appLiters`, preserving the existing
+  `lastProcessedEventTimeMs` watermark from that room's latest row (so
+  the next hourly poll doesn't reprocess/skip anything, just adds new
+  pulses on top of the corrected baseline). Returns `{ before, after,
+  accuracyPercent }` (`before ÷ after × 100`, i.e. how accurate the
+  auto-calculated total was right before this calibration).
+- **UI** — "Set อุปกรณ์" page, น้ำ tab, new box "🎯 คาลิเบรตมิเตอร์น้ำ"
+  under the live-readout card: an input for the app's Total Use value
+  + a "คาลิเบรต" button, showing "ก่อนคาลิเบรต → หลัง" and the accuracy
+  % after each run (`Rental Management.dc.html` — state fields
+  `waterCalibrateInput`/`waterCalibrateResult`, handlers
+  `onWaterCalibrateInput`/`calibrateWaterDevice`).
+- **Gated behind `platformVersion >= 3`** (`cfShowWaterCalibrate`,
+  `server/platformVersion.js`'s `CURRENT_PLATFORM_VERSION = 3`) per the
+  staged-rollout rule below — only meaningful for buildings that
+  already have a `WaterLog` tab in their own Sheet AND real Tuya water
+  devices linked (see the "Permanent gotcha" note at the top — new
+  tabs/columns don't automatically exist on every customer's own
+  spreadsheet). Already bumped to v3 for the 3 buildings actually using
+  Tuya water today: บ้านเลขที่1873, บ้านพักครูโจ, ตึกหลัก (main
+  account/`server/.env`). A brand-new future building would need its
+  own `WaterLog` tab created first (same manual one-off step as always)
+  before "🆕 อัปเดต" is clicked for it, or the calibrate button will
+  render but silently fail on click (no tab to write into).
+- Also discovered while spot-checking: บ้านพักครูโจ's 3 water rooms
+  (22/3, 22/4, 22/6) and the main account's room 101 all point to the
+  exact SAME physical Tuya device IDs as already-calibrated
+  บ้านเลขที่1873 rooms (1, 2, 14 respectively) — a device's real "Total
+  Use" is a property of the device itself, not the room record, so
+  those 4 rooms' calibrated values were copied directly rather than
+  needing their own separate app lookup.
+- Any OTHER still-uncalibrated rooms in บ้านเลขที่1873 (4, 6, 7, 8, 9,
+  10, 12, 13, 15 — rooms 5/11 had no `WaterLog` data at all yet) are
+  still running on the raw auto-calculated total, not yet calibrated
+  against the app — use the new button next time the owner checks each
+  one's real value in the Tuya app.
+
 ### "คุยกับ Claude AI ผ่าน LINE" — text works, voice needs OPENAI_API_KEY (pending)
 
 **Status:** Built and deployed (commit `355da75`, session redesigned
