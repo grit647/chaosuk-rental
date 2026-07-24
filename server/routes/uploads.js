@@ -75,4 +75,36 @@ router.post('/payment-qr', async (req, res) => {
   }
 });
 
+// "ช่องนี้ของ ช เช่าสุขกรอกข้อมูลอะไรไม่ได้ครับ...มันทำให้บันทึกไม่ได้ด้วย"
+// (2026-07-24) — real bug found while investigating: the lease contract
+// form's ID card photo fields (tenantIdImg/ownerIdImg) were storing the
+// downscaled photo as a raw base64 data URL DIRECTLY in Rooms sheet cells
+// (see saveContractForm in Rental Management.dc.html) — even downscaled to
+// 1400px, a real photo's base64 easily exceeds Google Sheets' 50,000
+// character-per-cell limit, so saving silently failed with "Your input
+// contains more than the maximum of 50000 characters in a single cell."
+// Same persistent-storage pattern as payment-qr above (Cloudinary — these
+// are real documents that need to survive deploys, not ephemeral like slip
+// photos LINE fetches within seconds) but generic (not payment-qr-specific)
+// so any future document/photo field can reuse this same endpoint.
+router.post('/document', async (req, res, next) => {
+  try {
+    if (!cloudinaryConfigured()) {
+      return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่าระบบเก็บรูปถาวร (Cloudinary) กรุณาติดต่อผู้ดูแลระบบ' });
+    }
+    const { dataUrl, folder } = req.body;
+    const match = /^data:(image\/\w+);base64,(.+)$/.exec(dataUrl || '');
+    if (!match) return res.status(400).json({ error: 'รูปภาพไม่ถูกต้อง' });
+    const buffer = Buffer.from(match[2], 'base64');
+    // จำกัด folder ให้อยู่ใต้ chaosuk-rental/documents/ เสมอ (กันส่ง path
+    // แปลกๆ มาเขียนทับที่อื่นใน Cloudinary account เดียวกัน — ไม่ใช่ช่อง
+    // โหว่ด้านความปลอดภัยร้ายแรง แค่ป้องกันการใช้งานผิดโดยไม่ตั้งใจ)
+    const safeFolder = 'chaosuk-rental/documents/' + (String(folder || 'misc').replace(/[^a-zA-Z0-9_-]/g, '') || 'misc');
+    const url = await uploadToCloudinary(buffer, safeFolder);
+    res.json({ url });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'อัปโหลดรูปไม่สำเร็จ' });
+  }
+});
+
 module.exports = router;

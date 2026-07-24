@@ -4862,11 +4862,40 @@ class Component extends DCLogic {
     rd.onerror = () => cb(null);
     rd.readAsDataURL(file);
   }
-  _readImg(e, key) {
+  // "ช่องนี้ของ ช เช่าสุขกรอกข้อมูลอะไรไม่ได้ครับ...มันทำให้บันทึกไม่ได้
+  // ด้วย" (2026-07-24) — real bug found: this used to store the downscaled
+  // photo as a raw base64 data URL directly in contractForm state, which
+  // then got sent straight into a Google Sheets cell on save — even
+  // downscaled to 1400px, a real photo's base64 easily exceeds Sheets'
+  // 50,000 character-per-cell limit, so PATCH /api/rooms/:id failed with
+  // "Your input contains more than the maximum of 50000 characters in a
+  // single cell" and the whole contract save silently blocked. Fixed by
+  // uploading the downscaled image to Cloudinary first (server/routes/
+  // uploads.js's new POST /api/uploads/document, same persistent-storage
+  // pattern already used for payment-qr) and storing the short URL that
+  // comes back instead — well under the cell limit, and the <img src>
+  // preview binding (cfTenantIdPreview/cfOwnerIdPreview) works identically
+  // with a URL as it did with a data URL, no template changes needed.
+  async _readImg(e, key) {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
-    this._downscaleImage(f, 1400, (data) => { if (data) this._cf(key, data); });
     e.target.value = '';
+    this._downscaleImage(f, 1400, async (data) => {
+      if (!data) return;
+      this.showAdminToast('กำลังอัปโหลดรูป...');
+      try {
+        const res = await fetch('/api/uploads/document', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl: data, folder: 'id-cards' }),
+        });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(result.error || 'อัปโหลดรูปไม่สำเร็จ');
+        this._cf(key, result.url);
+        this.showAdminToast('อัปโหลดรูปสำเร็จ');
+      } catch (err) {
+        this.showAdminToast(err.message || 'อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่ครับ');
+      }
+    });
   }
   onCfTenantId = (e) => this._readImg(e, 'tenantIdImg');
   onCfOwnerId = (e) => this._readImg(e, 'ownerIdImg');
