@@ -1900,14 +1900,18 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <!-- SECTION: tenant -->
               <div style="background:#FFFFFF;border-radius:8px;padding:20px;box-sizing:border-box;margin-bottom:14px">
                 <div style="font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#C1622D;margin-bottom:14px">ข้อมูลผู้เช่า</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+                <!-- "ส่วนนี้ซ่อนช่อง นามสกุล ออกครับ ใช้ช่องชื่อ ช่องเดียว
+                     แต่เปลี่ยนข้อความช่องชื่อ เป็น 'ชื่อ/นามสกุล' แทนครับ"
+                     (2026-07-26) — รวมเป็นช่องเดียว พิมพ์ชื่อ-นามสกุลเต็ม
+                     ในช่องนี้เลย ยังคงเก็บ cf.tenantLastName ไว้ใน state
+                     เหมือนเดิม (แค่ไม่มี input ให้กรอกแล้ว) เผื่อกู้กลับมา
+                     แสดงได้ทีหลัง — openContractForm/saveContractForm ปรับ
+                     ให้ใช้ cf.tenantFirstName เป็นชื่อเต็มแทนการต่อ
+                     first+last แล้ว -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
                   <div>
-                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ชื่อ</div>
-                    <input value="{{ cf.tenantFirstName }}" onchange="{{ onCfFirstName }}" placeholder="วรากร" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
-                  </div>
-                  <div>
-                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">นามสกุล</div>
-                    <input value="{{ cf.tenantLastName }}" onchange="{{ onCfLastName }}" placeholder="ทองสุข" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ชื่อ/นามสกุล</div>
+                    <input value="{{ cf.tenantFirstName }}" onchange="{{ onCfFirstName }}" placeholder="วรากร ทองสุข" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
                   </div>
                   <div>
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เบอร์โทร</div>
@@ -4786,7 +4790,6 @@ class Component extends DCLogic {
   _cf(key, val) { this.setState(s => ({ contractForm: { ...s.contractForm, [key]: val } })); }
   openContractForm = (roomId) => {
     const r = this.state.rooms.find(x => x.id === roomId) || {};
-    const nameParts = (r.tenant || '').trim().split(' ');
     this.setState({
       contractFormRoomId: roomId,
       contractForm: {
@@ -4834,8 +4837,12 @@ class Component extends DCLogic {
         elecMeterStart: r.elecPrev != null ? String(r.elecPrev) : '',
         trashRate: String(this.state.trashRate),
         internetRate: String(this.state.internetRate),
-        tenantFirstName: nameParts[0] || '',
-        tenantLastName: nameParts.slice(1).join(' ') || '',
+        // 2026-07-26 — ช่อง "ชื่อ/นามสกุล" รวมเป็นช่องเดียวแล้ว (ดูคอมเมนต์
+        // เต็มตรง <input> ในเทมเพลต) เก็บชื่อเต็มไว้ใน tenantFirstName ตรงๆ
+        // ไม่ต้องแยก first/last อีกต่อไป — tenantLastName เก็บว่างไว้เสมอ
+        // (ยังอยู่ใน state เผื่อใช้ทีหลัง แค่ไม่มี input ให้กรอกแล้ว)
+        tenantFirstName: r.tenant || '',
+        tenantLastName: '',
         phone: r.phone || '',
         tenantIdImg: r.tenantIdImg || '',
         tenantIdExpiry: r.tenantIdExpiry || '',
@@ -4984,6 +4991,11 @@ class Component extends DCLogic {
   saveContractForm = async () => {
     const cf = this.state.contractForm;
     const id = this.state.contractFormRoomId;
+    // 2026-07-26 — cf.tenantFirstName now holds the full "ชื่อ/นามสกุล"
+    // (tenantLastName field removed from the UI, always ''), so this is
+    // just tenantFirstName.trim() now — kept the `+ cf.tenantLastName`
+    // concat for safety in case any old code path still writes something
+    // into tenantLastName, but it's always '' from the form itself.
     const fullName = (cf.tenantFirstName + ' ' + cf.tenantLastName).trim();
     const s = this.state;
     // Per explicit user request: the starting meter readings are now
