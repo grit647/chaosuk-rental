@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { readTab, updateRow } = require('../sheets');
+const { readTab, updateRow, pruneOldRows } = require('../sheets');
 const { readSettings, coerceRecurringTasks, coerceInvoices, readIntegrationCredentials } = require('../coerce');
 const { pushMessage, isConfigured: lineConfigured } = require('../line');
 const { runAutomatedInstruction } = require('../automation');
@@ -16,6 +16,15 @@ const { syncOwnerRichMenuBadges } = require('../ownerRichMenu');
 // gotcha") for what's a low-stakes once-a-day nudge — worst case after a
 // rare server restart is one duplicate notification that day.
 const _cutoffNotifiedDates = new Map(); // "reminder:room:invId" | "final:room:invId" -> "YYYY-MM-DD"
+
+// "เก็บข้อมูลไว้สูงสุด 5 ปีเลยครับ" (2026-07-26) — ElectricityLog/WaterLog
+// เก็บได้ถึง 1 แถว/ห้อง/ชั่วโมง ไม่เคยมีวันลบมาก่อน (ดู comment เต็มใน
+// sheets.js's pruneOldRows) — เพิ่มการล้างข้อมูลเก่าเกิน 5 ปีให้อัตโนมัติ
+// ตรงนี้ ทำแค่วันละครั้งพอ (in-memory throttle เหมือน cutoff-warning ด้าน
+// ล่าง) เพราะ pruneOldRows ทำ read+clear+rewrite ทั้งแท็บ ไม่จำเป็นต้องรัน
+// ทุกครั้งที่ scheduler ติ๊ก (รายชั่วโมง)
+const LOG_RETENTION_YEARS = 5;
+let _lastLogPruneDate = null;
 
 // Called periodically by an external trigger (GitHub Actions cron — see
 // .github/workflows/scheduler.yml) rather than an in-process setInterval,
@@ -163,6 +172,28 @@ router.get('/run', async (req, res, next) => {
       console.error('[scheduler] lease/ID expiring check failed', err.message);
     }
 
+    // "เก็บข้อมูลไว้สูงสุด 5 ปีเลยครับ" (2026-07-26) — unconditional basic
+    // housekeeping (same tier as overdue-bill detection above), throttled
+    // to once a day via _lastLogPruneDate. Prunes ElectricityLog/WaterLog
+    // rows older than 5 years — both tabs use `timestamp` as their date
+    // column (see server/routes/tuya.js's appendRow calls).
+    let logPruneResult = null;
+    try {
+      const todayStr3 = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+      if (_lastLogPruneDate !== todayStr3) {
+        const cutoff = new Date();
+        cutoff.setFullYear(cutoff.getFullYear() - LOG_RETENTION_YEARS);
+        const [elecResult, waterResult] = await Promise.all([
+          pruneOldRows('ElectricityLog', 'timestamp', cutoff).catch((err) => { console.error('[scheduler] prune ElectricityLog failed', err.message); return null; }),
+          pruneOldRows('WaterLog', 'timestamp', cutoff).catch((err) => { console.error('[scheduler] prune WaterLog failed', err.message); return null; }),
+        ]);
+        logPruneResult = { elec: elecResult, water: waterResult };
+        _lastLogPruneDate = todayStr3;
+      }
+    } catch (err) {
+      console.error('[scheduler] log retention prune failed', err.message);
+    }
+
     // Per explicit user request: keep the owner Rich Menu's "บิลค้างชำระ"/
     // "สลิปรอตรวจสอบ" badge numbers roughly current — same unconditional
     // treatment as the overdue-bill check right above (basic upkeep, not
@@ -180,7 +211,7 @@ router.get('/run', async (req, res, next) => {
     }
 
     if (!settings.claudeAutomationEnabled) {
-      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew }, cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified }, leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified }, ownerRichMenu: ownerRichMenuResult });
+      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew }, cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified }, leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified }, logPrune: logPruneResult, ownerRichMenu: ownerRichMenuResult });
     }
 
     let sentCount = 0, scheduledChecked = 0, scheduledDue = 0;
@@ -254,6 +285,7 @@ router.get('/run', async (req, res, next) => {
       overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew },
       cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified },
       leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
+      logPrune: logPruneResult,
       scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount },
       recurringTasks: { checked: recurringChecked, ran: recurringRan },
       ownerRichMenu: ownerRichMenuResult,

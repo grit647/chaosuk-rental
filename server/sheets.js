@@ -197,4 +197,48 @@ async function getCellUsage() {
   return { usedCells, totalCells, percent: Math.min(100, (usedCells / totalCells) * 100) };
 }
 
-module.exports = { readTab, readTabs, appendRow, updateRow, deleteRow, clearTab, getCellUsage };
+// "เก็บข้อมูลไว้สูงสุด 5 ปีเลยครับ" (2026-07-26) — retention cleanup for
+// high-volume log tabs (ElectricityLog/WaterLog, see server/routes/tuya.js
+// — up to 1 row/room/hour forever, no expiry until now). Deletes rows
+// whose dateField is older than cutoffDate, keyed by matching column name
+// (e.g. 'timestamp'). Rows with a missing/unparseable date are KEPT rather
+// than guessed-deleted (safer default — better to over-keep than silently
+// lose data from a row this function doesn't understand).
+//
+// Deliberately does ONE clear + ONE rewrite of the whole tab instead of
+// calling deleteRow() per old row — deleteRow does its own
+// getHeader+spreadsheets.get+batchUpdate round trip EVERY call, which would
+// mean hundreds/thousands of separate Sheets API calls to prune a year of
+// hourly logs (guaranteed to blow through the per-minute read/write quota
+// documented elsewhere in this codebase). This way it's always exactly 2
+// API calls total (one values.clear, one values.update) no matter how many
+// rows are being pruned.
+async function pruneOldRows(tab, dateField, cutoffDate) {
+  const sheets = await client();
+  const header = await getHeader(sheets, tab);
+  const range = `${tab}!A2:${MAX_COL}100000`;
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range });
+  const rows = res.data.values || [];
+  if (rows.length === 0) return { removedCount: 0, keptCount: 0 };
+  const objs = rowsToObjects([header, ...rows]);
+  const kept = objs.filter((r) => {
+    const v = r[dateField];
+    if (!v) return true;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) || d >= cutoffDate;
+  });
+  const removedCount = objs.length - kept.length;
+  if (removedCount === 0) return { removedCount: 0, keptCount: kept.length };
+  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID(), range });
+  if (kept.length > 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID(),
+      range: `${tab}!A2`,
+      valueInputOption: 'RAW',
+      requestBody: { values: kept.map((obj) => objectToRow(header, obj)) },
+    });
+  }
+  return { removedCount, keptCount: kept.length };
+}
+
+module.exports = { readTab, readTabs, appendRow, updateRow, deleteRow, clearTab, getCellUsage, pruneOldRows };
