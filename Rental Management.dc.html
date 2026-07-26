@@ -2473,6 +2473,28 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <!-- "จัดการเลยครับ" (2026-07-26) — ตั้งวันล่วงหน้าก่อนแจ้งเตือน
+             "สัญญาเช่า/บัตรประชาชนใกล้หมดอายุ" -->
+        <sc-if value="{{ showLeaseExpiringConfigModal }}">
+          <div onclick="{{ closeLeaseExpiringConfig }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:215">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:400px;max-width:92%;box-sizing:border-box;max-height:88%;overflow:auto">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span style="font-size:18px">📄</span>
+                <div style="font-size:16px;font-weight:700;color:#241812">ตั้งค่าแจ้งเตือนสัญญา/บัตรประชาชนหมดอายุ</div>
+              </div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">แจ้งทั้งเจ้าของและผู้เช่า (ถ้าห้องนั้นผูก LINE ไว้แล้ว) เมื่อเหลือเวลาตามที่ตั้งไว้ก่อนสัญญาเช่าหรือบัตรประชาชนของผู้เช่าจะหมดอายุ</div>
+
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">แจ้งเตือนล่วงหน้ากี่วันก่อนหมดอายุ</div>
+              <input value="{{ leaseExpiringConfigDraft.days }}" onchange="{{ onLeaseExpiringReminderDaysChange }}" placeholder="7" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:18px">
+
+              <div style="display:flex;gap:10px">
+                <div onclick="{{ closeLeaseExpiringConfig }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer;text-align:center">ยกเลิก</div>
+                <div onclick="{{ saveLeaseExpiringConfig }}" style="flex:1.4;padding:11px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:center">บันทึก</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showBroadcast }}">
           <div onclick="{{ closeBroadcast }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:215">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:440px;max-width:92%;box-sizing:border-box;max-height:88%;overflow:auto">
@@ -4263,6 +4285,11 @@ class Component extends DCLogic {
     cutoffCancelWarningDay: '25',
     showCutoffConfigModal: false,
     cutoffConfigDraft: { reminderDay: '5', finalDay: '15', cancelWarningDay: '25' },
+    // "จัดการเลยครับ" (2026-07-26) — ทำให้สวิตช์ "สัญญาเช่า/บัตรประชาชนใกล้
+    // หมดอายุ" ส่งแจ้งเตือนจริง — จำนวนวันล่วงหน้าก่อนวันหมดอายุ
+    leaseExpiringReminderDays: '7',
+    showLeaseExpiringConfigModal: false,
+    leaseExpiringConfigDraft: { days: '7' },
     // Per explicit user request: lets the owner turn whole nav sections
     // on/off (e.g. selling to a customer building that doesn't use Tuya
     // devices or has no staff to track). All default true so nothing
@@ -4739,6 +4766,7 @@ class Component extends DCLogic {
         cutoffReminderDay: data.cutoffReminderDay != null ? String(data.cutoffReminderDay) : s.cutoffReminderDay,
         cutoffFinalDay: data.cutoffFinalDay != null ? String(data.cutoffFinalDay) : s.cutoffFinalDay,
         cutoffCancelWarningDay: data.cutoffCancelWarningDay != null ? String(data.cutoffCancelWarningDay) : s.cutoffCancelWarningDay,
+        leaseExpiringReminderDays: data.leaseExpiringReminderDays != null ? String(data.leaseExpiringReminderDays) : s.leaseExpiringReminderDays,
         settings: { ...s.settings, ...data.settings },
         claudeAutomationEnabled: !!data.claudeAutomationEnabled,
         hasDataResetPin: !!data.hasDataResetPin,
@@ -8060,6 +8088,33 @@ class Component extends DCLogic {
       this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
     }
   });
+  // "จัดการเลยครับ" (2026-07-26) — popup ตั้งจำนวนวันล่วงหน้าก่อนแจ้งเตือน
+  // "สัญญาเช่า/บัตรประชาชนใกล้หมดอายุ" (คนละ modal จาก cutoffConfig)
+  openLeaseExpiringConfig = () => this.setState(s => ({
+    showLeaseExpiringConfigModal: true,
+    leaseExpiringConfigDraft: { days: s.leaseExpiringReminderDays },
+  }));
+  closeLeaseExpiringConfig = () => this.setState({ showLeaseExpiringConfigModal: false });
+  onLeaseExpiringReminderDaysChange = (e) => { const v = e.target.value; this.setState(s => ({ leaseExpiringConfigDraft: { ...s.leaseExpiringConfigDraft, days: v } })); };
+  saveLeaseExpiringConfig = () => this._guard('saveLeaseExpiringConfig', async () => {
+    const { days } = this.state.leaseExpiringConfigDraft;
+    const d = Number(days);
+    if (!d || d < 1 || d > 90) {
+      this.showAdminToast('กรุณากรอกจำนวนวันให้ถูกต้อง (1-90)');
+      return;
+    }
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leaseExpiringReminderDays: d }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      this.setState({ leaseExpiringReminderDays: String(d), showLeaseExpiringConfigModal: false });
+      this.showAdminToast('บันทึกการตั้งค่าแจ้งเตือนสัญญา/บัตรประชาชนหมดอายุแล้ว');
+    } catch (err) {
+      this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
+    }
+  });
   confirmChangePin = () => this._guard('confirmChangePin', async () => {
     try {
       const res = await fetch('/api/settings/change-admin-pin', {
@@ -9454,7 +9509,10 @@ class Component extends DCLogic {
       { key: 'overdueBill', label: 'บิลเกินกำหนดชำระ', desc: 'แจ้งเมื่อบิลไหนเข้าสถานะเกินกำหนด' },
       { key: 'unmatchedSlip', label: 'สลิปที่ยังไม่ทราบห้อง', desc: 'แจ้งเมื่อมีสลิปที่ระบบจับคู่ห้องไม่ได้' },
       { key: 'maintenance', label: 'แจ้งซ่อมเข้าใหม่', desc: 'แจ้งทันทีที่ผู้เช่าแจ้งปัญหาเข้ามา' },
-      { key: 'leaseExpiring', label: 'สัญญาเช่า/บัตรประชาชนใกล้หมดอายุ', desc: 'เตือนล่วงหน้าก่อนสัญญาหรือบัตรประชาชนผู้เช่าหมดอายุ' },
+      // "จัดการเลยครับ" (2026-07-26) — เพิ่มปุ่มฟันเฟื่องตั้งค่าจำนวนวัน
+      // ล่วงหน้าก่อนแจ้งเตือน (แยกจาก cutoffWarning's gear เพราะ config
+      // คนละชุดกันเลย — ดู onConfig แบบ per-key ด้านล่าง)
+      { key: 'leaseExpiring', label: 'สัญญาเช่า/บัตรประชาชนใกล้หมดอายุ', desc: `เตือนล่วงหน้า ${s.leaseExpiringReminderDays} วันก่อนสัญญาหรือบัตรประชาชนผู้เช่าหมดอายุ`, hasConfig: true },
       { key: 'wifiRequest', label: 'ผู้เช่าขอรหัส Wifi', desc: 'แจ้งทันทีที่ผู้เช่ากดขอรหัส Wifi ผ่านเมนู LINE (ส่งให้เจ้าของและผู้ดูแลทุกคนที่เชื่อมไว้)' },
       // "แจ้งเตือน ตัดน้ำตัดไฟ...มีปุ่มฟันเฟื่องเข้าไปตั้งค่า" (2026-07-26)
       // — hasConfig=true แสดงปุ่มฟันเฟื่องเปิด modal ตั้งวันที่ (gear icon
@@ -9462,10 +9520,14 @@ class Component extends DCLogic {
       { key: 'cutoffWarning', label: 'แจ้งเตือนตัดน้ำตัดไฟ', desc: `แจ้งถ้ายังไม่ชำระถึงวันที่ ${s.cutoffReminderDay} → เตือนตัดน้ำ/ไฟถ้าไม่ชำระถึงวันที่ ${s.cutoffFinalDay} → เตือนยกเลิกสัญญาถ้าไม่ชำระถึงวันที่ ${s.cutoffCancelWarningDay}`, hasConfig: true },
     ].map(o => {
       const on = !!s.adminNotify[o.key];
+      // "จัดการเลยครับ" (2026-07-26) — เดิม onConfig ใช้ openCutoffConfig
+      // ตายตัวทุกแถว (ตอนนั้นมี config แค่จุดเดียว) ตอนนี้มี 2 จุดแยกกัน
+      // (cutoffWarning/leaseExpiring) ต้อง dispatch ตาม key เอง
+      const configHandlers = { cutoffWarning: this.openCutoffConfig, leaseExpiring: this.openLeaseExpiringConfig };
       return {
         ...o, on, bg: on ? '#C1622D' : '#E3D8C8', knobLeft: on ? '22px' : '2px',
         onClick: adminNotifyLocked ? null : this.toggleAdminNotify(o.key),
-        onConfig: this.openCutoffConfig,
+        onConfig: configHandlers[o.key] || null,
       };
     });
     const adminNotifyAllOn = Object.values(s.adminNotify).every(Boolean);
@@ -10568,6 +10630,9 @@ class Component extends DCLogic {
       showCutoffConfigModal: s.showCutoffConfigModal, cutoffConfigDraft: s.cutoffConfigDraft,
       openCutoffConfig: this.openCutoffConfig, closeCutoffConfig: this.closeCutoffConfig,
       onCutoffReminderDayChange: this.onCutoffReminderDayChange, onCutoffFinalDayChange: this.onCutoffFinalDayChange, onCutoffCancelWarningDayChange: this.onCutoffCancelWarningDayChange, saveCutoffConfig: this.saveCutoffConfig,
+      showLeaseExpiringConfigModal: s.showLeaseExpiringConfigModal, leaseExpiringConfigDraft: s.leaseExpiringConfigDraft,
+      openLeaseExpiringConfig: this.openLeaseExpiringConfig, closeLeaseExpiringConfig: this.closeLeaseExpiringConfig,
+      onLeaseExpiringReminderDaysChange: this.onLeaseExpiringReminderDaysChange, saveLeaseExpiringConfig: this.saveLeaseExpiringConfig,
       showDueReminder: s.showDueReminder, dueReminderDays: s.dueReminderDays, dueReminderMsg: s.dueReminderMsg,
       closeDueReminder: this.closeDueReminder, onDueReminderDays: this.onDueReminderDays, onDueReminderMsg: this.onDueReminderMsg, saveDueReminder: this.saveDueReminder, toggleDueReminderAll: this.toggleDueReminderAll,
       dueReminderAllCheck: (occupiedRooms.length > 0 && occupiedRooms.every(r => s.dueReminderRooms[r.id])) ? '✓' : '',

@@ -256,6 +256,12 @@ async function readSettings(preloadedRows) {
     // ยกเลิกสัญญาจริงอัตโนมัติเด็ดขาด — คุณต้นยังต้องไปกดยกเลิกสัญญาเองที่
     // หน้าสัญญาเช่า (ปุ่ม "ลบห้องนี้"/ยกเลิกสัญญา ที่มีอยู่แล้ว) เสมอ
     cutoffCancelWarningDay: num(map.cutoffCancelWarningDay, 25),
+    // "จัดการเลยครับ" (2026-07-26) — ทำให้สวิตช์ "สัญญาเช่า/บัตรประชาชนใกล้
+    // หมดอายุ" ส่งแจ้งเตือนจริง (เดิมมีแค่สวิตช์ แต่ไม่มีระบบส่งเลย) —
+    // จำนวนวันล่วงหน้าก่อนวันหมดอายุจริง (ไม่ใช่วันปฏิทินตายตัวแบบ
+    // cutoffReminderDay/cutoffFinalDay ด้านบน เพราะวันหมดอายุสัญญา/บัตร
+    // ต่างกันไปตามแต่ละห้อง ไม่มีวันร่วมกันแบบวันครบกำหนดชำระ)
+    leaseExpiringReminderDays: num(map.leaseExpiringReminderDays, 7),
     // Per explicit user request: lets the owner turn whole nav sections
     // on/off (e.g. selling this app to another building that doesn't use
     // Tuya devices or has no staff to track) — gated behind the same admin

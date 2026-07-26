@@ -118,6 +118,51 @@ router.get('/run', async (req, res, next) => {
       console.error('[scheduler] cutoff warning check failed', err.message);
     }
 
+    // "จัดการเลยครับ" (2026-07-26) — สวิตช์ "สัญญาเช่า/บัตรประชาชนใกล้หมด
+    // อายุ" มีอยู่แล้วแต่ไม่เคยส่งอะไรจริงเลย — เพิ่มการเช็คจริงตรงนี้ ส่ง
+    // ทั้งเจ้าของและผู้เช่า (ถ้าผูก LINE ไว้) เมื่อเหลืออีกพอดี
+    // leaseExpiringReminderDays วันก่อนหมดอายุ (ทั้งวันหมดอายุบัตรและวัน
+    // สิ้นสุดสัญญา แยกกันคนละข้อความ) — ครั้งเดียวต่อห้องต่อประเภทต่อรอบ
+    // อายุ (dedup ด้วยตัววันหมดอายุเองเป็นส่วนหนึ่งของ key กันแจ้งซ้ำถ้า
+    // เปลี่ยนวันหมดอายุใหม่ในสัญญาแล้วรอบใหม่ควรแจ้งได้อีกครั้ง)
+    let leaseExpiringChecked = 0, leaseExpiringNotified = 0;
+    try {
+      if (settings.adminNotify && settings.adminNotify.leaseExpiring) {
+        const todayStr2 = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+        const daysUntil = (dateStr) => {
+          if (!dateStr) return null;
+          const target = new Date(dateStr + 'T00:00:00Z');
+          if (Number.isNaN(target.getTime())) return null;
+          const now = new Date(todayStr2 + 'T00:00:00Z');
+          return Math.round((target - now) / 86400000);
+        };
+        const reminderDays = Number(settings.leaseExpiringReminderDays) || 7;
+        const rooms = await readTab('Rooms');
+        const occupied = rooms.filter((r) => r.tenant);
+        leaseExpiringChecked = occupied.length;
+        for (const room of occupied) {
+          const checks = [
+            { field: 'tenantIdExpiry', value: room.tenantIdExpiry, kind: 'idCard', label: 'บัตรประชาชนผู้เช่า', tenantLabel: 'บัตรประชาชนของคุณ' },
+            { field: 'contractEnd', value: room.contractEnd, kind: 'contract', label: 'สัญญาเช่า', tenantLabel: 'สัญญาเช่าของคุณ' },
+          ];
+          for (const c of checks) {
+            const days = daysUntil(c.value);
+            if (days !== reminderDays) continue; // เตือนแค่วันที่ตรงเป๊ะเท่านั้น กันแจ้งซ้ำทุกวัน
+            const key = `leaseExpiring:${c.kind}:${room.id}:${c.value}`;
+            if (_cutoffNotifiedDates.get(key) === todayStr2) continue;
+            notifyAdmin('leaseExpiring', `📄 ${c.label}ห้อง ${room.id} (${room.tenant}) จะหมดอายุในอีก ${reminderDays} วัน (${c.value})`).catch(() => {});
+            if (room.lineUserId) {
+              pushMessage(room.lineUserId, `📄 แจ้งเตือนครับ ${c.tenantLabel}จะหมดอายุในอีก ${reminderDays} วัน (${c.value}) รบกวนเตรียมต่ออายุ/อัปเดตให้เรียบร้อยนะครับ`).catch(() => {});
+            }
+            _cutoffNotifiedDates.set(key, todayStr2);
+            leaseExpiringNotified++;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[scheduler] lease/ID expiring check failed', err.message);
+    }
+
     // Per explicit user request: keep the owner Rich Menu's "บิลค้างชำระ"/
     // "สลิปรอตรวจสอบ" badge numbers roughly current — same unconditional
     // treatment as the overdue-bill check right above (basic upkeep, not
@@ -135,7 +180,7 @@ router.get('/run', async (req, res, next) => {
     }
 
     if (!settings.claudeAutomationEnabled) {
-      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew }, cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified }, ownerRichMenu: ownerRichMenuResult });
+      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew }, cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified }, leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified }, ownerRichMenu: ownerRichMenuResult });
     }
 
     let sentCount = 0, scheduledChecked = 0, scheduledDue = 0;
@@ -208,6 +253,7 @@ router.get('/run', async (req, res, next) => {
       ran: true,
       overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew },
       cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified },
+      leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
       scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount },
       recurringTasks: { checked: recurringChecked, ran: recurringRan },
       ownerRichMenu: ownerRichMenuResult,

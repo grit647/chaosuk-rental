@@ -385,6 +385,7 @@ router.put('/', async (req, res, next) => {
       cutoffReminderDay: b.cutoffReminderDay,
       cutoffFinalDay: b.cutoffFinalDay,
       cutoffCancelWarningDay: b.cutoffCancelWarningDay,
+      leaseExpiringReminderDays: b.leaseExpiringReminderDays,
       autoInvoice: b.settings && b.settings.autoInvoice,
       dueReminder: b.settings && b.settings.dueReminder,
       claudeAutomationEnabled: b.claudeAutomationEnabled,
