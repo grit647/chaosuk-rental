@@ -1822,11 +1822,32 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px">
                 <div>
                   <div style="font-size:21px;font-weight:700;color:#241812">กรอกข้อมูลสัญญาเช่า · ห้อง {{ contractFormRoomId }}</div>
-                  <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรอกรายละเอียดให้ครบแล้วกดบันทึก</div>
+                  <sc-if value="{{ contractFormLocked }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:12.5px;color:#B85B27;margin-top:2px">🔒 โหมดดูอย่างเดียว — กดปุ่ม "แก้ไข" ก่อนถึงจะเปลี่ยนแปลงข้อมูลได้</div>
+                  </sc-if>
+                  <sc-if value="{{ !contractFormLocked }}" hint-placeholder-val="{{ true }}">
+                    <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรอกรายละเอียดให้ครบแล้วกดบันทึก</div>
+                  </sc-if>
                 </div>
-                <div onclick="{{ closeContractForm }}" style="flex-shrink:0;padding:9px 16px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer">‹ กลับ</div>
+                <div style="display:flex;gap:8px;flex-shrink:0">
+                  <!-- "สัญญาเช่าเพิ่มปุ่มแก้ไขอีก 1 ปุ่ม กรณีบันทึกแล้ว ขึ้น
+                       ทุกช่องเป็นเทา...ต้องมากดที่แก้ไข ถึงจะเปลี่ยนแปลง
+                       ข้อมูลได้" (2026-07-26) — กันแก้ไขสัญญาที่มีอยู่แล้ว
+                       โดยไม่ตั้งใจ -->
+                  <sc-if value="{{ contractFormLocked }}" hint-placeholder-val="{{ false }}">
+                    <div onclick="{{ unlockContractForm }}" style="padding:9px 16px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:600;cursor:pointer">✎ แก้ไข</div>
+                  </sc-if>
+                  <div onclick="{{ closeContractForm }}" style="padding:9px 16px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer">‹ กลับ</div>
+                </div>
               </div>
 
+              <!-- "กรณีบันทึกแล้ว ขึ้นทุกช่องเป็นเทา ไม่สามารถแก้ไขข้อมูล
+                   ได้" (2026-07-26) — ครอบทุก SECTION ด้วย wrapper เดียว
+                   แทนที่จะเติม disabled ทีละช่อง (ช่องในฟอร์มนี้เยอะมาก) —
+                   contractFormLockedStyle คำนวณไว้ใน renderVals ให้จางลง +
+                   บล็อกคลิก/พิมพ์ทั้งหมดตอนล็อกอยู่ ปุ่ม "✎ แก้ไข" (ใน
+                   header ด้านบน) อยู่นอก wrapper นี้เลยกดได้เสมอ -->
+              <div style="{{ contractFormLockedStyle }}">
               <!-- SECTION: room + rent -->
               <div style="background:#FFFFFF;border-radius:8px;padding:20px;box-sizing:border-box;margin-bottom:14px">
                 <div style="font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#C1622D;margin-bottom:14px">ข้อมูลห้องและค่าเช่า</div>
@@ -2011,6 +2032,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                 </div>
               </div>
+              </div>
+              <!-- ปิด contractFormLockedStyle wrapper ด้านบน — แถวปุ่ม
+                   ด้านล่างนี้ (ไฟล์สัญญาทั้งหมด/ยกเลิก/บันทึกสัญญา) อยู่
+                   นอก wrapper เหมือนปุ่ม "✎ แก้ไข" ใน header เจตนา: กด
+                   "ยกเลิก"/"ไฟล์สัญญาทั้งหมด" ได้เสมอแม้ยังล็อกอยู่ (ดู
+                   ข้อมูลอย่างเดียว ไม่ใช่แก้ไข ปลอดภัย) ส่วน "บันทึกสัญญา"
+                   ตอนล็อกอยู่ก็แค่บันทึกค่าเดิมซ้ำ ไม่มีอะไรเปลี่ยน ไม่
+                   จำเป็นต้องซ่อน -->
 
               <div style="display:flex;gap:12px;justify-content:flex-end;align-items:center">
                 <div onclick="{{ openLeaseDocs }}" style="margin-right:auto;padding:11px 18px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px">📄 ไฟล์สัญญาทั้งหมด</div>
@@ -3957,6 +3986,14 @@ class Component extends DCLogic {
     showContractModal: false,
     showLeaseDocsModal: false,
     contractFormRoomId: null,
+    // "สัญญาเช่าเพิ่มปุ่มแก้ไขอีก 1 ปุ่ม กรณีบันทึกแล้ว ขึ้นทุกช่องเป็นเทา
+    // ไม่สามารถแก้ไขข้อมูลได้ ต้องมากดที่แก้ไข ถึงจะเปลี่ยนแปลงข้อมูลได้"
+    // (2026-07-26) — กันแก้ไขข้อมูลสัญญาที่มีอยู่แล้วโดยไม่ตั้งใจ (พลาดคลิก/
+    // พิมพ์ในช่อง) เปิดฟอร์มมาดูเฉยๆ ครั้งแรกจะ "ล็อก" (อ่านอย่างเดียว) ถ้า
+    // เป็นห้องที่มีสัญญาอยู่แล้ว ต้องกดปุ่ม "แก้ไข" ก่อนถึงจะพิมพ์/เปลี่ยนได้
+    // — ห้องว่าง (สัญญาใหม่ ยังไม่เคยบันทึก) เปิดมาแก้ไขได้ทันทีเลย ไม่ล็อก
+    // เพราะไม่มีข้อมูลเดิมให้ป้องกัน
+    contractFormLocked: false,
     contractForm: {
       rentPrice: '', waterRate: '', elecRate: '', trashRate: '', internetRate: '',
       waterMeterStart: '', elecMeterStart: '',
@@ -4796,6 +4833,9 @@ class Component extends DCLogic {
     const r = this.state.rooms.find(x => x.id === roomId) || {};
     this.setState({
       contractFormRoomId: roomId,
+      // ล็อกฟอร์มไว้ (อ่านอย่างเดียว) เฉพาะห้องที่มีผู้เช่า/สัญญาอยู่แล้ว —
+      // ห้องว่าง (สัญญาใหม่) เปิดมาแก้ไขได้ทันที ไม่ต้องกดปลดล็อกก่อน
+      contractFormLocked: !!r.tenant,
       contractForm: {
         room: roomId,
         rentPrice: r.rent != null ? String(r.rent) : '',
@@ -4868,6 +4908,7 @@ class Component extends DCLogic {
       },
     });
   };
+  unlockContractForm = () => this.setState({ contractFormLocked: false });
   newContractForm = () => {
     if (!this.state.rooms.length) { this.showAdminToast('กรุณาเพิ่มห้องก่อนทำสัญญา'); return; }
     const vacant = this.state.rooms.find(x => x.status === 'vacant');
@@ -10437,6 +10478,12 @@ class Component extends DCLogic {
       contractFormActive: s.contractFormRoomId != null,
       contractFormInactive: s.contractFormRoomId == null,
       contractFormRoomId: s.contractFormRoomId,
+      // "สัญญาเช่าเพิ่มปุ่มแก้ไขอีก 1 ปุ่ม...ต้องมากดที่แก้ไข ถึงจะ
+      // เปลี่ยนแปลงข้อมูลได้" (2026-07-26) — ครอบเนื้อหาฟอร์มด้วยสไตล์
+      // เดียว (จาง + บล็อกคลิก) แทนการเติม disabled ทีละช่อง
+      contractFormLocked: s.contractFormLocked,
+      contractFormLockedStyle: s.contractFormLocked ? 'opacity:0.55;pointer-events:none;user-select:none' : '',
+      unlockContractForm: this.unlockContractForm,
       cf: s.contractForm,
       cfRoomOptions: s.rooms.map(r => ({ id: r.id, label: 'ห้อง ' + r.id + (r.tenant ? ' · ' + r.tenant : ' · (ว่าง)') })),
       // Staged-rollout gate (server/platformVersion.js v2) — "ค่ามัดจำห้อง"
