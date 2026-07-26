@@ -404,6 +404,27 @@ router.post('/calibrate-water', async (req, res, next) => {
     if (!room || !room.tuyaWaterDeviceId) {
       return res.status(400).json({ error: `ห้อง ${roomId} ยังไม่ได้เชื่อมต่ออุปกรณ์น้ำ` });
     }
+    // "ปุ่มคาริเบท ถ้าห้องยังใช้น้ำอยู่ ขึ้นไม่สามารถคาริเบทได้...ต้องเป็น
+    // ช่วงที่ไม่ใช้น้ำถึงจะตั้งค่าคาลิเบรตได้" (2026-07-26) — calibrating
+    // while water is actively flowing would capture the app's Total Use
+    // mid-session (before that session's own usage has even finished
+    // accumulating), guaranteeing a fresh mismatch the moment the tap turns
+    // off. Reuses the same live isFlowing signal (getWaterFlowActivity,
+    // 15-second pulse window) the dashboard already shows — blocked
+    // server-side (not just a disabled button) so a stale/cached frontend
+    // state can't slip a mid-session calibration through.
+    const creds = await readIntegrationCredentials();
+    try {
+      const liveReading = await getWaterReading(room.tuyaWaterDeviceId, creds.tuya);
+      if (liveReading.isFlowing) {
+        return res.status(400).json({ error: `ห้อง ${roomId} กำลังใช้น้ำอยู่ตอนนี้ครับ — รอให้หยุดใช้น้ำก่อนแล้วค่อยคาลิเบรต (เพื่อไม่ให้ค่าที่บันทึกคลาดเคลื่อนจากรอบที่ยังใช้อยู่)` });
+      }
+    } catch (err) {
+      // เช็คสถานะไหลไม่ได้ (network hiccup ฯลฯ) — ไม่บล็อกการคาลิเบรต แค่
+      // แจ้ง log ไว้ (isFlowing null ก็ไม่ error ใน getWaterReading อยู่แล้ว
+      // แต่กันไว้เผื่อ getWaterReading เองล้มเหลวทั้งฟังก์ชัน)
+      console.error('[tuya] calibrate-water: live flow check failed, allowing calibration anyway', err.message);
+    }
     const waterLog = await readTab('WaterLog');
     const roomRows = waterLog.filter((r) => r.room === roomId.toString())
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));

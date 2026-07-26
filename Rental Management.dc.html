@@ -1722,8 +1722,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="font-size:11px;font-weight:700;color:#7C6E5F;margin-bottom:6px">🎯 คาลิเบรตมิเตอร์น้ำ (ใส่ค่า "Total Use" จากแอป Tuya)</div>
                       <div style="display:flex;gap:8px">
                         <input type="number" value="{{ waterCalibrateInput }}" onchange="{{ onWaterCalibrateInput }}" placeholder="เช่น 1162.3" style="flex:1;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
-                        <div onclick="{{ calibrateWaterDevice }}" style="padding:9px 14px;border-radius:6px;background:#C1622D;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">คาลิเบรต</div>
+                        <div onclick="{{ calibrateWaterDevice }}" style="padding:9px 14px;border-radius:6px;background:{{ waterCalibrateBtnBg }};color:#fff;font-size:12.5px;font-weight:700;cursor:{{ waterCalibrateBtnCursor }};white-space:nowrap">คาลิเบรต</div>
                       </div>
+                      <!-- "ปุ่มคาริเบท ถ้าห้องยังใช้น้ำอยู่ ขึ้นไม่สามารถ
+                           คาริเบทได้ให้ด้วยครับ" (2026-07-26) -->
+                      <sc-if value="{{ waterCurrentlyFlowing }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:11px;color:#B24336;margin-top:8px">🚰 ห้องนี้กำลังใช้น้ำอยู่ตอนนี้ — รอให้หยุดใช้น้ำก่อนแล้วค่อยคาลิเบรต เพื่อไม่ให้ค่าที่บันทึกคลาดเคลื่อน</div>
+                      </sc-if>
                       <sc-if value="{{ hasWaterCalibrateResult }}" hint-placeholder-val="{{ false }}">
                         <div style="font-size:11px;color:#7C6E5F;margin-top:8px">ก่อนคาลิเบรต: {{ waterCalibrateBeforeLabel }} ลิตร → หลัง: {{ waterCalibrateAfterLabel }} ลิตร<br>ความแม่นยำก่อนคาลิเบรต: <strong>{{ waterCalibrateAccuracyLabel }}</strong></div>
                       </sc-if>
@@ -9791,6 +9796,12 @@ class Component extends DCLogic {
     const equipSelWaterFlowingStyle = equipSelWaterLive && equipSelWaterLive.isFlowing === true
       ? 'background:#D4EDDA;color:#155724;'
       : (equipSelWaterLive && equipSelWaterLive.isFlowing === false ? 'background:#F1EBE0;color:#7C6E5F;' : 'background:#F1EBE0;color:#9C8B78;');
+    // "ปุ่มคาริเบท ถ้าห้องยังใช้น้ำอยู่ ขึ้นไม่สามารถคาริเบทได้...ต้องเป็น
+    // ช่วงที่ไม่ใช้น้ำถึงจะตั้งค่าคาลิเบรตได้" (2026-07-26) — เกรย์ปุ่มออก
+    // (ไม่ใช่แค่ปล่อยให้กดแล้วโดน error กลับมา) เมื่อ isFlowing === true —
+    // เซิร์ฟเวอร์เช็คซ้ำอีกชั้นด้วยอยู่แล้ว (POST /calibrate-water) กันเคส
+    // state ฝั่งเว็บเก่า/ค้าง
+    const waterCurrentlyFlowing = !!(equipSelWaterLive && equipSelWaterLive.isFlowing === true);
     // "คาลิเบรตมิเตอร์น้ำ" result display (2026-07-24) — โชว์ผลคาลิเบรต
     // ล่าสุด (ก่อน/หลัง/ความแม่นยำ) ค้างไว้จนกว่าจะสลับห้อง (เคลียร์ที่
     // selectEquipRoom แล้ว)
@@ -10991,7 +11002,9 @@ class Component extends DCLogic {
       equipSelWaterOnline: equipSelRoom.tuyaWaterDeviceId ? ((s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].waterOnline) ? 'ออนไลน์' : 'ออฟไลน์') : '—',
       equipSelWaterDot: equipSelRoom.tuyaWaterDeviceId ? ((s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].waterOnline) ? '#3B7A52' : '#B24336') : '#C9B79E',
       equipSelWaterFlowingLabel, equipSelWaterFlowingStyle,
-      waterCalibrateInput: s.waterCalibrateInput, onWaterCalibrateInput: this.onWaterCalibrateInput, calibrateWaterDevice: this.calibrateWaterDevice,
+      waterCalibrateInput: s.waterCalibrateInput, onWaterCalibrateInput: this.onWaterCalibrateInput,
+      calibrateWaterDevice: waterCurrentlyFlowing ? null : this.calibrateWaterDevice,
+      waterCurrentlyFlowing, waterCalibrateBtnBg: waterCurrentlyFlowing ? '#D8C9B4' : '#C1622D', waterCalibrateBtnCursor: waterCurrentlyFlowing ? 'not-allowed' : 'pointer',
       hasWaterCalibrateResult, waterCalibrateBeforeLabel, waterCalibrateAfterLabel, waterCalibrateAccuracyLabel,
       // "เช็คให้หน่อยทำไมอุปกรณ์น้ำไม่เชื่อมต่อ" (2026-07-23) — โชว์ข้อความ
       // error ตัวจริงจาก Tuya (routes/tuya.js's GET /status ส่ง waterError
