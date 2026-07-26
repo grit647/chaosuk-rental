@@ -312,12 +312,14 @@ async function tuyaRequestSortedQuery(path, params, creds) {
 // device). Returns { deltaLiters, lastProcessedEventTimeMs } — the caller
 // (routes/tuya.js) is responsible for persisting lastProcessedEventTimeMs
 // per room (so the NEXT poll only asks for what's new) and adding
-// deltaLiters onto its own running cumulative total. Deliberately does
-// NOT count a session that hasn't been confirmed complete yet (no reset
-// seen after it within the fetched window) — its events are simply left
-// unprocessed (lastProcessedEventTimeMs stops right before them), so the
-// next poll re-fetches and can detect its true completion once a reset
-// finally shows up in a later log entry.
+// deltaLiters onto its own running cumulative total. Deliberately does NOT
+// count a session until it's confirmed complete — either a LATER session's
+// first event coming in lower (a reset happened), OR enough wall-clock idle
+// time has passed with no new pulse (see SESSION_IDLE_CONFIRM_MS below —
+// added 2026-07-26 to fix a real persistent under-count, see its comment).
+// An unconfirmed session's events are simply left unprocessed
+// (lastProcessedEventTimeMs stops right before them), so the next poll
+// re-fetches and re-checks both confirmation conditions.
 async function getWaterUsageDeltaLiters(deviceId, sinceEventTimeMs, creds) {
   const startTime = sinceEventTimeMs || (Date.now() - 30 * 24 * 60 * 60 * 1000); // first poll: look back 30 days max
   const endTime = Date.now();
@@ -342,19 +344,42 @@ async function getWaterUsageDeltaLiters(deviceId, sinceEventTimeMs, creds) {
     .sort((a, b) => a.event_time - b.event_time);
   if (!fresh.length) return { deltaLiters: 0, lastProcessedEventTimeMs: sinceEventTimeMs };
 
+  // "คาริเบทอย่างไรค่าก็ไม่ตรงกับ tuya...เมื่อสถานะเริ่มใช้น้ำ เราก็ต้องเก็บ
+  // ค่าตอนนั้น พอหยุดใช้น้ำเราก็อัปเดทเลย" (2026-07-26) — real root cause
+  // of the persistent under-count found: the ONLY way this function used to
+  // confirm a session was "a LATER session's first event is lower" — so
+  // the single most recent session (whichever one hasn't been followed by
+  // a newer session yet) NEVER got counted, no matter how long it had
+  // obviously already finished. Every poll always has exactly one such
+  // "trailing" unconfirmed session sitting there, which is exactly the
+  // "always under, never over" pattern documented in the calibration
+  // testing (CLAUDE.md) — recalibrating just resets the gap, it doesn't
+  // fix the mechanism that keeps recreating it.
+  //
+  // Fix: also confirm a session via WALL-CLOCK IDLE TIME, not just a future
+  // session's existence — if enough time has passed since an event with no
+  // newer pulse showing up, the tenant has clearly stopped using water
+  // (same "stop" signal getWaterFlowActivity's isFlowing already uses for
+  // the live dashboard, just a longer window appropriate for this
+  // batch/hourly context instead of the live 15-second one).
+  const SESSION_IDLE_CONFIRM_MS = 10 * 60 * 1000; // 10 min ไม่มีพัลส์ใหม่ = ถือว่าเลิกใช้แล้วแน่นอน
+  const now = Date.now();
   let deltaRaw = 0;
   let lastProcessedEventTimeMs = sinceEventTimeMs;
   for (let i = 0; i < fresh.length; i++) {
     const cur = Number(fresh[i].value);
     const nextVal = i + 1 < fresh.length ? Number(fresh[i + 1].value) : null;
-    if (nextVal !== null && nextVal < cur) {
-      // Confirmed session end — this was the session's peak.
+    const isLastEvent = i === fresh.length - 1;
+    const confirmedByNextSession = nextVal !== null && nextVal < cur;
+    const confirmedByIdleTimeout = isLastEvent && (now - fresh[i].event_time) >= SESSION_IDLE_CONFIRM_MS;
+    if (confirmedByNextSession || confirmedByIdleTimeout) {
       deltaRaw += cur;
       lastProcessedEventTimeMs = fresh[i].event_time;
     }
-    // else: either mid-session (next value is higher, not a peak yet) or
-    // the very last fetched event with no confirmation of a reset after it
-    // — leave unprocessed, watermark stays before it, next poll re-checks.
+    // else: mid-session (next value is higher, not a peak yet) or the very
+    // last fetched event still within the idle-confirm window (tenant might
+    // still be using water right now) — leave unprocessed, watermark stays
+    // before it, next poll re-checks.
   }
   return { deltaLiters: deltaRaw / 10, lastProcessedEventTimeMs };
 }
