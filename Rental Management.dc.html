@@ -8459,8 +8459,13 @@ class Component extends DCLogic {
       statusLabel: selMeta.label, badgeBg: selMeta.bg, badgeColor: selMeta.color,
       tenant: selectedRoomRaw.tenant || 'ยังไม่มีผู้เช่า',
       phone: selectedRoomRaw.phone || '-',
-      moveIn: selectedRoomRaw.moveIn || '-',
-      contractEnd: selectedRoomRaw.contractEnd || '-',
+      // "อัปเดทส่วนแสดงผลให้ด้วยนะครับ" (2026-07-26) — เดิมโชว์ค่าดิบตรงๆ
+      // (เช่น "2025-11-09") มาจาก <input type="date"> ตอนบันทึก ตอนนี้แปลง
+      // เป็นภาษาไทยเต็มรูปแบบด้วย formatThaiDateLabel เหมือนป้ายใต้ช่อง
+      // กรอกวันที่ (ใช้ทั้งการ์ดห้องแบบย่อและหน้ารายละเอียดห้องเต็ม เพราะทั้ง
+      // 2 จุดอ้าง selectedRoom ตัวเดียวกัน)
+      moveIn: this.formatThaiDateLabel(selectedRoomRaw.moveIn) || '-',
+      contractEnd: this.formatThaiDateLabel(selectedRoomRaw.contractEnd) || '-',
       rentDisplay: this.fmt(selectedRoomRaw.rent),
       depositDisplay: this.fmt(selectedRoomRaw.deposit),
       dueDayLabel: selectedRoomRaw.dueDay ? ('ทุกวันที่ ' + selectedRoomRaw.dueDay) : '-',
@@ -8470,7 +8475,7 @@ class Component extends DCLogic {
       internetRateLabel: s.internetRate + '/เดือน',
       wifiUsername: selectedRoomRaw.wifiUsername || '-',
       wifiPassword: selectedRoomRaw.wifiPassword || '-',
-      tenantIdExpiry: selectedRoomRaw.tenantIdExpiry || '-',
+      tenantIdExpiry: this.formatThaiDateLabel(selectedRoomRaw.tenantIdExpiry) || '-',
       leaseDocLabel: selectedRoomRaw.leaseDocName || 'ยังไม่แนบเอกสาร',
       hasLeaseDoc: !!selectedRoomRaw.leaseDocName,
       invoiceAmount: selInvoice ? this.fmt(selInvoice.rent + selInvoice.water + selInvoice.elec + (selInvoice.trash || 0) + (selInvoice.internet || 0)) : '-',
