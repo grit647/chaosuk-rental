@@ -224,12 +224,32 @@ async function getElecReading(deviceId, creds) {
 // ไหลจริง พัลส์เข้าทุก 2-3 วินาที (ยืนยันจากประวัติจริงที่เคยดึงมาดู) ถ้า
 // เจอพัลส์ล่าสุดภายใน ACTIVE_WINDOW_MS วินาทีที่แล้ว = กำลังใช้น้ำอยู่จริง
 // ถ้าไม่มีพัลส์เลยในช่วงนี้ = ไม่มีการใช้น้ำ (นิ่งสนิท ไม่ใช่แค่ไหลช้าๆ)
-const WATER_ACTIVITY_LOOKBACK_MS = 2 * 60 * 1000; // ดึงย้อนหลัง 2 นาที (พอสำหรับหาพัลส์ล่าสุดถ้ามี)
-const WATER_ACTIVITY_ACTIVE_WINDOW_MS = 15 * 1000; // พัลส์ล่าสุดต้องมาไม่เกิน 15 วิที่แล้ว ถึงนับว่า "กำลังไหล"
+// "การใช้น้ำฝักบัวหรือสายฉีดล้างก้น...มันไม่ได้เปิดยาวๆ ทีเดียว มันคือการ
+// ฉีดๆ หยุดๆ ในเวลาที่ติดๆกัน" (2026-07-26) — real bug found: the original
+// 15-second window was tuned for "is the tap open right now this instant",
+// but real shower/bidet-spray use is naturally intermittent (soap up,
+// reposition, pause a few seconds between sprays) — those normal pauses
+// easily exceed 15 seconds, so the system would falsely report "ไม่มีการ
+// ใช้น้ำ" mid-use. That's not just a cosmetic badge issue — it directly
+// undermines the "block calibration while water is flowing" feature added
+// right before this: an owner glancing at a false "💤 ไม่มีการใช้น้ำ"
+// during a natural pause could calibrate mid-shower, recreating the exact
+// mismatch that feature exists to prevent. Widened to a much more forgiving
+// window that still correctly detects "genuinely done" (long after anyone
+// would still be mid-shower) without false-negativing on normal pauses.
+const WATER_ACTIVITY_LOOKBACK_MS = 5 * 60 * 1000; // ดึงย้อนหลัง 5 นาที (พอสำหรับหาพัลส์ล่าสุดถ้ามี ให้ครอบคลุมหน้าต่าง ACTIVE_WINDOW ด้านล่าง)
+const WATER_ACTIVITY_ACTIVE_WINDOW_MS = 2 * 60 * 1000; // พัลส์ล่าสุดต้องมาไม่เกิน 2 นาทีที่แล้ว ถึงนับว่า "กำลังไหล/เพิ่งใช้" (กันพลาดช่วงหยุดพักสั้นๆ ระหว่างฉีดๆ หยุดๆ)
 async function getWaterFlowActivity(deviceId, creds) {
   try {
     const now = Date.now();
-    const params = { codes: 'water_once', start_time: now - WATER_ACTIVITY_LOOKBACK_MS, end_time: now, size: 20 };
+    // size bumped 20→100 alongside the wider 5-min lookback above — during
+    // active continuous use pulses can arrive every 2-3 seconds (per the
+    // comment above), so 5 minutes' worth could exceed the old 20-row cap;
+    // we only need the single MOST RECENT event_time here (not a full
+    // reconstruction like getWaterUsageDeltaLiters does), but a truncated
+    // page could still silently drop the actual latest pulse depending on
+    // Tuya's own ordering, which would wrongly report "not flowing".
+    const params = { codes: 'water_once', start_time: now - WATER_ACTIVITY_LOOKBACK_MS, end_time: now, size: 100 };
     const result = await tuyaRequestSortedQuery(`/v2.0/cloud/thing/${deviceId}/report-logs`, params, creds);
     const logs = (result && result.logs) || [];
     if (!logs.length) return { isFlowing: false, lastPulseAt: null };
