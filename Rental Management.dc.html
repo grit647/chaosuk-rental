@@ -3425,6 +3425,17 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <input type="date" value="{{ newInvoice.due }}" onchange="{{ onNewInvoiceDueChange }}" min="{{ todayDateStr }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
                   <div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ newInvoiceDueThai }}</div>
                 </div>
+                <!-- "เพิ่มอีก 1 ช่องคือ ค่าเช่า เอาค่าในสัญญามาแสดงไว้ให้
+                     ก่อน และสามารถแก้ไข้ส่วนนี้ได้ แต่ไม่ไปบันทึกแทนใน
+                     สัญญาเดิม เป็นเคสบางห้องที่เข้าอยู่ยังไม่ครบเดือน"
+                     (2026-07-26) — ค่าเริ่มต้นดึงจากสัญญา แก้ได้แค่บิล
+                     ใบนี้ใบเดียว (onNewInvoiceRentChange เก็บแยกใน
+                     newInvoice.rentOverride ไม่แตะ room.rent เลย) -->
+                <div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าเช่า (บาท)</div>
+                  <input value="{{ newInvoice.rentOverride }}" onchange="{{ onNewInvoiceRentChange }}" placeholder="0" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  <div style="font-size:10px;color:#9C8B78;margin-top:4px">ค่าเริ่มต้นดึงจากสัญญา — แก้ได้เฉพาะบิลใบนี้ ไม่กระทบค่าเช่าตามสัญญา (เช่น ห้องที่เพิ่งเข้าอยู่ไม่ครบเดือน)</div>
+                </div>
                 <div style="display:flex;flex-direction:column;gap:6px;padding:10px 12px;background:#FBF7F0;border-radius:6px">
                   <div style="font-size:10.5px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#9C8B78;margin-bottom:2px">รายการบิล</div>
                   <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่าเช่า</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ invBillPreview.rentLine }}</span></div>
@@ -3965,7 +3976,7 @@ class Component extends DCLogic {
     tenantSearch: '',
     billingFilter: 'all',
     showInvoiceModal: false,
-    newInvoice: { roomId: '', water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' },
+    newInvoice: { roomId: '', water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device', rentOverride: '' },
     // Bulk "ออกบิลทุกห้องพร้อมกัน" flow — per explicit user request to cut
     // down the steps needed to bill every tenant each month instead of
     // opening the single-room form one room at a time.
@@ -6156,14 +6167,17 @@ class Component extends DCLogic {
       ? `สร้างใบแจ้งหนี้สำเร็จ ${successCount} ห้อง`
       : `สร้างสำเร็จ ${successCount} ห้อง, ไม่สำเร็จ ${failCount} ห้อง`);
   });
-  openInvoiceModal = () => this.setState({ showInvoiceModal: true, newInvoice: { roomId: '', water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' } });
+  openInvoiceModal = () => this.setState({ showInvoiceModal: true, newInvoice: { roomId: '', water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device', rentOverride: '' } });
   openInvoiceForRoom = (roomId) => {
-    const next = { roomId, water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device' };
+    const room = this.state.rooms.find(r => r.id === roomId);
+    // "เพิ่มอีก 1 ช่องคือ ค่าเช่า เอาค่าในสัญญามาแสดงไว้ให้ก่อน" (2026-07-26)
+    // — pre-fill เหมือน onNewInvoiceRoomChange (จุดนี้เป็นทางลัดเปิดฟอร์ม
+    // ตรงจากการ์ดห้องใดห้องหนึ่ง คนละจุดกับ dropdown เลือกห้องในฟอร์ม)
+    const next = { roomId, water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device', rentOverride: room && room.rent != null ? String(room.rent) : '' };
     // Per explicit user request: skip "อุปกรณ์" mode entirely for a
     // utility this room has no Tuya device linked for (toggle is hidden
     // in that case — see invWaterHasDevice/invElecHasDevice — so opening
     // straight into "device" mode would just show a stuck 0 amount).
-    const room = this.state.rooms.find(r => r.id === roomId);
     if (room && !room.tuyaWaterDeviceId) next.waterMode = 'manual';
     if (room && !room.tuyaElecDeviceId) next.elecMode = 'manual';
     const dw = this.deviceCharge(roomId, 'water'); if (dw) next.water = String(dw.charge);
@@ -6626,6 +6640,14 @@ class Component extends DCLogic {
       // "กรอกเอง" (manual) for that utility when switching to such a room,
       // so the owner isn't left on a dead-end toggle the UI now hides.
       const newRoom = s.rooms.find(r => r.id === v);
+      // "เพิ่มอีก 1 ช่องคือ ค่าเช่า เอาค่าในสัญญามาแสดงไว้ให้ก่อน...แต่ไม่
+      // ไปบันทึกแทนในสัญญาเดิม เป็นเคสบางห้องที่เข้าอยู่ยังไม่ครบเดือน"
+      // (2026-07-26) — pre-fill กับค่าเช่าตามสัญญาห้องนี้ทุกครั้งที่เลือก/
+      // เปลี่ยนห้อง แต่เก็บแยกไว้ใน newInvoice.rentOverride ต่างหาก (ไม่ใช่
+      // เขียนทับ room.rent) แก้ได้เฉพาะบิลใบนี้ใบเดียว — ดู
+      // onNewInvoiceRentChange/invBillPreview/submitInvoice สำหรับจุดที่
+      // ใช้ค่านี้
+      next.rentOverride = newRoom && newRoom.rent != null ? String(newRoom.rent) : '';
       if (newRoom && !newRoom.tuyaWaterDeviceId) next.waterMode = 'manual';
       if (newRoom && !newRoom.tuyaElecDeviceId) next.elecMode = 'manual';
       // Per explicit user request: when in "อุปกรณ์" mode but the device
@@ -6691,6 +6713,7 @@ class Component extends DCLogic {
   onNewInvoiceWaterChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, water: v } })); };
   onNewInvoiceElecChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, elec: v } })); };
   onNewInvoiceDueChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, due: v } })); };
+  onNewInvoiceRentChange = (e) => { const v = e.target.value; this.setState(s => ({ newInvoice: { ...s.newInvoice, rentOverride: v } })); };
 
   submitInvoice = () => this._guard('submitInvoice', async () => {
     const s = this.state;
@@ -6718,6 +6741,12 @@ class Component extends DCLogic {
     const elec = Number(s.newInvoice.elec) || 0;
     const trash = Number(s.trashRate) || 0;
     const internet = Number(s.internetRate) || 0;
+    // "เพิ่มอีก 1 ช่องคือ ค่าเช่า...สามารถแก้ไขได้ แต่ไม่ไปบันทึกแทนใน
+    // สัญญาเดิม" (2026-07-26) — ใช้ rentOverride ถ้ามีการแก้ (ห้องเข้าอยู่
+    // ไม่ครบเดือน) มิฉะนั้น fallback เป็น room.rent ตามปกติ — ส่งแค่ในตัว
+    // invoice นี้เท่านั้น ไม่มีการเรียก PATCH /api/rooms ที่ไหนเลยในฟังก์ชัน
+    // นี้ ค่าเช่าตามสัญญาเดิมของห้อง (room.rent) จึงไม่ถูกแก้ไขตาม
+    const rentForBill = s.newInvoice.rentOverride !== '' ? (Number(s.newInvoice.rentOverride) || 0) : room.rent;
     // Captured BEFORE creation so the receipt can later show "X หน่วย ×
     // rate" and the previous bill's reading — see coerceInvoices' comment.
     // Device mode reads real units from deviceCharge; manual mode uses
@@ -6734,7 +6763,7 @@ class Component extends DCLogic {
       const res = await fetch('/api/invoices', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          room: room.id, tenant: room.tenant, rent: room.rent, water, elec, trash, internet, due: s.newInvoice.due,
+          room: room.id, tenant: room.tenant, rent: rentForBill, water, elec, trash, internet, due: s.newInvoice.due,
           waterUnits: waterUnitsForBill, elecUnits: elecUnitsForBill, waterPrevReading, elecPrevReading,
         }),
       });
@@ -10064,10 +10093,13 @@ class Component extends DCLogic {
         const r = s.rooms.find(x => x.id === s.newInvoice.roomId);
         if (!r) return this.fmt(0);
         const water = Number(s.newInvoice.water) || 0, elec = Number(s.newInvoice.elec) || 0;
-        const total = (r.rent || 0) + water + elec + (s.trashRate || 0) + (s.internetRate || 0);
+        // ค่าเช่าใช้ rentOverride ถ้ามีการแก้ (เคสห้องเข้าอยู่ไม่ครบเดือน) —
+        // ดู onNewInvoiceRentChange ด้านบนสำหรับที่มา
+        const rent = s.newInvoice.rentOverride !== '' ? (Number(s.newInvoice.rentOverride) || 0) : (r.rent || 0);
+        const total = rent + water + elec + (s.trashRate || 0) + (s.internetRate || 0);
         return this.fmt(total);
       })(),
-      onNewInvoiceRoomChange: this.onNewInvoiceRoomChange, onNewInvoiceWaterChange: this.onNewInvoiceWaterChange, onNewInvoiceElecChange: this.onNewInvoiceElecChange, onNewInvoiceDueChange: this.onNewInvoiceDueChange, submitInvoice: this.submitInvoice,
+      onNewInvoiceRoomChange: this.onNewInvoiceRoomChange, onNewInvoiceWaterChange: this.onNewInvoiceWaterChange, onNewInvoiceElecChange: this.onNewInvoiceElecChange, onNewInvoiceDueChange: this.onNewInvoiceDueChange, onNewInvoiceRentChange: this.onNewInvoiceRentChange, submitInvoice: this.submitInvoice,
       setInvoiceWaterMode: this.setInvoiceWaterMode, setInvoiceElecMode: this.setInvoiceElecMode,
       // Per explicit user request: a room with NO Tuya device linked at all
       // for a given utility should never show the "อุปกรณ์/กรอกเอง" toggle —
@@ -10167,7 +10199,9 @@ class Component extends DCLogic {
       // whichever mode (อุปกรณ์/กรอกเอง) is currently selected for water/elec.
       invBillPreview: (() => {
         const r = s.rooms.find(x => x.id === s.newInvoice.roomId);
-        const rent = (r && r.rent) || 0;
+        // ค่าเช่าใช้ rentOverride ถ้ามีการแก้ (เคสห้องเข้าอยู่ไม่ครบเดือน) —
+        // ดู onNewInvoiceRentChange ด้านบนสำหรับที่มา
+        const rent = s.newInvoice.rentOverride !== '' ? (Number(s.newInvoice.rentOverride) || 0) : ((r && r.rent) || 0);
         const water = Number(s.newInvoice.water) || 0, elec = Number(s.newInvoice.elec) || 0;
         const trash = s.trashRate || 0, internet = s.internetRate || 0;
         const waterUnits = s.newInvoice.waterMode === 'manual' ? this.meterUnitsFromReading(s.newInvoice.roomId, 'water', s.newInvoice.waterUnits) : (this.deviceCharge(s.newInvoice.roomId, 'water') || {}).units;
