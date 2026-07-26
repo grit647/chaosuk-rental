@@ -825,6 +825,77 @@ highest-frequency one) — if quota errors recur, `readTabs()` is now
 available as a drop-in tool to batch any other multi-tab endpoint the
 same way.
 
+### "Can't type in this field" bugs (ค่ามัดจำห้อง, ค่าเช่าล่วงหน้า, WiFi username/password) — real root cause found 2026-07-26, NOT a framework bug
+
+**Status: FIXED.** This is the resolution to a multi-day mystery (started
+2026-07-24 with "ช่องนี้...กรอกข้อมูลอะไรไม่ได้ครับ" for ค่าเช่าล่วงหน้า,
+then recurred for ค่ามัดจำห้อง, both eventually just hidden from the UI as
+a stopgap while the cause stayed unknown — heavily suspected at the time
+to be a dc-runtime/React-key reconciliation bug in `support.js`, since
+removing one field's `<input>` appeared to "transfer" the same symptom to
+its sibling field).
+
+**The actual cause was mundane and had nothing to do with the framework:**
+`Rental Management.dc.html`'s `renderVals()` ends in one giant object
+literal that explicitly lists every handler function the template is
+allowed to reference (e.g. `onCfRent: this.onCfRent`). `onCfDeposit` and
+`onCfAdvanceRent` were both real, correctly-written class methods — but
+whoever added them to the contract form's `<input>` elements forgot to
+also add `onCfDeposit: this.onCfDeposit` / `onCfAdvanceRent: this.onCfAdvanceRent`
+to that return object. That means `{{ onCfDeposit }}` in the template
+resolved to `undefined` — the `<input>` had a `value` (controlled) but
+**no `onChange` at all**. React's standard behavior for a controlled
+input with no working onChange is to silently force the DOM value back
+to the old value on every keystroke — indistinguishable from "can't
+type" to anyone watching, cursor still blinks normally in the field
+(same DOM node, nothing remounts) but the character never sticks.
+
+**A second, independent instance of the exact same bug** was found in the
+same fix pass: `onCfWifiUsername`/`onCfWifiPassword` (the real methods,
+used correctly in the template) were ALSO missing from the return
+object — instead there was a stale leftover key `onCfWifi: this.onCfWifi`
+(from before the WiFi field was split from one `wifiCode` into separate
+username/password fields), which doesn't correspond to any real method
+either. Both WiFi fields had been silently broken the same way.
+
+**Why the "removing a field breaks its sibling" observation was
+misleading:** both fields were independently broken the whole time
+(neither ever had a working onChange). Whichever one happened to still
+be visible in the UI at any given moment "looked" like the newly-affected
+one purely by coincidence of which was hidden vs shown — not a causal
+relationship, and definitely not a sign of positional-key instability in
+the rendering framework.
+
+**How it was actually found (useful playbook for the next "can't type"
+report):** static code reading alone couldn't distinguish "framework
+bug" from "missing wire-up" — needed a live browser. Had the owner open
+DevTools (F12) → Console tab, filter for `Uncaught` (came back empty —
+ruled out a JS exception breaking the whole render pass), then click
+into the broken field, type a character, and run
+`document.activeElement.value` in the console. It came back as the
+UNCHANGED old value — proof the keystroke never reached the DOM at all,
+which is the fingerprint of "controlled input, no onChange" specifically
+(as opposed to a remount/key issue, which would show as the cursor
+losing focus, or a state-update-but-no-rerender issue, which would show
+the DOM value changing while the visible React-rendered value doesn't).
+That one console command was the deciding piece of evidence — from there
+it was a 30-second `grep` to confirm `onCfDeposit`/`onCfAdvanceRent`
+existed as methods but weren't in the render-vals return object.
+
+**General lesson for any future "field visually accepts value=X but
+typing has no effect" report in this app (or any dc-runtime `.dc.html`
+file):** before assuming a framework bug, grep for the `on<Whatever>`
+handler name used in the `<input onchange="{{ onXxx }}">` binding and
+confirm it appears BOTH as a class method definition AND inside the
+component's `renderVals()` return object. A handler existing as a method
+is not sufficient — it must also be explicitly re-exported in the return
+object for the template to see it. This is an easy thing to miss by hand
+in a return object that's grown to list 50+ handlers across a
+9000+-line file, and grep is the fastest way to audit for gaps (compare
+the set of `on<X> = (e) => ...` method definitions against the set of
+`on<X>: this.on<X>` entries actually returned — anything defined but not
+returned is broken exactly like this).
+
 ## Permanent rules (do not relax without the owner explicitly re-confirming)
 
 - **Terminology: "เลขมิเตอร์" vs "หน่วย".** "เลขมิเตอร์" (meter number/
