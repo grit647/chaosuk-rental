@@ -4817,9 +4817,21 @@ class Component extends DCLogic {
         // owner set the actual reading standing on the meter the day the
         // tenant moves in / the contract starts, per room per contract
         // (every room's physical meter reads differently, confirmed with
-        // the owner). Blank means "not set yet," not "starts at 0."
-        waterMeterStart: r.waterPrev > 0 ? String(r.waterPrev) : '',
-        elecMeterStart: r.elecPrev > 0 ? String(r.elecPrev) : '',
+        // the owner).
+        // 2026-07-26 follow-up ("ส่วนนี้ให้เก็บค่า 0 ไว้ด้วยครับเผื่อ set
+        // อุปกรณ์ ตอนนี้ ค่า 0 ไม่บันทึก ต้องเป็น 1 ถึงจะเก็บค่า") — was
+        // `r.waterPrev > 0 ? String(r.waterPrev) : ''`, which meant a
+        // meter explicitly reset/started at exactly 0 (real case for
+        // Tuya-connected devices) showed blank again on reopen, looking
+        // like the save silently failed. That `> 0` was a deliberate
+        // "blank = not set yet" convention when this field first shipped,
+        // but coerceRooms's `num(r.waterPrev, 0)` already collapses a
+        // truly-never-set room to 0 too — the frontend can't actually
+        // distinguish "never configured" from "explicitly 0" at all, so
+        // the old convention was never reliable to begin with. Now shows
+        // the real stored value always, including 0.
+        waterMeterStart: r.waterPrev != null ? String(r.waterPrev) : '',
+        elecMeterStart: r.elecPrev != null ? String(r.elecPrev) : '',
         trashRate: String(this.state.trashRate),
         internetRate: String(this.state.internetRate),
         tenantFirstName: nameParts[0] || '',
