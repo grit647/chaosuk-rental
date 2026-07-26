@@ -1839,20 +1839,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าห้อง / เดือน (บาท)</div>
                     <input value="{{ cf.rentPrice }}" onchange="{{ onCfRent }}" placeholder="4900" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   </div>
+                  <!-- "เพิ่มช่องกรอกเงิน เงินประกัน ในส่วนสัญญาเช่าให้ด้วยครับ"
+                       (2026-07-26) — เอากลับเข้ามาตามคำขอคุณต้น ระวัง: ช่องนี้
+                       เคยมีปัญหา "พิมพ์ไม่ได้" มาก่อน (2026-07-24, ดูบันทึกยาว
+                       ใน CLAUDE.md's "ค่ามัดจำห้อง input" — ไล่หาสาเหตุจริง
+                       ไม่เจอ ต้องสงสัยว่าเป็นบั๊กระดับ framework/dc-runtime
+                       เรื่อง React key ไม่ใช่โค้ดหน้านี้) รอบนี้กลับมาอยู่
+                       ตำแหน่งเดียวกับตอนที่เคยพังพอดี — ถ้าลองพิมพ์แล้วยังพิมพ์
+                       ไม่ได้อีก แจ้งได้เลย จะไล่หาสาเหตุที่ dc-runtime ต่อ -->
+                  <div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เงินประกัน (บาท)</div>
+                    <input value="{{ cf.deposit }}" onchange="{{ onCfDeposit }}" placeholder="0" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  </div>
                 </div>
-                <!-- "เอาปุ่มช่องออกให้หน่อย หลังจากที่เอาช่องค่าเช่าล่วงหน้า
-                     ออก ช่องนี้กรอกไม่ได้อีก" (2026-07-24) — สำคัญมาก:
-                     พอถอด "ค่าเช่าล่วงหน้า" ออกไปแล้ว ช่อง "ค่ามัดจำห้อง"
-                     (ที่เคยพิมพ์ได้ปกติ) กลับพิมพ์ไม่ได้ทันที — ตัวปัญหาไม่ได้
-                     ติดอยู่กับฟิลด์ใดฟิลด์หนึ่งเลย แต่ "ย้ายไปอยู่กับใครก็ตาม
-                     ที่อยู่ตำแหน่งนี้ในหน้าจอ" แทน — เป็นหลักฐานชัดเจนว่าน่า
-                     จะเป็นบั๊กระดับ dc-runtime (support.js, ตัวจัดการ
-                     React key/reconciliation) ไม่ใช่บั๊กในโค้ดหน้านี้เอง
-                     (ตรวจสอบ onCfDeposit/onCfAdvanceRent เองแล้วถูกต้องทั้ง
-                     คู่) — ถอดออกทั้ง section ตามคำขอ (ค่ามัดจำห้อง +
-                     ค่าเช่าล่วงหน้า) ไปก่อน เก็บ state/handler/roomPatch/
-                     คอลัมน์ในชีตไว้ครบทุกอย่างเหมือนเดิมทั้งคู่ ยังไม่ได้ลบ
-                     อะไรจริงจัง แค่ไม่แสดงในหน้าจอเท่านั้น -->
               </div>
 
               <!-- SECTION: rates -->
