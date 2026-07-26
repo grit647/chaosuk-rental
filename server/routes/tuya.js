@@ -241,10 +241,22 @@ router.get('/elec-history', async (req, res, next) => {
       const [y, m] = key.split('-');
       return monthNames[Number(m) - 1];
     };
+    // "รายชั่วโมง 24 กราฟ เผื่อเอาไปดูการใช้ไฟระบบ TOU" (2026-07-26) —
+    // TOU (Time-of-Use) electricity billing in Thailand charges different
+    // rates for on-peak vs off-peak hours, so seeing usage broken down by
+    // hour-of-day (not just day/month totals) helps the owner spot which
+    // hours are driving cost. Same bucketing approach as day/month above —
+    // most recent 24 hourly buckets that actually have log data, not
+    // necessarily aligned to a single calendar day (consistent with how
+    // "day" mode already shows the most recent 14 days rather than one
+    // fixed calendar month).
+    const hourKey = (d) => d.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+    const hourLabel = (key) => key.slice(11, 13) + ':00';
 
     res.json({
       day: aggregate(dayKey, dayLabel, 14),
       month: aggregate(monthKey, monthLabel, 6),
+      hour: aggregate(hourKey, hourLabel, 24),
     });
   } catch (err) { next(err); }
 });

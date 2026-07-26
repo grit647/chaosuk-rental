@@ -1429,6 +1429,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="font-size:11.5px;color:#7C6E5F;margin-top:2px">รวม {{ elecChartTotal }} · เฉลี่ย {{ elecChartAvg }} · สูงสุด {{ elecChartPeak }} {{ elecUnitLabel }}</div>
                 </div>
                 <div style="display:flex;gap:4px;background:#F7F2E9;padding:3px;border-radius:7px">
+                  <!-- "รายชั่วโมง 24 กราฟ เผื่อเอาไปดูการใช้ไฟระบบ TOU"
+                       (2026-07-26) — โหมดที่ 3 เฉพาะกราฟไฟฟ้า (TOU คือ
+                       เรื่องค่าไฟ ไม่เกี่ยวกับน้ำ ไม่ได้เพิ่มให้กราฟน้ำ) -->
+                  <div onclick="{{ setElecChartHour }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ elecHourChipBg }};color:{{ elecHourChipColor }}">รายชั่วโมง</div>
                   <div onclick="{{ setElecChartDay }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ elecDayChipBg }};color:{{ elecDayChipColor }}">รายวัน</div>
                   <div onclick="{{ setElecChartMonth }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ elecMonthChipBg }};color:{{ elecMonthChipColor }}">รายเดือน</div>
                 </div>
@@ -4211,7 +4215,7 @@ class Component extends DCLogic {
     waterWindows: {},
     elecWindows: {},
     usageSeries: {
-      waterDay: [], waterMonth: [], elecDay: [], elecMonth: [],
+      waterDay: [], waterMonth: [], elecDay: [], elecMonth: [], elecHour: [],
     },
     equipSelectedRoom: '101',
     tuyaForm: { elecName: '', elecDeviceId: '', waterDeviceId: '', waterMaxLiters: '' },
@@ -4517,7 +4521,7 @@ class Component extends DCLogic {
       const res = await fetch('/api/tuya/elec-history');
       if (!res.ok) return;
       const data = await res.json();
-      this.setState(s => ({ usageSeries: { ...s.usageSeries, elecDay: data.day || [], elecMonth: data.month || [] } }));
+      this.setState(s => ({ usageSeries: { ...s.usageSeries, elecDay: data.day || [], elecMonth: data.month || [], elecHour: data.hour || [] } }));
     } catch (err) { console.error(err); }
   };
   // Auto-refresh toggle (Dashboard) — off by default (every refresh is a
@@ -9206,7 +9210,11 @@ class Component extends DCLogic {
       };
     };
     const waterSeries = s.waterChartMode === 'day' ? s.usageSeries.waterDay : s.usageSeries.waterMonth;
-    const elecSeries = s.elecChartMode === 'day' ? s.usageSeries.elecDay : s.usageSeries.elecMonth;
+    // "รายชั่วโมง 24 กราฟ เผื่อเอาไปดูการใช้ไฟระบบ TOU" (2026-07-26) —
+    // เพิ่มโหมดที่ 3 ให้กราฟไฟฟ้า (เฉพาะไฟฟ้า ไม่ใช่น้ำ — TOU เป็นเรื่อง
+    // ค่าไฟ) ดึงจาก server/routes/tuya.js's GET /api/tuya/elec-history's
+    // ใหม่ hour bucket
+    const elecSeries = s.elecChartMode === 'day' ? s.usageSeries.elecDay : s.elecChartMode === 'hour' ? s.usageSeries.elecHour : s.usageSeries.elecMonth;
     const waterChart = buildChart(waterSeries, '#3E93B8');
     const elecChart = buildChart(elecSeries, '#D9A15B');
     const chipOn = (active) => active ? { bg: '#C1622D', color: '#fff' } : { bg: '#EDE4D6', color: '#7C6E5F' };
@@ -9214,6 +9222,7 @@ class Component extends DCLogic {
     const waterMonthChip = chipOn(s.waterChartMode === 'month');
     const elecDayChip = chipOn(s.elecChartMode === 'day');
     const elecMonthChip = chipOn(s.elecChartMode === 'month');
+    const elecHourChip = chipOn(s.elecChartMode === 'hour');
 
     // ---- Tuya IoT devices ----
     const equipRoomOptions = s.rooms.map(r => {
@@ -10357,11 +10366,13 @@ class Component extends DCLogic {
       meterRegistry, commonEquipment,
       waterChartBars: waterChart.bars, waterChartTotal: waterChart.total, waterChartAvg: waterChart.avg, waterChartPeak: waterChart.peak,
       elecChartBars: elecChart.bars, elecChartTotal: elecChart.total, elecChartAvg: elecChart.avg, elecChartPeak: elecChart.peak,
-      waterUnitLabel: s.waterChartMode === 'day' ? 'ม³/วัน' : 'ม³/เดือน', elecUnitLabel: s.elecChartMode === 'day' ? 'kWh/วัน' : 'kWh/เดือน',
+      waterUnitLabel: s.waterChartMode === 'day' ? 'ม³/วัน' : 'ม³/เดือน', elecUnitLabel: s.elecChartMode === 'day' ? 'kWh/วัน' : s.elecChartMode === 'hour' ? 'kWh/ชม.' : 'kWh/เดือน',
       waterDayChipBg: waterDayChip.bg, waterDayChipColor: waterDayChip.color, waterMonthChipBg: waterMonthChip.bg, waterMonthChipColor: waterMonthChip.color,
       elecDayChipBg: elecDayChip.bg, elecDayChipColor: elecDayChip.color, elecMonthChipBg: elecMonthChip.bg, elecMonthChipColor: elecMonthChip.color,
+      elecHourChipBg: elecHourChip.bg, elecHourChipColor: elecHourChip.color,
       setWaterChartDay: () => this.setWaterChartMode('day'), setWaterChartMonth: () => this.setWaterChartMode('month'),
       setElecChartDay: () => this.setElecChartMode('day'), setElecChartMonth: () => this.setElecChartMode('month'),
+      setElecChartHour: () => this.setElecChartMode('hour'),
       equipRoomOptions,
       equipSelectedRoom: s.equipSelectedRoom,
       equipSelTenant: equipSelRoom.tenant || '(ห้องว่าง)',
