@@ -383,6 +383,7 @@ router.put('/', async (req, res, next) => {
       // เดือน ใช้ร่วมกันทุกห้อง (ดู coerce.js's readSettings comment เต็ม)
       cutoffReminderDay: b.cutoffReminderDay,
       cutoffFinalDay: b.cutoffFinalDay,
+      cutoffCancelWarningDay: b.cutoffCancelWarningDay,
       autoInvoice: b.settings && b.settings.autoInvoice,
       dueReminder: b.settings && b.settings.dueReminder,
       claudeAutomationEnabled: b.claudeAutomationEnabled,

@@ -67,17 +67,24 @@ router.get('/run', async (req, res, next) => {
         const todayDom = Number(todayStr.slice(8, 10));
         const reminderDay = Number(settings.cutoffReminderDay) || 5;
         const finalDay = Number(settings.cutoffFinalDay) || 15;
-        if (todayDom === reminderDay || todayDom === finalDay) {
+        // "อนุญาติยกเลิกสัญญาเช่า" (2026-07-26 follow-up) — วันที่ 3 ถัดจาก
+        // reminder/final — แค่ "เตือน" ให้พิจารณายกเลิกสัญญา ไม่มีการยกเลิก
+        // อัตโนมัติเด็ดขาด (ดู comment เต็มใน coerce.js's cutoffCancelWarningDay
+        // — คุณต้นปฏิเสธการยกเลิกอัตโนมัติไปแล้วเพราะขัด permanent rule)
+        const cancelWarningDay = Number(settings.cutoffCancelWarningDay) || 25;
+        if (todayDom === reminderDay || todayDom === finalDay || todayDom === cancelWarningDay) {
           const invoices = coerceInvoices(await readTab('Invoices'));
           const unpaid = invoices.filter((i) => i.status === 'pending' || i.status === 'partial' || i.status === 'overdue');
           cutoffChecked = unpaid.length;
           for (const inv of unpaid) {
             const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
             const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
-            const kind = todayDom === finalDay ? 'final' : 'reminder';
+            const kind = todayDom === cancelWarningDay ? 'cancelWarning' : todayDom === finalDay ? 'final' : 'reminder';
             const key = `${kind}:${inv.room}:${inv.id}`;
             if (_cutoffNotifiedDates.get(key) === todayStr) continue; // already notified today
-            const msg = kind === 'final'
+            const msg = kind === 'cancelWarning'
+              ? `🚨 ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${cancelWarningDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณายกเลิกสัญญาเช่าได้เลยครับ (ต้องไปกดยกเลิกเองที่หน้าสัญญาเช่า ระบบไม่ยกเลิกให้อัตโนมัติ)`
+              : kind === 'final'
               ? `⚠️ ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${finalDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณาตัดน้ำ/ไฟ ได้เลยครับ (ตัดจริงต้องทำเองที่หน้า "Set อุปกรณ์" ระบบไม่ตัดให้อัตโนมัติ)`
               : `🔔 ห้อง ${inv.room} ยังไม่ชำระค่าเช่าครับ (ยอดค้าง ${remaining.toLocaleString()} บาท)`;
             notifyAdmin('cutoffWarning', msg).catch(() => {});

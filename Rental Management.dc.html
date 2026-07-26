@@ -2435,13 +2435,21 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <span style="font-size:18px">🚱</span>
                 <div style="font-size:16px;font-weight:700;color:#241812">ตั้งค่าแจ้งเตือนตัดน้ำตัดไฟ</div>
               </div>
-              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">ระบบแค่แจ้งเตือนเท่านั้น ไม่ตัดน้ำ/ไฟให้อัตโนมัติ — การตัดจริงต้องทำเองที่หน้า "Set อุปกรณ์" เสมอ</div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">ระบบแค่แจ้งเตือนเท่านั้น ไม่ตัดน้ำ/ไฟ และไม่ยกเลิกสัญญาให้อัตโนมัติ — การตัดน้ำ/ไฟทำเองที่หน้า "Set อุปกรณ์", การยกเลิกสัญญาทำเองที่หน้าสัญญาเช่า เสมอ</div>
 
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">แจ้งเตือนยังไม่ชำระ ทุกวันที่ (ของเดือน)</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">1) แจ้งเตือนยังไม่ชำระ ทุกวันที่ (ของเดือน)</div>
               <input value="{{ cutoffConfigDraft.reminderDay }}" onchange="{{ onCutoffReminderDayChange }}" placeholder="5" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:14px">
 
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ถ้ายังไม่ชำระถึงวันที่ (ของเดือน) — เตือนพิจารณาตัดน้ำ/ไฟ</div>
-              <input value="{{ cutoffConfigDraft.finalDay }}" onchange="{{ onCutoffFinalDayChange }}" placeholder="15" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:18px">
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">2) ถ้ายังไม่ชำระถึงวันที่ (ของเดือน) — เตือนพิจารณาตัดน้ำ/ไฟ</div>
+              <input value="{{ cutoffConfigDraft.finalDay }}" onchange="{{ onCutoffFinalDayChange }}" placeholder="15" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:14px">
+
+              <!-- "อนุญาติยกเลิกสัญญาเช่า" (2026-07-26 follow-up) — คุณต้น
+                   ขอเป็น "ยกเลิกอัตโนมัติ" ตอนแรก แต่ปฏิเสธไปเพราะขัดกับ
+                   permanent rule เดียวกับที่ห้ามตัดน้ำ/ไฟอัตโนมัติ (หนักกว่า
+                   ด้วยซ้ำ เพราะกระทบที่อยู่อาศัยผู้เช่าตรงๆ) — ทำเป็นแค่
+                   "เตือน" วันที่ 3 แทน ไม่มีการยกเลิกสัญญาจริงเด็ดขาด -->
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">3) ถ้ายังไม่ชำระถึงวันที่ (ของเดือน) — เตือนพิจารณายกเลิกสัญญาเช่า</div>
+              <input value="{{ cutoffConfigDraft.cancelWarningDay }}" onchange="{{ onCutoffCancelWarningDayChange }}" placeholder="25" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:18px">
 
               <div style="display:flex;gap:10px">
                 <div onclick="{{ closeCutoffConfig }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer;text-align:center">ยกเลิก</div>
@@ -4234,8 +4242,13 @@ class Component extends DCLogic {
     // ห้อง ตั้งค่าผ่านปุ่มฟันเฟื่องข้างสวิตช์ cutoffWarning ด้านบน
     cutoffReminderDay: '5',
     cutoffFinalDay: '15',
+    // "อนุญาติยกเลิกสัญญาเช่า" (2026-07-26 follow-up) — วันที่ 3 ถัดจาก
+    // reminder/final — แค่ "เตือน" ให้พิจารณายกเลิกสัญญา ไม่มีการยกเลิก
+    // อัตโนมัติเด็ดขาด (ปฏิเสธไปแล้วเพราะขัด permanent rule เดียวกับตัด
+    // น้ำ/ไฟอัตโนมัติ — ดู comment เต็มใน server/coerce.js)
+    cutoffCancelWarningDay: '25',
     showCutoffConfigModal: false,
-    cutoffConfigDraft: { reminderDay: '5', finalDay: '15' },
+    cutoffConfigDraft: { reminderDay: '5', finalDay: '15', cancelWarningDay: '25' },
     // Per explicit user request: lets the owner turn whole nav sections
     // on/off (e.g. selling to a customer building that doesn't use Tuya
     // devices or has no staff to track). All default true so nothing
@@ -4711,6 +4724,7 @@ class Component extends DCLogic {
         internetRate: data.internetRate,
         cutoffReminderDay: data.cutoffReminderDay != null ? String(data.cutoffReminderDay) : s.cutoffReminderDay,
         cutoffFinalDay: data.cutoffFinalDay != null ? String(data.cutoffFinalDay) : s.cutoffFinalDay,
+        cutoffCancelWarningDay: data.cutoffCancelWarningDay != null ? String(data.cutoffCancelWarningDay) : s.cutoffCancelWarningDay,
         settings: { ...s.settings, ...data.settings },
         claudeAutomationEnabled: !!data.claudeAutomationEnabled,
         hasDataResetPin: !!data.hasDataResetPin,
@@ -7997,31 +8011,35 @@ class Component extends DCLogic {
   // ก่อน กด "บันทึก" ถึงจะยิง PUT จริง (เหมือน openAutoInvoice/openDueReminder)
   openCutoffConfig = () => this.setState(s => ({
     showCutoffConfigModal: true,
-    cutoffConfigDraft: { reminderDay: s.cutoffReminderDay, finalDay: s.cutoffFinalDay },
+    cutoffConfigDraft: { reminderDay: s.cutoffReminderDay, finalDay: s.cutoffFinalDay, cancelWarningDay: s.cutoffCancelWarningDay },
   }));
   closeCutoffConfig = () => this.setState({ showCutoffConfigModal: false });
   onCutoffReminderDayChange = (e) => { const v = e.target.value; this.setState(s => ({ cutoffConfigDraft: { ...s.cutoffConfigDraft, reminderDay: v } })); };
   onCutoffFinalDayChange = (e) => { const v = e.target.value; this.setState(s => ({ cutoffConfigDraft: { ...s.cutoffConfigDraft, finalDay: v } })); };
+  // "อนุญาติยกเลิกสัญญาเช่า" (2026-07-26 follow-up) — ชื่อ handler ยังใช้คำ
+  // ว่า "cancelWarning" ตรงๆ (ไม่ใช่ autoCancelDay หรืออะไรที่สื่อว่ายกเลิก
+  // จริง) ตั้งใจตั้งชื่อกันสับสนว่านี่คือวันแจ้ง"เตือน"เท่านั้น
+  onCutoffCancelWarningDayChange = (e) => { const v = e.target.value; this.setState(s => ({ cutoffConfigDraft: { ...s.cutoffConfigDraft, cancelWarningDay: v } })); };
   saveCutoffConfig = () => this._guard('saveCutoffConfig', async () => {
-    const { reminderDay, finalDay } = this.state.cutoffConfigDraft;
-    const rDay = Number(reminderDay), fDay = Number(finalDay);
-    if (!rDay || rDay < 1 || rDay > 31 || !fDay || fDay < 1 || fDay > 31) {
+    const { reminderDay, finalDay, cancelWarningDay } = this.state.cutoffConfigDraft;
+    const rDay = Number(reminderDay), fDay = Number(finalDay), cDay = Number(cancelWarningDay);
+    if (!rDay || rDay < 1 || rDay > 31 || !fDay || fDay < 1 || fDay > 31 || !cDay || cDay < 1 || cDay > 31) {
       this.showAdminToast('กรุณากรอกวันที่ของเดือนให้ถูกต้อง (1-31)');
       return;
     }
-    // ไม่บล็อกถ้ากรอกสลับกัน (reminderDay > finalDay) แค่เตือนไว้ — บาง
-    // ร้านอาจตั้งใจแบบนั้นจริงๆ (เช่น เตือนซ้ำท้ายเดือนก่อนวันครบกำหนดรอบ
-    // ใหม่) ไม่ใช่หน้าที่ระบบจะไปตัดสินใจแทน
-    if (rDay >= fDay) {
-      this.showAdminToast('⚠️ ปกติวันเตือน ควรน้อยกว่าวันพิจารณาตัดน้ำ/ไฟ — บันทึกให้แล้วนะครับ แต่ลองเช็คอีกทีว่าตั้งใจแบบนี้จริงไหม');
+    // ไม่บล็อกถ้ากรอกสลับกัน (reminderDay > finalDay > cancelWarningDay)
+    // แค่เตือนไว้ — บางร้านอาจตั้งใจแบบนั้นจริงๆ ไม่ใช่หน้าที่ระบบจะไป
+    // ตัดสินใจแทน
+    if (rDay >= fDay || fDay >= cDay) {
+      this.showAdminToast('⚠️ ปกติควรเรียงเป็น วันเตือน < วันพิจารณาตัดน้ำ/ไฟ < วันพิจารณายกเลิกสัญญา — บันทึกให้แล้วนะครับ แต่ลองเช็คอีกทีว่าตั้งใจแบบนี้จริงไหม');
     }
     try {
       const res = await fetch('/api/settings', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cutoffReminderDay: rDay, cutoffFinalDay: fDay }),
+        body: JSON.stringify({ cutoffReminderDay: rDay, cutoffFinalDay: fDay, cutoffCancelWarningDay: cDay }),
       });
       if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
-      this.setState({ cutoffReminderDay: String(rDay), cutoffFinalDay: String(fDay), showCutoffConfigModal: false });
+      this.setState({ cutoffReminderDay: String(rDay), cutoffFinalDay: String(fDay), cutoffCancelWarningDay: String(cDay), showCutoffConfigModal: false });
       this.showAdminToast('บันทึกการตั้งค่าแจ้งเตือนตัดน้ำตัดไฟแล้ว');
     } catch (err) {
       this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
@@ -9323,6 +9341,10 @@ class Component extends DCLogic {
     const todayDomForCutoff = Number(this._todayStr().slice(8, 10));
     const cutoffFinalDayNum = Number(s.cutoffFinalDay) || 15;
     const pastCutoffDay = todayDomForCutoff >= cutoffFinalDayNum;
+    // "อนุญาติยกเลิกสัญญาเช่า" (2026-07-26 follow-up) — ระดับที่ 2 ถัดจาก
+    // ตัดน้ำ/ไฟ แค่ "เตือน" เท่านั้น ไม่มีการยกเลิกสัญญาจริงอัตโนมัติ
+    const cutoffCancelWarningDayNum = Number(s.cutoffCancelWarningDay) || 25;
+    const pastCancelWarningDay = todayDomForCutoff >= cutoffCancelWarningDayNum;
     s.rooms.forEach(r => {
       if (!r.tenant) return;
       if (r.tenantIdExpiry) {
@@ -9355,7 +9377,16 @@ class Component extends DCLogic {
         if (inv) {
           const total = (inv.rent || 0) + (inv.water || 0) + (inv.elec || 0) + (inv.trash || 0) + (inv.internet || 0);
           const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
-          expiryAlertsAll.push({
+          // "อนุญาติยกเลิกสัญญาเช่า" (2026-07-26 follow-up) — ถ้าเลยวันที่
+          // เตือนพิจารณายกเลิกสัญญาไปแล้วด้วย ยกระดับข้อความ/ไอคอน (ยัง
+          // เป็นแค่ "เตือน" เท่านั้น ไม่มีการยกเลิกอัตโนมัติเด็ดขาด)
+          expiryAlertsAll.push(pastCancelWarningDay ? {
+            room: r.id, tenant: r.tenant, days: -2000, // เร่งด่วนกว่าตัดน้ำ/ไฟธรรมดาอีกขั้น
+            icon: '🚨', typeLabel: `ค้างชำระเกินวันที่ ${cutoffCancelWarningDayNum} — ยอดค้าง ${this.fmt(remaining)} บาท`,
+            statusLabel: 'พิจารณายกเลิกสัญญา',
+            statusBg: '#B24336',
+            onClick: () => this.openContractForm(r.id),
+          } : {
             room: r.id, tenant: r.tenant, days: -1000, // เรียงไว้บนสุดเสมอ (เร่งด่วนกว่าบัตร/สัญญาหมดอายุ)
             icon: '🚱', typeLabel: `ค้างชำระเกินวันที่ ${cutoffFinalDayNum} — ยอดค้าง ${this.fmt(remaining)} บาท`,
             statusLabel: 'พิจารณาตัดน้ำ/ไฟ',
@@ -9413,7 +9444,7 @@ class Component extends DCLogic {
       // "แจ้งเตือน ตัดน้ำตัดไฟ...มีปุ่มฟันเฟื่องเข้าไปตั้งค่า" (2026-07-26)
       // — hasConfig=true แสดงปุ่มฟันเฟื่องเปิด modal ตั้งวันที่ (gear icon
       // ตัวเดียวในลิสต์นี้ที่มี config เพิ่ม)
-      { key: 'cutoffWarning', label: 'แจ้งเตือนตัดน้ำตัดไฟ', desc: `แจ้งถ้ายังไม่ชำระถึงวันที่ ${s.cutoffReminderDay} เตือนพิจารณาตัดน้ำ/ไฟถ้ายังไม่ชำระถึงวันที่ ${s.cutoffFinalDay}`, hasConfig: true },
+      { key: 'cutoffWarning', label: 'แจ้งเตือนตัดน้ำตัดไฟ', desc: `แจ้งถ้ายังไม่ชำระถึงวันที่ ${s.cutoffReminderDay} → เตือนตัดน้ำ/ไฟถ้าไม่ชำระถึงวันที่ ${s.cutoffFinalDay} → เตือนยกเลิกสัญญาถ้าไม่ชำระถึงวันที่ ${s.cutoffCancelWarningDay}`, hasConfig: true },
     ].map(o => {
       const on = !!s.adminNotify[o.key];
       return {
@@ -10521,7 +10552,7 @@ class Component extends DCLogic {
       })),
       showCutoffConfigModal: s.showCutoffConfigModal, cutoffConfigDraft: s.cutoffConfigDraft,
       openCutoffConfig: this.openCutoffConfig, closeCutoffConfig: this.closeCutoffConfig,
-      onCutoffReminderDayChange: this.onCutoffReminderDayChange, onCutoffFinalDayChange: this.onCutoffFinalDayChange, saveCutoffConfig: this.saveCutoffConfig,
+      onCutoffReminderDayChange: this.onCutoffReminderDayChange, onCutoffFinalDayChange: this.onCutoffFinalDayChange, onCutoffCancelWarningDayChange: this.onCutoffCancelWarningDayChange, saveCutoffConfig: this.saveCutoffConfig,
       showDueReminder: s.showDueReminder, dueReminderDays: s.dueReminderDays, dueReminderMsg: s.dueReminderMsg,
       closeDueReminder: this.closeDueReminder, onDueReminderDays: this.onDueReminderDays, onDueReminderMsg: this.onDueReminderMsg, saveDueReminder: this.saveDueReminder, toggleDueReminderAll: this.toggleDueReminderAll,
       dueReminderAllCheck: (occupiedRooms.length > 0 && occupiedRooms.every(r => s.dueReminderRooms[r.id])) ? '✓' : '',

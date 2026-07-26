@@ -241,6 +241,14 @@ async function readSettings(preloadedRows) {
     // finalDay แต่ไม่ได้บังคับในนี้ (ฝั่งหน้าเว็บเตือนถ้ากรอกสลับกัน)
     cutoffReminderDay: num(map.cutoffReminderDay, 5),
     cutoffFinalDay: num(map.cutoffFinalDay, 15),
+    // "อนุญาติยกเลิกสัญญาเช่า" (2026-07-26 follow-up) — คุณต้นขอเป็นการ
+    // "ยกเลิกสัญญาอัตโนมัติ" ตอนแรก แต่ปฏิเสธไป เพราะขัดกับ permanent rule
+    // เดียวกับที่ห้ามตัดน้ำ/ไฟอัตโนมัติ (ในนี้ยิ่งหนักกว่า เพราะกระทบที่อยู่
+    // อาศัยผู้เช่าโดยตรง ไม่มีใครตรวจสอบก่อนเลย) — คุณต้นเลือกทางเลือก
+    // ปลอดภัยแทน: เป็นแค่ "เตือน" (วันที่ 3 ถัดจาก reminder/final) ไม่มีการ
+    // ยกเลิกสัญญาจริงอัตโนมัติเด็ดขาด — คุณต้นยังต้องไปกดยกเลิกสัญญาเองที่
+    // หน้าสัญญาเช่า (ปุ่ม "ลบห้องนี้"/ยกเลิกสัญญา ที่มีอยู่แล้ว) เสมอ
+    cutoffCancelWarningDay: num(map.cutoffCancelWarningDay, 25),
     // Per explicit user request: lets the owner turn whole nav sections
     // on/off (e.g. selling this app to another building that doesn't use
     // Tuya devices or has no staff to track) — gated behind the same admin
