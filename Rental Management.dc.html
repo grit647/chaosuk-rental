@@ -500,17 +500,39 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <span style="width:6px;height:6px;border-radius:50%;background:{{ sheetStatusDot }}"></span>{{ sheetStatusLabel }}
                 </span>
               </div>
-              <div class="split-col" style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC;box-sizing:border-box">
-                <div style="display:flex;align-items:center;gap:10px">
-                  <span style="width:22px;height:22px;border-radius:6px;background:#06C755;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">OA</span>
-                  <div>
-                    <div style="font-size:13px;font-weight:600;color:#241812">เชื่อมต่อ LINE OA</div>
-                    <div style="font-size:11px;color:#A89A88;margin-top:2px">{{ lineEnvStatusLabel }}</div>
+              <div class="split-col" style="flex:1;padding:12px 16px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC;box-sizing:border-box">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span style="width:22px;height:22px;border-radius:6px;background:#06C755;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">OA</span>
+                    <div>
+                      <div style="font-size:13px;font-weight:600;color:#241812">เชื่อมต่อ LINE OA</div>
+                      <div style="font-size:11px;color:#A89A88;margin-top:2px">{{ lineEnvStatusLabel }}</div>
+                    </div>
                   </div>
+                  <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ lineStatusBg }};color:{{ lineStatusColor }}">
+                    <span style="width:6px;height:6px;border-radius:50%;background:{{ lineStatusDot }}"></span>{{ lineStatusLabel }}
+                  </span>
                 </div>
-                <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ lineStatusBg }};color:{{ lineStatusColor }}">
-                  <span style="width:6px;height:6px;border-radius:50%;background:{{ lineStatusDot }}"></span>{{ lineStatusLabel }}
-                </span>
+                <!-- "แสดงค่าการใช้ไปเท่าไรแบบนี้ครับในส่วนนี้" (2026-07-26)
+                     — โควตาข้อความ LINE OA เดือนนี้ (ตัวเดียวกับการ์ด KPI
+                     "LINE OA เดือนนี้" ด้านบน ใช้ lineUsage* vars เดิม) -->
+                <sc-if value="{{ lineUsageConfigured }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid #F0E9DC">
+                    <svg width="34" height="34" viewBox="0 0 100 100" style="flex-shrink:0">
+                      <circle cx="50" cy="50" r="{{ lineUsageR }}" fill="none" stroke="#EDE4D6" stroke-width="16"></circle>
+                      <circle cx="50" cy="50" r="{{ lineUsageR }}" fill="none" stroke="{{ lineUsageColor }}" stroke-width="16" stroke-linecap="round" stroke-dasharray="{{ lineUsageDashArray }}" transform="rotate(-90 50 50)"></circle>
+                    </svg>
+                    <div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:#241812">{{ lineUsageUsedDisplay }}</div>
+                      <sc-if value="{{ lineUsageLimited }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:11px;color:#7C6E5F">จาก {{ lineUsageLimitDisplay }} ข้อความ/เดือน</div>
+                      </sc-if>
+                      <sc-if value="{{ lineUsageUnlimited }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:11px;color:#3B7A52">ไม่จำกัดข้อความ</div>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-if>
               </div>
             </div>
 
