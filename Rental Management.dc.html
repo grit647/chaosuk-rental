@@ -3241,6 +3241,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <div style="font-size:13px;font-weight:700;color:#241812">ห้อง {{ b.room }} · {{ b.tenant }}</div>
                         <div style="font-size:13px;font-weight:700;color:#C1622D;font-family:'IBM Plex Mono',monospace">{{ b.totalDisplay }}</div>
                       </div>
+                      <!-- "ส่วนนี้ก็ต้องเพิ่มส่วนของค่าเช่าอีกครับ"
+                           (2026-07-26) — ช่องเดียวกับที่เพิ่งเพิ่มในฟอร์ม
+                           ออกบิลเดี่ยว ทำเป็นรายห้องในนี้ด้วย pre-fill จาก
+                           สัญญา แก้ได้เฉพาะบิลใบนั้นๆ ไม่กระทบ room.rent -->
+                      <div>
+                        <div style="font-size:10.5px;color:#7C6E5F;margin-bottom:3px">ค่าเช่า (บาท)</div>
+                        <input value="{{ b.rentOverride }}" onchange="{{ b.onRentChange }}" placeholder="0" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                      </div>
                       <div style="display:flex;gap:8px">
                         <div style="flex:1">
                           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
@@ -6020,6 +6028,11 @@ class Component extends DCLogic {
         elecMode: r.tuyaElecDeviceId ? 'device' : 'manual',
         water: dw ? String(dw.charge) : '0', elec: de ? String(de.charge) : '0',
         waterUnits: '', elecUnits: '',
+        // "ส่วนนี้ก็ต้องเพิ่มส่วนของค่าเช่าอีกครับ" (2026-07-26) — ช่อง
+        // เดียวกับที่เพิ่งเพิ่มในฟอร์มออกบิลเดี่ยว (newInvoice.rentOverride)
+        // แค่ทำเป็นรายห้องแทน เพราะออกบิลหลายห้องพร้อมกัน — pre-fill จาก
+        // สัญญา แก้ได้เฉพาะบิลใบนั้นๆ ไม่กระทบ room.rent
+        rentOverride: r.rent != null ? String(r.rent) : '',
       };
     });
     this.setState({ showInvoiceModeModal: false, showBulkInvoiceModal: true, bulkInvoiceDrafts: drafts, bulkInvoiceDue: '' });
@@ -6058,6 +6071,10 @@ class Component extends DCLogic {
     });
   };
   onBulkInvoiceDueChange = (e) => this.setState({ bulkInvoiceDue: e.target.value });
+  onBulkInvoiceRentChange = (roomId) => (e) => {
+    const v = e.target.value;
+    this.setState(s => ({ bulkInvoiceDrafts: { ...s.bulkInvoiceDrafts, [roomId]: { ...s.bulkInvoiceDrafts[roomId], rentOverride: v } } }));
+  };
   // Loops POST /api/invoices per room SEQUENTIALLY (not Promise.all) so the
   // server's own duplicate-bill/credit-apply logic (POST /api/invoices in
   // server/routes/invoices.js) never has to race against itself — each
@@ -6090,11 +6107,14 @@ class Component extends DCLogic {
         : this.meterUnitsFromReading(roomId, 'elec', draft.elecUnits);
       const waterPrevReading = room.waterPrev || 0;
       const elecPrevReading = room.elecPrev || 0;
+      // ค่าเช่าใช้ rentOverride ถ้ามีการแก้รายห้อง (เคสห้องเข้าอยู่ไม่ครบ
+      // เดือน) มิฉะนั้น fallback เป็น room.rent — ดู onBulkInvoiceRentChange
+      const rentForBill = draft.rentOverride !== '' && draft.rentOverride != null ? (Number(draft.rentOverride) || 0) : room.rent;
       try {
         const res = await fetch('/api/invoices', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            room: room.id, tenant: room.tenant, rent: room.rent, water, elec, trash: s.trashRate, internet: s.internetRate, due: s.bulkInvoiceDue,
+            room: room.id, tenant: room.tenant, rent: rentForBill, water, elec, trash: s.trashRate, internet: s.internetRate, due: s.bulkInvoiceDue,
             waterUnits: waterUnitsForBill, elecUnits: elecUnitsForBill, waterPrevReading, elecPrevReading,
           }),
         });
@@ -10017,7 +10037,9 @@ class Component extends DCLogic {
         if (!room) return null;
         const draft = s.bulkInvoiceDrafts[roomId] || {};
         const water = Number(draft.water) || 0, elec = Number(draft.elec) || 0;
-        const total = (room.rent || 0) + water + elec + (s.trashRate || 0) + (s.internetRate || 0);
+        // ค่าเช่าใช้ rentOverride ถ้ามีการแก้รายห้อง — ดู onBulkInvoiceRentChange
+        const rent = draft.rentOverride !== '' && draft.rentOverride != null ? (Number(draft.rentOverride) || 0) : (room.rent || 0);
+        const total = rent + water + elec + (s.trashRate || 0) + (s.internetRate || 0);
         // Same อุปกรณ์/กรอกเอง toggle as the single-invoice form, per
         // explicit user request — genuinely separate isWaterDevice/
         // isWaterManual (and elec equivalents) fields, not one condition
@@ -10033,8 +10055,10 @@ class Component extends DCLogic {
           room: room.id, tenant: room.tenant,
           water: draft.water, elec: draft.elec,
           waterUnits: draft.waterUnits, elecUnits: draft.elecUnits,
+          rentOverride: draft.rentOverride != null ? draft.rentOverride : '',
+          onRentChange: this.onBulkInvoiceRentChange(roomId),
           totalDisplay: this.fmt(total),
-          breakdownLabel: `ค่าเช่า ${this.fmt(room.rent || 0)} + ขยะ ${this.fmt(s.trashRate || 0)} + เน็ต ${this.fmt(s.internetRate || 0)}`,
+          breakdownLabel: `ค่าเช่า ${this.fmt(rent)} + ขยะ ${this.fmt(s.trashRate || 0)} + เน็ต ${this.fmt(s.internetRate || 0)}`,
           isWaterDevice, isWaterManual, isElecDevice, isElecManual,
           // Per explicit user request (same as the single-invoice form):
           // hide the อุปกรณ์/กรอกเอง toggle entirely for a utility this
