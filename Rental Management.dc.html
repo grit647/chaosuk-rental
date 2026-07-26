@@ -488,17 +488,35 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                  lineStatus*/sheetEnvConnected/lineEnvConnected เดิม
                  ไม่ต้องเพิ่ม state/backend ใหม่เลย) -->
             <div class="split-row" style="display:flex;gap:14px;margin-bottom:14px">
-              <div class="split-col" style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC;box-sizing:border-box">
-                <div style="display:flex;align-items:center;gap:10px">
-                  <span style="width:22px;height:22px;border-radius:6px;background:#188038;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">S</span>
-                  <div>
-                    <div style="font-size:13px;font-weight:600;color:#241812">เชื่อมต่อ Google Sheet</div>
-                    <div style="font-size:11px;color:#A89A88;margin-top:2px">{{ sheetEnvStatusLabel }}</div>
+              <div class="split-col" style="flex:1;padding:12px 16px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC;box-sizing:border-box">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span style="width:22px;height:22px;border-radius:6px;background:#188038;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">S</span>
+                    <div>
+                      <div style="font-size:13px;font-weight:600;color:#241812">เชื่อมต่อ Google Sheet</div>
+                      <div style="font-size:11px;color:#A89A88;margin-top:2px">{{ sheetEnvStatusLabel }}</div>
+                    </div>
                   </div>
+                  <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ sheetStatusBg }};color:{{ sheetStatusColor }}">
+                    <span style="width:6px;height:6px;border-radius:50%;background:{{ sheetStatusDot }}"></span>{{ sheetStatusLabel }}
+                  </span>
                 </div>
-                <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ sheetStatusBg }};color:{{ sheetStatusColor }}">
-                  <span style="width:6px;height:6px;border-radius:50%;background:{{ sheetStatusDot }}"></span>{{ sheetStatusLabel }}
-                </span>
+                <!-- "ขอเชื่อมข้อมูลจริงดีกว่า ใช้ไปกี่%...สูงสุด 10ล้าน
+                     เซลล์" (2026-07-26) — ของจริงจาก Google Sheets API
+                     (spreadsheets.get) ไม่ใช่ตัวเลขหลอก คู่สไตล์เดียวกับ
+                     วงกลมโควตาข้อความ LINE OA ฝั่งขวา -->
+                <sc-if value="{{ sheetUsageLoaded }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid #F0E9DC">
+                    <svg width="34" height="34" viewBox="0 0 100 100" style="flex-shrink:0">
+                      <circle cx="50" cy="50" r="{{ sheetUsageR }}" fill="none" stroke="#EDE4D6" stroke-width="16"></circle>
+                      <circle cx="50" cy="50" r="{{ sheetUsageR }}" fill="none" stroke="{{ sheetUsageColor }}" stroke-width="16" stroke-linecap="round" stroke-dasharray="{{ sheetUsageDashArray }}" transform="rotate(-90 50 50)"></circle>
+                    </svg>
+                    <div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:#241812">{{ sheetUsagePercentDisplay }}</div>
+                      <div style="font-size:11px;color:#7C6E5F">{{ sheetUsedCellsDisplay }} จาก 10 ล้านเซลล์</div>
+                    </div>
+                  </div>
+                </sc-if>
               </div>
               <div class="split-col" style="flex:1;padding:12px 16px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC;box-sizing:border-box">
                 <div style="display:flex;align-items:center;justify-content:space-between">
@@ -4405,6 +4423,10 @@ class Component extends DCLogic {
     // null for an unlimited/paid plan (LINE's quota API returns
     // { type: 'none' } for those — see server/routes/line.js's /usage).
     lineUsage: { configured: false, used: 0, limit: null },
+    // "ใช้ไปกี่%...สูงสุด 10ล้านเซลล์" (2026-07-26) — Dashboard's Google
+    // Sheet card usage gauge, loaded once from GET /api/settings/sheet-usage
+    // (see loadSheetUsage), same lazy-load-on-mount pattern as lineUsage.
+    sheetUsage: { usedCells: 0, totalCells: 10000000, percent: 0, loaded: false },
     sheetEnvConnected: false,
     propertyProfile: { name: 'หอพักเช่าสุข', adminName: 'คุณสมหมาย ผู้จัดการ', adminPhone: '081-000-0000', paymentQrUrl: '', buildingKeyId: '', lineOAShortUrl: '' },
     // A newly-picked QR image (dataURL) or a pending removal — staged here
@@ -4566,6 +4588,7 @@ class Component extends DCLogic {
     this.loadFromServer();
     this.loadLineStatus();
     this.loadLineUsage();
+    this.loadSheetUsage();
     this.loadTuyaDevices();
     this.refreshTuyaLive();
     this.loadTuyaHealth();
@@ -8565,6 +8588,18 @@ class Component extends DCLogic {
       this.setState({ lineUsage: { configured: !!data.configured, used: data.used || 0, limit: data.limit == null ? null : data.limit } });
     } catch (err) { console.error(err); }
   };
+  // "ใช้ไปกี่%...สูงสุด 10ล้านเซลล์" (2026-07-26) — Dashboard's Google Sheet
+  // card usage gauge, real cell-allocation count from Google's API. Loaded
+  // once on mount, same as loadLineUsage (doesn't change fast enough to need
+  // the 30s auto-refresh poll).
+  loadSheetUsage = async () => {
+    try {
+      const res = await fetch('/api/settings/sheet-usage');
+      if (!res.ok) return;
+      const data = await res.json();
+      this.setState({ sheetUsage: { usedCells: data.usedCells || 0, totalCells: data.totalCells || 10000000, percent: data.percent || 0, loaded: true } });
+    } catch (err) { console.error(err); }
+  };
   // This now gates whether scheduled LINE sends (from the command box or
   // calendar reminders) are actually allowed to fire — persisted server-side
   // in the Settings sheet, since the scheduler check runs independently of
@@ -9103,6 +9138,15 @@ class Component extends DCLogic {
     const lineUsageRingPercent = lineUsageUnlimited ? 100 : lineUsagePercent;
     const lineUsageColor = lineUsageUnlimited ? '#3B7A52' : lineUsagePercent >= 90 ? '#B24336' : lineUsagePercent >= 70 ? '#C1872E' : '#3B7A52';
     const lineUsageDashArray = ((lineUsageRingPercent / 100) * lineUsageCircumference).toFixed(1) + ' ' + lineUsageCircumference.toFixed(1);
+
+    // "ขอเชื่อมข้อมูลจริงดีกว่า ใช้ไปกี่%...สูงสุด 10ล้านเซลล์" (2026-07-26)
+    // — same donut-gauge math as lineUsage* above, real percent-of-10M-cells
+    // from GET /api/settings/sheet-usage (loadSheetUsage on mount).
+    const sheetUsagePercent = Math.max(0, Math.min(100, s.sheetUsage.percent || 0));
+    const sheetUsageR = 42;
+    const sheetUsageCircumference = 2 * Math.PI * sheetUsageR;
+    const sheetUsageColor = sheetUsagePercent >= 90 ? '#B24336' : sheetUsagePercent >= 70 ? '#C1872E' : '#3B7A52';
+    const sheetUsageDashArray = ((sheetUsagePercent / 100) * sheetUsageCircumference).toFixed(1) + ' ' + sheetUsageCircumference.toFixed(1);
 
     const billingChips = [
       { key: 'all', label: 'รวมเดือนนี้', count: s.invoices.length, sumDisplay: this.fmt(totalSum), accent: '#241812' },
@@ -10268,6 +10312,11 @@ class Component extends DCLogic {
       lineUsageUsedDisplay: lineUsageUsed.toLocaleString('th-TH'),
       lineUsageLimitDisplay: lineUsageLimit == null ? '' : lineUsageLimit.toLocaleString('th-TH'),
       lineUsageCenterLabel: lineUsageUnlimited ? '∞' : Math.round(lineUsagePercent) + '%',
+      // Dashboard's Google Sheet card usage gauge (see sheetUsage* consts above).
+      sheetUsageLoaded: s.sheetUsage.loaded,
+      sheetUsageR, sheetUsageColor, sheetUsageDashArray,
+      sheetUsagePercentDisplay: sheetUsagePercent.toFixed(1) + '%',
+      sheetUsedCellsDisplay: Math.round(s.sheetUsage.usedCells || 0).toLocaleString('th-TH'),
       toggleAutoRefresh: this.toggleAutoRefresh,
       autoRefreshEnabled: s.autoRefreshEnabled, autoRefreshCountdown: s.autoRefreshCountdown,
       autoRefreshBg: s.autoRefreshEnabled ? '#C1622D' : '#E3D8C8',
@@ -10803,6 +10852,11 @@ class Component extends DCLogic {
       sheetStatusColor: s.sheetEnvConnected ? '#3B7A52' : '#7C6E5F',
       sheetStatusDot: s.sheetEnvConnected ? '#3B7A52' : '#B0A08C',
       sheetEnvStatusLabel: s.sheetEnvConnected ? '✓ กำลังอ่าน/เขียนข้อมูลกับ Google Sheet จริง' : 'เชื่อมต่อ Google Sheet ไม่สำเร็จ — ตรวจสอบ server/.env และรีเฟรชหน้านี้',
+      // "ทำส่วนกลูเกิลชีต ให้ด้วยครับ" (2026-07-26) — จำนวนแถวข้อมูลจริงใน
+      // แต่ละแท็บหลัก นับจาก state arrays ที่โหลดมาจาก bootstrap อยู่แล้ว
+      sheetRoomCount: (s.rooms || []).length.toLocaleString('th-TH'),
+      sheetInvoiceCount: (s.invoices || []).length.toLocaleString('th-TH'),
+      sheetExpenseCount: (s.expenses || []).length.toLocaleString('th-TH'),
       toggleClaudeAutomation: this.toggleClaudeAutomation,
       claudeAdminEmail: s.claudeAdminEmail, onClaudeAdminEmail: this.onClaudeAdminEmail,
       confirmClaudeAdminEmail: this.confirmClaudeAdminEmail, claudeAdminEmailSaved: s.claudeAdminEmailSaved,

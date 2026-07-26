@@ -170,4 +170,31 @@ async function clearTab(tab) {
   });
 }
 
-module.exports = { readTab, readTabs, appendRow, updateRow, deleteRow, clearTab };
+// "ทำส่วนกลูเกิลชีต ให้ด้วยครับ...ใช้ไปกี่%...สูงสุด 10ล้านเซลล์" (2026-07-26)
+// — Dashboard status card wants a real (not fake) usage number for the
+// Google Sheet card, mirroring the LINE OA card's message-quota gauge.
+// Google Sheets has no per-month API quota comparable to LINE's — the only
+// real, persistent limit a spreadsheet actually has is Google's own hard
+// cap of 10,000,000 CELLS total across every tab in one spreadsheet file
+// (this is the same number Google Sheets' own UI warns about when a sheet
+// gets too big). That cap is based on each tab's ALLOCATED grid size
+// (gridProperties.rowCount * columnCount), not how many cells actually
+// have data in them — same definition Google uses, so this stays accurate
+// even though most of those allocated cells are blank.
+async function getCellUsage() {
+  const sheets = await client();
+  const resp = await sheets.spreadsheets.get({
+    spreadsheetId: SHEET_ID(),
+    fields: 'sheets.properties.gridProperties',
+  });
+  const list = resp.data.sheets || [];
+  const usedCells = list.reduce((sum, sh) => {
+    const gp = sh.properties && sh.properties.gridProperties;
+    if (!gp) return sum;
+    return sum + (gp.rowCount || 0) * (gp.columnCount || 0);
+  }, 0);
+  const totalCells = 10000000;
+  return { usedCells, totalCells, percent: Math.min(100, (usedCells / totalCells) * 100) };
+}
+
+module.exports = { readTab, readTabs, appendRow, updateRow, deleteRow, clearTab, getCellUsage };

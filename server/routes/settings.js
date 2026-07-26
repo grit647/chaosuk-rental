@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { readTab, updateRow, appendRow, deleteRow } = require('../sheets');
+const { readTab, updateRow, appendRow, deleteRow, getCellUsage } = require('../sheets');
 const { readSettings } = require('../coerce');
 const { runWithSheetId } = require('../requestContext');
 const { cloneSchemaToNewSheet } = require('../setupBuilding');
@@ -47,6 +47,19 @@ async function upsertKV(key, value) {
 
 router.get('/', async (req, res, next) => {
   try { res.json(await readSettings()); }
+  catch (err) { next(err); }
+});
+
+// "ทำส่วนกลูเกิลชีต ให้ด้วยครับ...ใช้ไปกี่%...สูงสุด 10ล้านเซลล์" (2026-07-26)
+// — Dashboard status card's Google Sheet usage gauge, real number sourced
+// from spreadsheets.get (see sheets.js's getCellUsage comment for why 10M
+// cells is the right denominator). Session-scoped automatically the same
+// way every other route here is (getCellUsage() calls SHEET_ID() which
+// resolves the logged-in customer's own sheet via requestContext). Fetched
+// once on mount by the frontend, same pattern as /api/line/usage — cell
+// counts don't change fast enough to need it on the 30s auto-refresh poll.
+router.get('/sheet-usage', async (req, res, next) => {
+  try { res.json(await getCellUsage()); }
   catch (err) { next(err); }
 });
 
