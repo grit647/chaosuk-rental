@@ -3427,10 +3427,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </sc-if>
                   </div>
                 </div>
+                <!-- "ส่วนวันครบกำหนด ให้เป็นไปตามสัญญาอย่างเดียว" (2026-07-26,
+                     ตามคำขอ "จัดการเลย" — ให้ฟอร์มออกบิลเดี่ยวเป็นแบบ
+                     เดียวกับที่เพิ่งทำในหน้าออกบิลรวม) — คำนวณจาก dueDay
+                     ของสัญญาห้องนั้นเอง อ่านอย่างเดียว ไม่ให้พิมพ์เองแล้ว -->
                 <div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ <span style="color:#B24336">*จำเป็น</span></div>
-                  <input type="date" value="{{ newInvoice.due }}" onchange="{{ onNewInvoiceDueChange }}" min="{{ todayDateStr }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
-                  <div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ newInvoiceDueThai }}</div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ (ตามสัญญา)</div>
+                  <div style="padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;background:#F7F2E9;color:{{ newInvoiceDueColor }}">📅 {{ newInvoiceDueDisplay }}</div>
                 </div>
                 <!-- "เพิ่มอีก 1 ช่องคือ ค่าเช่า เอาค่าในสัญญามาแสดงไว้ให้
                      ก่อน และสามารถแก้ไข้ส่วนนี้ได้ แต่ไม่ไปบันทึกแทนใน
@@ -6217,7 +6220,9 @@ class Component extends DCLogic {
     // "เพิ่มอีก 1 ช่องคือ ค่าเช่า เอาค่าในสัญญามาแสดงไว้ให้ก่อน" (2026-07-26)
     // — pre-fill เหมือน onNewInvoiceRoomChange (จุดนี้เป็นทางลัดเปิดฟอร์ม
     // ตรงจากการ์ดห้องใดห้องหนึ่ง คนละจุดกับ dropdown เลือกห้องในฟอร์ม)
-    const next = { roomId, water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device', rentOverride: room && room.rent != null ? String(room.rent) : '' };
+    // "ส่วนวันครบกำหนด ให้เป็นไปตามสัญญาอย่างเดียว...จัดการเลย" (2026-07-26)
+    // — คำนวณจาก dueDay ของสัญญาห้องนี้เอง เหมือน onNewInvoiceRoomChange
+    const next = { roomId, water: '0', elec: '0', waterUnits: '', elecUnits: '', due: room ? this.computeNextDueDateFromDay(room.dueDay) : '', waterMode: 'device', elecMode: 'device', rentOverride: room && room.rent != null ? String(room.rent) : '' };
     // Per explicit user request: skip "อุปกรณ์" mode entirely for a
     // utility this room has no Tuya device linked for (toggle is hidden
     // in that case — see invWaterHasDevice/invElecHasDevice — so opening
@@ -6712,6 +6717,11 @@ class Component extends DCLogic {
       // onNewInvoiceRentChange/invBillPreview/submitInvoice สำหรับจุดที่
       // ใช้ค่านี้
       next.rentOverride = newRoom && newRoom.rent != null ? String(newRoom.rent) : '';
+      // "ส่วนวันครบกำหนด ให้เป็นไปตามสัญญาอย่างเดียว...จัดการเลย"
+      // (2026-07-26) — คำนวณจาก dueDay ของสัญญาห้องนี้เอง (ค่าว่างถ้าห้อง
+      // ยังไม่มี dueDay — submitInvoice บล็อกการบันทึกด้วยข้อความชัดเจนถ้า
+      // เจอกรณีนี้ ดู comment เต็มตรงนั้น)
+      next.due = newRoom ? this.computeNextDueDateFromDay(newRoom.dueDay) : '';
       if (newRoom && !newRoom.tuyaWaterDeviceId) next.waterMode = 'manual';
       if (newRoom && !newRoom.tuyaElecDeviceId) next.elecMode = 'manual';
       // Per explicit user request: when in "อุปกรณ์" mode but the device
@@ -6782,13 +6792,12 @@ class Component extends DCLogic {
   submitInvoice = () => this._guard('submitInvoice', async () => {
     const s = this.state;
     if (!s.newInvoice.roomId) { this.showAdminToast('กรุณาเลือกห้อง'); return; }
-    // Per explicit user request: กำหนดชำระ is now required before saving,
-    // and can't be a date already in the past (the date input's own min
-    // attribute — see renderVals()'s todayDateStr — blocks picking one via
-    // the calendar UI, this is the defensive re-check in case a past date
-    // ends up in state some other way, e.g. typed directly).
-    if (!s.newInvoice.due) { this.showAdminToast('กรุณาเลือกวันครบกำหนดชำระก่อนสร้างบิล'); return; }
-    if (s.newInvoice.due < this._todayStr()) { this.showAdminToast('วันครบกำหนดชำระเลือกวันย้อนหลังไม่ได้'); return; }
+    // "ส่วนวันครบกำหนด ให้เป็นไปตามสัญญาอย่างเดียว...จัดการเลย" (2026-07-26)
+    // — newInvoice.due ตอนนี้คำนวณอัตโนมัติจาก dueDay ของสัญญา (ดู
+    // onNewInvoiceRoomChange/openInvoiceForRoom) ไม่ได้ให้พิมพ์เองแล้ว —
+    // ถ้ายังว่างอยู่ แปลว่าห้องนี้ไม่มี dueDay ในสัญญาเลย (สัญญาเก่าก่อน
+    // ที่ช่องนี้จะบังคับกรอก) บล็อกพร้อมบอกให้ไปกรอกที่หน้าสัญญาก่อน
+    if (!s.newInvoice.due) { this.showAdminToast('ห้องนี้ยังไม่ได้กรอก "กำหนดชำระ" ในสัญญาเช่า กรุณาไปกรอกที่หน้าสัญญาเช่าของห้องนี้ก่อน แล้วกลับมาออกบิลใหม่อีกครั้งครับ'); return; }
     // Block issuing a second bill for a room that already has one
     // outstanding — per explicit user request after noticing duplicate
     // bills could stack up for the same room. The server also enforces
@@ -9664,11 +9673,18 @@ class Component extends DCLogic {
     const newInvoiceDueThai = this.formatThaiDateLabel(s.newInvoice.due);
     const newStaffStartDateThai = this.formatThaiDateLabel(s.newStaff.startDate);
     const newStaffEndDateThai = this.formatThaiDateLabel(s.newStaff.endDate);
+    // "ส่วนวันครบกำหนด ให้เป็นไปตามสัญญาอย่างเดียว...จัดการเลย" (2026-07-26)
+    // — โชว์ข้อความเตือนแทนวันที่ ถ้าห้องที่เลือกยังไม่มี dueDay ในสัญญา
+    // (ยังไม่ได้เลือกห้องเลยก็เข้าเงื่อนไขนี้เหมือนกัน — ข้อความเดียวกัน
+    // ครอบคลุมทั้ง 2 กรณี)
+    const newInvoiceDueDisplay = s.newInvoice.due ? newInvoiceDueThai : 'ห้องนี้ยังไม่มีกำหนดชำระในสัญญา — ไปกรอกที่หน้าสัญญาเช่าก่อน';
+    const newInvoiceDueColor = s.newInvoice.due ? '#241812' : '#B24336';
 
     return {
       cfTenantIdExpiryThai, cfOwnerIdExpiryThai, cfStartDateThai, cfEndDateThai,
       newExpenseDateThai, editInvoiceDueThai, resolveSlipConfirmDueDateThai,
       bulkInvoiceDueThai, newInvoiceDueThai, newStaffStartDateThai, newStaffEndDateThai,
+      newInvoiceDueDisplay, newInvoiceDueColor,
       pagePad, pagePadBottom,
       navPos: isNarrow ? 'absolute' : 'relative',
       navTransform: isNarrow ? (s.mobileNavOpen ? 'translateX(0)' : 'translateX(-105%)') : 'none',
