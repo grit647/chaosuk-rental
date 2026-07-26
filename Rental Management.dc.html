@@ -1927,6 +1927,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div>
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">วันหมดอายุบัตร</div>
                     <input type="date" value="{{ cf.tenantIdExpiry }}" onchange="{{ onCfTenantExpiry }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                    <div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ cfTenantIdExpiryThai }}</div>
                   </div>
                 </div>
               </div>
@@ -1946,6 +1947,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div>
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">วันหมดอายุบัตร</div>
                     <input type="date" value="{{ cf.ownerIdExpiry }}" onchange="{{ onCfOwnerExpiry }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                    <div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ cfOwnerIdExpiryThai }}</div>
                   </div>
                 </div>
               </div>
@@ -1969,10 +1971,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div>
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">วันเริ่มสัญญา</div>
                     <input type="date" value="{{ cf.startDate }}" onchange="{{ onCfStart }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                    <div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ cfStartDateThai }}</div>
                   </div>
                   <div>
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">วันสิ้นสุดสัญญา</div>
                     <input type="date" value="{{ cf.endDate }}" onchange="{{ onCfEnd }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                    <div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ cfEndDateThai }}</div>
                   </div>
                 </div>
                 <div style="margin-top:14px">
@@ -2269,6 +2273,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <div style="flex:1">
                       <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">วันที่</div>
                       <input type="date" value="{{ newExpense.date }}" onchange="{{ onExpenseDateChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                      <div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ newExpenseDateThai }}</div>
                     </div>
                   </div>
                 </div>
@@ -2684,7 +2689,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="flex:1"><div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าขยะ (บาท)</div><input value="{{ editInvoice.trash }}" onchange="{{ onEditInvoiceTrashChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace"></div>
                 </div>
                 <div><div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าอินเทอร์เน็ต (บาท)</div><input value="{{ editInvoice.internet }}" onchange="{{ onEditInvoiceInternetChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace"></div>
-                <div><div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ</div><input type="date" value="{{ editInvoice.due }}" onchange="{{ onEditInvoiceDueChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box"></div>
+                <div><div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ</div><input type="date" value="{{ editInvoice.due }}" onchange="{{ onEditInvoiceDueChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box"><div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ editInvoiceDueThai }}</div></div>
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#FBF7F0;border-radius:6px">
                   <span style="font-size:12.5px;color:#7C6E5F;font-weight:600">ยอดรวม</span>
                   <span style="font-size:15px;color:#241812;font-weight:700;font-family:'IBM Plex Mono',monospace">{{ editInvoiceTotalDisplay }}</span>
@@ -3034,7 +3039,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <sc-if value="{{ resolveSlipConfirmIsPartial }}" hint-placeholder-val="{{ false }}">
                   <div style="font-size:12px;color:#B85B27;margin-bottom:14px">ยอดคงเหลือหลังจากนี้: {{ resolveSlipConfirmInfo.remainingDisplay }}</div>
                   <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">วันครบกำหนดชำระยอดที่เหลือ</div>
-                  <input type="date" value="{{ resolveSlipConfirmDueDate }}" onchange="{{ onResolveSlipDueDateChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;margin-bottom:14px">
+                  <input type="date" value="{{ resolveSlipConfirmDueDate }}" onchange="{{ onResolveSlipDueDateChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                  <div style="font-size:11px;color:#9C8B78;margin:4px 0 10px 0">{{ resolveSlipConfirmDueDateThai }}</div>
                 </sc-if>
               </sc-if>
               <div style="font-size:12px;color:#9C8B78;margin-bottom:18px">เมื่อยืนยันแล้ว ระบบจะบันทึกและส่งข้อความแจ้งผู้เช่าทาง LINE ทันที</div>
@@ -3246,6 +3252,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="margin-top:14px">
                   <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ (ใช้ร่วมกันทุกห้อง) <span style="color:#B24336">*จำเป็น</span></div>
                   <input type="date" value="{{ bulkInvoiceDue }}" onchange="{{ onBulkInvoiceDueChange }}" min="{{ todayDateStr }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                  <div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ bulkInvoiceDueThai }}</div>
                 </div>
                 <div style="display:flex;gap:10px;margin-top:16px">
                   <button onclick="{{ closeBulkInvoiceModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
@@ -3380,6 +3387,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div>
                   <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ <span style="color:#B24336">*จำเป็น</span></div>
                   <input type="date" value="{{ newInvoice.due }}" onchange="{{ onNewInvoiceDueChange }}" min="{{ todayDateStr }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                  <div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ newInvoiceDueThai }}</div>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:6px;padding:10px 12px;background:#FBF7F0;border-radius:6px">
                   <div style="font-size:10.5px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#9C8B78;margin-bottom:2px">รายการบิล</div>
@@ -3628,10 +3636,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="flex:1">
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เริ่มสัญญา</div>
                     <input type="date" value="{{ newStaff.startDate }}" onchange="{{ onNewStaffStartDate }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                    <div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ newStaffStartDateThai }}</div>
                   </div>
                   <div style="flex:1">
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">สิ้นสุดสัญญา</div>
                     <input type="date" value="{{ newStaff.endDate }}" onchange="{{ onNewStaffEndDate }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                    <div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ newStaffEndDateThai }}</div>
                     <div style="font-size:10px;color:#A89A88;margin-top:3px">เว้นว่างได้ถ้าเป็นสัญญาไม่มีกำหนด</div>
                   </div>
                 </div>
@@ -4287,6 +4297,29 @@ class Component extends DCLogic {
   };
 
   fmt(n) { return Number(n).toLocaleString('en-US'); }
+
+  // "รูปแบบเวลาทั้งหมด ให้แสดงเป็น วันเดือนปี" (2026-07-26) — ช่อง
+  // <input type="date"> ของเบราว์เซอร์เองแก้ตัวเลขข้างในให้เป็นภาษาไทย
+  // ไม่ได้จริงๆ (ข้อจำกัดของ browser-native widget, ไม่ใช่ CSS/JS แก้ได้ —
+  // เคยอธิบายให้คุณต้นฟังแล้วก่อนหน้านี้) ทางออกที่เลือก (คุณต้นยืนยัน
+  // "เพิ่มป้ายกำกับภาษาไทยข้างใต้ช่อง (เร็ว)"): ปล่อยตัวช่อง native ไว้
+  // เหมือนเดิม (ยังเป็น mm/dd/yyyy ตอนกดเลือกวันที่) แต่เพิ่มป้ายข้อความ
+  // ใต้ช่องแสดงค่าที่บันทึกไว้จริงเป็นภาษาไทยเต็มรูปแบบ (เช่น
+  // "3 มกราคม 2568") ให้เห็นชัดว่าบันทึกวันที่ถูกต้องจริงๆ ไม่ต้องตีความ
+  // เลขในช่อง mm/dd/yyyy เอง — รับค่าดิบแบบ "YYYY-MM-DD" ตรงจาก
+  // <input type="date"> เสมอ (ไม่ว่า browser locale จะตั้งเป็นอะไร ค่า
+  // .value ก็เป็นรูปแบบนี้เสมอตาม HTML spec) แยกตัวเลขจากสตริงตรงๆ ไม่ผ่าน
+  // Date object เลย กันปัญหาวันที่คลาดเคลื่อนข้ามเขตเวลา
+  formatThaiDateLabel(dateStr) {
+    if (!dateStr) return '';
+    const parts = String(dateStr).split('-');
+    if (parts.length !== 3) return '';
+    const [y, m, d] = parts.map(Number);
+    if (!y || !m || !d) return '';
+    const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    if (!months[m - 1]) return '';
+    return `${d} ${months[m - 1]} ${y + 543}`;
+  }
 
   componentDidMount() {
     this._onResize = () => this.setState({ viewportWidth: window.innerWidth });
@@ -9443,7 +9476,26 @@ class Component extends DCLogic {
     const adminScale = isNarrow ? (availWidth / 1280) : Math.min(1, availWidth / 1280);
     const mobileScale = Math.min(1, availWidth / 402);
 
+    // "รูปแบบเวลาทั้งหมด ให้แสดงเป็น วันเดือนปี รวมส่วนที่บันทึกไว้แล้วด้วย"
+    // (2026-07-26) — ป้ายภาษาไทยใต้ทุกช่อง <input type="date"> ในหน้านี้
+    // (11 จุด) ดู formatThaiDateLabel ด้านบน — คำนวณรวมไว้ตรงนี้ทีเดียว
+    // ก่อน return แทนที่จะแทรกกระจายทั่วฟังก์ชัน ง่ายต่อการหาและแก้ไขทีหลัง
+    const cfTenantIdExpiryThai = this.formatThaiDateLabel(s.contractForm.tenantIdExpiry);
+    const cfOwnerIdExpiryThai = this.formatThaiDateLabel(s.contractForm.ownerIdExpiry);
+    const cfStartDateThai = this.formatThaiDateLabel(s.contractForm.startDate);
+    const cfEndDateThai = this.formatThaiDateLabel(s.contractForm.endDate);
+    const newExpenseDateThai = this.formatThaiDateLabel(s.newExpense.date);
+    const editInvoiceDueThai = this.formatThaiDateLabel(s.editInvoice.due);
+    const resolveSlipConfirmDueDateThai = this.formatThaiDateLabel(s.resolveSlipConfirmDueDate);
+    const bulkInvoiceDueThai = this.formatThaiDateLabel(s.bulkInvoiceDue);
+    const newInvoiceDueThai = this.formatThaiDateLabel(s.newInvoice.due);
+    const newStaffStartDateThai = this.formatThaiDateLabel(s.newStaff.startDate);
+    const newStaffEndDateThai = this.formatThaiDateLabel(s.newStaff.endDate);
+
     return {
+      cfTenantIdExpiryThai, cfOwnerIdExpiryThai, cfStartDateThai, cfEndDateThai,
+      newExpenseDateThai, editInvoiceDueThai, resolveSlipConfirmDueDateThai,
+      bulkInvoiceDueThai, newInvoiceDueThai, newStaffStartDateThai, newStaffEndDateThai,
       pagePad, pagePadBottom,
       navPos: isNarrow ? 'absolute' : 'relative',
       navTransform: isNarrow ? (s.mobileNavOpen ? 'translateX(0)' : 'translateX(-105%)') : 'none',
