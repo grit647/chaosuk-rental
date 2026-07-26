@@ -76,20 +76,41 @@ router.get('/run', async (req, res, next) => {
           const invoices = coerceInvoices(await readTab('Invoices'));
           const unpaid = invoices.filter((i) => i.status === 'pending' || i.status === 'partial' || i.status === 'overdue');
           cutoffChecked = unpaid.length;
+          // "ข้อความที่ส่งไปให้ลูกค้า เป็นแบบไหน...ครบเลย 3 รายการครับ"
+          // (2026-07-26 follow-up) — เดิมแจ้งแค่เจ้าของ/ผู้ดูแล ตอนนี้ส่งหา
+          // ผู้เช่าด้วยทั้ง 3 ระดับ (ถ้าห้องนั้นผูก LINE ไว้แล้ว) ใช้ toggle
+          // เดียวกับ cutoffWarning (ไม่แยกสวิตช์เพิ่ม) ข้อความฝั่งผู้เช่า
+          // สุภาพกว่า พูดกับผู้เช่าโดยตรง ไม่ใช้คำว่า "ห้อง X" แบบข้อความ
+          // ฝั่งเจ้าของ — dedup แยก key จากฝั่งเจ้าของ (คนละ recipient กัน)
+          const rooms = await readTab('Rooms');
           for (const inv of unpaid) {
             const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
             const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
             const kind = todayDom === cancelWarningDay ? 'cancelWarning' : todayDom === finalDay ? 'final' : 'reminder';
             const key = `${kind}:${inv.room}:${inv.id}`;
-            if (_cutoffNotifiedDates.get(key) === todayStr) continue; // already notified today
-            const msg = kind === 'cancelWarning'
-              ? `🚨 ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${cancelWarningDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณายกเลิกสัญญาเช่าได้เลยครับ (ต้องไปกดยกเลิกเองที่หน้าสัญญาเช่า ระบบไม่ยกเลิกให้อัตโนมัติ)`
-              : kind === 'final'
-              ? `⚠️ ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${finalDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณาตัดน้ำ/ไฟ ได้เลยครับ (ตัดจริงต้องทำเองที่หน้า "Set อุปกรณ์" ระบบไม่ตัดให้อัตโนมัติ)`
-              : `🔔 ห้อง ${inv.room} ยังไม่ชำระค่าเช่าครับ (ยอดค้าง ${remaining.toLocaleString()} บาท)`;
-            notifyAdmin('cutoffWarning', msg).catch(() => {});
-            _cutoffNotifiedDates.set(key, todayStr);
-            cutoffNotified++;
+            if (_cutoffNotifiedDates.get(key) !== todayStr) {
+              const msg = kind === 'cancelWarning'
+                ? `🚨 ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${cancelWarningDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณายกเลิกสัญญาเช่าได้เลยครับ (ต้องไปกดยกเลิกเองที่หน้าสัญญาเช่า ระบบไม่ยกเลิกให้อัตโนมัติ)`
+                : kind === 'final'
+                ? `⚠️ ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${finalDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณาตัดน้ำ/ไฟ ได้เลยครับ (ตัดจริงต้องทำเองที่หน้า "Set อุปกรณ์" ระบบไม่ตัดให้อัตโนมัติ)`
+                : `🔔 ห้อง ${inv.room} ยังไม่ชำระค่าเช่าครับ (ยอดค้าง ${remaining.toLocaleString()} บาท)`;
+              notifyAdmin('cutoffWarning', msg).catch(() => {});
+              _cutoffNotifiedDates.set(key, todayStr);
+              cutoffNotified++;
+            }
+            const tenantKey = `tenant:${key}`;
+            if (_cutoffNotifiedDates.get(tenantKey) !== todayStr) {
+              const room = rooms.find((r) => r.id === inv.room);
+              if (room && room.lineUserId) {
+                const tenantMsg = kind === 'cancelWarning'
+                  ? `🚨 แจ้งเตือนสำคัญครับ ยอดค่าเช่าค้างชำระของคุณ (${remaining.toLocaleString()} บาท) ยังไม่ได้รับการชำระมาเป็นเวลานานแล้ว หากยังไม่ติดต่อชำระ ทางร้านอาจพิจารณายกเลิกสัญญาเช่า รบกวนติดต่อเจ้าของห้องโดยด่วนที่สุดนะครับ`
+                  : kind === 'final'
+                  ? `⚠️ แจ้งเตือนครับ ยอดค่าเช่าค้างชำระของคุณ (${remaining.toLocaleString()} บาท) ยังไม่ได้รับการชำระ หากยังไม่ชำระ ทางร้านอาจพิจารณางดจ่ายน้ำ/ไฟชั่วคราว รบกวนชำระหรือติดต่อเจ้าของห้องโดยด่วนนะครับ`
+                  : `🔔 แจ้งเตือนค่าเช่าครับ ตอนนี้มียอดค้างชำระ ${remaining.toLocaleString()} บาท รบกวนชำระโดยเร็วที่สุดนะครับ`;
+                pushMessage(room.lineUserId, tenantMsg).catch(() => {});
+                _cutoffNotifiedDates.set(tenantKey, todayStr);
+              }
+            }
           }
         }
       }
