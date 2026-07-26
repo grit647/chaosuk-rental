@@ -91,6 +91,74 @@ function aggregate(byRoom, bucketFn, labelFn, fixedKeys, valueField) {
   return fixedKeys.map((key) => ({ label: labelFn(key), value: Math.round((bucketTotals.get(key) || 0) * 100) / 100 }));
 }
 
+// "รายชั่วโมง 24 กราฟ เผื่อเอาไปดูการใช้ไฟระบบ TOU" (2026-07-26, follow-up
+// "ตรงนี้เรียง 00 นาฬิกาไปเลยครับ แบบนี้มองยาก ตาม app ของ Tuya") — first
+// attempt reused the generic aggregate() helper (most recent 24 buckets by
+// absolute UTC hour), which had 2 real bugs compared to what the owner
+// actually wanted (matching Tuya's own app's hourly chart):
+//   1. Labelled buckets in UTC, not Thailand local time (Asia/Bangkok,
+//      UTC+7) — every hour label was 7 hours off from the wall-clock time
+//      the owner actually cares about.
+//   2. "Most recent 24 buckets" is a ROLLING window that can span the tail
+//      of one day + start of another, so hour-of-day labels came out
+//      repeated/out of order (e.g. "16:00" then "01:00" then "11:00"...)
+//      instead of a clean 00:00→23:00 sequence for one day.
+// Rewritten to build exactly one calendar day (Bangkok time) — the most
+// recent day that actually has log data — as 24 fixed slots in order,
+// zero-filled for any hour with no reading (same as Tuya's own chart shows
+// dotted/empty bars for hours with nothing logged). Originally written
+// inline inside /elec-history only; hoisted to module scope + parametrized
+// by valueField so /water-history ("รายชั่วโมงให้ไปด้วยครับ จะได้เหมือนไฟ",
+// 2026-07-26) can reuse it against WaterLog's cumulativeLiters column.
+function bangkokDateHour(d) {
+  // en-CA locale gives "YYYY-MM-DD, HH:MM:SS" in the given timeZone —
+  // simplest reliable way to get Bangkok-local date+hour without a date
+  // library, consistent with formatThaiDateTime's timeZone usage elsewhere
+  // in this codebase.
+  const s = d.toLocaleString('en-CA', { timeZone: 'Asia/Bangkok', hour12: false });
+  const [datePart, timePart] = s.split(', ');
+  return { date: datePart, hour: Number(timePart.slice(0, 2)) };
+}
+function buildHourlyChart(byRoom, valueField) {
+  let latestDate = null;
+  Object.values(byRoom).forEach((roomRows) => {
+    roomRows.forEach((r) => {
+      const { date } = bangkokDateHour(new Date(r.timestamp));
+      if (!latestDate || date > latestDate) latestDate = date;
+    });
+  });
+  if (!latestDate) return [];
+
+  const hourTotals = new Array(24).fill(0);
+  Object.values(byRoom).forEach((roomRows) => {
+    const sorted = [...roomRows].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    // Last reading strictly before the target day (any date < latestDate)
+    // becomes the baseline for computing hour 0's own delta — without
+    // this, the first hour of the day with a reading would have no
+    // "previous" value to diff against and would show 0 or be skipped.
+    let baseline = null;
+    const perHourLast = new Array(24).fill(null);
+    sorted.forEach((r) => {
+      const { date, hour } = bangkokDateHour(new Date(r.timestamp));
+      const val = Number(r[valueField]) || 0;
+      if (date < latestDate) baseline = val;
+      else if (date === latestDate) perHourLast[hour] = val; // later same-hour rows overwrite — last wins
+    });
+    let prev = baseline;
+    for (let h = 0; h < 24; h++) {
+      const val = perHourLast[h];
+      if (val != null) {
+        if (prev != null) hourTotals[h] += Math.max(0, val - prev);
+        prev = val;
+      }
+      // no reading this hour for this room: stays 0 for this room this
+      // hour, `prev` carries forward unchanged to the next hour that does
+      // have a reading (same carry-forward logic as aggregate()).
+    }
+  });
+  return hourTotals.map((v, h) => ({ label: String(h).padStart(2, '0') + ':00', value: Math.round(v * 100) / 100 }));
+}
+
 // ElectricityLog was writing a row on EVERY /status call — every 5-minute
 // auto-refresh tick from the frontend, plus every manual "รีเฟรช" click,
 // plus once per open browser tab if more than one — which piled up far more
@@ -272,77 +340,10 @@ router.get('/status', async (req, res, next) => {
 router.get('/elec-history', async (req, res, next) => {
   try {
     const byRoom = groupByRoom(await readTab('ElectricityLog'));
-
-    // "รายชั่วโมง 24 กราฟ เผื่อเอาไปดูการใช้ไฟระบบ TOU" (2026-07-26,
-    // follow-up "ตรงนี้เรียง 00 นาฬิกาไปเลยครับ แบบนี้มองยาก ตาม app ของ
-    // Tuya") — first attempt reused the generic aggregate() helper (most
-    // recent 24 buckets by absolute UTC hour), which had 2 real bugs
-    // compared to what the owner actually wanted (matching Tuya's own
-    // app's hourly chart):
-    //   1. Labelled buckets in UTC, not Thailand local time (Asia/Bangkok,
-    //      UTC+7) — every hour label was 7 hours off from the wall-clock
-    //      time the owner actually cares about.
-    //   2. "Most recent 24 buckets" is a ROLLING window that can span the
-    //      tail of one day + start of another, so hour-of-day labels came
-    //      out repeated/out of order (e.g. "16:00" then "01:00" then
-    //      "11:00"...) instead of a clean 00:00→23:00 sequence for one day.
-    // Rewritten to build exactly one calendar day (Bangkok time) — the
-    // most recent day that actually has log data — as 24 fixed slots in
-    // order, zero-filled for any hour with no reading (same as Tuya's own
-    // chart shows dotted/empty bars for hours with nothing logged).
-    function bangkokDateHour(d) {
-      // en-CA locale gives "YYYY-MM-DD, HH:MM:SS" in the given timeZone —
-      // simplest reliable way to get Bangkok-local date+hour without a
-      // date library, consistent with formatThaiDateTime's timeZone usage
-      // elsewhere in this codebase.
-      const s = d.toLocaleString('en-CA', { timeZone: 'Asia/Bangkok', hour12: false });
-      const [datePart, timePart] = s.split(', ');
-      return { date: datePart, hour: Number(timePart.slice(0, 2)) };
-    }
-    function buildHourlyChart() {
-      let latestDate = null;
-      Object.values(byRoom).forEach((roomRows) => {
-        roomRows.forEach((r) => {
-          const { date } = bangkokDateHour(new Date(r.timestamp));
-          if (!latestDate || date > latestDate) latestDate = date;
-        });
-      });
-      if (!latestDate) return [];
-
-      const hourTotals = new Array(24).fill(0);
-      Object.values(byRoom).forEach((roomRows) => {
-        const sorted = [...roomRows].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        // Last reading strictly before the target day (any date < latestDate)
-        // becomes the baseline for computing hour 0's own delta — without
-        // this, the first hour of the day with a reading would have no
-        // "previous" value to diff against and would show 0 or be skipped.
-        let baseline = null;
-        const perHourLast = new Array(24).fill(null);
-        sorted.forEach((r) => {
-          const { date, hour } = bangkokDateHour(new Date(r.timestamp));
-          const energy = Number(r.energy) || 0;
-          if (date < latestDate) baseline = energy;
-          else if (date === latestDate) perHourLast[hour] = energy; // later same-hour rows overwrite — last wins
-        });
-        let prev = baseline;
-        for (let h = 0; h < 24; h++) {
-          const val = perHourLast[h];
-          if (val != null) {
-            if (prev != null) hourTotals[h] += Math.max(0, val - prev);
-            prev = val;
-          }
-          // no reading this hour for this room: stays 0 for this room this
-          // hour, `prev` carries forward unchanged to the next hour that
-          // does have a reading (same carry-forward logic as aggregate()).
-        }
-      });
-      return hourTotals.map((v, h) => ({ label: String(h).padStart(2, '0') + ':00', value: Math.round(v * 100) / 100 }));
-    }
-
     res.json({
       day: aggregate(byRoom, dayKey, dayLabel, trailingDayKeys(7), 'energy'),
       month: aggregate(byRoom, monthKey, monthLabel, trailingMonthKeys(6), 'energy'),
-      hour: buildHourlyChart(),
+      hour: buildHourlyChart(byRoom, 'energy'),
     });
   } catch (err) { next(err); }
 });
@@ -365,6 +366,7 @@ router.get('/water-history', async (req, res, next) => {
     res.json({
       day: toM3(aggregate(byRoom, dayKey, dayLabel, trailingDayKeys(7), 'cumulativeLiters')),
       month: toM3(aggregate(byRoom, monthKey, monthLabel, trailingMonthKeys(6), 'cumulativeLiters')),
+      hour: toM3(buildHourlyChart(byRoom, 'cumulativeLiters')),
     });
   } catch (err) { next(err); }
 });
