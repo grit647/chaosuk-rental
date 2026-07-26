@@ -1893,7 +1893,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                   <div>
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่าเก็บขยะ / เดือน (บาท)</div>
-                    <input value="{{ cf.trashRate }}" onchange="{{ onCfTrash }}" placeholder="40" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                    <input value="{{ cf.trashRate }}" onchange="{{ onCfTrash }}" placeholder="0" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   </div>
                   <div>
                     <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ค่า Internet / เดือน (บาท)</div>
@@ -4012,7 +4012,7 @@ class Component extends DCLogic {
       tenantIdImg: '', tenantIdExpiry: '', ownerIdImg: '', ownerIdExpiry: '', lineQrImg: '',
       wifiUsername: '', wifiPassword: '', dueDay: '', startDate: '', endDate: '', leaseDocName: '',
     },
-    trashRate: 40,
+    trashRate: 0,
     internetRate: 0,
     ownerName: 'บริษัท เช่าสุข พร็อพเพอร์ตี้ จำกัด',
     calYear: new Date().getFullYear(),
