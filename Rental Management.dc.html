@@ -427,29 +427,6 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:#B24336">{{ kpiOverdueCount }}</div>
                 <div style="font-size:12px;color:#7C6E5F;margin-top:6px">{{ kpiOverdueSum }}</div>
               </div>
-              <div class="stat-card" style="flex:1;background:#FFFFFF;border-top:3px solid {{ lineUsageColor }};border-radius:8px;padding:16px;box-sizing:border-box">
-                <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">LINE OA เดือนนี้</div>
-                <sc-if value="{{ lineUsageNotConfigured }}" hint-placeholder-val="{{ false }}">
-                  <div style="font-size:13px;color:#A89A88;margin-top:8px">ยังไม่ได้เชื่อมต่อ</div>
-                </sc-if>
-                <sc-if value="{{ lineUsageConfigured }}" hint-placeholder-val="{{ false }}">
-                  <div style="display:flex;align-items:center;gap:10px">
-                    <svg width="40" height="40" viewBox="0 0 100 100" style="flex-shrink:0">
-                      <circle cx="50" cy="50" r="{{ lineUsageR }}" fill="none" stroke="#EDE4D6" stroke-width="16"></circle>
-                      <circle cx="50" cy="50" r="{{ lineUsageR }}" fill="none" stroke="{{ lineUsageColor }}" stroke-width="16" stroke-linecap="round" stroke-dasharray="{{ lineUsageDashArray }}" transform="rotate(-90 50 50)"></circle>
-                    </svg>
-                    <div>
-                      <div style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:#241812">{{ lineUsageUsedDisplay }}</div>
-                      <sc-if value="{{ lineUsageLimited }}" hint-placeholder-val="{{ false }}">
-                        <div style="font-size:11px;color:#7C6E5F">จาก {{ lineUsageLimitDisplay }} ข้อความ</div>
-                      </sc-if>
-                      <sc-if value="{{ lineUsageUnlimited }}" hint-placeholder-val="{{ false }}">
-                        <div style="font-size:11px;color:#3B7A52">ไม่จำกัดข้อความ</div>
-                      </sc-if>
-                    </div>
-                  </div>
-                </sc-if>
-              </div>
             </div>
 
             <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC;margin-bottom:14px">
