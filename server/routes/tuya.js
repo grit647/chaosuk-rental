@@ -201,9 +201,14 @@ router.get('/elec-history', async (req, res, next) => {
       byRoom[r.room].push(r);
     });
 
-    function aggregate(bucketFn, labelFn, bucketCount) {
-      // bucketTotals: ordered Map so we can slice the most recent N buckets
-      // at the end regardless of how sparse the log is.
+    // "มาดูการแสดงข้อมูล ส่วนรายวัน แสดงย้อนหลัง 7 วัน รายเดือนให้แสดง
+    // ย้อนหลัง 6 เดือน" (2026-07-26) — เดิม aggregate() คืนเฉพาะ bucket ที่
+    // มีข้อมูลจริงเท่านั้น (slice ท้ายลิสต์ที่ sparse) ทำให้ห้องที่เพิ่ง
+    // เชื่อม Tuya ไม่กี่วัน เห็นแค่ 2-3 แท่ง ไม่ใช่หน้าต่างย้อนหลังคงที่ —
+    // เปลี่ยนมารับ "fixedKeys" (รายการ key ตายตัวนับถอยจากวันนี้/เดือนนี้)
+    // แทน bucketCount แล้ว zero-fill bucket ที่ไม่มีข้อมูลเป็น 0 เสมอ (เหมือน
+    // แนวทางเดียวกับ buildHourlyChart ด้านล่างที่ทำไปแล้วรอบก่อน)
+    function aggregate(bucketFn, labelFn, fixedKeys) {
       const bucketTotals = new Map();
       Object.values(byRoom).forEach((roomRows) => {
         roomRows.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -225,22 +230,48 @@ router.get('/elec-history', async (req, res, next) => {
           prevEnergy = energy;
         }
       });
-      const keys = Array.from(bucketTotals.keys()).sort();
-      const recentKeys = keys.slice(-bucketCount);
-      return recentKeys.map((key) => ({ label: labelFn(key), value: Math.round(bucketTotals.get(key) * 100) / 100 }));
+      return fixedKeys.map((key) => ({ label: labelFn(key), value: Math.round((bucketTotals.get(key) || 0) * 100) / 100 }));
     }
 
-    const dayKey = (d) => d.toISOString().slice(0, 10); // YYYY-MM-DD
+    // Bangkok-local date/month key, same technique as bangkokDateHour below
+    // — matters here for the same reason as the hourly-chart fix: a UTC-
+    // based day boundary is 7 hours off from the Thailand calendar day the
+    // owner actually cares about.
+    const bangkokDateStr = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }); // "YYYY-MM-DD"
+    const dayKey = (d) => bangkokDateStr(d);
     const dayLabel = (key) => {
       const d = new Date(key + 'T00:00:00Z');
       return d.getUTCDate() + '/' + (d.getUTCMonth() + 1);
     };
-    const monthKey = (d) => d.toISOString().slice(0, 7); // YYYY-MM
+    const monthKey = (d) => bangkokDateStr(d).slice(0, 7); // YYYY-MM
     const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
     const monthLabel = (key) => {
       const [y, m] = key.split('-');
       return monthNames[Number(m) - 1];
     };
+    // Fixed trailing windows anchored on "today" in Bangkok time — pure
+    // day/month-count arithmetic (Thailand has no DST, so plain UTC ms
+    // stepping anchored at the Bangkok Y-M-D is safe here).
+    function trailingDayKeys(n) {
+      const [y, m, dd] = bangkokDateStr(new Date()).split('-').map(Number);
+      const base = Date.UTC(y, m - 1, dd);
+      const keys = [];
+      for (let i = n - 1; i >= 0; i--) {
+        const d = new Date(base - i * 86400000);
+        keys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`);
+      }
+      return keys;
+    }
+    function trailingMonthKeys(n) {
+      const [y, m] = bangkokDateStr(new Date()).split('-').map(Number);
+      const keys = [];
+      for (let i = n - 1; i >= 0; i--) {
+        let yy = y, mm = m - i;
+        while (mm <= 0) { mm += 12; yy -= 1; }
+        keys.push(`${yy}-${String(mm).padStart(2, '0')}`);
+      }
+      return keys;
+    }
     // "รายชั่วโมง 24 กราฟ เผื่อเอาไปดูการใช้ไฟระบบ TOU" (2026-07-26,
     // follow-up "ตรงนี้เรียง 00 นาฬิกาไปเลยครับ แบบนี้มองยาก ตาม app ของ
     // Tuya") — first attempt reused the generic aggregate() helper (most
@@ -308,8 +339,8 @@ router.get('/elec-history', async (req, res, next) => {
     }
 
     res.json({
-      day: aggregate(dayKey, dayLabel, 14),
-      month: aggregate(monthKey, monthLabel, 6),
+      day: aggregate(dayKey, dayLabel, trailingDayKeys(7)),
+      month: aggregate(monthKey, monthLabel, trailingMonthKeys(6)),
       hour: buildHourlyChart(),
     });
   } catch (err) { next(err); }
