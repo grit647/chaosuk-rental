@@ -10414,13 +10414,29 @@ class Component extends DCLogic {
       closeContractForm: this.closeContractForm,
       saveContractForm: this.saveContractForm,
       onCfRoom: this.onCfRoom, onCfRent: this.onCfRent,
+      // 2026-07-26 — พบสาเหตุจริงของบั๊ก "พิมพ์ในช่องไม่ได้" ที่ตามหามา
+      // หลายวัน (ค่ามัดจำห้อง/ค่าเช่าล่วงหน้า): onCfDeposit/onCfAdvanceRent
+      // มี method อยู่จริง (ดูด้านบนไฟล์เดียวกัน) แต่ไม่เคยถูกใส่เข้ามาใน
+      // object ก้อนนี้เลย — {{ onCfDeposit }} ในเทมเพลตเลยได้ค่า undefined
+      // เท่ากับ <input> มี value ผูกไว้ (controlled) แต่ไม่มี onChange จริง
+      // ทำให้ React ดีดค่าที่พิมพ์กลับเป็นค่าเดิมทุกครั้ง เคอร์เซอร์ยังกระพริบ
+      // อยู่ในช่องได้ปกติ (คนละ DOM node เดิม ไม่ได้ remount) แต่ตัวเลขไม่
+      // ขึ้นเลยสักตัว — ยืนยันด้วย document.activeElement.value ในคอนโซล
+      // ของคุณต้นเอง (ยังคงเป็นค่าเดิมทุกครั้งหลังพิมพ์) ไม่ใช่บั๊กระดับ
+      // framework/dc-runtime อย่างที่สงสัยไว้ก่อนหน้านี้เลย
+      onCfDeposit: this.onCfDeposit, onCfAdvanceRent: this.onCfAdvanceRent,
       onCfWater: this.onCfWater, onCfElec: this.onCfElec, onCfTrash: this.onCfTrash, onCfInternet: this.onCfInternet,
       onCfWaterMin: this.onCfWaterMin, onCfElecMin: this.onCfElecMin,
       onCfWaterMeterStart: this.onCfWaterMeterStart, onCfElecMeterStart: this.onCfElecMeterStart,
       onCfFirstName: this.onCfFirstName, onCfLastName: this.onCfLastName, onCfPhone: this.onCfPhone,
       onCfTenantId: this.onCfTenantId, onCfTenantExpiry: this.onCfTenantExpiry,
       onCfOwnerId: this.onCfOwnerId, onCfOwnerExpiry: this.onCfOwnerExpiry,
-      onCfWifi: this.onCfWifi, onCfDueDay: this.onCfDueDay,
+      // "onCfWifi" ตรงนี้เป็นชื่อค้าง (stale) จากตอนที่ยังเป็นช่องเดียว
+      // "wifiCode" ก่อนจะแยกเป็น username/password 2 ช่อง — this.onCfWifi
+      // ไม่มี method นี้อยู่จริงเลย (undefined) เท่ากับช่อง WiFi username/
+      // password ก็เจอบั๊กเดียวกับ deposit/advanceRent มาตลอด (พิมพ์ไม่ได้
+      // เพราะ onChange จริงไม่เคยถูกส่งเข้ามา) แก้ให้ตรงกับชื่อ method จริง
+      onCfWifiUsername: this.onCfWifiUsername, onCfWifiPassword: this.onCfWifiPassword, onCfDueDay: this.onCfDueDay,
       onCfStart: this.onCfStart, onCfEnd: this.onCfEnd, onCfLeaseDoc: this.onCfLeaseDoc,
       onCfLineQr: this.onCfLineQr, removeCfLineQr: this.removeCfLineQr,
       openLeaseDocs: this.openLeaseDocs, closeLeaseDocs: this.closeLeaseDocs,
