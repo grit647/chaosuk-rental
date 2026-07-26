@@ -3290,13 +3290,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         </div>
                       </div>
                       <div style="font-size:10.5px;color:#A89A88;font-family:'IBM Plex Mono',monospace">{{ b.breakdownLabel }}</div>
+                      <!-- "ส่วนวันครบกำหนด ให้เป็นไปตามสัญญาอย่างเดียว"
+                           (2026-07-26) — คำนวณจาก dueDay ของสัญญาห้องนี้
+                           เอง (อ่านอย่างเดียว) แทนช่องกรอกวันที่ร่วมกัน -->
+                      <div style="font-size:10.5px;color:#7C6E5F">📅 กำหนดชำระ: {{ b.dueDisplay }}</div>
                     </div>
                   </sc-for>
-                </div>
-                <div style="margin-top:14px">
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">กำหนดชำระ (ใช้ร่วมกันทุกห้อง) <span style="color:#B24336">*จำเป็น</span></div>
-                  <input type="date" value="{{ bulkInvoiceDue }}" onchange="{{ onBulkInvoiceDueChange }}" min="{{ todayDateStr }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
-                  <div style="font-size:11px;color:#9C8B78;margin-top:4px">{{ bulkInvoiceDueThai }}</div>
                 </div>
                 <div style="display:flex;gap:10px;margin-top:16px">
                   <button onclick="{{ closeBulkInvoiceModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
@@ -5085,6 +5084,16 @@ class Component extends DCLogic {
       this.showAdminToast('กรุณากรอกชื่อผู้เช่าก่อนบันทึกสัญญา');
       return;
     }
+    // "ส่วนวันครบกำหนด ให้เป็นไปตามสัญญาอย่างเดียว ไปบังคับช่องนี้ในสัญญา
+    // ว่าต้องกรอกก่อนบันทึก" (2026-07-26) — เดิม "กำหนดชำระทุกวันที่
+    // (ของเดือน)" เป็นช่องไม่บังคับ ทำให้ตอนออกบิลรวม (submitBulkInvoice)
+    // ไม่มีข้อมูลพอจะคำนวณวันครบกำหนดของบิลให้อัตโนมัติได้ — บังคับกรอกที่
+    // จุดนี้แทน (สัญญาเดียว เป็นความจริงต้นทาง) แล้วให้ฝั่งออกบิลคำนวณต่อ
+    // จากค่านี้เสมอ ไม่ต้องพิมพ์วันที่ซ้ำเองอีกรอบตอนออกบิล
+    if (!cf.dueDay) {
+      this.showAdminToast('กรุณากรอกกำหนดชำระทุกวันที่ (ของเดือน) ก่อนบันทึกสัญญา');
+      return;
+    }
     const roomPatch = {
       status: fullName ? (s.rooms.find(r => r.id === id).status === 'vacant' ? 'occupied' : undefined) : undefined,
       tenant: fullName || undefined,
@@ -6008,7 +6017,17 @@ class Component extends DCLogic {
   // per room in the bulk modal, then all saved together in one action.
   chooseBulkInvoiceMode = () => {
     const roomsWithOpenBill = new Set(this.state.invoices.filter(i => i.status !== 'paid').map(i => i.room));
-    const eligible = this.state.rooms.filter(r => r.tenant && !roomsWithOpenBill.has(r.id));
+    // "ส่วนวันครบกำหนด ให้เป็นไปตามสัญญาอย่างเดียว" (2026-07-26) — ห้องที่
+    // ยังไม่มี dueDay (สัญญาเก่าก่อนที่ช่องนี้จะบังคับกรอก) ไม่สามารถคำนวณ
+    // วันครบกำหนดอัตโนมัติให้ได้เลย ตัดออกจากรายการที่ออกบิลรวมได้ พร้อม
+    // แจ้งเตือนให้ไปกรอกที่สัญญาห้องนั้นก่อน แทนที่จะปล่อยให้ค้างไม่มีวัน
+    // ครบกำหนดในบิล
+    const eligibleAll = this.state.rooms.filter(r => r.tenant && !roomsWithOpenBill.has(r.id));
+    const eligible = eligibleAll.filter(r => !!r.dueDay);
+    const skippedNoDueDay = eligibleAll.filter(r => !r.dueDay).map(r => r.id);
+    if (skippedNoDueDay.length) {
+      this.showAdminToast(`ห้อง ${skippedNoDueDay.join(', ')} ยังไม่ได้กรอก "กำหนดชำระ" ในสัญญา ข้ามไปก่อน — ไปกรอกที่หน้าสัญญาเช่าของห้องนั้นๆ ก่อน แล้วออกบิลรวมใหม่อีกครั้งครับ`);
+    }
     const drafts = {};
     // Defaults every room to "อุปกรณ์" mode, same starting point as the
     // single-invoice form — per explicit user request, each row also gets
@@ -6084,10 +6103,12 @@ class Component extends DCLogic {
     const s = this.state;
     const roomIds = Object.keys(s.bulkInvoiceDrafts);
     if (!roomIds.length) return;
-    // Same กำหนดชำระ requirement as submitInvoice, per explicit user
-    // request — applies once to the whole shared batch date.
-    if (!s.bulkInvoiceDue) { this.showAdminToast('กรุณาเลือกวันครบกำหนดชำระก่อนสร้างบิล'); return; }
-    if (s.bulkInvoiceDue < this._todayStr()) { this.showAdminToast('วันครบกำหนดชำระเลือกวันย้อนหลังไม่ได้'); return; }
+    // "ส่วนวันครบกำหนด ให้เป็นไปตามสัญญาอย่างเดียว" (2026-07-26) — เดิมใช้
+    // วันที่เดียวกันทั้งหมด (bulkInvoiceDue, พิมพ์มือ) เปลี่ยนเป็นคำนวณ
+    // แยกรายห้องจาก dueDay ของแต่ละสัญญาเอง (computeNextDueDateFromDay) —
+    // chooseBulkInvoiceMode กรองห้องที่ไม่มี dueDay ออกไปแล้วตั้งแต่ตอน
+    // เปิด modal เลยไม่ต้องเช็คซ้ำตรงนี้ (ทุกห้องที่เหลืออยู่ต้องมี dueDay
+    // แน่นอน)
     this.setState({ bulkInvoiceLoading: true });
     let successCount = 0, failCount = 0;
     const newInvoices = [];
@@ -6110,11 +6131,14 @@ class Component extends DCLogic {
       // ค่าเช่าใช้ rentOverride ถ้ามีการแก้รายห้อง (เคสห้องเข้าอยู่ไม่ครบ
       // เดือน) มิฉะนั้น fallback เป็น room.rent — ดู onBulkInvoiceRentChange
       const rentForBill = draft.rentOverride !== '' && draft.rentOverride != null ? (Number(draft.rentOverride) || 0) : room.rent;
+      // วันครบกำหนดคำนวณจาก dueDay ของสัญญาห้องนี้เอง — ไม่ใช้วันที่เดียว
+      // ร่วมกันแบบเดิมอีกแล้ว (ดู comment เต็มใน submitBulkInvoice ด้านบน)
+      const dueForBill = this.computeNextDueDateFromDay(room.dueDay);
       try {
         const res = await fetch('/api/invoices', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            room: room.id, tenant: room.tenant, rent: rentForBill, water, elec, trash: s.trashRate, internet: s.internetRate, due: s.bulkInvoiceDue,
+            room: room.id, tenant: room.tenant, rent: rentForBill, water, elec, trash: s.trashRate, internet: s.internetRate, due: dueForBill,
             waterUnits: waterUnitsForBill, elecUnits: elecUnitsForBill, waterPrevReading, elecPrevReading,
           }),
         });
@@ -6555,6 +6579,26 @@ class Component extends DCLogic {
   // per explicit user request that กำหนดชำระ can never be backdated.
   _todayStr() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+  }
+  // "ส่วนวันครบกำหนด ให้เป็นไปตามสัญญาอย่างเดียว" (2026-07-26) — คำนวณวัน
+  // ครบกำหนดบิลถัดไปจาก dueDay (วันที่ของเดือน เช่น "5") ของสัญญาห้องนั้นๆ
+  // เอง แทนที่จะให้พิมพ์วันที่มือทุกครั้งตอนออกบิล — ถ้าวันนั้นของเดือนนี้
+  // ผ่านไปแล้ว เลื่อนไปเดือนถัดไปอัตโนมัติ (เช่น วันนี้ 20, dueDay 5 ->
+  // ได้วันที่ 5 เดือนหน้า) เดือนที่มีวันน้อยกว่า dueDay (เช่น กุมภาพันธ์ กับ
+  // dueDay 31) จะปัดไปวันสุดท้ายของเดือนนั้นแทน กันวันที่ไม่มีจริงในปฏิทิน
+  computeNextDueDateFromDay(dueDay) {
+    const day = Number(dueDay);
+    if (!day || day < 1 || day > 31) return '';
+    const fmt = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+    const bangkokNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    const y = bangkokNow.getFullYear(), m = bangkokNow.getMonth();
+    const clampToMonth = (year, month, d) => {
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      return new Date(year, month, Math.min(d, lastDay));
+    };
+    let candidate = clampToMonth(y, m, day);
+    if (fmt(candidate) < this._todayStr()) candidate = clampToMonth(y, m + 1, day);
+    return fmt(candidate);
   }
   // Per explicit user request: every date shown IN a sent bill/receipt/LINE
   // message (not admin-facing form fields, which stay ISO — that's what
@@ -10057,6 +10101,10 @@ class Component extends DCLogic {
           waterUnits: draft.waterUnits, elecUnits: draft.elecUnits,
           rentOverride: draft.rentOverride != null ? draft.rentOverride : '',
           onRentChange: this.onBulkInvoiceRentChange(roomId),
+          // "ส่วนวันครบกำหนด ให้เป็นไปตามสัญญาอย่างเดียว" (2026-07-26) —
+          // โชว์วันที่คำนวณได้ให้เห็นชัดต่อห้อง (อ่านอย่างเดียว) แทนช่อง
+          // กรอกวันที่ร่วมกันแบบเดิม
+          dueDisplay: this.formatThaiDateLabel(this.computeNextDueDateFromDay(room.dueDay)),
           totalDisplay: this.fmt(total),
           breakdownLabel: `ค่าเช่า ${this.fmt(rent)} + ขยะ ${this.fmt(s.trashRate || 0)} + เน็ต ${this.fmt(s.internetRate || 0)}`,
           isWaterDevice, isWaterManual, isElecDevice, isElecManual,
