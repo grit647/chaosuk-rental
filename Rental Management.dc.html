@@ -481,22 +481,37 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
             </div>
 
-            <!-- "เพิ่มการ์ด 1 ตัวแสดงฝั่ง Google ชีต เหมือนตัวเช็คเซอวิคเรา"
-                 (2026-07-26) — สถานะเชื่อมต่อ Google Sheet ย่อบนแดชบอร์ด
+            <!-- "เพิ่มการ์ด 1 ตัวแสดงฝั่ง Google ชีต เหมือนตัวเช็คเซอวิคเรา" /
+                 "เอาการ์ด OA มาอยู่แถวนี้ด้วยครับ" (2026-07-26) — สถานะ
+                 เชื่อมต่อ Google Sheet + LINE OA ย่อบนแดชบอร์ด คู่กัน
                  (ตัวเต็มอยู่หน้าตั้งค่าอยู่แล้ว — ใช้ตัวแปร sheetStatus*/
-                 sheetEnvConnected/sheetEnvStatusLabel เดิม ไม่ต้องเพิ่ม
-                 state/backend ใหม่เลย) -->
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC;margin-bottom:14px">
-              <div style="display:flex;align-items:center;gap:10px">
-                <span style="width:22px;height:22px;border-radius:6px;background:#188038;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">S</span>
-                <div>
-                  <div style="font-size:13px;font-weight:600;color:#241812">เชื่อมต่อ Google Sheet</div>
-                  <div style="font-size:11px;color:#A89A88;margin-top:2px">{{ sheetEnvStatusLabel }}</div>
+                 lineStatus*/sheetEnvConnected/lineEnvConnected เดิม
+                 ไม่ต้องเพิ่ม state/backend ใหม่เลย) -->
+            <div class="split-row" style="display:flex;gap:14px;margin-bottom:14px">
+              <div class="split-col" style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC;box-sizing:border-box">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="width:22px;height:22px;border-radius:6px;background:#188038;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">S</span>
+                  <div>
+                    <div style="font-size:13px;font-weight:600;color:#241812">เชื่อมต่อ Google Sheet</div>
+                    <div style="font-size:11px;color:#A89A88;margin-top:2px">{{ sheetEnvStatusLabel }}</div>
+                  </div>
                 </div>
+                <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ sheetStatusBg }};color:{{ sheetStatusColor }}">
+                  <span style="width:6px;height:6px;border-radius:50%;background:{{ sheetStatusDot }}"></span>{{ sheetStatusLabel }}
+                </span>
               </div>
-              <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ sheetStatusBg }};color:{{ sheetStatusColor }}">
-                <span style="width:6px;height:6px;border-radius:50%;background:{{ sheetStatusDot }}"></span>{{ sheetStatusLabel }}
-              </span>
+              <div class="split-col" style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC;box-sizing:border-box">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="width:22px;height:22px;border-radius:6px;background:#06C755;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">OA</span>
+                  <div>
+                    <div style="font-size:13px;font-weight:600;color:#241812">เชื่อมต่อ LINE OA</div>
+                    <div style="font-size:11px;color:#A89A88;margin-top:2px">{{ lineEnvStatusLabel }}</div>
+                  </div>
+                </div>
+                <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:5px;background:{{ lineStatusBg }};color:{{ lineStatusColor }}">
+                  <span style="width:6px;height:6px;border-radius:50%;background:{{ lineStatusDot }}"></span>{{ lineStatusLabel }}
+                </span>
+              </div>
             </div>
 
             <div class="split-row" style="display:flex;gap:14px;margin-bottom:14px">
