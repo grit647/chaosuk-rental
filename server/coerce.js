@@ -192,6 +192,13 @@ async function readSettings(preloadedRows) {
       // reference field the owner sets themselves, no system logic reads
       // it yet.
       buildingKeyId: map.buildingKeyId || '',
+      // "ช่วยเอาลิงค์ lineOA ไว้ส่วนนี้ให้หน่อยครับ...ผมขี้เกียจส่งให้ลูกค้า
+      // แล้วครับ" (2026-07-26) — ลิงก์ "เพิ่มเพื่อน" ของ LINE OA ตึกนี้
+      // (เช่น https://lin.ee/xxxxxxx จาก LINE OA Manager) เก็บไว้เผื่อคัด
+      // ลอกส่งให้ลูกค้า/ผู้เช่าใหม่ได้เร็วๆ — โชว์พร้อมปุ่มคัดลอกที่หน้า
+      // my-buildings.html (ตัวเลือกตึก) ดู server/routes/auth.js's
+      // resolveBuildingNames สำหรับจุดที่ดึงค่านี้ไปแสดง
+      lineOAShortUrl: map.lineOAShortUrl || '',
     },
     waterRate: num(map.waterRate, 18),
     elecRate: num(map.elecRate, 8),

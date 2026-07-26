@@ -31,6 +31,12 @@
   .building-icon { width: 42px; height: 42px; border-radius: 10px; background: #F1EBE0; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
   .building-name { font-size: 14.5px; font-weight: 700; }
   .building-sub { font-size: 11px; color: #9C8B78; margin-top: 2px; }
+  .copy-line-btn {
+    display: inline-block; margin-top: 6px; font-size: 10.5px; font-weight: 600;
+    color: #2C6E8F; background: #DCEAF2; padding: 3px 8px; border-radius: 5px;
+    cursor: pointer;
+  }
+  .copy-line-btn:hover { background: #C7DFEC; }
   .arrow { margin-left: auto; color: #C1622D; font-size: 16px; }
   .add-building {
     display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -105,11 +111,32 @@
   }
 
   function buildCard(b) {
+    // "ช่วยเอาลิงค์ lineOA ไว้ส่วนนี้ให้หน่อยครับ...ผมขี้เกียจส่งให้ลูกค้า
+    // แล้วครับ" (2026-07-26) — ปุ่มคัดลอกลิงก์เพิ่มเพื่อน LINE OA ของตึกนั้น
+    // (ตั้งค่าไว้ที่หน้าตั้งค่า > ข้อมูลหอพัก) เฉพาะตึกที่ตั้งไว้แล้วเท่านั้น
+    // — ใช้ stopPropagation กันไม่ให้คลิกปุ่มคัดลอกแล้วเด้งเข้าไปจัดการตึก
+    // นั้นไปด้วย (การ์ดทั้งใบคลิกได้อยู่แล้ว)
+    const lineBtn = b.lineOAShortUrl
+      ? '<span class="copy-line-btn" onclick="copyLineLink(event, \'' + b.lineOAShortUrl.replace(/'/g, "\\'") + '\', this)">📋 คัดลอกลิงก์ LINE</span>'
+      : '';
     return '<div class="building-card' + (b.isActive ? ' active' : '') + '" onclick="selectBuilding(\'' + b.customerSheetId.replace(/'/g, "\\'") + '\')">' +
         '<div class="building-icon">🏢</div>' +
-        '<div><div class="building-name">' + escapeHtml(b.name) + '</div><div class="building-sub">แตะเพื่อเข้าจัดการ</div></div>' +
+        '<div style="flex:1;min-width:0"><div class="building-name">' + escapeHtml(b.name) + '</div><div class="building-sub">แตะเพื่อเข้าจัดการ</div>' + lineBtn + '</div>' +
         '<span class="arrow">›</span>' +
       '</div>';
+  }
+
+  // คัดลอกลิงก์เพิ่มเพื่อน LINE OA — เปลี่ยนข้อความปุ่มชั่วคราวเป็น
+  // "คัดลอกแล้ว!" ให้เห็นชัดว่าสำเร็จ ไม่ต้องมี toast แยก
+  function copyLineLink(event, url, el) {
+    event.stopPropagation();
+    navigator.clipboard.writeText(url).then(() => {
+      const original = el.textContent;
+      el.textContent = '✅ คัดลอกแล้ว!';
+      setTimeout(() => { el.textContent = original; }, 1500);
+    }).catch(() => {
+      alert('คัดลอกไม่สำเร็จ ลองคัดลอกเองครับ: ' + url);
+    });
   }
 
   // Per explicit user request: platform-admin-only card variant with

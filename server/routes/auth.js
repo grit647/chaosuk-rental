@@ -299,12 +299,18 @@ router.post('/select-building', async (req, res, next) => {
 async function resolveBuildingNames(rows, session) {
   return Promise.all(rows.map(async (u) => {
     let name = 'ตึกของคุณ';
+    // "ช่วยเอาลิงค์ lineOA ไว้ส่วนนี้ให้หน่อยครับ...ผมขี้เกียจส่งให้ลูกค้า
+    // แล้วครับ" (2026-07-26) — เอาลิงก์เพิ่มเพื่อน LINE OA ของตึกนั้นๆ มา
+    // แสดงในตัวเลือกตึกด้วย (ถ้าตั้งไว้แล้วในหน้าตั้งค่า) ให้คัดลอกส่ง
+    // ลูกค้าได้เร็วๆ
+    let lineOAShortUrl = '';
     try {
       const settings = await runWithSheetId(u.customerSheetId, () => readSettings());
       if (settings.propertyProfile && settings.propertyProfile.name) name = settings.propertyProfile.name;
+      if (settings.propertyProfile && settings.propertyProfile.lineOAShortUrl) lineOAShortUrl = settings.propertyProfile.lineOAShortUrl;
     } catch { /* fall back to the generic label above */ }
     return {
-      customerSheetId: u.customerSheetId, name, isActive: u.customerSheetId === session.customerSheetId,
+      customerSheetId: u.customerSheetId, name, lineOAShortUrl, isActive: u.customerSheetId === session.customerSheetId,
       status: u.status || 'active', handoffStatus: u.handoffStatus || 'ready',
       // Staged-rollout gate (server/platformVersion.js) — a legacy row with
       // no value yet reads as 0, which is always < CURRENT_PLATFORM_VERSION,

@@ -375,6 +375,7 @@ router.put('/', async (req, res, next) => {
       adminLineUserId: b.propertyProfile && b.propertyProfile.adminLineUserId,
       paymentQrUrl: b.propertyProfile && b.propertyProfile.paymentQrUrl,
       buildingKeyId: b.propertyProfile && b.propertyProfile.buildingKeyId,
+      lineOAShortUrl: b.propertyProfile && b.propertyProfile.lineOAShortUrl,
       waterRate: b.waterRate,
       elecRate: b.elecRate,
       trashRate: b.trashRate,
