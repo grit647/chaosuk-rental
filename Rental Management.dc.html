@@ -8692,7 +8692,7 @@ class Component extends DCLogic {
       return {
         id: i.id, room: i.room, tenant: i.tenant,
         rentDisplay: i.rent.toLocaleString('en-US'), waterDisplay: i.water.toLocaleString('en-US'), elecDisplay: i.elec.toLocaleString('en-US'), totalDisplay: total.toLocaleString('en-US'),
-        due: i.due, dueColor: i.status === 'overdue' ? '#B24336' : '#7C6E5F',
+        due: this.formatThaiDateLabel(i.due) || i.due, dueColor: i.status === 'overdue' ? '#B24336' : '#7C6E5F',
         statusLabel: meta.label, statusBg: meta.bg,
         showMarkPaid: i.status !== 'paid',
         markPaidFn: () => this.markInvoicePaid(i.id),
@@ -8744,7 +8744,7 @@ class Component extends DCLogic {
       // makes sense in the earlier "nothing paid yet" stage.
       const canModify = !hasSlipPending && !partial;
       return {
-        id: i.id, room: i.room, tenant: i.tenant, due: i.due || '—',
+        id: i.id, room: i.room, tenant: i.tenant, due: this.formatThaiDateLabel(i.due) || i.due || '—',
         totalDisplay: hasAmountPaid ? this.fmt(remaining) : this.fmt(total),
         // A pending slip takes priority over the plain overdue/awaiting-payment
         // label — it's a more specific, more actionable state ("someone
@@ -9306,7 +9306,7 @@ class Component extends DCLogic {
     const hiddenExpenseCount = s.expenses.filter(e => e.hidden).length;
     const visibleExpenseSource = s.showHiddenExpenses ? s.expenses : s.expenses.filter(e => !e.hidden);
     const expensesView = visibleExpenseSource.map(e => ({
-      id: e.id, date: e.date, category: e.category, desc: e.desc, amountDisplay: this.fmt(e.amount),
+      id: e.id, date: this.formatThaiDateLabel(e.date) || e.date, category: e.category, desc: e.desc, amountDisplay: this.fmt(e.amount),
       icon: categoryIcon(e.category),
       roomDisplay: e.room ? (e.room === 'ส่วนกลาง' ? 'ส่วนกลาง' : 'ห้อง ' + e.room) : '',
       hasRoom: !!e.room,
@@ -9370,7 +9370,9 @@ class Component extends DCLogic {
     const contractsView = occupiedRooms.map(r => {
       const nearExpiry = r.contractEnd.indexOf('2569') !== -1;
       return {
-        room: r.id, tenant: r.tenant, moveIn: r.moveIn, contractEnd: r.contractEnd,
+        // "แก้ให้ครบทั้งหมดทีเดียวเลยครับ" (2026-07-26) — ตารางสัญญาเช่า
+        // เคยโชว์ค่าดิบ (yyyy-mm-dd) ตรงๆ เหมือนที่การ์ดห้องเคยเป็น
+        room: r.id, tenant: r.tenant, moveIn: this.formatThaiDateLabel(r.moveIn) || r.moveIn, contractEnd: this.formatThaiDateLabel(r.contractEnd) || r.contractEnd,
         rentDisplay: this.fmt(r.rent), depositDisplay: this.fmt(r.deposit),
         statusLabel: nearExpiry ? 'ใกล้ครบกำหนด' : 'ปกติ', statusBg: nearExpiry ? '#C1872E' : '#3B7A52',
         onRenew: () => this.renewContract(r.id),
@@ -9759,7 +9761,7 @@ class Component extends DCLogic {
         id: i.id, room: i.room, tenant: i.tenant,
         // Was missing trash/internet — same accounting-audit bug as sumOf
         // above, understating every amount shown in this widget.
-        amountDisplay: this.fmt(i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0)), date: i.paidDate,
+        amountDisplay: this.fmt(i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0)), date: this.formatThaiDateLabel(i.paidDate) || i.paidDate,
         hideLabel: i.hiddenFromDashboard ? 'เลิกซ่อน' : 'ซ่อน',
         rowOpacity: i.hiddenFromDashboard ? '0.45' : '1',
         onToggleHide: i.hiddenFromDashboard ? (() => this.unhideFromRecentPayments(i.id)) : (() => this.hideFromRecentPayments(i.id)),
@@ -9880,7 +9882,7 @@ class Component extends DCLogic {
           const waterUnitsEst = waterRate > 0 ? Math.round((i.water / waterRate) * 10) / 10 : null;
           const elecUnitsEst = elecRate > 0 ? Math.round((i.elec / elecRate) * 10) / 10 : null;
           return {
-            id: i.id, due: i.due || '—',
+            id: i.id, due: this.formatThaiDateLabel(i.due) || i.due || '—',
             statusLabel: meta.label, statusBg: meta.bg, statusColor: '#fff',
             waterDisplay: this.fmt(i.water) + (waterUnitsEst != null ? ` (≈${waterUnitsEst} หน่วย)` : ''),
             elecDisplay: this.fmt(i.elec) + (elecUnitsEst != null ? ` (≈${elecUnitsEst} หน่วย)` : ''),
