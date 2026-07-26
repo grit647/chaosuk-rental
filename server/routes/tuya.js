@@ -5,6 +5,92 @@ const { isConfigured, listDevices, getElecReading, getWaterReading, getWaterUsag
 const { readIntegrationCredentials } = require('../coerce');
 const { isMainAccountSheetId } = require('../requestContext');
 
+// Shared chart-aggregation helpers (originally written inline inside
+// /elec-history, hoisted to module scope so /water-history — "ส่วนน้ำ
+// จัดการให้ด้วยครับ" (2026-07-26) — can reuse them instead of duplicating).
+// Bangkok-local date/month key — a UTC-based day boundary is 7 hours off
+// from the Thailand calendar day the owner actually cares about (same bug
+// class fixed for the hourly chart below).
+const bangkokDateStr = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }); // "YYYY-MM-DD"
+const dayKey = (d) => bangkokDateStr(d);
+const dayLabel = (key) => {
+  const d = new Date(key + 'T00:00:00Z');
+  return d.getUTCDate() + '/' + (d.getUTCMonth() + 1);
+};
+const monthKey = (d) => bangkokDateStr(d).slice(0, 7); // YYYY-MM
+const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const monthLabel = (key) => {
+  const [y, m] = key.split('-');
+  return monthNames[Number(m) - 1];
+};
+// Fixed trailing windows anchored on "today" in Bangkok time — pure
+// day/month-count arithmetic (Thailand has no DST, so plain UTC ms
+// stepping anchored at the Bangkok Y-M-D is safe here).
+function trailingDayKeys(n) {
+  const [y, m, dd] = bangkokDateStr(new Date()).split('-').map(Number);
+  const base = Date.UTC(y, m - 1, dd);
+  const keys = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(base - i * 86400000);
+    keys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`);
+  }
+  return keys;
+}
+function trailingMonthKeys(n) {
+  const [y, m] = bangkokDateStr(new Date()).split('-').map(Number);
+  const keys = [];
+  for (let i = n - 1; i >= 0; i--) {
+    let yy = y, mm = m - i;
+    while (mm <= 0) { mm += 12; yy -= 1; }
+    keys.push(`${yy}-${String(mm).padStart(2, '0')}`);
+  }
+  return keys;
+}
+// groups raw log rows (any tab — ElectricityLog or WaterLog) by room,
+// skipping rows with no room/timestamp or an unparseable timestamp (real
+// bug hit in production: a malformed timestamp made new Date(...).getTime()
+// throw further down, surfacing as a 500 on every single /status poll for
+// that whole building).
+function groupByRoom(rows) {
+  const byRoom = {};
+  rows.forEach((r) => {
+    if (!r.room || !r.timestamp) return;
+    if (Number.isNaN(new Date(r.timestamp).getTime())) return;
+    if (!byRoom[r.room]) byRoom[r.room] = [];
+    byRoom[r.room].push(r);
+  });
+  return byRoom;
+}
+// "มาดูการแสดงข้อมูล ส่วนรายวัน แสดงย้อนหลัง 7 วัน รายเดือนให้แสดงย้อนหลัง
+// 6 เดือน" (2026-07-26) — zero-fills every key in fixedKeys (a trailing
+// window ending "now"), not just whatever buckets happen to have real data
+// — a room linked only a few days ago used to show just 2-3 bars instead
+// of a full week. valueField is the running-cumulative-total column name
+// on each log row (ElectricityLog: 'energy', WaterLog: 'cumulativeLiters')
+// — usage per bucket = last reading in that bucket minus last reading in
+// the previous bucket (both logs store a cumulative total per tick, not a
+// per-tick delta), summed across every room in byRoom.
+function aggregate(byRoom, bucketFn, labelFn, fixedKeys, valueField) {
+  const bucketTotals = new Map();
+  Object.values(byRoom).forEach((roomRows) => {
+    roomRows.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const perBucketLast = new Map();
+    roomRows.forEach((r) => {
+      const key = bucketFn(new Date(r.timestamp));
+      perBucketLast.set(key, Number(r[valueField]) || 0);
+    });
+    let prevVal = null;
+    for (const [key, val] of perBucketLast) {
+      if (prevVal != null) {
+        const usage = Math.max(0, val - prevVal);
+        bucketTotals.set(key, (bucketTotals.get(key) || 0) + usage);
+      }
+      prevVal = val;
+    }
+  });
+  return fixedKeys.map((key) => ({ label: labelFn(key), value: Math.round((bucketTotals.get(key) || 0) * 100) / 100 }));
+}
+
 // ElectricityLog was writing a row on EVERY /status call — every 5-minute
 // auto-refresh tick from the frontend, plus every manual "รีเฟรช" click,
 // plus once per open browser tab if more than one — which piled up far more
@@ -185,93 +271,8 @@ router.get('/status', async (req, res, next) => {
 // bucket, summed across all rooms).
 router.get('/elec-history', async (req, res, next) => {
   try {
-    const rows = await readTab('ElectricityLog');
-    const byRoom = {};
-    rows.forEach((r) => {
-      if (!r.room || !r.timestamp) return;
-      // Real bug hit in production: a row with a malformed/unparseable
-      // timestamp made new Date(r.timestamp).toISOString() throw a
-      // RangeError ("Invalid time value") further down, which surfaced as
-      // a 500 on every single /status poll (this endpoint piggybacks on
-      // refreshTuyaLive — see Rental Management.dc.html) for that entire
-      // building, not just once. Skip anything that doesn't parse to a
-      // real date instead of crashing the whole aggregation.
-      if (Number.isNaN(new Date(r.timestamp).getTime())) return;
-      if (!byRoom[r.room]) byRoom[r.room] = [];
-      byRoom[r.room].push(r);
-    });
+    const byRoom = groupByRoom(await readTab('ElectricityLog'));
 
-    // "มาดูการแสดงข้อมูล ส่วนรายวัน แสดงย้อนหลัง 7 วัน รายเดือนให้แสดง
-    // ย้อนหลัง 6 เดือน" (2026-07-26) — เดิม aggregate() คืนเฉพาะ bucket ที่
-    // มีข้อมูลจริงเท่านั้น (slice ท้ายลิสต์ที่ sparse) ทำให้ห้องที่เพิ่ง
-    // เชื่อม Tuya ไม่กี่วัน เห็นแค่ 2-3 แท่ง ไม่ใช่หน้าต่างย้อนหลังคงที่ —
-    // เปลี่ยนมารับ "fixedKeys" (รายการ key ตายตัวนับถอยจากวันนี้/เดือนนี้)
-    // แทน bucketCount แล้ว zero-fill bucket ที่ไม่มีข้อมูลเป็น 0 เสมอ (เหมือน
-    // แนวทางเดียวกับ buildHourlyChart ด้านล่างที่ทำไปแล้วรอบก่อน)
-    function aggregate(bucketFn, labelFn, fixedKeys) {
-      const bucketTotals = new Map();
-      Object.values(byRoom).forEach((roomRows) => {
-        roomRows.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        // Last cumulative reading seen per bucket, in chronological order —
-        // Map preserves insertion order, and re-setting an existing key
-        // (same bucket, later row) keeps it in its original position while
-        // updating to the latest value, which is exactly what we want.
-        const perBucketLast = new Map();
-        roomRows.forEach((r) => {
-          const key = bucketFn(new Date(r.timestamp));
-          perBucketLast.set(key, Number(r.energy) || 0);
-        });
-        let prevEnergy = null;
-        for (const [key, energy] of perBucketLast) {
-          if (prevEnergy != null) {
-            const usage = Math.max(0, energy - prevEnergy);
-            bucketTotals.set(key, (bucketTotals.get(key) || 0) + usage);
-          }
-          prevEnergy = energy;
-        }
-      });
-      return fixedKeys.map((key) => ({ label: labelFn(key), value: Math.round((bucketTotals.get(key) || 0) * 100) / 100 }));
-    }
-
-    // Bangkok-local date/month key, same technique as bangkokDateHour below
-    // — matters here for the same reason as the hourly-chart fix: a UTC-
-    // based day boundary is 7 hours off from the Thailand calendar day the
-    // owner actually cares about.
-    const bangkokDateStr = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }); // "YYYY-MM-DD"
-    const dayKey = (d) => bangkokDateStr(d);
-    const dayLabel = (key) => {
-      const d = new Date(key + 'T00:00:00Z');
-      return d.getUTCDate() + '/' + (d.getUTCMonth() + 1);
-    };
-    const monthKey = (d) => bangkokDateStr(d).slice(0, 7); // YYYY-MM
-    const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-    const monthLabel = (key) => {
-      const [y, m] = key.split('-');
-      return monthNames[Number(m) - 1];
-    };
-    // Fixed trailing windows anchored on "today" in Bangkok time — pure
-    // day/month-count arithmetic (Thailand has no DST, so plain UTC ms
-    // stepping anchored at the Bangkok Y-M-D is safe here).
-    function trailingDayKeys(n) {
-      const [y, m, dd] = bangkokDateStr(new Date()).split('-').map(Number);
-      const base = Date.UTC(y, m - 1, dd);
-      const keys = [];
-      for (let i = n - 1; i >= 0; i--) {
-        const d = new Date(base - i * 86400000);
-        keys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`);
-      }
-      return keys;
-    }
-    function trailingMonthKeys(n) {
-      const [y, m] = bangkokDateStr(new Date()).split('-').map(Number);
-      const keys = [];
-      for (let i = n - 1; i >= 0; i--) {
-        let yy = y, mm = m - i;
-        while (mm <= 0) { mm += 12; yy -= 1; }
-        keys.push(`${yy}-${String(mm).padStart(2, '0')}`);
-      }
-      return keys;
-    }
     // "รายชั่วโมง 24 กราฟ เผื่อเอาไปดูการใช้ไฟระบบ TOU" (2026-07-26,
     // follow-up "ตรงนี้เรียง 00 นาฬิกาไปเลยครับ แบบนี้มองยาก ตาม app ของ
     // Tuya") — first attempt reused the generic aggregate() helper (most
@@ -339,9 +340,31 @@ router.get('/elec-history', async (req, res, next) => {
     }
 
     res.json({
-      day: aggregate(dayKey, dayLabel, trailingDayKeys(7)),
-      month: aggregate(monthKey, monthLabel, trailingMonthKeys(6)),
+      day: aggregate(byRoom, dayKey, dayLabel, trailingDayKeys(7), 'energy'),
+      month: aggregate(byRoom, monthKey, monthLabel, trailingMonthKeys(6), 'energy'),
       hour: buildHourlyChart(),
+    });
+  } catch (err) { next(err); }
+});
+
+// "ส่วนน้ำ จัดการให้ด้วยครับ" (2026-07-26) — the "ปริมาณการใช้น้ำรวม" chart
+// on the Water Usage page had the exact same pre-existing gap as elec-
+// history above: usageSeries.waterDay/waterMonth were declared in state but
+// NEVER populated anywhere in the whole codebase (no fetch call, no route)
+// — confirmed live by the owner (chart always showed "รวม 0 · เฉลี่ย 0").
+// Reuses the same shared aggregate()/trailingDayKeys()/trailingMonthKeys()
+// helpers as elec-history (7-day / 6-month fixed trailing windows, zero-
+// filled, Bangkok-local) — WaterLog's running-cumulative column is
+// 'cumulativeLiters' (not 'energy'), and its unit is liters while the
+// frontend displays "ม³" (cubic meters), so divide by 1000 after
+// aggregating.
+router.get('/water-history', async (req, res, next) => {
+  try {
+    const byRoom = groupByRoom(await readTab('WaterLog'));
+    const toM3 = (buckets) => buckets.map((b) => ({ label: b.label, value: Math.round((b.value / 1000) * 1000) / 1000 }));
+    res.json({
+      day: toM3(aggregate(byRoom, dayKey, dayLabel, trailingDayKeys(7), 'cumulativeLiters')),
+      month: toM3(aggregate(byRoom, monthKey, monthLabel, trailingMonthKeys(6), 'cumulativeLiters')),
     });
   } catch (err) { next(err); }
 });

@@ -4749,6 +4749,11 @@ class Component extends DCLogic {
     // the 5-min auto-poll) so the chart updates whenever new ElectricityLog
     // rows land, without needing a separate polling timer.
     this.loadElecHistory();
+    // "ส่วนน้ำ จัดการให้ด้วยครับ" (2026-07-26) — the Water Usage page's
+    // "ปริมาณการใช้น้ำรวม" chart had the exact same gap (usageSeries.
+    // waterDay/waterMonth declared but never populated, confirmed live by
+    // the owner showing "รวม 0"). Same piggyback cadence as loadElecHistory.
+    this.loadWaterHistory();
   };
   loadElecHistory = async () => {
     try {
@@ -4756,6 +4761,14 @@ class Component extends DCLogic {
       if (!res.ok) return;
       const data = await res.json();
       this.setState(s => ({ usageSeries: { ...s.usageSeries, elecDay: data.day || [], elecMonth: data.month || [], elecHour: data.hour || [] } }));
+    } catch (err) { console.error(err); }
+  };
+  loadWaterHistory = async () => {
+    try {
+      const res = await fetch('/api/tuya/water-history');
+      if (!res.ok) return;
+      const data = await res.json();
+      this.setState(s => ({ usageSeries: { ...s.usageSeries, waterDay: data.day || [], waterMonth: data.month || [] } }));
     } catch (err) { console.error(err); }
   };
   // Auto-refresh toggle (Dashboard) — off by default (every refresh is a
