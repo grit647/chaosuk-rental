@@ -8,6 +8,15 @@ const { isConfigured: claudeConfigured } = require('../claude');
 const { notifyAdmin } = require('../adminNotify');
 const { syncOwnerRichMenuBadges } = require('../ownerRichMenu');
 
+// "แจ้งเตือน ตัดน้ำตัดไฟ...แจ้งเตือนยังไม่ชำระ ทุกวันที่เท่าไร ถ้ายังไม่
+// ชำระ วันไหน ตัดน้ำ ตัดไฟ" (2026-07-26) — in-memory throttle (same
+// pattern as notifyBusyPeriod/notifyOwnerInsufficientCredit in
+// server/notifications.js) instead of a persisted Sheet column, to avoid
+// yet another multi-tenant Sheet migration (see CLAUDE.md's "Permanent
+// gotcha") for what's a low-stakes once-a-day nudge — worst case after a
+// rare server restart is one duplicate notification that day.
+const _cutoffNotifiedDates = new Map(); // "reminder:room:invId" | "final:room:invId" -> "YYYY-MM-DD"
+
 // Called periodically by an external trigger (GitHub Actions cron — see
 // .github/workflows/scheduler.yml) rather than an in-process setInterval,
 // because Render's free tier sleeps the app when idle; an external ping both
@@ -45,6 +54,42 @@ router.get('/run', async (req, res, next) => {
       console.error('[scheduler] overdue check failed', err.message);
     }
 
+    // "แจ้งเตือน ตัดน้ำตัดไฟ" (2026-07-26) — ยังไม่ชำระถึงวันที่ reminderDay
+    // = เตือนเฉยๆ, ยังไม่ชำระถึงวันที่ finalDay = เตือนให้พิจารณาตัดน้ำ/ไฟ
+    // (แค่เตือน — ไม่มีการตัดจริงอัตโนมัติเลย ตาม permanent rule ใน
+    // CLAUDE.md) unconditional เหมือน overdue-bill check ด้านบน (basic
+    // bill housekeeping ไม่ใช่ AI feature) แต่ต้องเปิดสวิตช์
+    // adminNotify.cutoffWarning ไว้ก่อน (ผ่าน notifyAdmin เอง อยู่แล้ว)
+    let cutoffChecked = 0, cutoffNotified = 0;
+    try {
+      if (settings.adminNotify && settings.adminNotify.cutoffWarning) {
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+        const todayDom = Number(todayStr.slice(8, 10));
+        const reminderDay = Number(settings.cutoffReminderDay) || 5;
+        const finalDay = Number(settings.cutoffFinalDay) || 15;
+        if (todayDom === reminderDay || todayDom === finalDay) {
+          const invoices = coerceInvoices(await readTab('Invoices'));
+          const unpaid = invoices.filter((i) => i.status === 'pending' || i.status === 'partial' || i.status === 'overdue');
+          cutoffChecked = unpaid.length;
+          for (const inv of unpaid) {
+            const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
+            const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
+            const kind = todayDom === finalDay ? 'final' : 'reminder';
+            const key = `${kind}:${inv.room}:${inv.id}`;
+            if (_cutoffNotifiedDates.get(key) === todayStr) continue; // already notified today
+            const msg = kind === 'final'
+              ? `⚠️ ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${finalDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณาตัดน้ำ/ไฟ ได้เลยครับ (ตัดจริงต้องทำเองที่หน้า "Set อุปกรณ์" ระบบไม่ตัดให้อัตโนมัติ)`
+              : `🔔 ห้อง ${inv.room} ยังไม่ชำระค่าเช่าครับ (ยอดค้าง ${remaining.toLocaleString()} บาท)`;
+            notifyAdmin('cutoffWarning', msg).catch(() => {});
+            _cutoffNotifiedDates.set(key, todayStr);
+            cutoffNotified++;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[scheduler] cutoff warning check failed', err.message);
+    }
+
     // Per explicit user request: keep the owner Rich Menu's "บิลค้างชำระ"/
     // "สลิปรอตรวจสอบ" badge numbers roughly current — same unconditional
     // treatment as the overdue-bill check right above (basic upkeep, not
@@ -62,7 +107,7 @@ router.get('/run', async (req, res, next) => {
     }
 
     if (!settings.claudeAutomationEnabled) {
-      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew }, ownerRichMenu: ownerRichMenuResult });
+      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew }, cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified }, ownerRichMenu: ownerRichMenuResult });
     }
 
     let sentCount = 0, scheduledChecked = 0, scheduledDue = 0;
@@ -134,6 +179,7 @@ router.get('/run', async (req, res, next) => {
     res.json({
       ran: true,
       overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew },
+      cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified },
       scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount },
       recurringTasks: { checked: recurringChecked, ran: recurringRan },
       ownerRichMenu: ownerRichMenuResult,

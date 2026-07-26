@@ -227,7 +227,20 @@ async function readSettings(preloadedRows) {
       // code deployed. New installs get it on by default; the owner can
       // still turn it off from Settings like any other category.
       wifiRequest: bool(map.notifyWifiRequest, true),
+      // "แจ้งเตือน ตัดน้ำตัดไฟ" (2026-07-26) — เตือน (ไม่ใช่ตัดจริง — ดู
+      // permanent rule ใน CLAUDE.md "Power/water cutoff is always the
+      // owner's manual decision") 2 จังหวะตามค่าที่ตั้งไว้ด้านล่าง
+      // (cutoffReminderDay/cutoffFinalDay) — default OFF เหมือนหมวดอื่นๆ
+      // ส่วนใหญ่ ต้องเปิดเองก่อน
+      cutoffWarning: bool(map.notifyCutoffWarning, false),
     },
+    // "มีปุ่มฟันเฟื่องเข้าไปตั้งค่า...แจ้งเตือนยังไม่ชำระ ทุกวันที่เท่าไร
+    // ถ้ายังไม่ชำระ วันไหน ตัดน้ำ ตัดไฟ" (2026-07-26) — วันที่ของเดือน
+    // (ไม่ใช่ offset จากวันครบกำหนดของแต่ละห้อง — คุณต้นขอเป็นวันปฏิทิน
+    // ตายตัวเดียวใช้ร่วมกันทุกห้อง ง่ายกว่า) — reminderDay ควรน้อยกว่า
+    // finalDay แต่ไม่ได้บังคับในนี้ (ฝั่งหน้าเว็บเตือนถ้ากรอกสลับกัน)
+    cutoffReminderDay: num(map.cutoffReminderDay, 5),
+    cutoffFinalDay: num(map.cutoffFinalDay, 15),
     // Per explicit user request: lets the owner turn whole nav sections
     // on/off (e.g. selling this app to another building that doesn't use
     // Tuya devices or has no staff to track) — gated behind the same admin

@@ -379,6 +379,10 @@ router.put('/', async (req, res, next) => {
       elecRate: b.elecRate,
       trashRate: b.trashRate,
       internetRate: b.internetRate,
+      // "แจ้งเตือน ตัดน้ำตัดไฟ...ทุกวันที่เท่าไร" (2026-07-26) — วันที่ของ
+      // เดือน ใช้ร่วมกันทุกห้อง (ดู coerce.js's readSettings comment เต็ม)
+      cutoffReminderDay: b.cutoffReminderDay,
+      cutoffFinalDay: b.cutoffFinalDay,
       autoInvoice: b.settings && b.settings.autoInvoice,
       dueReminder: b.settings && b.settings.dueReminder,
       claudeAutomationEnabled: b.claudeAutomationEnabled,
@@ -398,6 +402,7 @@ router.put('/', async (req, res, next) => {
       notifyMaintenance: b.adminNotify && b.adminNotify.maintenance,
       notifyLeaseExpiring: b.adminNotify && b.adminNotify.leaseExpiring,
       notifyWifiRequest: b.adminNotify && b.adminNotify.wifiRequest,
+      notifyCutoffWarning: b.adminNotify && b.adminNotify.cutoffWarning,
       // Per explicit user request: toggle whole nav sections on/off, PIN-
       // gated the same way as everything else in this route.
       featureWaterEnabled: b.featuresEnabled && b.featuresEnabled.water,

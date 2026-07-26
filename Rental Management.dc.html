@@ -1108,8 +1108,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="font-size:13px;font-weight:600;color:#241812">{{ n.label }}</div>
                       <div style="font-size:11px;color:#A89A88;margin-top:2px">{{ n.desc }}</div>
                     </div>
-                    <div onclick="{{ n.onClick }}" style="width:44px;height:24px;border-radius:12px;position:relative;cursor:pointer;flex-shrink:0;background:{{ n.bg }}">
-                      <div style="position:absolute;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.15s ease;left:{{ n.knobLeft }}"></div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+                      <!-- "มีปุ่มฟันเฟื่องเข้าไปตั้งค่า" (2026-07-26) -->
+                      <sc-if value="{{ n.hasConfig }}" hint-placeholder-val="{{ false }}">
+                        <span onclick="{{ n.onConfig }}" style="cursor:pointer;font-size:16px;color:#7C6E5F" title="ตั้งค่า">⚙️</span>
+                      </sc-if>
+                      <div onclick="{{ n.onClick }}" style="width:44px;height:24px;border-radius:12px;position:relative;cursor:pointer;flex-shrink:0;background:{{ n.bg }}">
+                        <div style="position:absolute;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.15s ease;left:{{ n.knobLeft }}"></div>
+                      </div>
                     </div>
                   </div>
                 </sc-for>
@@ -2415,6 +2421,31 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="display:flex;gap:10px">
                 <div onclick="{{ closeDueReminder }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer;text-align:center">ยกเลิก</div>
                 <div onclick="{{ saveDueReminder }}" style="flex:1.4;padding:11px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:center">บันทึก ({{ dueReminderSelCount }} ห้อง)</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- "มีปุ่มฟันเฟื่องเข้าไปตั้งค่า...แจ้งเตือนยังไม่ชำระ ทุกวันที่
+             เท่าไร ถ้ายังไม่ชำระ วันไหน ตัดน้ำ ตัดไฟ" (2026-07-26) -->
+        <sc-if value="{{ showCutoffConfigModal }}">
+          <div onclick="{{ closeCutoffConfig }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:215">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:400px;max-width:92%;box-sizing:border-box;max-height:88%;overflow:auto">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span style="font-size:18px">🚱</span>
+                <div style="font-size:16px;font-weight:700;color:#241812">ตั้งค่าแจ้งเตือนตัดน้ำตัดไฟ</div>
+              </div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">ระบบแค่แจ้งเตือนเท่านั้น ไม่ตัดน้ำ/ไฟให้อัตโนมัติ — การตัดจริงต้องทำเองที่หน้า "Set อุปกรณ์" เสมอ</div>
+
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">แจ้งเตือนยังไม่ชำระ ทุกวันที่ (ของเดือน)</div>
+              <input value="{{ cutoffConfigDraft.reminderDay }}" onchange="{{ onCutoffReminderDayChange }}" placeholder="5" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:14px">
+
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ถ้ายังไม่ชำระถึงวันที่ (ของเดือน) — เตือนพิจารณาตัดน้ำ/ไฟ</div>
+              <input value="{{ cutoffConfigDraft.finalDay }}" onchange="{{ onCutoffFinalDayChange }}" placeholder="15" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:18px">
+
+              <div style="display:flex;gap:10px">
+                <div onclick="{{ closeCutoffConfig }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer;text-align:center">ยกเลิก</div>
+                <div onclick="{{ saveCutoffConfig }}" style="flex:1.4;padding:11px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:center">บันทึก</div>
               </div>
             </div>
           </div>
@@ -4196,8 +4227,15 @@ class Component extends DCLogic {
     adminNotify: {
       taskFailure: false, slipPending: false, overdueBill: false,
       unmatchedSlip: false, maintenance: false, leaseExpiring: false,
-      wifiRequest: true,
+      wifiRequest: true, cutoffWarning: false,
     },
+    // "แจ้งเตือน ตัดน้ำตัดไฟ...แจ้งเตือนยังไม่ชำระ ทุกวันที่เท่าไร ถ้ายังไม่
+    // ชำระ วันไหน ตัดน้ำ ตัดไฟ" (2026-07-26) — วันที่ของเดือน ใช้ร่วมกันทุก
+    // ห้อง ตั้งค่าผ่านปุ่มฟันเฟื่องข้างสวิตช์ cutoffWarning ด้านบน
+    cutoffReminderDay: '5',
+    cutoffFinalDay: '15',
+    showCutoffConfigModal: false,
+    cutoffConfigDraft: { reminderDay: '5', finalDay: '15' },
     // Per explicit user request: lets the owner turn whole nav sections
     // on/off (e.g. selling to a customer building that doesn't use Tuya
     // devices or has no staff to track). All default true so nothing
@@ -4671,6 +4709,8 @@ class Component extends DCLogic {
         elecRate: data.elecRate,
         trashRate: data.trashRate,
         internetRate: data.internetRate,
+        cutoffReminderDay: data.cutoffReminderDay != null ? String(data.cutoffReminderDay) : s.cutoffReminderDay,
+        cutoffFinalDay: data.cutoffFinalDay != null ? String(data.cutoffFinalDay) : s.cutoffFinalDay,
         settings: { ...s.settings, ...data.settings },
         claudeAutomationEnabled: !!data.claudeAutomationEnabled,
         hasDataResetPin: !!data.hasDataResetPin,
@@ -7951,6 +7991,42 @@ class Component extends DCLogic {
       this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
     }
   });
+  // "มีปุ่มฟันเฟื่องเข้าไปตั้งค่า...แจ้งเตือนยังไม่ชำระ ทุกวันที่เท่าไร ถ้า
+  // ยังไม่ชำระ วันไหน ตัดน้ำ ตัดไฟ" (2026-07-26) — ป็อปอัพตั้งค่า 2 ตัวเลข
+  // (วันของเดือน) สำหรับหมวด "แจ้งเตือนตัดน้ำตัดไฟ" — เก็บแยกเป็น draft
+  // ก่อน กด "บันทึก" ถึงจะยิง PUT จริง (เหมือน openAutoInvoice/openDueReminder)
+  openCutoffConfig = () => this.setState(s => ({
+    showCutoffConfigModal: true,
+    cutoffConfigDraft: { reminderDay: s.cutoffReminderDay, finalDay: s.cutoffFinalDay },
+  }));
+  closeCutoffConfig = () => this.setState({ showCutoffConfigModal: false });
+  onCutoffReminderDayChange = (e) => { const v = e.target.value; this.setState(s => ({ cutoffConfigDraft: { ...s.cutoffConfigDraft, reminderDay: v } })); };
+  onCutoffFinalDayChange = (e) => { const v = e.target.value; this.setState(s => ({ cutoffConfigDraft: { ...s.cutoffConfigDraft, finalDay: v } })); };
+  saveCutoffConfig = () => this._guard('saveCutoffConfig', async () => {
+    const { reminderDay, finalDay } = this.state.cutoffConfigDraft;
+    const rDay = Number(reminderDay), fDay = Number(finalDay);
+    if (!rDay || rDay < 1 || rDay > 31 || !fDay || fDay < 1 || fDay > 31) {
+      this.showAdminToast('กรุณากรอกวันที่ของเดือนให้ถูกต้อง (1-31)');
+      return;
+    }
+    // ไม่บล็อกถ้ากรอกสลับกัน (reminderDay > finalDay) แค่เตือนไว้ — บาง
+    // ร้านอาจตั้งใจแบบนั้นจริงๆ (เช่น เตือนซ้ำท้ายเดือนก่อนวันครบกำหนดรอบ
+    // ใหม่) ไม่ใช่หน้าที่ระบบจะไปตัดสินใจแทน
+    if (rDay >= fDay) {
+      this.showAdminToast('⚠️ ปกติวันเตือน ควรน้อยกว่าวันพิจารณาตัดน้ำ/ไฟ — บันทึกให้แล้วนะครับ แต่ลองเช็คอีกทีว่าตั้งใจแบบนี้จริงไหม');
+    }
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cutoffReminderDay: rDay, cutoffFinalDay: fDay }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      this.setState({ cutoffReminderDay: String(rDay), cutoffFinalDay: String(fDay), showCutoffConfigModal: false });
+      this.showAdminToast('บันทึกการตั้งค่าแจ้งเตือนตัดน้ำตัดไฟแล้ว');
+    } catch (err) {
+      this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
+    }
+  });
   confirmChangePin = () => this._guard('confirmChangePin', async () => {
     try {
       const res = await fetch('/api/settings/change-admin-pin', {
@@ -9237,6 +9313,16 @@ class Component extends DCLogic {
     // อายุไปแล้วนานสุด/ใกล้หมดอายุสุด)
     const EXPIRY_ALERT_WINDOW_DAYS = 30;
     const expiryAlertsAll = [];
+    // "แจ้งเตือน ตัดน้ำตัดไฟ...ข้อมูลส่วนนี้เอาไปแสดงส่วนที่เราสร้างไว้ด้วย
+    // ว่ามีกี่รายการ" (2026-07-26) — เพิ่มหมวดที่ 3 เข้าการ์ดเดียวกัน: ห้อง
+    // ที่มีบิลค้างชำระ (pending/partial/overdue) และวันนี้ถึงวันที่
+    // cutoffFinalDay ของเดือนแล้ว (วันเดียวกับที่ตัวแจ้งเตือน LINE จริง
+    // ใช้ตัดสินใจส่ง ดู server/routes/scheduler.js) — โชว์ในการ์ดนี้เสมอ
+    // ไม่ขึ้นกับว่าเปิดสวิตช์ adminNotify.cutoffWarning ไว้หรือไม่ (การ์ด
+    // แดชบอร์ดเป็นแค่การแสดงผล ไม่ใช่การส่ง LINE จริง)
+    const todayDomForCutoff = Number(this._todayStr().slice(8, 10));
+    const cutoffFinalDayNum = Number(s.cutoffFinalDay) || 15;
+    const pastCutoffDay = todayDomForCutoff >= cutoffFinalDayNum;
     s.rooms.forEach(r => {
       if (!r.tenant) return;
       if (r.tenantIdExpiry) {
@@ -9260,6 +9346,21 @@ class Component extends DCLogic {
             statusLabel: days < 0 ? `หมดอายุแล้ว ${Math.abs(days)} วัน` : days === 0 ? 'หมดอายุวันนี้' : `อีก ${days} วันหมดอายุ`,
             statusBg: days < 0 ? '#B24336' : days <= 7 ? '#C1872E' : '#D9A15B',
             onClick: () => this.openContractForm(r.id),
+          });
+        }
+      }
+      // "แจ้งเตือน ตัดน้ำตัดไฟ" (2026-07-26) — ต่อจาก comment เต็มด้านบน
+      if (pastCutoffDay) {
+        const inv = s.invoices.find(i => i.room === r.id && (i.status === 'pending' || i.status === 'partial' || i.status === 'overdue'));
+        if (inv) {
+          const total = (inv.rent || 0) + (inv.water || 0) + (inv.elec || 0) + (inv.trash || 0) + (inv.internet || 0);
+          const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
+          expiryAlertsAll.push({
+            room: r.id, tenant: r.tenant, days: -1000, // เรียงไว้บนสุดเสมอ (เร่งด่วนกว่าบัตร/สัญญาหมดอายุ)
+            icon: '🚱', typeLabel: `ค้างชำระเกินวันที่ ${cutoffFinalDayNum} — ยอดค้าง ${this.fmt(remaining)} บาท`,
+            statusLabel: 'พิจารณาตัดน้ำ/ไฟ',
+            statusBg: '#B24336',
+            onClick: () => { this.setBillingFilter(inv.status); this.goBilling(); },
           });
         }
       }
@@ -9309,11 +9410,16 @@ class Component extends DCLogic {
       { key: 'maintenance', label: 'แจ้งซ่อมเข้าใหม่', desc: 'แจ้งทันทีที่ผู้เช่าแจ้งปัญหาเข้ามา' },
       { key: 'leaseExpiring', label: 'สัญญาเช่าใกล้หมดอายุ', desc: 'เตือนล่วงหน้าก่อนสัญญาหมดอายุ' },
       { key: 'wifiRequest', label: 'ผู้เช่าขอรหัส Wifi', desc: 'แจ้งทันทีที่ผู้เช่ากดขอรหัส Wifi ผ่านเมนู LINE (ส่งให้เจ้าของและผู้ดูแลทุกคนที่เชื่อมไว้)' },
+      // "แจ้งเตือน ตัดน้ำตัดไฟ...มีปุ่มฟันเฟื่องเข้าไปตั้งค่า" (2026-07-26)
+      // — hasConfig=true แสดงปุ่มฟันเฟื่องเปิด modal ตั้งวันที่ (gear icon
+      // ตัวเดียวในลิสต์นี้ที่มี config เพิ่ม)
+      { key: 'cutoffWarning', label: 'แจ้งเตือนตัดน้ำตัดไฟ', desc: `แจ้งถ้ายังไม่ชำระถึงวันที่ ${s.cutoffReminderDay} เตือนพิจารณาตัดน้ำ/ไฟถ้ายังไม่ชำระถึงวันที่ ${s.cutoffFinalDay}`, hasConfig: true },
     ].map(o => {
       const on = !!s.adminNotify[o.key];
       return {
         ...o, on, bg: on ? '#C1622D' : '#E3D8C8', knobLeft: on ? '22px' : '2px',
         onClick: adminNotifyLocked ? null : this.toggleAdminNotify(o.key),
+        onConfig: this.openCutoffConfig,
       };
     });
     const adminNotifyAllOn = Object.values(s.adminNotify).every(Boolean);
@@ -10413,6 +10519,9 @@ class Component extends DCLogic {
         boxBg: s.autoInvoiceRooms[r.id] ? '#C1622D' : '#fff', boxBorder: s.autoInvoiceRooms[r.id] ? '#C1622D' : '#C9B79E',
         onToggle: () => this.toggleAutoInvoiceRoom(r.id),
       })),
+      showCutoffConfigModal: s.showCutoffConfigModal, cutoffConfigDraft: s.cutoffConfigDraft,
+      openCutoffConfig: this.openCutoffConfig, closeCutoffConfig: this.closeCutoffConfig,
+      onCutoffReminderDayChange: this.onCutoffReminderDayChange, onCutoffFinalDayChange: this.onCutoffFinalDayChange, saveCutoffConfig: this.saveCutoffConfig,
       showDueReminder: s.showDueReminder, dueReminderDays: s.dueReminderDays, dueReminderMsg: s.dueReminderMsg,
       closeDueReminder: this.closeDueReminder, onDueReminderDays: this.onDueReminderDays, onDueReminderMsg: this.onDueReminderMsg, saveDueReminder: this.saveDueReminder, toggleDueReminderAll: this.toggleDueReminderAll,
       dueReminderAllCheck: (occupiedRooms.length > 0 && occupiedRooms.every(r => s.dueReminderRooms[r.id])) ? '✓' : '',
