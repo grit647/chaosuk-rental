@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { readTab, updateRow, pruneOldRows } = require('../sheets');
 const { readSettings, coerceRecurringTasks, coerceInvoices, readIntegrationCredentials } = require('../coerce');
-const { pushMessage, isConfigured: lineConfigured } = require('../line');
+const { pushMessage, pushButtonMessage, isConfigured: lineConfigured } = require('../line');
 const { runAutomatedInstruction } = require('../automation');
 const { isConfigured: claudeConfigured } = require('../claude');
 const { notifyAdmin } = require('../adminNotify');
@@ -92,11 +92,16 @@ router.get('/run', async (req, res, next) => {
           // สุภาพกว่า พูดกับผู้เช่าโดยตรง ไม่ใช้คำว่า "ห้อง X" แบบข้อความ
           // ฝั่งเจ้าของ — dedup แยก key จากฝั่งเจ้าของ (คนละ recipient กัน)
           const rooms = await readTab('Rooms');
+          // "กดปุ่ม ยืนยันที่หน้าไลน์เจ้าของเพื่อให้กดยืนยันเองได้เลย"
+          // (2026-07-26) — ต้องใช้ creds.line เพื่อ push ปุ่ม postback ให้
+          // เจ้าของ (คนละ path จาก notifyAdmin ซึ่งส่งได้แค่ข้อความล้วน)
+          const cutoffCreds = await readIntegrationCredentials();
           for (const inv of unpaid) {
             const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
             const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
             const kind = todayDom === cancelWarningDay ? 'cancelWarning' : todayDom === finalDay ? 'final' : 'reminder';
             const key = `${kind}:${inv.room}:${inv.id}`;
+            const room = rooms.find((r) => r.id === inv.room);
             if (_cutoffNotifiedDates.get(key) !== todayStr) {
               const msg = kind === 'cancelWarning'
                 ? `🚨 ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${cancelWarningDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณายกเลิกสัญญาเช่าได้เลยครับ (ต้องไปกดยกเลิกเองที่หน้าสัญญาเช่า ระบบไม่ยกเลิกให้อัตโนมัติ)`
@@ -104,12 +109,30 @@ router.get('/run', async (req, res, next) => {
                 ? `⚠️ ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${finalDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณาตัดน้ำ/ไฟ ได้เลยครับ (ตัดจริงต้องทำเองที่หน้า "Set อุปกรณ์" ระบบไม่ตัดให้อัตโนมัติ)`
                 : `🔔 ห้อง ${inv.room} ยังไม่ชำระค่าเช่าครับ (ยอดค้าง ${remaining.toLocaleString()} บาท)`;
               notifyAdmin('cutoffWarning', msg).catch(() => {});
+              // "ให้ขึ้นปุ่ม ยืนยันที่หน้าไลน์เจ้าของเพื่อให้กดยืนยันเองได้
+              // เลย" (2026-07-26) — เฉพาะ tier "final" (วันพิจารณาตัดน้ำ/ไฟ)
+              // และเฉพาะห้องที่เชื่อม Tuya ไฟจริงแล้ว (ตัดได้จริงผ่าน
+              // sendCommand — ไม่มีวาล์วน้ำที่ควบคุมได้ในระบบนี้ จึงมีปุ่มนี้
+              // ให้แค่ไฟ) ส่งหาเจ้าของ (adminLineUserId) เท่านั้น ไม่ส่งหา
+              // ผู้ดูแลทุกคน เพราะเป็นการกระทำที่กระทบผู้เช่าโดยตรง — กดปุ่ม
+              // เดียวตัดทันที (ไม่ถามซ้ำ) ตามที่คุณต้นยืนยันเอง แต่ยังต้อง
+              // เป็นการกดของเจ้าของเองเสมอ ไม่มีการตัดอัตโนมัติล้วนๆ
+              const adminLineId = settings.propertyProfile && settings.propertyProfile.adminLineUserId;
+              if (kind === 'final' && room && room.tuyaElecDeviceId && adminLineId && lineConfigured()) {
+                pushButtonMessage(
+                  adminLineId,
+                  `⚡ ห้อง ${inv.room} ค้างชำระ ${remaining.toLocaleString()} บาท เกินกำหนดตัดไฟแล้วครับ กดปุ่มด้านล่างเพื่อตัดไฟห้องนี้ทันที`,
+                  '🔌 ยืนยันตัดไฟ',
+                  `owner:cutoff_confirm_elec:${inv.room}`,
+                  `ยืนยันตัดไฟห้อง ${inv.room}`,
+                  cutoffCreds.line,
+                ).catch((err) => console.error('[scheduler] cutoff confirm button push failed', err.message));
+              }
               _cutoffNotifiedDates.set(key, todayStr);
               cutoffNotified++;
             }
             const tenantKey = `tenant:${key}`;
             if (_cutoffNotifiedDates.get(tenantKey) !== todayStr) {
-              const room = rooms.find((r) => r.id === inv.room);
               if (room && room.lineUserId) {
                 const tenantMsg = kind === 'cancelWarning'
                   ? `🚨 แจ้งเตือนสำคัญครับ ยอดค่าเช่าค้างชำระของคุณ (${remaining.toLocaleString()} บาท) ยังไม่ได้รับการชำระมาเป็นเวลานานแล้ว หากยังไม่ติดต่อชำระ ทางหอพักอาจพิจารณายกเลิกสัญญาเช่า รบกวนติดต่อเจ้าของห้องโดยด่วนที่สุดนะครับ`

@@ -14,6 +14,7 @@ const { notifyAdmin } = require('../adminNotify');
 const { sign, verify, setSessionCookie } = require('../auth');
 const { computeTenantUsage } = require('./tenant');
 const { runWithSheetId, getCurrentSheetId, isMainAccountSheetId } = require('../requestContext');
+const { sendCommand, isConfigured: tuyaConfigured } = require('../tuya');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -1004,6 +1005,42 @@ async function handleOwnerRichMenuPostback(event, lineCreds) {
     // verified owner — same trust boundary as every other admin-only
     // action in this app (see CLAUDE.md's PIN-gate notes).
     await reply('บัญชี LINE นี้ยังไม่ได้เชื่อมต่อเป็นผู้ดูแลระบบครับ');
+    return;
+  }
+
+  // "กดปุ่ม ยืนยันที่หน้าไลน์เจ้าของเพื่อให้กดยืนยันเองได้เลย" (2026-07-26)
+  // — the "🔌 ยืนยันตัดไฟ" button pushed by scheduler.js's cutoff-warning
+  // check (data: "owner:cutoff_confirm_elec:<roomId>"). Handled here
+  // (before the exact-match switch below) since the roomId suffix is
+  // dynamic. The sender-identity check right above already proved this tap
+  // came from the verified owner's own LINE account — that IS the
+  // "explicit owner decision" the permanent rule requires (see CLAUDE.md:
+  // "Power/water cutoff is always the owner's manual decision... no tool
+  // exists that lets automation cut power/water by itself"). This still
+  // isn't automation deciding — it's the owner tapping a button, just from
+  // LINE chat instead of the web dashboard. Single tap = immediate action
+  // (no double-confirm), per explicit owner request — kept snappy since a
+  // deliberate button tap already clears the bar.
+  if (data.startsWith('owner:cutoff_confirm_elec:')) {
+    const roomId = data.slice('owner:cutoff_confirm_elec:'.length);
+    try {
+      const creds = await readIntegrationCredentials();
+      if (!tuyaConfigured(creds.tuya)) {
+        await reply(`ยังไม่ได้ตั้งค่า Tuya ครับ ตัดไฟห้อง ${roomId} ไม่ได้ — ไปตั้งค่าที่หน้าเว็บก่อนนะครับ`);
+        return;
+      }
+      const rooms = await readTab('Rooms');
+      const room = rooms.find((r) => r.id === roomId);
+      if (!room || !room.tuyaElecDeviceId) {
+        await reply(`ห้อง ${roomId} ยังไม่ได้เชื่อมต่ออุปกรณ์ไฟฟ้าครับ ตัดไฟไม่ได้`);
+        return;
+      }
+      await sendCommand(room.tuyaElecDeviceId, 'switch', false, creds.tuya);
+      await reply(`✅ ตัดไฟห้อง ${roomId} เรียบร้อยแล้วครับ (กดจ่ายไฟคืนได้ที่หน้า "Set อุปกรณ์" เมื่อผู้เช่าชำระแล้ว)`);
+    } catch (err) {
+      console.error('[line] cutoff_confirm_elec failed', err.message);
+      await reply(`ตัดไฟห้อง ${roomId} ไม่สำเร็จครับ (${err.message}) — ลองที่หน้า "Set อุปกรณ์" แทนได้ครับ`);
+    }
     return;
   }
 

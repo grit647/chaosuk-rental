@@ -81,6 +81,31 @@ async function replyLinkButton(replyToken, bodyText, buttonLabel, url, creds) {
   return callLineApi('reply', { replyToken, messages: [message] }, creds);
 }
 
+// "กดปุ่ม ยืนยันที่หน้าไลน์เจ้าของเพื่อให้กดยืนยันเองได้เลย" (2026-07-26) —
+// used for the "🔌 ยืนยันตัดไฟ" button on the cutoff-warning owner push
+// (server/routes/scheduler.js). Uses a POSTBACK action (not `uri` like
+// replyLinkButton above) so tapping it fires our own webhook instead of
+// opening a URL — the postback handler (routes/line.js) is what actually
+// calls sendCommand to cut power, only after this explicit tap. Same
+// permanent-rule reasoning as everywhere else in this app: the owner must
+// take a real, deliberate action for a cutoff to happen — this button IS
+// that action, just reachable from LINE chat instead of requiring the web
+// dashboard to be open. `displayText` is what shows in the chat history as
+// if the owner had typed it themselves (LINE's own UX convention for
+// postback buttons), so the confirmation is visible/auditable in-chat too.
+async function pushButtonMessage(to, bodyText, buttonLabel, postbackData, displayText, creds) {
+  const message = {
+    type: 'template',
+    altText: bodyText,
+    template: {
+      type: 'buttons',
+      text: bodyText.slice(0, 160),
+      actions: [{ type: 'postback', label: buttonLabel.slice(0, 20), data: postbackData, displayText: (displayText || buttonLabel).slice(0, 300) }],
+    },
+  };
+  return callLineApi('push', { to, messages: [message] }, creds);
+}
+
 // imageUrl (optional): a publicly reachable HTTPS URL — LINE fetches the
 // image from it directly, it cannot take inline/base64 image data.
 async function pushMessage(to, text, imageUrl, creds) {
@@ -235,7 +260,7 @@ async function deleteRichMenu(richMenuId, creds) {
 }
 
 module.exports = {
-  isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, getMessageContent,
+  isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, pushButtonMessage, getMessageContent,
   getMessageQuota, getMessageQuotaConsumption,
   createRichMenu, uploadRichMenuImage, setDefaultRichMenu, linkRichMenuToUser, listRichMenus, deleteRichMenu,
 };
