@@ -2510,14 +2510,24 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <input type="time" value="{{ cutoffCheckTime }}" onchange="{{ onCutoffCheckTimeChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">
               <div style="font-size:10.5px;color:#9C8B78;margin-bottom:16px">ระบบเช็คทุก 10 นาที ความแม่นยำอยู่ในหลักนาที (ไม่ใช่เป๊ะวินาที)</div>
 
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">1) แจ้งเตือนยังไม่ชำระ ทุกวันที่ (ของเดือน)</div>
+              <!-- "ทุกวันที่ 7 จะเป็นการตัดไฟ...ใช่ครับ เหมือนวันที่ 15
+                   ส่งการยืนยัน ให้เจ้าของครับ" (2026-07-26 follow-up) —
+                   ข้อ 1 ตอนนี้ก็มีปุ่ม "ยืนยันตัดไฟ" แนบไปด้วยเหมือนข้อ 2
+                   แล้ว (ห้องที่เชื่อม Tuya ไฟจริง) ไม่ใช่แค่ข้อความเตือน
+                   เฉยๆ อีกต่อไป -->
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">1) แจ้งเตือนยังไม่ชำระ ทุกวันที่ (ของเดือน) — เตือนพิจารณาตัดไฟ</div>
               <input value="{{ cutoffConfigDraft.reminderDay }}" onchange="{{ onCutoffReminderDayChange }}" placeholder="5" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">
               <!-- "ส่วนนี้เพิ่ม ข้อ 1 2 3 ให้ด้วยครับ" (2026-07-26) — ข้อความ
                    ฝั่งผู้เช่าของแต่ละระดับ แก้ไขเองได้แล้ว {ยอดค้าง} เป็น
                    placeholder แทนที่ด้วยยอดเงินจริงตอนส่งจริง -->
               <textarea value="{{ cutoffReminderMsg }}" onchange="{{ onCutoffReminderMsgChange }}" placeholder="ข้อความแจ้งเตือนผู้เช่า (ข้อ 1) — ใช้ {ยอดค้าง} แทนยอดเงินได้" style="width:100%;min-height:52px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:14px"></textarea>
 
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">2) ถ้ายังไม่ชำระถึงวันที่ (ของเดือน) — เตือนพิจารณาตัดน้ำ/ไฟ</div>
+              <!-- "วันที่ 15 ตัดทั้งไฟและน้ำ...ระบบนี้ยังไม่มีอุปกรณ์ตัดน้ำ
+                   อัตโนมัติที่สั่งงานได้เลย (มีแค่สวิตช์ไฟฟ้า)" — คุณต้น
+                   เลือก "แจ้งปุ่มยืนยันตัดไฟ ให้เจ้าของ" (ปุ่มไฟอย่างเดียว
+                   เหมือนข้อ 1 — น้ำมีแค่ข้อความเตือน ไม่มีปุ่มตัดจริง เพราะ
+                   ไม่มีอุปกรณ์ควบคุมได้) -->
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">2) ถ้ายังไม่ชำระถึงวันที่ (ของเดือน) — เตือนพิจารณาตัดไฟ+น้ำ (มีปุ่มตัดไฟ ส่วนน้ำแจ้งเตือนอย่างเดียว ยังไม่มีอุปกรณ์ตัดน้ำในระบบ)</div>
               <input value="{{ cutoffConfigDraft.finalDay }}" onchange="{{ onCutoffFinalDayChange }}" placeholder="15" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">
               <textarea value="{{ cutoffFinalMsg }}" onchange="{{ onCutoffFinalMsgChange }}" placeholder="ข้อความแจ้งเตือนผู้เช่า (ข้อ 2) — ใช้ {ยอดค้าง} แทนยอดเงินได้" style="width:100%;min-height:52px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:14px"></textarea>
 

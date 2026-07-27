@@ -128,11 +128,19 @@ router.get('/run', async (req, res, next) => {
               // ผู้ดูแลทุกคน เพราะเป็นการกระทำที่กระทบผู้เช่าโดยตรง — กดปุ่ม
               // เดียวตัดทันที (ไม่ถามซ้ำ) ตามที่คุณต้นยืนยันเอง แต่ยังต้อง
               // เป็นการกดของเจ้าของเองเสมอ ไม่มีการตัดอัตโนมัติล้วนๆ
+              //
+              // "เปลี่ยนแปลงเงื่อนไขส่วนนี้...ทุกวันที่ 7 จะเป็นการตัดไฟ
+              // วันที่ 15 ตัดทั้งไฟและน้ำ" (2026-07-26 follow-up) — ชี้แจง
+              // กับคุณต้นแล้วว่าไม่มีวาล์วน้ำที่ควบคุมได้จริงในระบบนี้ (มีแค่
+              // สวิตช์ไฟฟ้า Tuya) คุณต้นเลือกให้ส่งปุ่ม "ยืนยันตัดไฟ" (ไฟฟ้า
+              // อย่างเดียว) ให้ทั้ง 2 ระดับ (reminder วันที่ 7 เดิมมีแค่ข้อความ
+              // เตือนเฉยๆ, final วันที่ 15 มีปุ่มอยู่แล้ว) — ขยายเงื่อนไขจาก
+              // "เฉพาะ final" เป็น "reminder หรือ final" ทั้งคู่
               const adminLineId = settings.propertyProfile && settings.propertyProfile.adminLineUserId;
-              if (kind === 'final' && room && room.tuyaElecDeviceId && adminLineId && lineConfigured()) {
+              if ((kind === 'reminder' || kind === 'final') && room && room.tuyaElecDeviceId && adminLineId && lineConfigured()) {
                 pushButtonMessage(
                   adminLineId,
-                  `⚡ ห้อง ${inv.room} ค้างชำระ ${remaining.toLocaleString()} บาท เกินกำหนดตัดไฟแล้วครับ กดปุ่มด้านล่างเพื่อตัดไฟห้องนี้ทันที`,
+                  `⚡ ห้อง ${inv.room} ค้างชำระ ${remaining.toLocaleString()} บาท (${kind === 'final' ? 'เกินกำหนดตัดไฟแล้ว' : 'ถึงกำหนดพิจารณาตัดไฟแล้ว'}) กดปุ่มด้านล่างเพื่อตัดไฟห้องนี้ทันที`,
                   '🔌 ยืนยันตัดไฟ',
                   `owner:cutoff_confirm_elec:${inv.room}`,
                   `ยืนยันตัดไฟห้อง ${inv.room}`,
