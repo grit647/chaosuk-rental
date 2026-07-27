@@ -207,6 +207,12 @@ async function readSettings(preloadedRows) {
       // my-buildings.html (ตัวเลือกตึก) ดู server/routes/auth.js's
       // resolveBuildingNames สำหรับจุดที่ดึงค่านี้ไปแสดง
       lineOAShortUrl: map.lineOAShortUrl || '',
+      // "เพิ่มอีก 1 ช่องทาง คือ หมายเลขบัญชี ชื่อบัญชี ธนาคาร...ส่งข้อมูล
+      // ไปพร้อมใบเสร็จ" (2026-07-26) — ช่องทางโอนเงินสำรอง คู่กับ QR
+      // ชำระเงินด้านบน แนบไปกับข้อความ LINE/PDF/รูปใบเสร็จเช่นกัน
+      bankName: map.bankName || '',
+      bankAccountNumber: map.bankAccountNumber || '',
+      bankAccountName: map.bankAccountName || '',
     },
     waterRate: num(map.waterRate, 18),
     elecRate: num(map.elecRate, 8),

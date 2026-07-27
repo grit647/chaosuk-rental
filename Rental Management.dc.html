@@ -1143,6 +1143,36 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </label>
                   </sc-if>
                 </div>
+                <!-- "เพิ่มอีก 1 ช่องทาง คือ หมายเลขบัญชี ชื่อบัญชี ธนาคาร
+                     (ธนาคารมีดรอปดาวให้เลือกไหม) ส่งข้อมูลไปพร้อมใบเสร็จ"
+                     (2026-07-26) — ช่องทางโอนเงินสำรอง คู่กับ QR ด้านบน
+                     แนบไปกับข้อความ LINE/PDF/รูปใบเสร็จเช่นกัน (sendReceiptLine) -->
+                <div>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">บัญชีธนาคาร (ช่องทางโอนเงินสำรอง แนบท้ายบิลที่ส่งให้ผู้เช่าทาง LINE)</div>
+                  <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:10px;margin-bottom:8px">
+                    <select value="{{ propertyProfile.bankName }}" onchange="{{ onProfileBankName }}" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                      <option value="">-- เลือกธนาคาร --</option>
+                      <option value="ธนาคารกรุงเทพ">ธนาคารกรุงเทพ</option>
+                      <option value="ธนาคารกสิกรไทย">ธนาคารกสิกรไทย</option>
+                      <option value="ธนาคารกรุงไทย">ธนาคารกรุงไทย</option>
+                      <option value="ธนาคารไทยพาณิชย์">ธนาคารไทยพาณิชย์</option>
+                      <option value="ธนาคารกรุงศรีอยุธยา">ธนาคารกรุงศรีอยุธยา</option>
+                      <option value="ธนาคารทหารไทยธนชาต">ธนาคารทหารไทยธนชาต (ttb)</option>
+                      <option value="ธนาคารเกียรตินาคินภัทร">ธนาคารเกียรตินาคินภัทร</option>
+                      <option value="ธนาคารซีไอเอ็มบีไทย">ธนาคารซีไอเอ็มบีไทย</option>
+                      <option value="ธนาคารทิสโก้">ธนาคารทิสโก้</option>
+                      <option value="ธนาคารยูโอบี">ธนาคารยูโอบี</option>
+                      <option value="ธนาคารไทยเครดิต">ธนาคารไทยเครดิต</option>
+                      <option value="ธนาคารแลนด์ แอนด์ เฮ้าส์">ธนาคารแลนด์ แอนด์ เฮ้าส์</option>
+                      <option value="ธนาคารออมสิน">ธนาคารออมสิน (GSB)</option>
+                      <option value="ธนาคารอาคารสงเคราะห์">ธนาคารอาคารสงเคราะห์ (ธอส.)</option>
+                      <option value="ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร">ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร (ธ.ก.ส.)</option>
+                      <option value="ธนาคารอิสลามแห่งประเทศไทย">ธนาคารอิสลามแห่งประเทศไทย</option>
+                    </select>
+                    <input value="{{ propertyProfile.bankAccountNumber }}" onchange="{{ onProfileBankAccountNumber }}" placeholder="เลขบัญชี เช่น 123-4-56789-0" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  </div>
+                  <input value="{{ propertyProfile.bankAccountName }}" onchange="{{ onProfileBankAccountName }}" placeholder="ชื่อบัญชี เช่น นายสมหมาย ผู้จัดการ" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                </div>
                 <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
                   <div onclick="{{ openChangePinModal }}" title="ตั้งค่ารหัสผ่าน" style="width:38px;height:38px;border-radius:7px;border:1px solid #E3D8C8;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px">⚙️</div>
                   <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
@@ -4459,7 +4489,10 @@ class Component extends DCLogic {
     // (see loadSheetUsage), same lazy-load-on-mount pattern as lineUsage.
     sheetUsage: { usedCells: 0, totalCells: 10000000, percent: 0, loaded: false },
     sheetEnvConnected: false,
-    propertyProfile: { name: 'หอพักเช่าสุข', adminName: 'คุณสมหมาย ผู้จัดการ', adminPhone: '081-000-0000', paymentQrUrl: '', buildingKeyId: '', lineOAShortUrl: '' },
+    // "เพิ่มอีก 1 ช่องทาง คือ หมายเลขบัญชี ชื่อบัญชี ธนาคาร...ส่งข้อมูลไป
+    // พร้อมใบเสร็จ" (2026-07-26) — bankName/bankAccountNumber/
+    // bankAccountName เป็นช่องทางโอนเงินสำรอง คู่กับ paymentQrUrl
+    propertyProfile: { name: 'หอพักเช่าสุข', adminName: 'คุณสมหมาย ผู้จัดการ', adminPhone: '081-000-0000', paymentQrUrl: '', buildingKeyId: '', lineOAShortUrl: '', bankName: '', bankAccountNumber: '', bankAccountName: '' },
     // A newly-picked QR image (dataURL) or a pending removal — staged here
     // until confirmSaveAdminInfo's PIN-gated save actually uploads/commits
     // it, per explicit user request that this go through the same
@@ -6577,6 +6610,12 @@ class Component extends DCLogic {
         if (invoice.waterPrevReading != null && invoice.waterUnits != null) prevReadingLines.push(`หน่วยมิเตอร์น้ำที่ออกบิล: ${invoice.waterPrevReading + invoice.waterUnits}`);
         if (invoice.elecPrevReading != null) prevReadingLines.push(`หน่วยมิเตอร์ไฟบิลก่อนหน้า: ${invoice.elecPrevReading}`);
         if (invoice.elecPrevReading != null && invoice.elecUnits != null) prevReadingLines.push(`หน่วยมิเตอร์ไฟที่ออกบิล: ${invoice.elecPrevReading + invoice.elecUnits}`);
+        // "เพิ่มอีก 1 ช่องทาง คือ หมายเลขบัญชี ชื่อบัญชี ธนาคาร...ส่งข้อมูล
+        // ไปพร้อมใบเสร็จ" (2026-07-26) — ช่องทางโอนเงินสำรอง คู่กับ QR
+        const bp = this.state.propertyProfile;
+        const bankLines = (bp.bankName || bp.bankAccountNumber || bp.bankAccountName)
+          ? ['', 'โอนเงินเข้าบัญชี:', bp.bankName, bp.bankAccountNumber, bp.bankAccountName].filter(Boolean)
+          : [];
         message = [
           'ใบแจ้งหนี้ห้อง ' + roomId + ' (' + invoice.id + ')',
           ...rows,
@@ -6584,6 +6623,7 @@ class Component extends DCLogic {
           ...creditLines,
           ...prevReadingLines,
           'กรุณาชำระก่อน ' + (invoice.due ? this._fmtDateTh(invoice.due) : '-'),
+          ...bankLines,
         ].join('\n');
         // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก...เป็นข้อความที่
         // เจ้าของกำหนดเองครับ" (2026-07-26) — appended only when THIS
@@ -8208,6 +8248,11 @@ class Component extends DCLogic {
   onProfileName = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, name: v } })); };
   onProfileAdmin = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminName: v } })); };
   onProfilePhone = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminPhone: v } })); };
+  // "เพิ่มอีก 1 ช่องทาง คือ หมายเลขบัญชี ชื่อบัญชี ธนาคาร...ส่งข้อมูลไป
+  // พร้อมใบเสร็จ" (2026-07-26)
+  onProfileBankName = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, bankName: v } })); };
+  onProfileBankAccountNumber = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, bankAccountNumber: v } })); };
+  onProfileBankAccountName = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, bankAccountName: v } })); };
   onProfileBuildingKeyId = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, buildingKeyId: v } })); };
   onProfileLineOAShortUrl = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, lineOAShortUrl: v } })); };
   onProfileAdminLineUserId = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminLineUserId: v } })); };

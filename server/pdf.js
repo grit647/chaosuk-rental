@@ -101,6 +101,19 @@ function generateInvoicePdf(invoice, room, propertyProfile) {
         doc.text(fmtBaht(remaining), colAmountX, y, { width: tableWidth - (colAmountX - colLabelX), align: 'right' });
       }
 
+      // "เพิ่มอีก 1 ช่องทาง คือ หมายเลขบัญชี ชื่อบัญชี ธนาคาร...ส่งข้อมูลไป
+      // พร้อมใบเสร็จ" (2026-07-26) — ช่องทางโอนเงินสำรอง คู่กับ QR
+      const bankName = (propertyProfile && propertyProfile.bankName) || '';
+      const bankAccountNumber = (propertyProfile && propertyProfile.bankAccountNumber) || '';
+      const bankAccountName = (propertyProfile && propertyProfile.bankAccountName) || '';
+      if (bankName || bankAccountNumber || bankAccountName) {
+        doc.moveDown(1);
+        doc.fontSize(11).fillColor('#241812').text('โอนเงินเข้าบัญชี:');
+        if (bankName) doc.text(bankName);
+        if (bankAccountNumber) doc.text(bankAccountNumber);
+        if (bankAccountName) doc.text(bankAccountName);
+      }
+
       doc.moveDown(2.5);
       const statusLabel = invoice.status === 'paid' ? 'ชำระแล้ว' : invoice.status === 'overdue' ? 'เกินกำหนด' : invoice.status === 'partial' ? 'ชำระบางส่วน' : 'รอชำระ';
       doc.fontSize(9).fillColor('#9C8B78').text('สถานะ: ' + statusLabel);

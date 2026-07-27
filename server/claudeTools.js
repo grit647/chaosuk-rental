@@ -551,12 +551,19 @@ async function executeWriteTool(name, input) {
       const creditLines = amountPaid > 0
         ? [`หักจากเงินล่วงหน้าที่ชำระไว้แล้ว: ${amountPaid.toLocaleString()}`, `ยอดที่ต้องชำระจริง: ${remaining.toLocaleString()}`]
         : [];
+      // "เพิ่มอีก 1 ช่องทาง คือ หมายเลขบัญชี ชื่อบัญชี ธนาคาร...ส่งข้อมูลไป
+      // พร้อมใบเสร็จ" (2026-07-26) — เหมือนปุ่ม "ส่งข้อมูล (LINE)" บนเว็บ
+      const bp = settingsData.propertyProfile || {};
+      const bankLines = (bp.bankName || bp.bankAccountNumber || bp.bankAccountName)
+        ? ['', 'โอนเงินเข้าบัญชี:', bp.bankName, bp.bankAccountNumber, bp.bankAccountName].filter(Boolean)
+        : [];
       let message = [
         'ใบแจ้งหนี้ห้อง ' + invoice.room + ' (' + invoice.id + ')',
         ...rowsToShow.map(([label, v]) => label + ': ' + Number(v).toLocaleString()),
         'รวม: ' + total.toLocaleString(),
         ...creditLines,
         'กรุณาชำระก่อน ' + (invoice.due || '-'),
+        ...bankLines,
       ].join('\n');
       // Same first-invoice welcome-message append as the native "ส่งข้อมูล
       // (LINE)" button (2026-07-26) — keep the two paths in sync.

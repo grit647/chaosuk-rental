@@ -170,6 +170,19 @@ async function generateReceiptImage(invoice, room, propertyProfile, qrBuffer) {
   parts.push(`<text x="${PAD}" y="${y}" font-size="16" font-weight="700" fill="#B24336">กรุณาชำระก่อน ${esc(invoice.due ? formatDateTh(invoice.due) : '-')}</text>`);
   y += 36;
 
+  // "เพิ่มอีก 1 ช่องทาง คือ หมายเลขบัญชี ชื่อบัญชี ธนาคาร...ส่งข้อมูลไป
+  // พร้อมใบเสร็จ" (2026-07-26) — ช่องทางโอนเงินสำรอง คู่กับ QR ด้านล่าง
+  const bankLines = [propertyProfile.bankName, propertyProfile.bankAccountNumber, propertyProfile.bankAccountName].filter(Boolean);
+  if (bankLines.length) {
+    parts.push(`<text x="${PAD}" y="${y}" font-size="13" font-weight="700" fill="${TEXT}">โอนเงินเข้าบัญชี:</text>`);
+    y += 20;
+    for (const line of bankLines) {
+      parts.push(`<text x="${PAD}" y="${y}" font-size="13" fill="${TEXT}">${esc(line)}</text>`);
+      y += 20;
+    }
+    y += 8;
+  }
+
   let qrBlockHeight = 0;
   const QR_SIZE = 200;
   if (qrBuffer) {

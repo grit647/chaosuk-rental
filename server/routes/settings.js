@@ -389,6 +389,12 @@ router.put('/', async (req, res, next) => {
       paymentQrUrl: b.propertyProfile && b.propertyProfile.paymentQrUrl,
       buildingKeyId: b.propertyProfile && b.propertyProfile.buildingKeyId,
       lineOAShortUrl: b.propertyProfile && b.propertyProfile.lineOAShortUrl,
+      // "เพิ่มอีก 1 ช่องทาง คือ หมายเลขบัญชี ชื่อบัญชี ธนาคาร...ส่งข้อมูล
+      // ไปพร้อมใบเสร็จ" (2026-07-26) — ช่องทางโอนเงินสำรอง คู่กับ QR
+      // ชำระเงินที่มีอยู่แล้ว แนบไปกับข้อความ LINE/PDF/รูปใบเสร็จเช่นกัน
+      bankName: b.propertyProfile && b.propertyProfile.bankName,
+      bankAccountNumber: b.propertyProfile && b.propertyProfile.bankAccountNumber,
+      bankAccountName: b.propertyProfile && b.propertyProfile.bankAccountName,
       waterRate: b.waterRate,
       elecRate: b.elecRate,
       trashRate: b.trashRate,
