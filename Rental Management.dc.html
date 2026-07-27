@@ -1902,21 +1902,32 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             </div>
             <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;overflow-x:auto">
               <div style="min-width:640px">
-              <div style="display:grid;grid-template-columns:0.6fr 1.3fr 1fr 1fr 0.9fr 0.9fr 1fr 1.3fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
+              <div style="display:grid;grid-template-columns:0.6fr 1.3fr 1fr 1fr 0.9fr 0.9fr 1fr 1.3fr 1.3fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
                 <div>ห้อง</div><div>ผู้เช่า</div><div>เริ่มสัญญา</div><div>สิ้นสุดสัญญา</div><div>ค่าเช่า</div><div>เงินประกัน</div><div>สถานะ</div>
                 <div style="display:flex;align-items:center;gap:6px">
                   <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
                     <span onclick="{{ onDemoTipContractActions }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
                   </sc-if>
                 </div>
+                <!-- "เพิ่มช่องแสดงอีก 1 ช่อง คือ คะแนนผู้เช่า...ส่วนนี้
+                     แสดงไว้ช่องหลังสุด" (2026-07-26) -->
+                <div>คะแนนผู้เช่า</div>
               </div>
               <sc-for list="{{ contractsView }}" as="c" hint-placeholder-count="13">
-                <div style="display:grid;grid-template-columns:0.6fr 1.3fr 1fr 1fr 0.9fr 0.9fr 1fr 1.3fr;gap:10px;font-size:12.5px;color:#241812;padding:11px 0;border-bottom:1px solid #F0E9DC;align-items:center">
+                <div style="display:grid;grid-template-columns:0.6fr 1.3fr 1fr 1fr 0.9fr 0.9fr 1fr 1.3fr 1.3fr;gap:10px;font-size:12.5px;color:#241812;padding:11px 0;border-bottom:1px solid #F0E9DC;align-items:center">
                   <div>{{ c.room }}</div><div>{{ c.tenant }}</div><div style="color:#7C6E5F">{{ c.moveIn }}</div><div style="color:#7C6E5F">{{ c.contractEnd }}</div><div style="font-family:'IBM Plex Mono',monospace">{{ c.rentDisplay }}</div><div style="font-family:'IBM Plex Mono',monospace">{{ c.depositDisplay }}</div>
                   <div><span style="font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:5px;color:#fff;background:{{ c.statusBg }}">{{ c.statusLabel }}</span></div>
                   <div style="display:flex;gap:12px">
                     <span onclick="{{ c.onEdit }}" style="font-size:11px;color:#C1622D;font-weight:600;cursor:pointer;text-decoration:underline">แก้ไข</span>
                     <span onclick="{{ c.onDelete }}" style="font-size:11px;color:#B24336;font-weight:600;cursor:pointer;text-decoration:underline">ลบ</span>
+                  </div>
+                  <div title="{{ c.ratingTitle }}" style="display:flex;align-items:center;gap:4px">
+                    <sc-for list="{{ c.ratingStars }}" as="st2" hint-placeholder-count="5">
+                      <sc-if value="{{ st2.full }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:#D9A15B">★</span></sc-if>
+                      <sc-if value="{{ st2.half }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:#D9A15B">✬</span></sc-if>
+                      <sc-if value="{{ st2.empty }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:#E3D8C8">★</span></sc-if>
+                    </sc-for>
+                    <span style="font-size:10.5px;color:#A89A88;margin-left:2px">{{ c.ratingLabel }}</span>
                   </div>
                 </div>
               </sc-for>
@@ -6818,6 +6829,56 @@ class Component extends DCLogic {
     const now = new Date(this._todayStr() + 'T00:00:00Z');
     return Math.round((target - now) / 86400000);
   }
+  // Generic date-only diff (toStr - fromStr, in days) — same UTC-midnight
+  // technique as _daysUntil above, just parametrized on both ends instead
+  // of always comparing against "today". Used by tenantRatingFor below.
+  _daysBetween(fromStr, toStr) {
+    if (!fromStr || !toStr) return null;
+    const from = new Date(fromStr + 'T00:00:00Z');
+    const to = new Date(toStr + 'T00:00:00Z');
+    if (isNaN(from.getTime()) || isNaN(to.getTime())) return null;
+    return Math.round((to - from) / 86400000);
+  }
+  // "เพิ่มช่องแสดงอีก 1 ช่อง คือ คะแนนผู้เช่า...ดูจากการประวัติชำระบิล
+  // ปัจจุบันและย้อนหลัง" (2026-07-26) — 5-star tenant rating, purely
+  // computed from existing Invoices/PaymentLog state already loaded in
+  // bootstrap — no new Sheet column, no per-room migration needed.
+  //
+  // Scoring rules confirmed with the owner directly:
+  //   - เริ่มที่ 3 ดาว (baseline สำหรับทุกคน ไม่มีประวัติ = 3 ดาวเป๊ะ)
+  //   - "จำนวนวันที่ชำระมีผลด้วย คิดเป็นวัน ชำระก่อนวันครบกำหนด คะแนนดีกว่า
+  //     ชำระวันครบกำหนด จ่ายล่วงหน้ามีผล" — even paying exactly ON the due
+  //     date isn't the max bonus; more days early = more bonus (capped).
+  //   - "เกินกำหนด 1 วันขึ้นไป = ช้า (เข้มงวด)" — no grace period at all,
+  //     1 day late already counts as late.
+  //   - "จ่ายบางส่วนมีผล" — a partial-payment event before the bill was
+  //     eventually settled in full also costs points (detected via
+  //     PaymentLog's 'invoice_partial' entries, which embed the invoice id
+  //     in their note text — see _logPayment's call sites).
+  // Per-invoice delta is capped both directions so one extreme bill (e.g.
+  // paid 60 days early, or 90 days late) can't single-handedly swing the
+  // whole rating — this is meant to reflect a PATTERN over time, not one
+  // outlier bill.
+  tenantRatingFor(roomId) {
+    const invoices = this.state.invoices.filter(i => i.room === roomId && i.status === 'paid' && i.due && i.paidDate);
+    let score = 3;
+    invoices.forEach(inv => {
+      const diffDays = this._daysBetween(inv.paidDate, inv.due); // due - paidDate: >0 early, 0 on the day, <0 late
+      if (diffDays == null) return;
+      score += diffDays >= 0 ? Math.min(0.5, diffDays * 0.05) : Math.max(-1.5, diffDays * 0.15);
+      const hadPartial = this.state.paymentLog.some(p => p.room === roomId && p.type === 'invoice_partial' && p.note && p.note.indexOf(inv.id) !== -1);
+      if (hadPartial) score -= 0.3;
+    });
+    score = Math.max(1, Math.min(5, score));
+    // Round to the nearest 0.5 for a clean half-star display.
+    const rounded = Math.round(score * 2) / 2;
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      const full = rounded >= i, half = !full && rounded >= i - 0.5;
+      stars.push({ key: 'star' + i, full, half, empty: !full && !half });
+    }
+    return { score: rounded, label: rounded.toFixed(1) + '/5', billCount: invoices.length, stars };
+  }
   // "ส่วนวันครบกำหนด ให้เป็นไปตามสัญญาอย่างเดียว" (2026-07-26) — คำนวณวัน
   // ครบกำหนดบิลถัดไปจาก dueDay (วันที่ของเดือน เช่น "5") ของสัญญาห้องนั้นๆ
   // เอง แทนที่จะให้พิมพ์วันที่มือทุกครั้งตอนออกบิล — ถ้าวันนั้นของเดือนนี้
@@ -9978,6 +10039,7 @@ class Component extends DCLogic {
 
     const contractsView = occupiedRooms.map(r => {
       const nearExpiry = r.contractEnd.indexOf('2569') !== -1;
+      const rating = this.tenantRatingFor(r.id);
       return {
         // "แก้ให้ครบทั้งหมดทีเดียวเลยครับ" (2026-07-26) — ตารางสัญญาเช่า
         // เคยโชว์ค่าดิบ (yyyy-mm-dd) ตรงๆ เหมือนที่การ์ดห้องเคยเป็น
@@ -9987,6 +10049,7 @@ class Component extends DCLogic {
         onRenew: () => this.renewContract(r.id),
         onDelete: () => this.openDeleteContract(r.id),
         onEdit: () => this.openContractForm(r.id),
+        ratingStars: rating.stars, ratingLabel: rating.label, ratingTitle: rating.billCount + ' บิลที่ชำระแล้ว',
       };
     });
     const contractsNearCount = contractsView.filter(c => c.statusLabel === 'ใกล้ครบกำหนด').length;
