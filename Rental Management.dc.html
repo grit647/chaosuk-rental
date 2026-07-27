@@ -822,6 +822,17 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#241812">{{ selectedTenant.phone }}</span>
                     <a href="{{ selectedTenant.telHref }}" onclick="{{ selectedTenant.onCall }}" style="display:inline-flex;align-items:center;justify-content:center;color:#C1622D;text-decoration:none;font-size:16px" title="โทร">📞</a>
                   </div>
+                  <!-- "คะแนนข้อเพิ่มในการ์ดนี้ด้วยครับ" (2026-07-26) —
+                       ดาวเดียวกับตารางสัญญาเช่า (tenantRatingFor) -->
+                  <div title="{{ selectedTenant.ratingTitle }}" style="display:flex;align-items:center;gap:6px;margin-bottom:14px">
+                    <span style="font-size:10.5px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F">คะแนนผู้เช่า</span>
+                    <sc-for list="{{ selectedTenant.ratingStars }}" as="st3" hint-placeholder-count="5">
+                      <sc-if value="{{ st3.full }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#D9A15B">★</span></sc-if>
+                      <sc-if value="{{ st3.half }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#D9A15B">✬</span></sc-if>
+                      <sc-if value="{{ st3.empty }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#E3D8C8">★</span></sc-if>
+                    </sc-for>
+                    <span style="font-size:10.5px;color:#A89A88">{{ selectedTenant.ratingLabel }}</span>
+                  </div>
                   <sc-if value="{{ selectedTenant.hasUsageData }}" hint-placeholder-val="{{ false }}">
                     <div style="display:flex;flex-direction:column;gap:6px;background:#FBF7F0;border:1px solid #EDE1CE;border-radius:8px;padding:10px 12px;margin-bottom:14px">
                       <div style="font-size:10.5px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F">การใช้งานรอบนี้ (นับจากบิลล่าสุด)</div>
@@ -9133,6 +9144,10 @@ class Component extends DCLogic {
       t.connColor = t.connFilled ? '#3B7A52' : '#9C8B78';
       t.connDot = t.connFilled ? '#3B7A52' : '#B0A08C';
       t.cardBorder = t.room === (s.selectedTenantRoom || (tenantsFiltered[0] && tenantsFiltered[0].room)) ? '2px solid #C1622D' : '1px solid #E3D8C8';
+      // "คะแนนข้อเพิ่มในการ์ดนี้ด้วยครับ" (2026-07-26) — เอาคะแนนดาวเดียวกับ
+      // ตารางสัญญาเช่ามาโชว์ในการ์ดผู้เช่าด้วย (tenantRatingFor เดิม)
+      const rating = this.tenantRatingFor(t.room);
+      t.ratingStars = rating.stars; t.ratingLabel = rating.label; t.ratingTitle = rating.billCount + ' บิลที่ชำระแล้ว';
     });
 
     // Tenant cards: same single-row, 3-per-page carousel as the Rooms page —
