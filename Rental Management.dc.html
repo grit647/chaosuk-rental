@@ -5461,29 +5461,23 @@ class Component extends DCLogic {
     };
     Object.keys(roomPatch).forEach(k => roomPatch[k] === undefined && delete roomPatch[k]);
     try {
-      const [roomRes] = await Promise.all([
-        fetch('/api/rooms/' + encodeURIComponent(id), {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(roomPatch),
-        }),
-        fetch('/api/settings', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            // "ค่าอินเตอร์เน็ต ให้ตั้งค่าเริ่มต้นเป็น 0...ตอนนี้ค้างอยู่ที่
-            // 200 เปลี่ยนแปลงไม่ได้" (2026-07-26) — real bug found: `||`
-            // treats 0 as falsy, so typing exactly 0 into any of these 4
-            // rate fields silently fell back to the OLD value instead of
-            // actually saving 0 — the field looked stuck no matter what
-            // was typed. Fixed with the same blank-check pattern already
-            // used for waterMinRate/elecMinRate right above (0 is a
-            // perfectly normal, common rate — not "unset").
-            waterRate: this._numOrKeep(cf.waterRate, s.waterRate),
-            elecRate: this._numOrKeep(cf.elecRate, s.elecRate),
-            trashRate: this._numOrKeep(cf.trashRate, s.trashRate),
-            internetRate: this._numOrKeep(cf.internetRate, s.internetRate),
-          }),
-        }),
-      ]);
+      // "ค่าเนต ค่าขยะ เปลี่ยนห้องเดียว ห้องอื่นยังเปลี่ยนตามเป็นค่าเดียวกัน"
+      // (2026-07-26) — real bug found: this used to ALSO write waterRate/
+      // elecRate/trashRate/internetRate to the shared building-wide
+      // default (PUT /api/settings) every single time ANY room's contract
+      // was saved — so even though this room got its own correct per-room
+      // override (roomPatch below), every OTHER room that never had its
+      // own override yet would silently inherit the just-changed global
+      // default too, looking exactly like "editing one room changed
+      // everyone." Removed entirely — roomPatch (per-room columns, added
+      // earlier this session for all 4 utilities) is now the ONLY thing
+      // a contract save touches. The shared "default rate" a brand-new
+      // room's contract form pre-fills with just stays whatever it was
+      // last set to — rooms are now genuinely independent of each other.
+      const roomRes = await fetch('/api/rooms/' + encodeURIComponent(id), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(roomPatch),
+      });
       if (!roomRes.ok) {
         // Real bug hit: on a slow/large save (e.g. big ID-card photo
         // attached), Render's own proxy can return an HTML error page
@@ -5499,10 +5493,6 @@ class Component extends DCLogic {
       }
       const updatedRoom = await roomRes.json();
       this.setState(st => ({
-        waterRate: this._numOrKeep(cf.waterRate, st.waterRate),
-        elecRate: this._numOrKeep(cf.elecRate, st.elecRate),
-        trashRate: this._numOrKeep(cf.trashRate, st.trashRate),
-        internetRate: this._numOrKeep(cf.internetRate, st.internetRate),
         rooms: st.rooms.map(r => r.id === id ? updatedRoom : r),
         contractFormRoomId: null,
         mobileAiMode: st.returnToAiModeAfterForm ? true : st.mobileAiMode,
