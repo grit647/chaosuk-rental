@@ -5052,6 +5052,18 @@ class Component extends DCLogic {
   };
 
   _cf(key, val) { this.setState(s => ({ contractForm: { ...s.contractForm, [key]: val } })); }
+  // "ค่าอินเตอร์เน็ต ให้ตั้งค่าเริ่มต้นเป็น 0...ตอนนี้ค้างอยู่ที่ 200
+  // เปลี่ยนแปลงไม่ได้" (2026-07-26) — shared helper for the contract form's
+  // rate fields: parses raw to a real Number, but only falls back to the
+  // previous value when the field is genuinely BLANK (never typed) — never
+  // when it's a valid "0" (which `Number(raw) || fallback` incorrectly
+  // treated as "not provided" and silently discarded, making it impossible
+  // to ever save a rate of exactly 0).
+  _numOrKeep(raw, fallback) {
+    if (raw === '' || raw == null) return fallback;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : fallback;
+  }
   openContractForm = (roomId) => {
     const r = this.state.rooms.find(x => x.id === roomId) || {};
     this.setState({
@@ -5359,10 +5371,18 @@ class Component extends DCLogic {
         fetch('/api/settings', {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            waterRate: Number(cf.waterRate) || s.waterRate,
-            elecRate: Number(cf.elecRate) || s.elecRate,
-            trashRate: Number(cf.trashRate) || s.trashRate,
-            internetRate: Number(cf.internetRate) || s.internetRate,
+            // "ค่าอินเตอร์เน็ต ให้ตั้งค่าเริ่มต้นเป็น 0...ตอนนี้ค้างอยู่ที่
+            // 200 เปลี่ยนแปลงไม่ได้" (2026-07-26) — real bug found: `||`
+            // treats 0 as falsy, so typing exactly 0 into any of these 4
+            // rate fields silently fell back to the OLD value instead of
+            // actually saving 0 — the field looked stuck no matter what
+            // was typed. Fixed with the same blank-check pattern already
+            // used for waterMinRate/elecMinRate right above (0 is a
+            // perfectly normal, common rate — not "unset").
+            waterRate: this._numOrKeep(cf.waterRate, s.waterRate),
+            elecRate: this._numOrKeep(cf.elecRate, s.elecRate),
+            trashRate: this._numOrKeep(cf.trashRate, s.trashRate),
+            internetRate: this._numOrKeep(cf.internetRate, s.internetRate),
           }),
         }),
       ]);
@@ -5381,10 +5401,10 @@ class Component extends DCLogic {
       }
       const updatedRoom = await roomRes.json();
       this.setState(st => ({
-        waterRate: Number(cf.waterRate) || st.waterRate,
-        elecRate: Number(cf.elecRate) || st.elecRate,
-        trashRate: Number(cf.trashRate) || st.trashRate,
-        internetRate: Number(cf.internetRate) || st.internetRate,
+        waterRate: this._numOrKeep(cf.waterRate, st.waterRate),
+        elecRate: this._numOrKeep(cf.elecRate, st.elecRate),
+        trashRate: this._numOrKeep(cf.trashRate, st.trashRate),
+        internetRate: this._numOrKeep(cf.internetRate, st.internetRate),
         rooms: st.rooms.map(r => r.id === id ? updatedRoom : r),
         contractFormRoomId: null,
         mobileAiMode: st.returnToAiModeAfterForm ? true : st.mobileAiMode,
