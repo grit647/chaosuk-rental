@@ -401,6 +401,9 @@ router.put('/', async (req, res, next) => {
       leaseExpiringReminderDays: b.leaseExpiringReminderDays,
       autoInvoice: b.settings && b.settings.autoInvoice,
       dueReminder: b.settings && b.settings.dueReminder,
+      dueReminderDays: b.dueReminderDays,
+      dueReminderMsg: b.dueReminderMsg,
+      firstInvoiceMsg: b.firstInvoiceMsg,
       claudeAutomationEnabled: b.claudeAutomationEnabled,
       // Only written when the owner is actively setting/changing it (see
       // the "ตั้งรหัส PIN" field in Settings) — never sent as part of a

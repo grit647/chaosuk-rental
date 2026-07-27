@@ -551,13 +551,19 @@ async function executeWriteTool(name, input) {
       const creditLines = amountPaid > 0
         ? [`หักจากเงินล่วงหน้าที่ชำระไว้แล้ว: ${amountPaid.toLocaleString()}`, `ยอดที่ต้องชำระจริง: ${remaining.toLocaleString()}`]
         : [];
-      const message = [
+      let message = [
         'ใบแจ้งหนี้ห้อง ' + invoice.room + ' (' + invoice.id + ')',
         ...rowsToShow.map(([label, v]) => label + ': ' + Number(v).toLocaleString()),
         'รวม: ' + total.toLocaleString(),
         ...creditLines,
         'กรุณาชำระก่อน ' + (invoice.due || '-'),
       ].join('\n');
+      // Same first-invoice welcome-message append as the native "ส่งข้อมูล
+      // (LINE)" button (2026-07-26) — keep the two paths in sync.
+      const isFirstInvoiceForRoom = invoices.filter((i) => i.room === invoice.room).length <= 1;
+      if (isFirstInvoiceForRoom && settingsData.firstInvoiceMsg && settingsData.firstInvoiceMsg.trim()) {
+        message += '\n\n' + settingsData.firstInvoiceMsg.trim();
+      }
       await pushMessage(room.lineUserId, message);
 
       // Fire-and-forget PDF save — same as the direct UI button, a PDF

@@ -208,6 +208,25 @@ async function readSettings(preloadedRows) {
       autoInvoice: bool(map.autoInvoice, true),
       dueReminder: bool(map.dueReminder, true),
     },
+    // "เจอ 'เตือนก่อนครบกำหนด 3 วัน' ในหน้าตั้งค่าอยู่แล้ว แต่...ปุ่ม
+    // 'บันทึก' ตรงนั้นขึ้น toast เฉยๆ ไม่เคยส่งข้อความจริงเลย" (2026-07-26)
+    // — dueReminderDays/dueReminderMsg existed in frontend state for a
+    // while but were NEVER actually sent to the server (same class of
+    // "looks done, never wired" gap as the water usage chart earlier this
+    // session) — wiring up real persistence + a real scheduler check.
+    // dueReminderDays constrained to 1-4 in the UI (dropdown, not free
+    // text) per explicit owner request — daily reminders for the last N
+    // days before each invoice's own due date (e.g. N=3, due the 15th =
+    // remind on 12/13/14, confirmed directly with the owner).
+    dueReminderDays: num(map.dueReminderDays, 3),
+    dueReminderMsg: map.dueReminderMsg || 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ',
+    // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก...เป็นข้อความที่
+    // เจ้าของกำหนดเองครับ จะเป็นข้อความอะไรก็ได้" (2026-07-26) — free text,
+    // appended to the LINE receipt message only when it's a room's very
+    // first-ever invoice (see Rental Management.dc.html's sendReceiptLine).
+    // Empty by default — an empty string means "don't append anything",
+    // never forces a welcome message the owner didn't opt into.
+    firstInvoiceMsg: map.firstInvoiceMsg || '',
     claudeAutomationEnabled: bool(map.claudeAutomationEnabled, false),
     // Never expose the actual PIN value to the client — only whether one is
     // set, so the Settings page knows to show "ตั้งรหัส" vs "เปลี่ยนรหัส".

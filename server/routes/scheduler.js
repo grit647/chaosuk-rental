@@ -150,6 +150,41 @@ router.get('/run', async (req, res, next) => {
       console.error('[scheduler] cutoff warning check failed', err.message);
     }
 
+    // "เจอ 'เตือนก่อนครบกำหนด 3 วัน' ในหน้าตั้งค่าอยู่แล้ว แต่...ไม่เคยส่ง
+    // ข้อความจริงเลย...ทำให้ทำงานจริง" (2026-07-26) — daily reminders for
+    // the last dueReminderDays days before EACH invoice's own due date
+    // (not a shared calendar day like cutoffReminderDay — every room's due
+    // date differs). Confirmed example with the owner: dueReminderDays=3,
+    // due the 15th → remind on 12/13/14 (every day, NOT just once).
+    // Gated behind settings.settings.dueReminder (unconditional otherwise,
+    // same basic-housekeeping tier as overdue-bill detection above).
+    let dueReminderChecked = 0, dueReminderNotified = 0;
+    try {
+      if (settings.settings && settings.settings.dueReminder) {
+        const todayStr2 = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+        const reminderDays = Number(settings.dueReminderDays) || 3;
+        const msg = settings.dueReminderMsg || 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ';
+        const invoices = coerceInvoices(await readTab('Invoices'));
+        const unpaid = invoices.filter((i) => (i.status === 'pending' || i.status === 'partial') && i.due);
+        dueReminderChecked = unpaid.length;
+        const rooms = await readTab('Rooms');
+        for (const inv of unpaid) {
+          const daysUntilDue = Math.round((new Date(inv.due + 'T00:00:00Z') - new Date(todayStr2 + 'T00:00:00Z')) / 86400000);
+          if (daysUntilDue < 1 || daysUntilDue > reminderDays) continue; // นอกช่วง N วันก่อนครบกำหนด (ไม่รวมวันครบกำหนดเอง)
+          const key = `dueReminder:${inv.room}:${inv.id}`;
+          if (_cutoffNotifiedDates.get(key) === todayStr2) continue; // วันนี้แจ้งไปแล้ว
+          const room = rooms.find((r) => r.id === inv.room);
+          if (room && room.lineUserId) {
+            pushMessage(room.lineUserId, msg).catch((err) => console.error('[scheduler] due reminder push failed', err.message));
+            dueReminderNotified++;
+          }
+          _cutoffNotifiedDates.set(key, todayStr2);
+        }
+      }
+    } catch (err) {
+      console.error('[scheduler] due reminder check failed', err.message);
+    }
+
     // "จัดการเลยครับ" (2026-07-26) — สวิตช์ "สัญญาเช่า/บัตรประชาชนใกล้หมด
     // อายุ" มีอยู่แล้วแต่ไม่เคยส่งอะไรจริงเลย — เพิ่มการเช็คจริงตรงนี้ ส่ง
     // ทั้งเจ้าของและผู้เช่า (ถ้าผูก LINE ไว้) เมื่อเหลืออีกพอดี
@@ -234,7 +269,7 @@ router.get('/run', async (req, res, next) => {
     }
 
     if (!settings.claudeAutomationEnabled) {
-      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew }, cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified }, leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified }, logPrune: logPruneResult, ownerRichMenu: ownerRichMenuResult });
+      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew }, cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified }, dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified }, leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified }, logPrune: logPruneResult, ownerRichMenu: ownerRichMenuResult });
     }
 
     let sentCount = 0, scheduledChecked = 0, scheduledDue = 0;
@@ -307,6 +342,7 @@ router.get('/run', async (req, res, next) => {
       ran: true,
       overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew },
       cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified },
+      dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified },
       leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
       logPrune: logPruneResult,
       scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount },

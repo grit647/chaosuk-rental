@@ -2493,31 +2493,35 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <span style="font-size:18px">🔔</span>
                 <div style="font-size:16px;font-weight:700;color:#241812">ตั้งค่าเตือนก่อนครบกำหนด</div>
               </div>
-              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">กำหนดจำนวนวันล่วงหน้า ข้อความ และห้องที่จะแจ้งเตือน</div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">กำหนดจำนวนวันล่วงหน้าและข้อความที่จะแจ้งเตือนผู้เช่าทุกห้องที่มีบิลค้างชำระ</div>
 
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">แจ้งเตือนล่วงหน้า (วัน)</div>
-              <input value="{{ dueReminderDays }}" onchange="{{ onDueReminderDays }}" placeholder="3" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:14px">
+              <!-- "เจอ 'เตือนก่อนครบกำหนด 3 วัน'...ปุ่ม 'บันทึก' ตรงนั้นขึ้น
+                   toast เฉยๆ ไม่เคยส่งข้อความจริงเลย...ทำให้ทำงานจริง"
+                   (2026-07-26) — เปลี่ยนช่องกรอกวันเป็น dropdown 1-4 วัน
+                   ตามคำขอ (เดิมพิมพ์เองได้ ไม่จำกัด) และตัดรายชื่อห้องเลือก
+                   รายห้องออก (ไม่เคยถูกบันทึกจริงตั้งแต่แรก — ตอนนี้ส่งให้
+                   ทุกห้องที่มีบิลค้างชำระเท่ากันหมด เหมือนสวิตช์แจ้งเตือน
+                   อื่นๆ ในหน้านี้) -->
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">แจ้งเตือนล่วงหน้ากี่วันก่อนครบกำหนด (เตือนทุกวันติดกัน)</div>
+              <select value="{{ dueReminderDays }}" onchange="{{ onDueReminderDays }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:14px">
+                <option value="1">1 วัน</option>
+                <option value="2">2 วัน</option>
+                <option value="3">3 วัน</option>
+                <option value="4">4 วัน</option>
+              </select>
 
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ข้อความแจ้งเตือน</div>
               <textarea value="{{ dueReminderMsg }}" onchange="{{ onDueReminderMsg }}" placeholder="พิมพ์ข้อความแจ้งเตือน..." style="width:100%;min-height:64px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:16px"></textarea>
 
-              <div onclick="{{ toggleDueReminderAll }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:#FBF7F0;cursor:pointer;margin-bottom:8px">
-                <span style="width:20px;height:20px;border-radius:5px;border:2px solid {{ dueReminderAllBorder }};background:{{ dueReminderAllBg }};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700">{{ dueReminderAllCheck }}</span>
-                <span style="font-size:13px;font-weight:700;color:#241812">เลือกทั้งหมด</span>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">
-                <sc-for list="{{ dueReminderList }}" as="r" hint-placeholder-count="8">
-                  <div onclick="{{ r.onToggle }}" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;border:1px solid #F0E9DC;cursor:pointer">
-                    <span style="width:20px;height:20px;border-radius:5px;border:2px solid {{ r.boxBorder }};background:{{ r.boxBg }};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700">{{ r.check }}</span>
-                    <span style="font-size:12.5px;font-weight:600;color:#241812;font-family:'IBM Plex Mono',monospace">{{ r.id }}</span>
-                    <span style="font-size:12.5px;color:#241812;flex:1">{{ r.tenant }}</span>
-                    <span style="font-size:11.5px;color:#7C6E5F;font-family:'IBM Plex Mono',monospace">{{ r.rentDisplay }}</span>
-                  </div>
-                </sc-for>
-              </div>
+              <!-- "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก...เป็น
+                   ข้อความที่เจ้าของกำหนดเองครับ" (2026-07-26) -->
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ข้อความพิเศษที่แนบไปกับบิลแรกของผู้เช่าใหม่ (ไม่บังคับ)</div>
+              <textarea value="{{ firstInvoiceMsg }}" onchange="{{ onFirstInvoiceMsg }}" placeholder="เช่น ยินดีต้อนรับสู่หอพัก...หากมีปัญหาแจ้งได้ตลอดครับ" style="width:100%;min-height:64px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:6px"></textarea>
+              <div style="font-size:10.5px;color:#9C8B78;margin-bottom:18px">แนบต่อท้ายข้อความบิลอัตโนมัติ เฉพาะบิลใบแรกของห้องนั้นๆ เท่านั้น (ปล่อยว่างถ้าไม่ต้องการ)</div>
+
               <div style="display:flex;gap:10px">
                 <div onclick="{{ closeDueReminder }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer;text-align:center">ยกเลิก</div>
-                <div onclick="{{ saveDueReminder }}" style="flex:1.4;padding:11px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:center">บันทึก ({{ dueReminderSelCount }} ห้อง)</div>
+                <div onclick="{{ saveDueReminder }}" style="flex:1.4;padding:11px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:center">บันทึก</div>
               </div>
             </div>
           </div>
@@ -4279,7 +4283,8 @@ class Component extends DCLogic {
     showDueReminder: false,
     dueReminderDays: '3',
     dueReminderMsg: 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ',
-    dueReminderRooms: {},
+    // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก" (2026-07-26)
+    firstInvoiceMsg: '',
     tuyaConn: { accessId: '', accessSecret: '', region: 'ศูนย์ข้อมูลไทย (Central)', connected: false },
     tuyaEnvConnected: false,
     showTuyaPowerConfirm: false,
@@ -4868,6 +4873,9 @@ class Component extends DCLogic {
         cutoffFinalDay: data.cutoffFinalDay != null ? String(data.cutoffFinalDay) : s.cutoffFinalDay,
         cutoffCancelWarningDay: data.cutoffCancelWarningDay != null ? String(data.cutoffCancelWarningDay) : s.cutoffCancelWarningDay,
         leaseExpiringReminderDays: data.leaseExpiringReminderDays != null ? String(data.leaseExpiringReminderDays) : s.leaseExpiringReminderDays,
+        dueReminderDays: data.dueReminderDays != null ? String(data.dueReminderDays) : s.dueReminderDays,
+        dueReminderMsg: data.dueReminderMsg != null ? data.dueReminderMsg : s.dueReminderMsg,
+        firstInvoiceMsg: data.firstInvoiceMsg != null ? data.firstInvoiceMsg : s.firstInvoiceMsg,
         settings: { ...s.settings, ...data.settings },
         claudeAutomationEnabled: !!data.claudeAutomationEnabled,
         hasDataResetPin: !!data.hasDataResetPin,
@@ -6542,6 +6550,14 @@ class Component extends DCLogic {
           ...prevReadingLines,
           'กรุณาชำระก่อน ' + (invoice.due ? this._fmtDateTh(invoice.due) : '-'),
         ].join('\n');
+        // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก...เป็นข้อความที่
+        // เจ้าของกำหนดเองครับ" (2026-07-26) — appended only when THIS
+        // invoice is the room's very first-ever bill (no other invoice for
+        // this room exists in state) and the owner actually set a message.
+        const isFirstInvoiceForRoom = this.state.invoices.filter(i => i.room === roomId).length <= 1;
+        if (isFirstInvoiceForRoom && this.state.firstInvoiceMsg && this.state.firstInvoiceMsg.trim()) {
+          message += '\n\n' + this.state.firstInvoiceMsg.trim();
+        }
         // Fire-and-forget: a PDF hiccup shouldn't block the LINE message going out.
         fetch('/api/invoices/' + encodeURIComponent(invoice.id) + '/pdf', { method: 'POST' }).catch(err => console.error(err));
       } else {
@@ -8139,28 +8155,38 @@ class Component extends DCLogic {
     this.setState({ showAutoInvoice: false });
     this.showAdminToast('ตั้งค่าออกบิลอัตโนมัติ ' + count + ' ห้อง ทุกวันที่ ' + this.state.autoInvoiceDay);
   };
-  openDueReminder = () => {
-    const sel = {};
-    this.state.rooms.filter(r => r.tenant).forEach(r => { sel[r.id] = this.state.dueReminderRooms[r.id] !== false; });
-    this.setState({ showDueReminder: true, dueReminderRooms: sel });
-  };
+  openDueReminder = () => this.setState({ showDueReminder: true });
   closeDueReminder = () => this.setState({ showDueReminder: false });
   onDueReminderDays = (e) => this.setState({ dueReminderDays: e.target.value });
   onDueReminderMsg = (e) => this.setState({ dueReminderMsg: e.target.value });
-  toggleDueReminderRoom = (id) => this.setState(s => ({ dueReminderRooms: { ...s.dueReminderRooms, [id]: !s.dueReminderRooms[id] } }));
-  toggleDueReminderAll = () => {
-    const occupied = this.state.rooms.filter(r => r.tenant);
-    const allOn = occupied.every(r => this.state.dueReminderRooms[r.id]);
-    const sel = {};
-    occupied.forEach(r => { sel[r.id] = !allOn; });
-    this.setState({ dueReminderRooms: sel });
-  };
-  saveDueReminder = () => {
+  // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก" (2026-07-26)
+  onFirstInvoiceMsg = (e) => this.setState({ firstInvoiceMsg: e.target.value });
+  // "เจอ 'เตือนก่อนครบกำหนด 3 วัน'...ปุ่ม 'บันทึก' ตรงนั้นขึ้น toast เฉยๆ
+  // ไม่เคยส่งข้อความจริงเลย...ทำให้ทำงานจริง" (2026-07-26) — เดิมแค่โชว์
+  // toast ไม่เคยยิง PUT /api/settings เลย ("ตั้งค่าเตือนล่วงหน้า X วัน"
+  // ค้างอยู่แค่ state ในเบราว์เซอร์ หายไปทันทีที่รีเฟรช) — แก้ให้บันทึกจริง
+  // ทั้ง 3 ค่า (วันเตือน, ข้อความเตือน, ข้อความบิลแรก) ตัดรายชื่อห้องเลือก
+  // รายห้องออกไปด้วย (ไม่เคยถูกบันทึกจริงตั้งแต่แรกเหมือนกัน — ตอนนี้ใช้กับ
+  // ทุกห้องที่มีบิลค้างชำระเท่ากันหมด)
+  saveDueReminder = () => this._guard('saveDueReminder', async () => {
     if (!this.state.dueReminderMsg.trim()) { this.showAdminToast('กรุณาพิมพ์ข้อความแจ้งเตือน'); return; }
-    const count = this.state.rooms.filter(r => r.tenant && this.state.dueReminderRooms[r.id]).length;
-    this.setState({ showDueReminder: false });
-    this.showAdminToast('ตั้งค่าเตือนล่วงหน้า ' + this.state.dueReminderDays + ' วัน · ' + count + ' ห้อง');
-  };
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settings: { dueReminder: true },
+          dueReminderDays: Number(this.state.dueReminderDays) || 3,
+          dueReminderMsg: this.state.dueReminderMsg,
+          firstInvoiceMsg: this.state.firstInvoiceMsg,
+        }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      this.setState({ showDueReminder: false });
+      this.showAdminToast('บันทึกการตั้งค่าเตือนล่วงหน้าเรียบร้อย');
+    } catch (err) {
+      this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
+    }
+  });
 
   onProfileName = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, name: v } })); };
   onProfileAdmin = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminName: v } })); };
@@ -10857,17 +10883,8 @@ class Component extends DCLogic {
       openLeaseExpiringConfig: this.openLeaseExpiringConfig, closeLeaseExpiringConfig: this.closeLeaseExpiringConfig,
       onLeaseExpiringReminderDaysChange: this.onLeaseExpiringReminderDaysChange, saveLeaseExpiringConfig: this.saveLeaseExpiringConfig,
       showDueReminder: s.showDueReminder, dueReminderDays: s.dueReminderDays, dueReminderMsg: s.dueReminderMsg,
-      closeDueReminder: this.closeDueReminder, onDueReminderDays: this.onDueReminderDays, onDueReminderMsg: this.onDueReminderMsg, saveDueReminder: this.saveDueReminder, toggleDueReminderAll: this.toggleDueReminderAll,
-      dueReminderAllCheck: (occupiedRooms.length > 0 && occupiedRooms.every(r => s.dueReminderRooms[r.id])) ? '✓' : '',
-      dueReminderAllBg: (occupiedRooms.length > 0 && occupiedRooms.every(r => s.dueReminderRooms[r.id])) ? '#C1622D' : '#fff',
-      dueReminderAllBorder: (occupiedRooms.length > 0 && occupiedRooms.every(r => s.dueReminderRooms[r.id])) ? '#C1622D' : '#C9B79E',
-      dueReminderSelCount: occupiedRooms.filter(r => s.dueReminderRooms[r.id]).length,
-      dueReminderList: occupiedRooms.map(r => ({
-        id: r.id, tenant: r.tenant, rentDisplay: this.fmt(r.rent),
-        checked: !!s.dueReminderRooms[r.id], check: s.dueReminderRooms[r.id] ? '✓' : '',
-        boxBg: s.dueReminderRooms[r.id] ? '#C1622D' : '#fff', boxBorder: s.dueReminderRooms[r.id] ? '#C1622D' : '#C9B79E',
-        onToggle: () => this.toggleDueReminderRoom(r.id),
-      })),
+      firstInvoiceMsg: s.firstInvoiceMsg, onFirstInvoiceMsg: this.onFirstInvoiceMsg,
+      closeDueReminder: this.closeDueReminder, onDueReminderDays: this.onDueReminderDays, onDueReminderMsg: this.onDueReminderMsg, saveDueReminder: this.saveDueReminder,
       propertyProfile: s.propertyProfile,
       onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone,
       onProfileBuildingKeyId: this.onProfileBuildingKeyId,
