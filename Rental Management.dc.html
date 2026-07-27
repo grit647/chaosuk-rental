@@ -5144,8 +5144,12 @@ class Component extends DCLogic {
         // the real stored value always, including 0.
         waterMeterStart: r.waterPrev != null ? String(r.waterPrev) : '',
         elecMeterStart: r.elecPrev != null ? String(r.elecPrev) : '',
-        trashRate: String(this.state.trashRate),
-        internetRate: String(this.state.internetRate),
+        // "เช็คช่องค่า net หน่อยครับ...ขอให้เป็นห้องใครห้องมัน" (2026-07-26)
+        // — เดิมเปิดฟอร์มมาจะดึงค่ากลาง (state.trashRate/internetRate)
+        // มาแสดงเสมอ ไม่เคยดูค่าของห้องนั้นๆ เอง เลยดูเหมือน "ทุกห้องค่า
+        // เท่ากันหมด" — แก้ให้เหมือน waterRate/elecRate ด้านบนเป๊ะๆ
+        trashRate: String(r.trashRate > 0 ? r.trashRate : this.state.trashRate),
+        internetRate: String(r.internetRate > 0 ? r.internetRate : this.state.internetRate),
         // 2026-07-26 — ช่อง "ชื่อ/นามสกุล" รวมเป็นช่องเดียวแล้ว (ดูคอมเมนต์
         // เต็มตรง <input> ในเทมเพลต) เก็บชื่อเต็มไว้ใน tenantFirstName ตรงๆ
         // ไม่ต้องแยก first/last อีกต่อไป — tenantLastName เก็บว่างไว้เสมอ
@@ -5375,6 +5379,17 @@ class Component extends DCLogic {
       // should never silently change another room's rate.
       waterRate: Number(cf.waterRate) || undefined,
       elecRate: Number(cf.elecRate) || undefined,
+      // "เช็คช่องค่า net หน่อยครับตอนนี้แก้ไขห้องเดียว ห้องอื่นเปลี่ยนเป็น
+      // ค่าเดียวกันหมด ขอให้เป็นห้องใครห้องมัน" (2026-07-26) — real bug:
+      // trashRate/internetRate had no per-room override at all (unlike
+      // waterRate/elecRate right above, which already worked correctly) —
+      // editing one room's contract silently changed the shared global
+      // default that EVERY room without its own override reads from,
+      // which in practice was every room (no per-room column existed to
+      // ever have its own value). Same per-room-override-with-global-
+      // fallback pattern as waterRate/elecRate now applied here too.
+      trashRate: Number(cf.trashRate) || undefined,
+      internetRate: Number(cf.internetRate) || undefined,
       // Per explicit user request: minimum monthly charge (ค่าดูแลมิเตอร์
       // floor) — always per-room only, no property-wide fallback/default
       // the way waterRate/elecRate above has, since "no minimum" (0) is a
@@ -6393,7 +6408,7 @@ class Component extends DCLogic {
         const res = await fetch('/api/invoices', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            room: room.id, tenant: room.tenant, rent: rentForBill, water, elec, trash: s.trashRate, internet: s.internetRate, due: dueForBill,
+            room: room.id, tenant: room.tenant, rent: rentForBill, water, elec, trash: this.roomRate(room.id, 'trash'), internet: this.roomRate(room.id, 'internet'), due: dueForBill,
             waterUnits: waterUnitsForBill, elecUnits: elecUnitsForBill, waterPrevReading, elecPrevReading,
           }),
         });
@@ -6811,11 +6826,16 @@ class Component extends DCLogic {
   // always wins; falls back to the shared default rate (state.waterRate/
   // elecRate, from Settings) for rooms that never had a contract-specific
   // rate saved, so existing data keeps working unchanged.
+  // "เช็คช่องค่า net หน่อยครับ...ขอให้เป็นห้องใครห้องมัน" (2026-07-26) —
+  // extended to 'trash'/'internet' too (originally water/elec only), same
+  // per-room-override-with-global-fallback pattern.
   roomRate(roomId, kind) {
     const room = this.state.rooms.find(r => r.id === roomId);
-    const ownRate = room && (kind === 'water' ? room.waterRate : room.elecRate);
+    const roomField = kind === 'water' ? 'waterRate' : kind === 'elec' ? 'elecRate' : kind === 'trash' ? 'trashRate' : 'internetRate';
+    const globalField = roomField; // s.waterRate/s.elecRate/s.trashRate/s.internetRate — same names at both levels
+    const ownRate = room && room[roomField];
     if (ownRate > 0) return ownRate;
-    return kind === 'water' ? this.state.waterRate : this.state.elecRate;
+    return this.state[globalField];
   }
   // Per explicit user request: minimum monthly charge (ค่าดูแลมิเตอร์) —
   // always per-room, no property-wide fallback (unlike roomRate above; "no
@@ -7133,8 +7153,8 @@ class Component extends DCLogic {
     const room = s.rooms.find(r => r.id === s.newInvoice.roomId);
     const water = Number(s.newInvoice.water) || 0;
     const elec = Number(s.newInvoice.elec) || 0;
-    const trash = Number(s.trashRate) || 0;
-    const internet = Number(s.internetRate) || 0;
+    const trash = this.roomRate(s.newInvoice.roomId, 'trash');
+    const internet = this.roomRate(s.newInvoice.roomId, 'internet');
     // "เพิ่มอีก 1 ช่องคือ ค่าเช่า...สามารถแก้ไขได้ แต่ไม่ไปบันทึกแทนใน
     // สัญญาเดิม" (2026-07-26) — ใช้ rentOverride ถ้ามีการแก้ (ห้องเข้าอยู่
     // ไม่ครบเดือน) มิฉะนั้น fallback เป็น room.rent ตามปกติ — ส่งแค่ในตัว
@@ -9052,8 +9072,8 @@ class Component extends DCLogic {
       dueDayLabel: selectedRoomRaw.dueDay ? ('ทุกวันที่ ' + selectedRoomRaw.dueDay) : '-',
       waterRateLabel: this.roomRate(selectedRoomRaw.id, 'water') + '/หน่วย',
       elecRateLabel: this.roomRate(selectedRoomRaw.id, 'elec') + '/หน่วย',
-      trashRateLabel: s.trashRate + '/เดือน',
-      internetRateLabel: s.internetRate + '/เดือน',
+      trashRateLabel: this.roomRate(selectedRoomRaw.id, 'trash') + '/เดือน',
+      internetRateLabel: this.roomRate(selectedRoomRaw.id, 'internet') + '/เดือน',
       wifiUsername: selectedRoomRaw.wifiUsername || '-',
       wifiPassword: selectedRoomRaw.wifiPassword || '-',
       tenantIdExpiry: this.formatThaiDateLabel(selectedRoomRaw.tenantIdExpiry) || '-',
@@ -10642,7 +10662,8 @@ class Component extends DCLogic {
         const water = Number(draft.water) || 0, elec = Number(draft.elec) || 0;
         // ค่าเช่าใช้ rentOverride ถ้ามีการแก้รายห้อง — ดู onBulkInvoiceRentChange
         const rent = draft.rentOverride !== '' && draft.rentOverride != null ? (Number(draft.rentOverride) || 0) : (room.rent || 0);
-        const total = rent + water + elec + (s.trashRate || 0) + (s.internetRate || 0);
+        const roomTrashRate = this.roomRate(roomId, 'trash'), roomInternetRate = this.roomRate(roomId, 'internet');
+        const total = rent + water + elec + roomTrashRate + roomInternetRate;
         // Same อุปกรณ์/กรอกเอง toggle as the single-invoice form, per
         // explicit user request — genuinely separate isWaterDevice/
         // isWaterManual (and elec equivalents) fields, not one condition
@@ -10665,7 +10686,7 @@ class Component extends DCLogic {
           // กรอกวันที่ร่วมกันแบบเดิม
           dueDisplay: this.formatThaiDateLabel(this.computeNextDueDateFromDay(room.dueDay)),
           totalDisplay: this.fmt(total),
-          breakdownLabel: `ค่าเช่า ${this.fmt(rent)} + ขยะ ${this.fmt(s.trashRate || 0)} + เน็ต ${this.fmt(s.internetRate || 0)}`,
+          breakdownLabel: `ค่าเช่า ${this.fmt(rent)} + ขยะ ${this.fmt(roomTrashRate)} + เน็ต ${this.fmt(roomInternetRate)}`,
           isWaterDevice, isWaterManual, isElecDevice, isElecManual,
           // Per explicit user request (same as the single-invoice form):
           // hide the อุปกรณ์/กรอกเอง toggle entirely for a utility this
@@ -10701,8 +10722,8 @@ class Component extends DCLogic {
         return {
           tenant: r.tenant || '(ยังไม่มีผู้เช่า)',
           rentDisplay: this.fmt(r.rent),
-          trashDisplay: '' + s.trashRate,
-          internetDisplay: '' + s.internetRate,
+          trashDisplay: '' + this.roomRate(r.id, 'trash'),
+          internetDisplay: '' + this.roomRate(r.id, 'internet'),
           dueDayLabel: r.dueDay ? ('ทุกวันที่ ' + r.dueDay) : '-',
         };
       })(),
@@ -10727,7 +10748,7 @@ class Component extends DCLogic {
         // ค่าเช่าใช้ rentOverride ถ้ามีการแก้ (เคสห้องเข้าอยู่ไม่ครบเดือน) —
         // ดู onNewInvoiceRentChange ด้านบนสำหรับที่มา
         const rent = s.newInvoice.rentOverride !== '' ? (Number(s.newInvoice.rentOverride) || 0) : (r.rent || 0);
-        const total = rent + water + elec + (s.trashRate || 0) + (s.internetRate || 0);
+        const total = rent + water + elec + this.roomRate(r.id, 'trash') + this.roomRate(r.id, 'internet');
         return this.fmt(total);
       })(),
       onNewInvoiceRoomChange: this.onNewInvoiceRoomChange, onNewInvoiceWaterChange: this.onNewInvoiceWaterChange, onNewInvoiceElecChange: this.onNewInvoiceElecChange, onNewInvoiceDueChange: this.onNewInvoiceDueChange, onNewInvoiceRentChange: this.onNewInvoiceRentChange, submitInvoice: this.submitInvoice,
@@ -10834,7 +10855,7 @@ class Component extends DCLogic {
         // ดู onNewInvoiceRentChange ด้านบนสำหรับที่มา
         const rent = s.newInvoice.rentOverride !== '' ? (Number(s.newInvoice.rentOverride) || 0) : ((r && r.rent) || 0);
         const water = Number(s.newInvoice.water) || 0, elec = Number(s.newInvoice.elec) || 0;
-        const trash = s.trashRate || 0, internet = s.internetRate || 0;
+        const trash = this.roomRate(s.newInvoice.roomId, 'trash'), internet = this.roomRate(s.newInvoice.roomId, 'internet');
         const waterUnits = s.newInvoice.waterMode === 'manual' ? this.meterUnitsFromReading(s.newInvoice.roomId, 'water', s.newInvoice.waterUnits) : (this.deviceCharge(s.newInvoice.roomId, 'water') || {}).units;
         const elecUnits = s.newInvoice.elecMode === 'manual' ? this.meterUnitsFromReading(s.newInvoice.roomId, 'elec', s.newInvoice.elecUnits) : (this.deviceCharge(s.newInvoice.roomId, 'elec') || {}).units;
         const waterCalc = waterUnits != null ? ` (${waterUnits} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'water')})` : '';

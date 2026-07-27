@@ -41,6 +41,14 @@ function coerceRooms(rows) {
       // never had their own rate saved (keeps old data working unchanged).
       waterRate: num(r.waterRate, 0),
       elecRate: num(r.elecRate, 0),
+      // "เช็คช่องค่า net หน่อยครับตอนนี้แก้ไขห้องเดียว ห้องอื่นเปลี่ยนเป็น
+      // ค่าเดียวกันหมด ขอให้เป็นห้องใครห้องมัน" (2026-07-26) — same
+      // per-room-override pattern as waterRate/elecRate above, extended to
+      // trashRate/internetRate (previously property-wide only — editing
+      // one room's contract silently changed every room's rate since none
+      // had a per-room override column to hold their own value).
+      trashRate: num(r.trashRate, 0),
+      internetRate: num(r.internetRate, 0),
       // Minimum monthly charge per explicit user request — if a tenant's
       // actual usage-based charge (units × rate) comes out lower than
       // this, the bill charges the minimum instead (framed to the tenant
