@@ -42,7 +42,7 @@ function generateInvoicePdf(invoice, room, propertyProfile) {
       doc.fontSize(11).fillColor('#241812');
       doc.text('เลขที่ใบแจ้งหนี้: ' + invoice.id);
       doc.text('ห้อง: ' + invoice.room + '   ผู้เช่า: ' + (invoice.tenant || '-'));
-      doc.text('วันครบกำหนดชำระ: ' + (invoice.due || '-'));
+      doc.text('กรุณาชำระก่อน ' + (invoice.due || '-'));
       doc.moveDown(1);
 
       // Itemized table

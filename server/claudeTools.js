@@ -556,7 +556,7 @@ async function executeWriteTool(name, input) {
         ...rowsToShow.map(([label, v]) => label + ': ' + Number(v).toLocaleString()),
         'รวม: ' + total.toLocaleString(),
         ...creditLines,
-        'ครบกำหนดชำระ: ' + (invoice.due || '-'),
+        'กรุณาชำระก่อน ' + (invoice.due || '-'),
       ].join('\n');
       await pushMessage(room.lineUserId, message);
 

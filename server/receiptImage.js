@@ -167,7 +167,7 @@ async function generateReceiptImage(invoice, room, propertyProfile, qrBuffer) {
   }
 
   y += 10;
-  parts.push(`<text x="${PAD}" y="${y}" font-size="16" font-weight="700" fill="#B24336">ครบกำหนดชำระ: ${esc(invoice.due ? formatDateTh(invoice.due) : '-')}</text>`);
+  parts.push(`<text x="${PAD}" y="${y}" font-size="16" font-weight="700" fill="#B24336">กรุณาชำระก่อน ${esc(invoice.due ? formatDateTh(invoice.due) : '-')}</text>`);
   y += 36;
 
   let qrBlockHeight = 0;
