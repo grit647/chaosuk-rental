@@ -5168,8 +5168,11 @@ class Component extends DCLogic {
         advanceRent: r.advanceRent != null ? String(r.advanceRent) : '',
         // Prefer this room's own saved rate; fall back to the property-wide
         // default only if this room never had its own rate set yet.
-        waterRate: String(r.waterRate > 0 ? r.waterRate : this.state.waterRate),
-        elecRate: String(r.elecRate > 0 ? r.elecRate : this.state.elecRate),
+        // "ค่ากลางค่าเป็น 0 ได้" (2026-07-26) — was `> 0`, which meant a
+        // room explicitly saved at 0 (free) showed the global default in
+        // the form instead of the real 0 it was actually saved as.
+        waterRate: String(r.waterRate != null ? r.waterRate : this.state.waterRate),
+        elecRate: String(r.elecRate != null ? r.elecRate : this.state.elecRate),
         // No property-wide fallback here (unlike waterRate/elecRate above)
         // — 0/blank genuinely means "no minimum," not "not set yet."
         waterMinRate: r.waterMinRate > 0 ? String(r.waterMinRate) : '',
@@ -5201,8 +5204,10 @@ class Component extends DCLogic {
         // — เดิมเปิดฟอร์มมาจะดึงค่ากลาง (state.trashRate/internetRate)
         // มาแสดงเสมอ ไม่เคยดูค่าของห้องนั้นๆ เอง เลยดูเหมือน "ทุกห้องค่า
         // เท่ากันหมด" — แก้ให้เหมือน waterRate/elecRate ด้านบนเป๊ะๆ
-        trashRate: String(r.trashRate > 0 ? r.trashRate : this.state.trashRate),
-        internetRate: String(r.internetRate > 0 ? r.internetRate : this.state.internetRate),
+        // "ค่ากลางค่าเป็น 0 ได้" (2026-07-26 follow-up) — เปลี่ยนจาก `> 0`
+        // เป็น `!= null` เหมือนกัน (0 คือค่าจริงที่บันทึกไว้ ไม่ใช่ "ยังไม่ตั้งค่า")
+        trashRate: String(r.trashRate != null ? r.trashRate : this.state.trashRate),
+        internetRate: String(r.internetRate != null ? r.internetRate : this.state.internetRate),
         // 2026-07-26 — ช่อง "ชื่อ/นามสกุล" รวมเป็นช่องเดียวแล้ว (ดูคอมเมนต์
         // เต็มตรง <input> ในเทมเพลต) เก็บชื่อเต็มไว้ใน tenantFirstName ตรงๆ
         // ไม่ต้องแยก first/last อีกต่อไป — tenantLastName เก็บว่างไว้เสมอ
@@ -5430,8 +5435,16 @@ class Component extends DCLogic {
       // not just the property-wide default below — different rooms/
       // contracts can have different rates, and saving one room's contract
       // should never silently change another room's rate.
-      waterRate: Number(cf.waterRate) || undefined,
-      elecRate: Number(cf.elecRate) || undefined,
+      // "ค่ากลางค่าเป็น 0 ได้ ถ้าค่าเป็น 0 คือไม่ได้เก็บค่าบริการ"
+      // (2026-07-26) — was `Number(cf.waterRate) || undefined`, which
+      // treats a deliberately-typed 0 (free) the exact same as an empty
+      // field — `undefined` gets stripped from roomPatch entirely below,
+      // so the room's own override never actually got saved and it kept
+      // falling back to the global default forever. Fixed with the same
+      // blank-check pattern already used for waterMinRate/elecMinRate
+      // right below (0 is a real, valid rate — not "unset").
+      waterRate: cf.waterRate === '' || cf.waterRate == null ? undefined : Number(cf.waterRate) || 0,
+      elecRate: cf.elecRate === '' || cf.elecRate == null ? undefined : Number(cf.elecRate) || 0,
       // "เช็คช่องค่า net หน่อยครับตอนนี้แก้ไขห้องเดียว ห้องอื่นเปลี่ยนเป็น
       // ค่าเดียวกันหมด ขอให้เป็นห้องใครห้องมัน" (2026-07-26) — real bug:
       // trashRate/internetRate had no per-room override at all (unlike
@@ -5441,8 +5454,8 @@ class Component extends DCLogic {
       // which in practice was every room (no per-room column existed to
       // ever have its own value). Same per-room-override-with-global-
       // fallback pattern as waterRate/elecRate now applied here too.
-      trashRate: Number(cf.trashRate) || undefined,
-      internetRate: Number(cf.internetRate) || undefined,
+      trashRate: cf.trashRate === '' || cf.trashRate == null ? undefined : Number(cf.trashRate) || 0,
+      internetRate: cf.internetRate === '' || cf.internetRate == null ? undefined : Number(cf.internetRate) || 0,
       // Per explicit user request: minimum monthly charge (ค่าดูแลมิเตอร์
       // floor) — always per-room only, no property-wide fallback/default
       // the way waterRate/elecRate above has, since "no minimum" (0) is a
@@ -6879,12 +6892,18 @@ class Component extends DCLogic {
   // "เช็คช่องค่า net หน่อยครับ...ขอให้เป็นห้องใครห้องมัน" (2026-07-26) —
   // extended to 'trash'/'internet' too (originally water/elec only), same
   // per-room-override-with-global-fallback pattern.
+  // "ค่ากลางค่าเป็น 0 ได้ ถ้าค่าเป็น 0 คือไม่ได้เก็บค่าบริการ" (2026-07-26)
+  // — was `ownRate > 0`, which treated a room's own real, deliberate 0
+  // (no charge for this utility) as "never set" and silently fell back to
+  // the global default instead. server/coerce.js's coerceRooms now sends
+  // `null` for a genuinely-never-set room and a real 0 for an explicit
+  // free rate, so `!= null` is now the correct override check.
   roomRate(roomId, kind) {
     const room = this.state.rooms.find(r => r.id === roomId);
     const roomField = kind === 'water' ? 'waterRate' : kind === 'elec' ? 'elecRate' : kind === 'trash' ? 'trashRate' : 'internetRate';
     const globalField = roomField; // s.waterRate/s.elecRate/s.trashRate/s.internetRate — same names at both levels
     const ownRate = room && room[roomField];
-    if (ownRate > 0) return ownRate;
+    if (ownRate != null) return ownRate;
     return this.state[globalField];
   }
   // Per explicit user request: minimum monthly charge (ค่าดูแลมิเตอร์) —

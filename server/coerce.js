@@ -36,19 +36,31 @@ function coerceRooms(rows) {
       // Per-room water/elec rate, per explicit user request: rates used to
       // be a single property-wide value (server/routes/settings.js's
       // waterRate/elecRate), so saving one room's contract silently changed
-      // every other room's rate too. 0 means "not set on this room" — the
-      // frontend falls back to the global default rate for rooms that
-      // never had their own rate saved (keeps old data working unchanged).
-      waterRate: num(r.waterRate, 0),
-      elecRate: num(r.elecRate, 0),
+      // every other room's rate too. The frontend falls back to the global
+      // default rate for rooms that never had their own rate saved (keeps
+      // old data working unchanged).
+      //
+      // "ค่ากลางค่าเป็น 0 ได้ ถ้าค่าเป็น 0 คือไม่ได้เก็บค่าบริการ"
+      // (2026-07-26) — real bug: `num(r.waterRate, 0)` can't tell "never
+      // set on this room" apart from "explicitly set to 0 (free)" — both
+      // came out as the same JS number 0, so the frontend's `ownRate > 0`
+      // override check always treated a real, deliberate 0 as "not
+      // overridden" and silently fell back to the global default instead.
+      // Fixed by keeping a BLANK cell as `null` (genuinely never set) while
+      // letting an explicit "0" cell come through as the real number 0 —
+      // the two are now distinguishable, so a room can legitimately charge
+      // nothing for a utility without losing its own-room-only status.
+      waterRate: r.waterRate === '' || r.waterRate == null ? null : num(r.waterRate, 0),
+      elecRate: r.elecRate === '' || r.elecRate == null ? null : num(r.elecRate, 0),
       // "เช็คช่องค่า net หน่อยครับตอนนี้แก้ไขห้องเดียว ห้องอื่นเปลี่ยนเป็น
       // ค่าเดียวกันหมด ขอให้เป็นห้องใครห้องมัน" (2026-07-26) — same
       // per-room-override pattern as waterRate/elecRate above, extended to
       // trashRate/internetRate (previously property-wide only — editing
       // one room's contract silently changed every room's rate since none
-      // had a per-room override column to hold their own value).
-      trashRate: num(r.trashRate, 0),
-      internetRate: num(r.internetRate, 0),
+      // had a per-room override column to hold their own value). Same
+      // null-vs-0 fix as water/elec above.
+      trashRate: r.trashRate === '' || r.trashRate == null ? null : num(r.trashRate, 0),
+      internetRate: r.internetRate === '' || r.internetRate == null ? null : num(r.internetRate, 0),
       // Minimum monthly charge per explicit user request — if a tenant's
       // actual usage-based charge (units × rate) comes out lower than
       // this, the bill charges the minimum instead (framed to the tenant
