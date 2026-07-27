@@ -81,7 +81,18 @@ router.get('/run', async (req, res, next) => {
         // อัตโนมัติเด็ดขาด (ดู comment เต็มใน coerce.js's cutoffCancelWarningDay
         // — คุณต้นปฏิเสธการยกเลิกอัตโนมัติไปแล้วเพราะขัด permanent rule)
         const cancelWarningDay = Number(settings.cutoffCancelWarningDay) || 25;
-        if (todayDom === reminderDay || todayDom === finalDay || todayDom === cancelWarningDay) {
+        // "เพิ่มส่วนของวัน และเวลาตัดไฟจริงไว้ให้หน่อยครับ...เมื่อถึงวันและ
+        // เวลาที่กำหนด ถ้ายังไม่ชำระบิล จะส่งข้อมูลให้เจ้าของเพื่อตัดสินใจ"
+        // (2026-07-26) — เดิมเช็คแค่ "วันที่" (todayDom) อย่างเดียว ยิงทุก
+        // 10 นาทีตลอดวันนั้นจนกว่า dedup จะกันซ้ำ (จริงๆ ก็แค่ส่งครั้งแรกตอน
+        // เที่ยงคืนผ่านไปนิดเดียว ไม่ใช่เวลาที่เจ้าของอยากได้) — ตอนนี้ต้อง
+        // ถึง "เวลา" ที่ตั้งไว้ด้วย (เทียบ HH:MM ปัดขึ้นตาม cron รัน */10 นาที
+        // — แม่นยำในหลักนาที ไม่ใช่วินาที) ก่อนถึงจะเช็ค/ส่งจริง — dedup
+        // ต่อวันเดิมยังทำงานเหมือนเดิม กันส่งซ้ำหลายรอบในวันเดียวกัน
+        const nowTimeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour12: false }).slice(0, 5); // "HH:MM"
+        const checkTime = settings.cutoffCheckTime || '09:00';
+        const timeReached = nowTimeStr >= checkTime;
+        if ((todayDom === reminderDay || todayDom === finalDay || todayDom === cancelWarningDay) && timeReached) {
           const invoices = coerceInvoices(await readTab('Invoices'));
           const unpaid = invoices.filter((i) => i.status === 'pending' || i.status === 'partial' || i.status === 'overdue');
           cutoffChecked = unpaid.length;

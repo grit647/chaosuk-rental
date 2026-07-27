@@ -398,6 +398,7 @@ router.put('/', async (req, res, next) => {
       cutoffReminderDay: b.cutoffReminderDay,
       cutoffFinalDay: b.cutoffFinalDay,
       cutoffCancelWarningDay: b.cutoffCancelWarningDay,
+      cutoffCheckTime: b.cutoffCheckTime,
       cutoffReminderMsg: b.cutoffReminderMsg,
       cutoffFinalMsg: b.cutoffFinalMsg,
       cutoffCancelWarningMsg: b.cutoffCancelWarningMsg,

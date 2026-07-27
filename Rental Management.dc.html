@@ -2502,6 +2502,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
               <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">ระบบแค่แจ้งเตือนเท่านั้น ไม่ตัดน้ำ/ไฟ และไม่ยกเลิกสัญญาให้อัตโนมัติ — การตัดน้ำ/ไฟทำเองที่หน้า "Set อุปกรณ์", การยกเลิกสัญญาทำเองที่หน้าสัญญาเช่า เสมอ · ทุกระดับจะแจ้งทั้งเจ้าของและผู้เช่า (ถ้าห้องนั้นผูก LINE ไว้แล้ว)</div>
 
+              <!-- "เพิ่มส่วนของวัน และเวลาตัดไฟจริงไว้ให้หน่อยครับ" (2026-07-26)
+                   — เวลาที่จะเช็ค/ส่งแจ้งเตือน+ปุ่มยืนยันตัดไฟให้เจ้าของ (ยัง
+                   ไม่ใช่เวลาตัดไฟอัตโนมัติ — เจ้าของยังต้องกดปุ่ม "ยืนยัน
+                   ตัดไฟ" เองเสมอ) ใช้ร่วมกันทั้ง 3 ระดับด้านล่าง -->
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">⏰ เวลาที่จะส่งแจ้งเตือน (ทุกระดับด้านล่างใช้เวลานี้ร่วมกัน)</div>
+              <input type="time" value="{{ cutoffCheckTime }}" onchange="{{ onCutoffCheckTimeChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">
+              <div style="font-size:10.5px;color:#9C8B78;margin-bottom:16px">ระบบเช็คทุก 10 นาที ความแม่นยำอยู่ในหลักนาที (ไม่ใช่เป๊ะวินาที)</div>
+
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">1) แจ้งเตือนยังไม่ชำระ ทุกวันที่ (ของเดือน)</div>
               <input value="{{ cutoffConfigDraft.reminderDay }}" onchange="{{ onCutoffReminderDayChange }}" placeholder="5" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">
               <!-- "ส่วนนี้เพิ่ม ข้อ 1 2 3 ให้ด้วยครับ" (2026-07-26) — ข้อความ
@@ -4360,6 +4368,9 @@ class Component extends DCLogic {
     // อัตโนมัติเด็ดขาด (ปฏิเสธไปแล้วเพราะขัด permanent rule เดียวกับตัด
     // น้ำ/ไฟอัตโนมัติ — ดู comment เต็มใน server/coerce.js)
     cutoffCancelWarningDay: '25',
+    // "เพิ่มส่วนของวัน และเวลาตัดไฟจริงไว้ให้หน่อยครับ" (2026-07-26) — เวลา
+    // ของวัน (HH:MM) ที่จะเช็ค/ส่งแจ้งเตือน+ปุ่มยืนยันตัดไฟให้เจ้าของ
+    cutoffCheckTime: '09:00',
     showCutoffConfigModal: false,
     cutoffConfigDraft: { reminderDay: '5', finalDay: '15', cancelWarningDay: '25' },
     // "ส่วนนี้เพิ่ม ข้อ 1 2 3 ให้ด้วยครับ" (2026-07-26) — ข้อความฝั่งผู้เช่า
@@ -4867,6 +4878,7 @@ class Component extends DCLogic {
         cutoffReminderDay: data.cutoffReminderDay != null ? String(data.cutoffReminderDay) : s.cutoffReminderDay,
         cutoffFinalDay: data.cutoffFinalDay != null ? String(data.cutoffFinalDay) : s.cutoffFinalDay,
         cutoffCancelWarningDay: data.cutoffCancelWarningDay != null ? String(data.cutoffCancelWarningDay) : s.cutoffCancelWarningDay,
+        cutoffCheckTime: data.cutoffCheckTime != null ? data.cutoffCheckTime : s.cutoffCheckTime,
         cutoffReminderMsg: data.cutoffReminderMsg != null ? data.cutoffReminderMsg : s.cutoffReminderMsg,
         cutoffFinalMsg: data.cutoffFinalMsg != null ? data.cutoffFinalMsg : s.cutoffFinalMsg,
         cutoffCancelWarningMsg: data.cutoffCancelWarningMsg != null ? data.cutoffCancelWarningMsg : s.cutoffCancelWarningMsg,
@@ -8259,6 +8271,8 @@ class Component extends DCLogic {
   onCutoffReminderMsgChange = (e) => this.setState({ cutoffReminderMsg: e.target.value });
   onCutoffFinalMsgChange = (e) => this.setState({ cutoffFinalMsg: e.target.value });
   onCutoffCancelWarningMsgChange = (e) => this.setState({ cutoffCancelWarningMsg: e.target.value });
+  // "เพิ่มส่วนของวัน และเวลาตัดไฟจริงไว้ให้หน่อยครับ" (2026-07-26)
+  onCutoffCheckTimeChange = (e) => this.setState({ cutoffCheckTime: e.target.value });
   saveCutoffConfig = () => this._guard('saveCutoffConfig', async () => {
     const { reminderDay, finalDay, cancelWarningDay } = this.state.cutoffConfigDraft;
     const rDay = Number(reminderDay), fDay = Number(finalDay), cDay = Number(cancelWarningDay);
@@ -8284,6 +8298,7 @@ class Component extends DCLogic {
           cutoffReminderMsg: this.state.cutoffReminderMsg,
           cutoffFinalMsg: this.state.cutoffFinalMsg,
           cutoffCancelWarningMsg: this.state.cutoffCancelWarningMsg,
+          cutoffCheckTime: this.state.cutoffCheckTime,
           settings: { dueReminder: true },
           dueReminderDays: Number(this.state.dueReminderDays) || 3,
           dueReminderMsg: this.state.dueReminderMsg,
@@ -10897,6 +10912,7 @@ class Component extends DCLogic {
       onCutoffReminderDayChange: this.onCutoffReminderDayChange, onCutoffFinalDayChange: this.onCutoffFinalDayChange, onCutoffCancelWarningDayChange: this.onCutoffCancelWarningDayChange, saveCutoffConfig: this.saveCutoffConfig,
       cutoffReminderMsg: s.cutoffReminderMsg, cutoffFinalMsg: s.cutoffFinalMsg, cutoffCancelWarningMsg: s.cutoffCancelWarningMsg,
       onCutoffReminderMsgChange: this.onCutoffReminderMsgChange, onCutoffFinalMsgChange: this.onCutoffFinalMsgChange, onCutoffCancelWarningMsgChange: this.onCutoffCancelWarningMsgChange,
+      cutoffCheckTime: s.cutoffCheckTime, onCutoffCheckTimeChange: this.onCutoffCheckTimeChange,
       showLeaseExpiringConfigModal: s.showLeaseExpiringConfigModal, leaseExpiringConfigDraft: s.leaseExpiringConfigDraft,
       openLeaseExpiringConfig: this.openLeaseExpiringConfig, closeLeaseExpiringConfig: this.closeLeaseExpiringConfig,
       onLeaseExpiringReminderDaysChange: this.onLeaseExpiringReminderDaysChange, saveLeaseExpiringConfig: this.saveLeaseExpiringConfig,
