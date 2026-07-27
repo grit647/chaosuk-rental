@@ -134,11 +134,13 @@ router.get('/run', async (req, res, next) => {
             const tenantKey = `tenant:${key}`;
             if (_cutoffNotifiedDates.get(tenantKey) !== todayStr) {
               if (room && room.lineUserId) {
-                const tenantMsg = kind === 'cancelWarning'
-                  ? `🚨 แจ้งเตือนสำคัญครับ ยอดค่าเช่าค้างชำระของคุณ (${remaining.toLocaleString()} บาท) ยังไม่ได้รับการชำระมาเป็นเวลานานแล้ว หากยังไม่ติดต่อชำระ ทางหอพักอาจพิจารณายกเลิกสัญญาเช่า รบกวนติดต่อเจ้าของห้องโดยด่วนที่สุดนะครับ`
-                  : kind === 'final'
-                  ? `⚠️ แจ้งเตือนครับ ยอดค่าเช่าค้างชำระของคุณ (${remaining.toLocaleString()} บาท) ยังไม่ได้รับการชำระ หากยังไม่ชำระ ทางหอพักอาจพิจารณางดจ่ายน้ำ/ไฟชั่วคราว รบกวนชำระหรือติดต่อเจ้าของห้องโดยด่วนนะครับ`
-                  : `🔔 แจ้งเตือนค่าเช่าครับ ตอนนี้มียอดค้างชำระ ${remaining.toLocaleString()} บาท รบกวนชำระโดยเร็วที่สุดนะครับ`;
+                // "ส่วนนี้เพิ่ม ข้อ 1 2 3 ให้ด้วยครับ" (2026-07-26) — ข้อความ
+                // ทั้ง 3 ระดับตอนนี้แก้ไขเองได้จาก Settings แล้ว (เดิมตายตัว
+                // ในโค้ด) {ยอดค้าง} เป็น placeholder แทนที่ด้วยยอดจริงตรงนี้
+                const template = kind === 'cancelWarning' ? settings.cutoffCancelWarningMsg
+                  : kind === 'final' ? settings.cutoffFinalMsg
+                  : settings.cutoffReminderMsg;
+                const tenantMsg = (template || '').replace(/\{ยอดค้าง\}/g, remaining.toLocaleString());
                 pushMessage(room.lineUserId, tenantMsg).catch(() => {});
                 _cutoffNotifiedDates.set(tenantKey, todayStr);
               }

@@ -2503,10 +2503,15 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">ระบบแค่แจ้งเตือนเท่านั้น ไม่ตัดน้ำ/ไฟ และไม่ยกเลิกสัญญาให้อัตโนมัติ — การตัดน้ำ/ไฟทำเองที่หน้า "Set อุปกรณ์", การยกเลิกสัญญาทำเองที่หน้าสัญญาเช่า เสมอ · ทุกระดับจะแจ้งทั้งเจ้าของและผู้เช่า (ถ้าห้องนั้นผูก LINE ไว้แล้ว)</div>
 
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">1) แจ้งเตือนยังไม่ชำระ ทุกวันที่ (ของเดือน)</div>
-              <input value="{{ cutoffConfigDraft.reminderDay }}" onchange="{{ onCutoffReminderDayChange }}" placeholder="5" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:14px">
+              <input value="{{ cutoffConfigDraft.reminderDay }}" onchange="{{ onCutoffReminderDayChange }}" placeholder="5" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">
+              <!-- "ส่วนนี้เพิ่ม ข้อ 1 2 3 ให้ด้วยครับ" (2026-07-26) — ข้อความ
+                   ฝั่งผู้เช่าของแต่ละระดับ แก้ไขเองได้แล้ว {ยอดค้าง} เป็น
+                   placeholder แทนที่ด้วยยอดเงินจริงตอนส่งจริง -->
+              <textarea value="{{ cutoffReminderMsg }}" onchange="{{ onCutoffReminderMsgChange }}" placeholder="ข้อความแจ้งเตือนผู้เช่า (ข้อ 1) — ใช้ {ยอดค้าง} แทนยอดเงินได้" style="width:100%;min-height:52px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:14px"></textarea>
 
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">2) ถ้ายังไม่ชำระถึงวันที่ (ของเดือน) — เตือนพิจารณาตัดน้ำ/ไฟ</div>
-              <input value="{{ cutoffConfigDraft.finalDay }}" onchange="{{ onCutoffFinalDayChange }}" placeholder="15" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:14px">
+              <input value="{{ cutoffConfigDraft.finalDay }}" onchange="{{ onCutoffFinalDayChange }}" placeholder="15" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">
+              <textarea value="{{ cutoffFinalMsg }}" onchange="{{ onCutoffFinalMsgChange }}" placeholder="ข้อความแจ้งเตือนผู้เช่า (ข้อ 2) — ใช้ {ยอดค้าง} แทนยอดเงินได้" style="width:100%;min-height:52px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:14px"></textarea>
 
               <!-- "อนุญาติยกเลิกสัญญาเช่า" (2026-07-26 follow-up) — คุณต้น
                    ขอเป็น "ยกเลิกอัตโนมัติ" ตอนแรก แต่ปฏิเสธไปเพราะขัดกับ
@@ -2514,7 +2519,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                    ด้วยซ้ำ เพราะกระทบที่อยู่อาศัยผู้เช่าตรงๆ) — ทำเป็นแค่
                    "เตือน" วันที่ 3 แทน ไม่มีการยกเลิกสัญญาจริงเด็ดขาด -->
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">3) ถ้ายังไม่ชำระถึงวันที่ (ของเดือน) — เตือนพิจารณายกเลิกสัญญาเช่า</div>
-              <input value="{{ cutoffConfigDraft.cancelWarningDay }}" onchange="{{ onCutoffCancelWarningDayChange }}" placeholder="25" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:18px">
+              <input value="{{ cutoffConfigDraft.cancelWarningDay }}" onchange="{{ onCutoffCancelWarningDayChange }}" placeholder="25" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">
+              <textarea value="{{ cutoffCancelWarningMsg }}" onchange="{{ onCutoffCancelWarningMsgChange }}" placeholder="ข้อความแจ้งเตือนผู้เช่า (ข้อ 3) — ใช้ {ยอดค้าง} แทนยอดเงินได้" style="width:100%;min-height:52px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:18px"></textarea>
 
               <!-- "ใช่ครับมันเป็นการสั่งทุกห้องเหมือนๆกัน" (2026-07-26) —
                    ย้าย 2 ช่องจากป็อปอัพ "เตือนก่อนครบกำหนด" (แยกกันตอนแรก)
@@ -4356,6 +4362,12 @@ class Component extends DCLogic {
     cutoffCancelWarningDay: '25',
     showCutoffConfigModal: false,
     cutoffConfigDraft: { reminderDay: '5', finalDay: '15', cancelWarningDay: '25' },
+    // "ส่วนนี้เพิ่ม ข้อ 1 2 3 ให้ด้วยครับ" (2026-07-26) — ข้อความฝั่งผู้เช่า
+    // ของ 3 ระดับ ตอนนี้แก้ไขเองได้ (เดิมตายตัวในโค้ด) — {ยอดค้าง} เป็น
+    // placeholder แทนที่ด้วยยอดเงินจริงตอนส่ง (server/routes/scheduler.js)
+    cutoffReminderMsg: '🔔 แจ้งเตือนค่าเช่าครับ ตอนนี้มียอดค้างชำระ {ยอดค้าง} บาท รบกวนชำระโดยเร็วที่สุดนะครับ',
+    cutoffFinalMsg: '⚠️ แจ้งเตือนครับ ยอดค่าเช่าค้างชำระของคุณ ({ยอดค้าง} บาท) ยังไม่ได้รับการชำระ หากยังไม่ชำระ ทางหอพักอาจพิจารณางดจ่ายน้ำ/ไฟชั่วคราว รบกวนชำระหรือติดต่อเจ้าของห้องโดยด่วนนะครับ',
+    cutoffCancelWarningMsg: '🚨 แจ้งเตือนสำคัญครับ ยอดค่าเช่าค้างชำระของคุณ ({ยอดค้าง} บาท) ยังไม่ได้รับการชำระมาเป็นเวลานานแล้ว หากยังไม่ติดต่อชำระ ทางหอพักอาจพิจารณายกเลิกสัญญาเช่า รบกวนติดต่อเจ้าของห้องโดยด่วนที่สุดนะครับ',
     // "จัดการเลยครับ" (2026-07-26) — ทำให้สวิตช์ "สัญญาเช่า/บัตรประชาชนใกล้
     // หมดอายุ" ส่งแจ้งเตือนจริง — จำนวนวันล่วงหน้าก่อนวันหมดอายุ
     leaseExpiringReminderDays: '7',
@@ -4855,6 +4867,9 @@ class Component extends DCLogic {
         cutoffReminderDay: data.cutoffReminderDay != null ? String(data.cutoffReminderDay) : s.cutoffReminderDay,
         cutoffFinalDay: data.cutoffFinalDay != null ? String(data.cutoffFinalDay) : s.cutoffFinalDay,
         cutoffCancelWarningDay: data.cutoffCancelWarningDay != null ? String(data.cutoffCancelWarningDay) : s.cutoffCancelWarningDay,
+        cutoffReminderMsg: data.cutoffReminderMsg != null ? data.cutoffReminderMsg : s.cutoffReminderMsg,
+        cutoffFinalMsg: data.cutoffFinalMsg != null ? data.cutoffFinalMsg : s.cutoffFinalMsg,
+        cutoffCancelWarningMsg: data.cutoffCancelWarningMsg != null ? data.cutoffCancelWarningMsg : s.cutoffCancelWarningMsg,
         leaseExpiringReminderDays: data.leaseExpiringReminderDays != null ? String(data.leaseExpiringReminderDays) : s.leaseExpiringReminderDays,
         dueReminderDays: data.dueReminderDays != null ? String(data.dueReminderDays) : s.dueReminderDays,
         dueReminderMsg: data.dueReminderMsg != null ? data.dueReminderMsg : s.dueReminderMsg,
@@ -8240,6 +8255,10 @@ class Component extends DCLogic {
   // ว่า "cancelWarning" ตรงๆ (ไม่ใช่ autoCancelDay หรืออะไรที่สื่อว่ายกเลิก
   // จริง) ตั้งใจตั้งชื่อกันสับสนว่านี่คือวันแจ้ง"เตือน"เท่านั้น
   onCutoffCancelWarningDayChange = (e) => { const v = e.target.value; this.setState(s => ({ cutoffConfigDraft: { ...s.cutoffConfigDraft, cancelWarningDay: v } })); };
+  // "ส่วนนี้เพิ่ม ข้อ 1 2 3 ให้ด้วยครับ" (2026-07-26)
+  onCutoffReminderMsgChange = (e) => this.setState({ cutoffReminderMsg: e.target.value });
+  onCutoffFinalMsgChange = (e) => this.setState({ cutoffFinalMsg: e.target.value });
+  onCutoffCancelWarningMsgChange = (e) => this.setState({ cutoffCancelWarningMsg: e.target.value });
   saveCutoffConfig = () => this._guard('saveCutoffConfig', async () => {
     const { reminderDay, finalDay, cancelWarningDay } = this.state.cutoffConfigDraft;
     const rDay = Number(reminderDay), fDay = Number(finalDay), cDay = Number(cancelWarningDay);
@@ -8262,6 +8281,9 @@ class Component extends DCLogic {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cutoffReminderDay: rDay, cutoffFinalDay: fDay, cutoffCancelWarningDay: cDay,
+          cutoffReminderMsg: this.state.cutoffReminderMsg,
+          cutoffFinalMsg: this.state.cutoffFinalMsg,
+          cutoffCancelWarningMsg: this.state.cutoffCancelWarningMsg,
           settings: { dueReminder: true },
           dueReminderDays: Number(this.state.dueReminderDays) || 3,
           dueReminderMsg: this.state.dueReminderMsg,
@@ -10873,6 +10895,8 @@ class Component extends DCLogic {
       showCutoffConfigModal: s.showCutoffConfigModal, cutoffConfigDraft: s.cutoffConfigDraft,
       openCutoffConfig: this.openCutoffConfig, closeCutoffConfig: this.closeCutoffConfig,
       onCutoffReminderDayChange: this.onCutoffReminderDayChange, onCutoffFinalDayChange: this.onCutoffFinalDayChange, onCutoffCancelWarningDayChange: this.onCutoffCancelWarningDayChange, saveCutoffConfig: this.saveCutoffConfig,
+      cutoffReminderMsg: s.cutoffReminderMsg, cutoffFinalMsg: s.cutoffFinalMsg, cutoffCancelWarningMsg: s.cutoffCancelWarningMsg,
+      onCutoffReminderMsgChange: this.onCutoffReminderMsgChange, onCutoffFinalMsgChange: this.onCutoffFinalMsgChange, onCutoffCancelWarningMsgChange: this.onCutoffCancelWarningMsgChange,
       showLeaseExpiringConfigModal: s.showLeaseExpiringConfigModal, leaseExpiringConfigDraft: s.leaseExpiringConfigDraft,
       openLeaseExpiringConfig: this.openLeaseExpiringConfig, closeLeaseExpiringConfig: this.closeLeaseExpiringConfig,
       onLeaseExpiringReminderDaysChange: this.onLeaseExpiringReminderDaysChange, saveLeaseExpiringConfig: this.saveLeaseExpiringConfig,
