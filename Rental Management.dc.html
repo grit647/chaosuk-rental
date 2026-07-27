@@ -2486,46 +2486,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
-        <sc-if value="{{ showDueReminder }}">
-          <div onclick="{{ closeDueReminder }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:215">
-            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:440px;max-width:92%;box-sizing:border-box;max-height:88%;overflow:auto">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                <span style="font-size:18px">🔔</span>
-                <div style="font-size:16px;font-weight:700;color:#241812">ตั้งค่าเตือนก่อนครบกำหนด</div>
-              </div>
-              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">กำหนดจำนวนวันล่วงหน้าและข้อความที่จะแจ้งเตือนผู้เช่าทุกห้องที่มีบิลค้างชำระ</div>
-
-              <!-- "เจอ 'เตือนก่อนครบกำหนด 3 วัน'...ปุ่ม 'บันทึก' ตรงนั้นขึ้น
-                   toast เฉยๆ ไม่เคยส่งข้อความจริงเลย...ทำให้ทำงานจริง"
-                   (2026-07-26) — เปลี่ยนช่องกรอกวันเป็น dropdown 1-4 วัน
-                   ตามคำขอ (เดิมพิมพ์เองได้ ไม่จำกัด) และตัดรายชื่อห้องเลือก
-                   รายห้องออก (ไม่เคยถูกบันทึกจริงตั้งแต่แรก — ตอนนี้ส่งให้
-                   ทุกห้องที่มีบิลค้างชำระเท่ากันหมด เหมือนสวิตช์แจ้งเตือน
-                   อื่นๆ ในหน้านี้) -->
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">แจ้งเตือนล่วงหน้ากี่วันก่อนครบกำหนด (เตือนทุกวันติดกัน)</div>
-              <select value="{{ dueReminderDays }}" onchange="{{ onDueReminderDays }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:14px">
-                <option value="1">1 วัน</option>
-                <option value="2">2 วัน</option>
-                <option value="3">3 วัน</option>
-                <option value="4">4 วัน</option>
-              </select>
-
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ข้อความแจ้งเตือน</div>
-              <textarea value="{{ dueReminderMsg }}" onchange="{{ onDueReminderMsg }}" placeholder="พิมพ์ข้อความแจ้งเตือน..." style="width:100%;min-height:64px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:16px"></textarea>
-
-              <!-- "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก...เป็น
-                   ข้อความที่เจ้าของกำหนดเองครับ" (2026-07-26) -->
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ข้อความพิเศษที่แนบไปกับบิลแรกของผู้เช่าใหม่ (ไม่บังคับ)</div>
-              <textarea value="{{ firstInvoiceMsg }}" onchange="{{ onFirstInvoiceMsg }}" placeholder="เช่น ยินดีต้อนรับสู่หอพัก...หากมีปัญหาแจ้งได้ตลอดครับ" style="width:100%;min-height:64px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:6px"></textarea>
-              <div style="font-size:10.5px;color:#9C8B78;margin-bottom:18px">แนบต่อท้ายข้อความบิลอัตโนมัติ เฉพาะบิลใบแรกของห้องนั้นๆ เท่านั้น (ปล่อยว่างถ้าไม่ต้องการ)</div>
-
-              <div style="display:flex;gap:10px">
-                <div onclick="{{ closeDueReminder }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer;text-align:center">ยกเลิก</div>
-                <div onclick="{{ saveDueReminder }}" style="flex:1.4;padding:11px;border-radius:7px;background:#C1622D;color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:center">บันทึก</div>
-              </div>
-            </div>
-          </div>
-        </sc-if>
+        <!-- "ใช่ครับมันเป็นการสั่งทุกห้องเหมือนๆกัน" (2026-07-26) — ป็อปอัพ
+             "ตั้งค่าเตือนก่อนครบกำหนด" แยกต่างหากถูกรวมเข้ากับป็อปอัพ
+             "ตั้งค่าแจ้งเตือนตัดน้ำตัดไฟ" ด้านล่างแล้ว (showCutoffConfigModal)
+             — เดิม 2 ป็อปอัพแยกกัน ตอนนี้รวมเป็นที่เดียวตามคำขอ -->
 
         <!-- "มีปุ่มฟันเฟื่องเข้าไปตั้งค่า...แจ้งเตือนยังไม่ชำระ ทุกวันที่
              เท่าไร ถ้ายังไม่ชำระ วันไหน ตัดน้ำ ตัดไฟ" (2026-07-26) -->
@@ -2551,6 +2515,26 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                    "เตือน" วันที่ 3 แทน ไม่มีการยกเลิกสัญญาจริงเด็ดขาด -->
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">3) ถ้ายังไม่ชำระถึงวันที่ (ของเดือน) — เตือนพิจารณายกเลิกสัญญาเช่า</div>
               <input value="{{ cutoffConfigDraft.cancelWarningDay }}" onchange="{{ onCutoffCancelWarningDayChange }}" placeholder="25" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:18px">
+
+              <!-- "ใช่ครับมันเป็นการสั่งทุกห้องเหมือนๆกัน" (2026-07-26) —
+                   ย้าย 2 ช่องจากป็อปอัพ "เตือนก่อนครบกำหนด" (แยกกันตอนแรก)
+                   มารวมไว้ที่นี่ตามคำขอ ทั้งคู่เป็นการตั้งค่าระดับตึก ใช้กับ
+                   ทุกห้องเหมือนกันหมด เหมือนกับ 3 ช่องด้านบน -->
+              <div style="border-top:1px solid #F0E9DC;margin-bottom:14px"></div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">4) เตือนก่อนครบกำหนดกี่วัน (เตือนทุกวันติดกัน จนถึงวันครบกำหนด)</div>
+              <select value="{{ dueReminderDays }}" onchange="{{ onDueReminderDays }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:14px">
+                <option value="1">1 วัน</option>
+                <option value="2">2 วัน</option>
+                <option value="3">3 วัน</option>
+                <option value="4">4 วัน</option>
+              </select>
+
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ข้อความแจ้งเตือน (ข้อ 4)</div>
+              <textarea value="{{ dueReminderMsg }}" onchange="{{ onDueReminderMsg }}" placeholder="พิมพ์ข้อความแจ้งเตือน..." style="width:100%;min-height:56px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:16px"></textarea>
+
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ข้อความพิเศษที่แนบไปกับบิลแรกของผู้เช่าใหม่ (ไม่บังคับ)</div>
+              <textarea value="{{ firstInvoiceMsg }}" onchange="{{ onFirstInvoiceMsg }}" placeholder="เช่น ยินดีต้อนรับสู่หอพัก...หากมีปัญหาแจ้งได้ตลอดครับ" style="width:100%;min-height:56px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:6px"></textarea>
+              <div style="font-size:10.5px;color:#9C8B78;margin-bottom:18px">แนบต่อท้ายข้อความบิลอัตโนมัติ เฉพาะบิลใบแรกของห้องนั้นๆ เท่านั้น (ปล่อยว่างถ้าไม่ต้องการ)</div>
 
               <div style="display:flex;gap:10px">
                 <div onclick="{{ closeCutoffConfig }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer;text-align:center">ยกเลิก</div>
@@ -4280,7 +4264,6 @@ class Component extends DCLogic {
     showAutoInvoice: false,
     autoInvoiceDay: '1',
     autoInvoiceRooms: {},
-    showDueReminder: false,
     dueReminderDays: '3',
     dueReminderMsg: 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ',
     // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก" (2026-07-26)
@@ -8175,38 +8158,15 @@ class Component extends DCLogic {
     this.setState({ showAutoInvoice: false });
     this.showAdminToast('ตั้งค่าออกบิลอัตโนมัติ ' + count + ' ห้อง ทุกวันที่ ' + this.state.autoInvoiceDay);
   };
-  openDueReminder = () => this.setState({ showDueReminder: true });
-  closeDueReminder = () => this.setState({ showDueReminder: false });
+  // "ใช่ครับมันเป็นการสั่งทุกห้องเหมือนๆกัน" (2026-07-26) — ป็อปอัพแยก
+  // "ตั้งค่าเตือนก่อนครบกำหนด" (openDueReminder/closeDueReminder/
+  // saveDueReminder เดิม) ถูกรวมเข้ากับป็อปอัพ "แจ้งเตือนตัดน้ำตัดไฟ"
+  // แล้ว (showCutoffConfigModal/openCutoffConfig/saveCutoffConfig) — ตัด
+  // handler แยกทิ้ง เหลือแค่ onChange ของ 3 ช่องที่ยังใช้อยู่ในป็อปอัพเดียว
   onDueReminderDays = (e) => this.setState({ dueReminderDays: e.target.value });
   onDueReminderMsg = (e) => this.setState({ dueReminderMsg: e.target.value });
   // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก" (2026-07-26)
   onFirstInvoiceMsg = (e) => this.setState({ firstInvoiceMsg: e.target.value });
-  // "เจอ 'เตือนก่อนครบกำหนด 3 วัน'...ปุ่ม 'บันทึก' ตรงนั้นขึ้น toast เฉยๆ
-  // ไม่เคยส่งข้อความจริงเลย...ทำให้ทำงานจริง" (2026-07-26) — เดิมแค่โชว์
-  // toast ไม่เคยยิง PUT /api/settings เลย ("ตั้งค่าเตือนล่วงหน้า X วัน"
-  // ค้างอยู่แค่ state ในเบราว์เซอร์ หายไปทันทีที่รีเฟรช) — แก้ให้บันทึกจริง
-  // ทั้ง 3 ค่า (วันเตือน, ข้อความเตือน, ข้อความบิลแรก) ตัดรายชื่อห้องเลือก
-  // รายห้องออกไปด้วย (ไม่เคยถูกบันทึกจริงตั้งแต่แรกเหมือนกัน — ตอนนี้ใช้กับ
-  // ทุกห้องที่มีบิลค้างชำระเท่ากันหมด)
-  saveDueReminder = () => this._guard('saveDueReminder', async () => {
-    if (!this.state.dueReminderMsg.trim()) { this.showAdminToast('กรุณาพิมพ์ข้อความแจ้งเตือน'); return; }
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          settings: { dueReminder: true },
-          dueReminderDays: Number(this.state.dueReminderDays) || 3,
-          dueReminderMsg: this.state.dueReminderMsg,
-          firstInvoiceMsg: this.state.firstInvoiceMsg,
-        }),
-      });
-      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
-      this.setState({ showDueReminder: false });
-      this.showAdminToast('บันทึกการตั้งค่าเตือนล่วงหน้าเรียบร้อย');
-    } catch (err) {
-      this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
-    }
-  });
 
   onProfileName = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, name: v } })); };
   onProfileAdmin = (e) => { const v = e.target.value; this.setState(s => ({ propertyProfile: { ...s.propertyProfile, adminName: v } })); };
@@ -8293,10 +8253,20 @@ class Component extends DCLogic {
     if (rDay >= fDay || fDay >= cDay) {
       this.showAdminToast('⚠️ ปกติควรเรียงเป็น วันเตือน < วันพิจารณาตัดน้ำ/ไฟ < วันพิจารณายกเลิกสัญญา — บันทึกให้แล้วนะครับ แต่ลองเช็คอีกทีว่าตั้งใจแบบนี้จริงไหม');
     }
+    // "ใช่ครับมันเป็นการสั่งทุกห้องเหมือนๆกัน" (2026-07-26) — รวมการตั้งค่า
+    // "เตือนก่อนครบกำหนด" (dueReminderDays/dueReminderMsg/firstInvoiceMsg,
+    // เดิมเป็นป็อปอัพแยก) เข้ามาบันทึกพร้อมกันในปุ่มเดียวนี้เลย
+    if (!this.state.dueReminderMsg.trim()) { this.showAdminToast('กรุณาพิมพ์ข้อความแจ้งเตือน (ข้อ 4)'); return; }
     try {
       const res = await fetch('/api/settings', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cutoffReminderDay: rDay, cutoffFinalDay: fDay, cutoffCancelWarningDay: cDay }),
+        body: JSON.stringify({
+          cutoffReminderDay: rDay, cutoffFinalDay: fDay, cutoffCancelWarningDay: cDay,
+          settings: { dueReminder: true },
+          dueReminderDays: Number(this.state.dueReminderDays) || 3,
+          dueReminderMsg: this.state.dueReminderMsg,
+          firstInvoiceMsg: this.state.firstInvoiceMsg,
+        }),
       });
       if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
       this.setState({ cutoffReminderDay: String(rDay), cutoffFinalDay: String(fDay), cutoffCancelWarningDay: String(cDay), showCutoffConfigModal: false });
@@ -9717,7 +9687,10 @@ class Component extends DCLogic {
 
     const settingsToggles = [
       { key: 'autoInvoice', label: 'สร้างใบแจ้งหนี้อัตโนมัติ', desc: 'สร้างบิลทุกวันที่ 1 ของเดือน', hasConfig: true, onConfig: this.openAutoInvoice },
-      { key: 'dueReminder', label: 'เตือนก่อนครบกำหนด 3 วัน', desc: 'แจ้งผู้เช่าล่วงหน้าก่อนถึงกำหนดชำระ', hasConfig: true, onConfig: this.openDueReminder },
+      // "ใช่ครับมันเป็นการสั่งทุกห้องเหมือนๆกัน" (2026-07-26) — ปุ่มฟันเฟื่อง
+      // นี้เปิดป็อปอัพเดียวกับ "แจ้งเตือนตัดน้ำตัดไฟ" แล้ว (รวม 2 ป็อปอัพ
+      // เป็นที่เดียวตามคำขอ — เดิม onConfig ชี้ไป openDueReminder ของตัวเอง)
+      { key: 'dueReminder', label: 'เตือนก่อนครบกำหนด 3 วัน', desc: 'แจ้งผู้เช่าล่วงหน้าก่อนถึงกำหนดชำระ', hasConfig: true, onConfig: this.openCutoffConfig },
     ].map(t => ({ ...t, on: s.settings[t.key], bg: s.settings[t.key] ? '#C1622D' : '#E3D8C8', knobLeft: s.settings[t.key] ? '22px' : '2px', onClick: () => this.toggleSetting(t.key) }));
 
     // Checkbox list for the "ล้างข้อมูล" partial-clear modal — keys match
@@ -10903,9 +10876,9 @@ class Component extends DCLogic {
       showLeaseExpiringConfigModal: s.showLeaseExpiringConfigModal, leaseExpiringConfigDraft: s.leaseExpiringConfigDraft,
       openLeaseExpiringConfig: this.openLeaseExpiringConfig, closeLeaseExpiringConfig: this.closeLeaseExpiringConfig,
       onLeaseExpiringReminderDaysChange: this.onLeaseExpiringReminderDaysChange, saveLeaseExpiringConfig: this.saveLeaseExpiringConfig,
-      showDueReminder: s.showDueReminder, dueReminderDays: s.dueReminderDays, dueReminderMsg: s.dueReminderMsg,
+      dueReminderDays: s.dueReminderDays, dueReminderMsg: s.dueReminderMsg,
       firstInvoiceMsg: s.firstInvoiceMsg, onFirstInvoiceMsg: this.onFirstInvoiceMsg,
-      closeDueReminder: this.closeDueReminder, onDueReminderDays: this.onDueReminderDays, onDueReminderMsg: this.onDueReminderMsg, saveDueReminder: this.saveDueReminder,
+      onDueReminderDays: this.onDueReminderDays, onDueReminderMsg: this.onDueReminderMsg,
       propertyProfile: s.propertyProfile,
       onProfileName: this.onProfileName, onProfileAdmin: this.onProfileAdmin, onProfilePhone: this.onProfilePhone,
       onProfileBuildingKeyId: this.onProfileBuildingKeyId,
