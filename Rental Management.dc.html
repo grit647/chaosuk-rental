@@ -5440,11 +5440,21 @@ class Component extends DCLogic {
       // treats a deliberately-typed 0 (free) the exact same as an empty
       // field — `undefined` gets stripped from roomPatch entirely below,
       // so the room's own override never actually got saved and it kept
-      // falling back to the global default forever. Fixed with the same
-      // blank-check pattern already used for waterMinRate/elecMinRate
-      // right below (0 is a real, valid rate — not "unset").
-      waterRate: cf.waterRate === '' || cf.waterRate == null ? undefined : Number(cf.waterRate) || 0,
-      elecRate: cf.elecRate === '' || cf.elecRate == null ? undefined : Number(cf.elecRate) || 0,
+      // falling back to the global default forever. Fixed with a
+      // blank-check.
+      //
+      // "ลูกค้าลบค่าในช่อง แต่ไม่ได้ใส่ 0 ระบบเลยเอาค่าเดิมมาบันทึก...
+      // ถ้าช่องไม่มีค่าอะไร กำหนดให้ช่องนั้นเป็น 0" (2026-07-26 follow-up)
+      // — the blank-check above was originally `? undefined :` (blank =
+      // "don't touch, keep the old value"), matching the meter-reading
+      // fields' convention further down. But for these 4 RATE fields
+      // specifically, the owner wants the opposite: clearing the box with
+      // no 0 typed should save as a real 0, not silently keep whatever was
+      // there before. Changed `? undefined :` to `? 0 :` for exactly these
+      // 4 fields only — meter-reading fields below are untouched, still
+      // "blank = don't change."
+      waterRate: cf.waterRate === '' || cf.waterRate == null ? 0 : Number(cf.waterRate) || 0,
+      elecRate: cf.elecRate === '' || cf.elecRate == null ? 0 : Number(cf.elecRate) || 0,
       // "เช็คช่องค่า net หน่อยครับตอนนี้แก้ไขห้องเดียว ห้องอื่นเปลี่ยนเป็น
       // ค่าเดียวกันหมด ขอให้เป็นห้องใครห้องมัน" (2026-07-26) — real bug:
       // trashRate/internetRate had no per-room override at all (unlike
@@ -5453,9 +5463,10 @@ class Component extends DCLogic {
       // default that EVERY room without its own override reads from,
       // which in practice was every room (no per-room column existed to
       // ever have its own value). Same per-room-override-with-global-
-      // fallback pattern as waterRate/elecRate now applied here too.
-      trashRate: cf.trashRate === '' || cf.trashRate == null ? undefined : Number(cf.trashRate) || 0,
-      internetRate: cf.internetRate === '' || cf.internetRate == null ? undefined : Number(cf.internetRate) || 0,
+      // fallback pattern as waterRate/elecRate now applied here too, plus
+      // the same "blank = 0" fix right above.
+      trashRate: cf.trashRate === '' || cf.trashRate == null ? 0 : Number(cf.trashRate) || 0,
+      internetRate: cf.internetRate === '' || cf.internetRate == null ? 0 : Number(cf.internetRate) || 0,
       // Per explicit user request: minimum monthly charge (ค่าดูแลมิเตอร์
       // floor) — always per-room only, no property-wide fallback/default
       // the way waterRate/elecRate above has, since "no minimum" (0) is a
