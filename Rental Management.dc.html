@@ -1087,6 +1087,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <div style="font-size:10.5px;color:#9C8B78;margin-bottom:3px">ลิงก์เพิ่มเพื่อน LINE OA</div>
                     <div style="font-size:13px;font-weight:600;color:#241812;font-family:'IBM Plex Mono',monospace;word-break:break-all">{{ lineOAShortUrlDisplay }}</div>
                   </div>
+                  <div style="background:#F1EBE0;border-radius:7px;padding:12px 14px">
+                    <div style="font-size:10.5px;color:#9C8B78;margin-bottom:3px">บัญชีธนาคาร (ช่องทางโอนเงินสำรอง)</div>
+                    <div style="font-size:13px;font-weight:600;color:#241812">{{ bankAccountDisplay }}</div>
+                  </div>
                   <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#3B7A52;font-weight:600">
                     <span style="width:6px;height:6px;border-radius:50%;background:#3B7A52"></span>บันทึกแล้ว — กด "แก้ไข" เพื่อเปลี่ยนอีกครั้ง
                   </div>
@@ -1147,32 +1151,34 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                      (ธนาคารมีดรอปดาวให้เลือกไหม) ส่งข้อมูลไปพร้อมใบเสร็จ"
                      (2026-07-26) — ช่องทางโอนเงินสำรอง คู่กับ QR ด้านบน
                      แนบไปกับข้อความ LINE/PDF/รูปใบเสร็จเช่นกัน (sendReceiptLine) -->
-                <div>
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">บัญชีธนาคาร (ช่องทางโอนเงินสำรอง แนบท้ายบิลที่ส่งให้ผู้เช่าทาง LINE)</div>
-                  <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:10px;margin-bottom:8px">
-                    <select value="{{ propertyProfile.bankName }}" onchange="{{ onProfileBankName }}" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
-                      <option value="">-- เลือกธนาคาร --</option>
-                      <option value="ธนาคารกรุงเทพ">ธนาคารกรุงเทพ</option>
-                      <option value="ธนาคารกสิกรไทย">ธนาคารกสิกรไทย</option>
-                      <option value="ธนาคารกรุงไทย">ธนาคารกรุงไทย</option>
-                      <option value="ธนาคารไทยพาณิชย์">ธนาคารไทยพาณิชย์</option>
-                      <option value="ธนาคารกรุงศรีอยุธยา">ธนาคารกรุงศรีอยุธยา</option>
-                      <option value="ธนาคารทหารไทยธนชาต">ธนาคารทหารไทยธนชาต (ttb)</option>
-                      <option value="ธนาคารเกียรตินาคินภัทร">ธนาคารเกียรตินาคินภัทร</option>
-                      <option value="ธนาคารซีไอเอ็มบีไทย">ธนาคารซีไอเอ็มบีไทย</option>
-                      <option value="ธนาคารทิสโก้">ธนาคารทิสโก้</option>
-                      <option value="ธนาคารยูโอบี">ธนาคารยูโอบี</option>
-                      <option value="ธนาคารไทยเครดิต">ธนาคารไทยเครดิต</option>
-                      <option value="ธนาคารแลนด์ แอนด์ เฮ้าส์">ธนาคารแลนด์ แอนด์ เฮ้าส์</option>
-                      <option value="ธนาคารออมสิน">ธนาคารออมสิน (GSB)</option>
-                      <option value="ธนาคารอาคารสงเคราะห์">ธนาคารอาคารสงเคราะห์ (ธอส.)</option>
-                      <option value="ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร">ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร (ธ.ก.ส.)</option>
-                      <option value="ธนาคารอิสลามแห่งประเทศไทย">ธนาคารอิสลามแห่งประเทศไทย</option>
-                    </select>
-                    <input value="{{ propertyProfile.bankAccountNumber }}" onchange="{{ onProfileBankAccountNumber }}" placeholder="เลขบัญชี เช่น 123-4-56789-0" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                <sc-if value="{{ adminInfoUnlocked }}" hint-placeholder-val="{{ false }}">
+                  <div>
+                    <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">บัญชีธนาคาร (ช่องทางโอนเงินสำรอง แนบท้ายบิลที่ส่งให้ผู้เช่าทาง LINE)</div>
+                    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:10px;margin-bottom:8px">
+                      <select value="{{ propertyProfile.bankName }}" onchange="{{ onProfileBankName }}" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+                        <option value="">-- เลือกธนาคาร --</option>
+                        <option value="ธนาคารกรุงเทพ">ธนาคารกรุงเทพ</option>
+                        <option value="ธนาคารกสิกรไทย">ธนาคารกสิกรไทย</option>
+                        <option value="ธนาคารกรุงไทย">ธนาคารกรุงไทย</option>
+                        <option value="ธนาคารไทยพาณิชย์">ธนาคารไทยพาณิชย์</option>
+                        <option value="ธนาคารกรุงศรีอยุธยา">ธนาคารกรุงศรีอยุธยา</option>
+                        <option value="ธนาคารทหารไทยธนชาต">ธนาคารทหารไทยธนชาต (ttb)</option>
+                        <option value="ธนาคารเกียรตินาคินภัทร">ธนาคารเกียรตินาคินภัทร</option>
+                        <option value="ธนาคารซีไอเอ็มบีไทย">ธนาคารซีไอเอ็มบีไทย</option>
+                        <option value="ธนาคารทิสโก้">ธนาคารทิสโก้</option>
+                        <option value="ธนาคารยูโอบี">ธนาคารยูโอบี</option>
+                        <option value="ธนาคารไทยเครดิต">ธนาคารไทยเครดิต</option>
+                        <option value="ธนาคารแลนด์ แอนด์ เฮ้าส์">ธนาคารแลนด์ แอนด์ เฮ้าส์</option>
+                        <option value="ธนาคารออมสิน">ธนาคารออมสิน (GSB)</option>
+                        <option value="ธนาคารอาคารสงเคราะห์">ธนาคารอาคารสงเคราะห์ (ธอส.)</option>
+                        <option value="ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร">ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร (ธ.ก.ส.)</option>
+                        <option value="ธนาคารอิสลามแห่งประเทศไทย">ธนาคารอิสลามแห่งประเทศไทย</option>
+                      </select>
+                      <input value="{{ propertyProfile.bankAccountNumber }}" onchange="{{ onProfileBankAccountNumber }}" placeholder="เลขบัญชี เช่น 123-4-56789-0" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                    </div>
+                    <input value="{{ propertyProfile.bankAccountName }}" onchange="{{ onProfileBankAccountName }}" placeholder="ชื่อบัญชี เช่น นายสมหมาย ผู้จัดการ" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
                   </div>
-                  <input value="{{ propertyProfile.bankAccountName }}" onchange="{{ onProfileBankAccountName }}" placeholder="ชื่อบัญชี เช่น นายสมหมาย ผู้จัดการ" style="width:100%;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
-                </div>
+                </sc-if>
                 <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
                   <div onclick="{{ openChangePinModal }}" title="ตั้งค่ารหัสผ่าน" style="width:38px;height:38px;border-radius:7px;border:1px solid #E3D8C8;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px">⚙️</div>
                   <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
@@ -11003,6 +11009,7 @@ class Component extends DCLogic {
       onProfileBankName: this.onProfileBankName,
       onProfileBankAccountNumber: this.onProfileBankAccountNumber,
       onProfileBankAccountName: this.onProfileBankAccountName,
+      bankAccountDisplay: [s.propertyProfile.bankName, s.propertyProfile.bankAccountNumber, s.propertyProfile.bankAccountName].filter(Boolean).join(' · ') || 'ยังไม่ได้ตั้งค่า',
       onProfileAdminLineUserId: this.onProfileAdminLineUserId, saveAdminInfo: this.saveAdminInfo,
       adminInfoLocked: s.adminInfoLocked, adminInfoUnlocked: !s.adminInfoLocked, unlockAdminInfo: this.unlockAdminInfo,
       // Per explicit user request (real bug hit): login is now mandatory
