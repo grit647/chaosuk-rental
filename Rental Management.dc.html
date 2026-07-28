@@ -1091,6 +1091,15 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <div style="font-size:10.5px;color:#9C8B78;margin-bottom:3px">บัญชีธนาคาร (ช่องทางโอนเงินสำรอง)</div>
                     <div style="font-size:13px;font-weight:600;color:#241812">{{ bankAccountDisplay }}</div>
                   </div>
+                  <div style="background:#F1EBE0;border-radius:7px;padding:12px 14px;display:flex;align-items:center;gap:12px">
+                    <sc-if value="{{ paymentQrLockedHasImage }}" hint-placeholder-val="{{ false }}">
+                      <img src="{{ propertyProfile.paymentQrUrl }}" style="width:44px;height:44px;border-radius:6px;object-fit:cover;border:1px solid #E3D8C8;background:#fff">
+                    </sc-if>
+                    <div>
+                      <div style="font-size:10.5px;color:#9C8B78;margin-bottom:3px">QR ชำระเงิน</div>
+                      <div style="font-size:13px;font-weight:600;color:#241812">{{ paymentQrLockedLabel }}</div>
+                    </div>
+                  </div>
                   <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#3B7A52;font-weight:600">
                     <span style="width:6px;height:6px;border-radius:50%;background:#3B7A52"></span>บันทึกแล้ว — กด "แก้ไข" เพื่อเปลี่ยนอีกครั้ง
                   </div>
@@ -1115,38 +1124,40 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </div>
                   </sc-if>
                 </div>
-                <div>
-                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-                    <div style="font-size:11.5px;color:#7C6E5F">QR ชำระเงิน (แนบท้ายบิลที่ส่งให้ผู้เช่าทาง LINE) — เปลี่ยนแปลงต้องกด "บันทึกข้อมูล" และยืนยันรหัส PIN เหมือนข้อมูลส่วนอื่นในการ์ดนี้</div>
-                    <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
-                      <span onclick="{{ onDemoTipPaymentQr }}" style="cursor:pointer;font-size:11px;font-weight:600;background:#2C6E8F;color:#fff;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                <sc-if value="{{ adminInfoUnlocked }}" hint-placeholder-val="{{ false }}">
+                  <div>
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+                      <div style="font-size:11.5px;color:#7C6E5F">QR ชำระเงิน (แนบท้ายบิลที่ส่งให้ผู้เช่าทาง LINE) — เปลี่ยนแปลงต้องกด "บันทึกข้อมูล" และยืนยันรหัส PIN เหมือนข้อมูลส่วนอื่นในการ์ดนี้</div>
+                      <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
+                        <span onclick="{{ onDemoTipPaymentQr }}" style="cursor:pointer;font-size:11px;font-weight:600;background:#2C6E8F;color:#fff;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
+                      </sc-if>
+                    </div>
+                    <sc-if value="{{ paymentQrHasPreview }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;align-items:center;gap:12px;background:#F1EBE0;border-radius:7px;padding:10px 14px">
+                        <img src="{{ paymentQrPreviewUrl }}" style="width:56px;height:56px;border-radius:6px;object-fit:cover;border:1px solid #E3D8C8;background:#fff">
+                        <div style="flex:1;font-size:11.5px;font-weight:600;color:{{ paymentQrStatusColor }}">{{ paymentQrStatusLabel }}</div>
+                        <label style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;background:#fff">
+                          แก้ไข
+                          <input type="file" accept="image/*" onchange="{{ onUploadPaymentQr }}" style="display:none">
+                        </label>
+                        <span onclick="{{ paymentQrDeleteAction }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336;background:#fff">{{ paymentQrDeleteLabel }}</span>
+                      </div>
                     </sc-if>
-                  </div>
-                  <sc-if value="{{ paymentQrHasPreview }}" hint-placeholder-val="{{ false }}">
-                    <div style="display:flex;align-items:center;gap:12px;background:#F1EBE0;border-radius:7px;padding:10px 14px">
-                      <img src="{{ paymentQrPreviewUrl }}" style="width:56px;height:56px;border-radius:6px;object-fit:cover;border:1px solid #E3D8C8;background:#fff">
-                      <div style="flex:1;font-size:11.5px;font-weight:600;color:{{ paymentQrStatusColor }}">{{ paymentQrStatusLabel }}</div>
-                      <label style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;background:#fff">
-                        แก้ไข
+                    <sc-if value="{{ paymentQrRemovePendingOnly }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;align-items:center;gap:12px;background:#F7EAE3;border-radius:7px;padding:10px 14px">
+                        <img src="{{ propertyProfile.paymentQrUrl }}" style="width:56px;height:56px;border-radius:6px;object-fit:cover;border:1px solid #E3B7AC;background:#fff;opacity:0.45;filter:grayscale(60%)">
+                        <div style="flex:1;font-size:11.5px;font-weight:600;color:#B85B27">🗑️ จะลบ QR นี้ — ยังไม่ลบจริงจนกว่าจะกด "บันทึกข้อมูล" และยืนยันรหัส PIN</div>
+                        <span onclick="{{ cancelPaymentQrDraft }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;background:#fff">ยกเลิกการลบ</span>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ paymentQrTrulyEmpty }}" hint-placeholder-val="{{ true }}">
+                      <label style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:7px;border:1.5px dashed #D8C9B4;cursor:pointer;color:#7C6E5F;font-size:12.5px;font-weight:600">
+                        📷 อัปโหลด QR ชำระเงิน
                         <input type="file" accept="image/*" onchange="{{ onUploadPaymentQr }}" style="display:none">
                       </label>
-                      <span onclick="{{ paymentQrDeleteAction }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336;background:#fff">{{ paymentQrDeleteLabel }}</span>
-                    </div>
-                  </sc-if>
-                  <sc-if value="{{ paymentQrRemovePendingOnly }}" hint-placeholder-val="{{ false }}">
-                    <div style="display:flex;align-items:center;gap:12px;background:#F7EAE3;border-radius:7px;padding:10px 14px">
-                      <img src="{{ propertyProfile.paymentQrUrl }}" style="width:56px;height:56px;border-radius:6px;object-fit:cover;border:1px solid #E3B7AC;background:#fff;opacity:0.45;filter:grayscale(60%)">
-                      <div style="flex:1;font-size:11.5px;font-weight:600;color:#B85B27">🗑️ จะลบ QR นี้ — ยังไม่ลบจริงจนกว่าจะกด "บันทึกข้อมูล" และยืนยันรหัส PIN</div>
-                      <span onclick="{{ cancelPaymentQrDraft }}" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;background:#fff">ยกเลิกการลบ</span>
-                    </div>
-                  </sc-if>
-                  <sc-if value="{{ paymentQrTrulyEmpty }}" hint-placeholder-val="{{ true }}">
-                    <label style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:7px;border:1.5px dashed #D8C9B4;cursor:pointer;color:#7C6E5F;font-size:12.5px;font-weight:600">
-                      📷 อัปโหลด QR ชำระเงิน
-                      <input type="file" accept="image/*" onchange="{{ onUploadPaymentQr }}" style="display:none">
-                    </label>
-                  </sc-if>
-                </div>
+                    </sc-if>
+                  </div>
+                </sc-if>
                 <!-- "เพิ่มอีก 1 ช่องทาง คือ หมายเลขบัญชี ชื่อบัญชี ธนาคาร
                      (ธนาคารมีดรอปดาวให้เลือกไหม) ส่งข้อมูลไปพร้อมใบเสร็จ"
                      (2026-07-26) — ช่องทางโอนเงินสำรอง คู่กับ QR ด้านบน
@@ -11010,6 +11021,8 @@ class Component extends DCLogic {
       onProfileBankAccountNumber: this.onProfileBankAccountNumber,
       onProfileBankAccountName: this.onProfileBankAccountName,
       bankAccountDisplay: [s.propertyProfile.bankName, s.propertyProfile.bankAccountNumber, s.propertyProfile.bankAccountName].filter(Boolean).join(' · ') || 'ยังไม่ได้ตั้งค่า',
+      paymentQrLockedLabel: s.propertyProfile.paymentQrUrl ? 'ตั้งค่าแล้ว' : 'ยังไม่ได้ตั้งค่า',
+      paymentQrLockedHasImage: !!s.propertyProfile.paymentQrUrl,
       onProfileAdminLineUserId: this.onProfileAdminLineUserId, saveAdminInfo: this.saveAdminInfo,
       adminInfoLocked: s.adminInfoLocked, adminInfoUnlocked: !s.adminInfoLocked, unlockAdminInfo: this.unlockAdminInfo,
       // Per explicit user request (real bug hit): login is now mandatory
