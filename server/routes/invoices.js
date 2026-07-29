@@ -182,14 +182,20 @@ router.delete('/:id', async (req, res, next) => {
     // ไว้ (server/routes/scheduledMessages.js's source: 'invoice_receipt')
     // แล้วโดนลบก่อนถึงเวลาที่ตั้งไว้ คิวเก่าจะยังค้างอยู่ใน ScheduledMessages
     // เฉยๆ แล้วไปส่งข้อความ "ใบแจ้งหนี้" อ้างถึงบิลที่ไม่มีอยู่แล้วจริงในภาย
-    // หลัง (bug จริงที่เจอวันนี้ตอนไล่ debug ฟีเจอร์ตั้งเวลาส่ง) — ลบทุกแถวที่
-    // ยังไม่ส่ง (sent !== 'TRUE') ของห้องนี้ที่มาจากฟอร์มออกบิลออกไปด้วย
-    // (ไม่แตะ source อื่นอย่าง 'manual'/'calendar' — นั่นไม่ผูกกับบิลใบนี้)
+    // หลัง (bug จริงที่เจอวันนี้ตอนไล่ debug ฟีเจอร์ตั้งเวลาส่ง) — ลบทุกแถว
+    // ของห้องนี้ที่มาจากฟอร์มออกบิลออกไปด้วย **ไม่ว่าจะส่งไปแล้วหรือยังไม่ส่ง
+    // ก็ตาม** (2026-07-29 follow-up ตามคำขอ "บักตัวเล็กๆ ถ้าข้อความถูกส่งไป
+    // แล้ว แต่มีการลบ ให้เคลียร์ส่วนนี้ด้วย" — เดิมกรองแค่ sent !== 'TRUE'
+    // ทำให้แถวที่ส่งไปแล้ว (sent: TRUE) ค้างอยู่ในชีตตลอดไปถ้าบิลถูกลบ ไม่
+    // เคยถูกเคลียร์เหมือน mark-paid ทำอยู่แล้ว — ตอนนี้พฤติกรรมตรงกัน:
+    // ลบบิล = เคลียร์ ScheduledMessages ของบิลนั้นทิ้งเสมอ ไม่ว่าจะอยู่ใน
+    // สถานะไหน) — (ไม่แตะ source อื่นอย่าง 'manual'/'calendar' — นั่นไม่ผูก
+    // กับบิลใบนี้)
     let cancelledSchedules = 0;
     if (invoice) {
       try {
         const scheduled = await readTab('ScheduledMessages');
-        const stale = scheduled.filter((m) => m.room === invoice.room && m.source === 'invoice_receipt' && m.sent !== 'TRUE');
+        const stale = scheduled.filter((m) => m.room === invoice.room && m.source === 'invoice_receipt');
         for (const m of stale) {
           await deleteRow('ScheduledMessages', m.id);
           cancelledSchedules++;

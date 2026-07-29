@@ -7001,8 +7001,10 @@ class Component extends DCLogic {
         rooms: refunded > 0 && room ? s.rooms.map(r => r.id === room.id ? { ...r, creditBalance: (r.creditBalance || 0) + refunded } : r) : s.rooms,
         showDeleteInvoiceConfirm: false, deleteInvoiceId: '',
         receiptsSent: wasSent ? Object.fromEntries(Object.entries(s.receiptsSent).filter(([k]) => k !== inv.room)) : s.receiptsSent,
+        // ลบทั้งที่ส่งไปแล้วและยังไม่ส่ง (ตรงกับที่เซิร์ฟเวอร์ทำจริง — ดู
+        // comment เต็มใน DELETE /api/invoices/:id)
         scheduledMessages: cancelledSchedules > 0
-          ? s.scheduledMessages.filter(m => !(m.room === inv.room && m.source === 'invoice_receipt' && !m.sent))
+          ? s.scheduledMessages.filter(m => !(m.room === inv.room && m.source === 'invoice_receipt'))
           : s.scheduledMessages,
       }));
       this.showAdminToast((refunded > 0
