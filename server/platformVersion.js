@@ -51,6 +51,24 @@
 // building without either would see a button that silently errors on click.
 // Gated in Rental Management.dc.html behind `authSession.platformVersion >=
 // 3` (render var `cfShowWaterCalibrate`).
-const CURRENT_PLATFORM_VERSION = 3;
+//
+// v4 (2026-07-29): the FIRST gate on backend/server-side automation
+// BEHAVIOR, not a frontend UI element — server/routes/scheduler.js's
+// GET /run (external cron ping) used to only ever check the main
+// account's spreadsheet, so every other building's automation switches
+// (cutoffWarning, dueReminder, leaseExpiring, ตั้งเวลาส่งบิล, etc.) were
+// silently no-ops even when a building's own owner had turned them on,
+// believing they worked. Fixed to loop over every building in the
+// Directory — but per the same "no surprise changes" reasoning as every
+// other entry here, an existing building must not suddenly start
+// receiving real LINE messages to its real tenants (cutoff/overdue/
+// lease-expiring notices) it never got before, with zero warning. Gated
+// in scheduler.js's route handler: a Directory row's own building only
+// gets included in the per-building automation loop once its
+// platformVersion >= 4 (the main account itself is exempt from this
+// check — it already ran this exact logic before the fix, so nothing
+// changes for it either way). คุณต้น clicks "🆕 อัปเดต" per building once
+// he's ready for that building's automation to actually start firing.
+const CURRENT_PLATFORM_VERSION = 4;
 
 module.exports = { CURRENT_PLATFORM_VERSION };

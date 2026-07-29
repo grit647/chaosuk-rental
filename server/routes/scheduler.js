@@ -10,6 +10,14 @@ const { syncOwnerRichMenuBadges } = require('../ownerRichMenu');
 const { runWithSheetId, getCurrentSheetId } = require('../requestContext');
 
 const DIRECTORY_SHEET_ID = process.env.GOOGLE_DIRECTORY_SHEET_ID;
+// ค่านี้ต้องคงที่ = เวอร์ชันที่ฟีเจอร์นี้เปิดตัวจริง (4) ห้ามอ้างอิง
+// CURRENT_PLATFORM_VERSION แบบ live เพราะค่านั้นจะขยับขึ้นเรื่อยๆ ทุกครั้งที่
+// มีฟีเจอร์หน้าบ้านใหม่ๆ ในอนาคต — ถ้าอ้างอิงตรงๆ ตึกที่กด "🆕 อัปเดต" ไป
+// รับ v4 แล้ว จะถูกเขี่ยออกจากลูปนี้อีกครั้งทันทีที่ CURRENT_PLATFORM_VERSION
+// ขยับเป็น 5 ทั้งที่เจ้าของตึกนั้นไม่เคยเปลี่ยนใจอะไรเลย (ดู server/
+// platformVersion.js's v4 note — pattern เดียวกับที่ frontend ใช้เทียบ
+// เวอร์ชันตายตัวของแต่ละฟีเจอร์ เช่น `authSession.platformVersion >= 2`)
+const SCHEDULER_MULTI_BUILDING_VERSION = 4;
 
 // "แจ้งเตือน ตัดน้ำตัดไฟ...แจ้งเตือนยังไม่ชำระ ทุกวันที่เท่าไร ถ้ายังไม่
 // ชำระ วันไหน ตัดน้ำ ตัดไฟ" (2026-07-26) — in-memory throttle (same
@@ -443,13 +451,28 @@ async function runSchedulerOnce() {
 // rest — same reasoning as every other try/catch in this file.
 router.get('/run', async (req, res, next) => {
   try {
+    // ตึกหลัก (main account) รันเสมอ ไม่ต้องเช็ค platformVersion — โค้ดชุด
+    // นี้ทำงานให้บัญชีหลักอยู่แล้วตั้งแต่ก่อนแก้บั๊กวันนี้ ไม่ใช่พฤติกรรม
+    // ใหม่สำหรับบัญชีนี้ (ดู CLAUDE.md's staged-rollout rule — gate ป้องกัน
+    // "ของใหม่โผล่แบบไม่ทันตั้งตัว" ไม่ใช่ป้องกันของที่ทำงานอยู่แล้ว)
     const sheetIds = new Set();
     if (process.env.GOOGLE_SHEET_ID) sheetIds.add(process.env.GOOGLE_SHEET_ID);
+
+    // ตึกอื่นๆ ในทำเนียบ — ต้อง platformVersion >= 4 (ดู server/
+    // platformVersion.js's v4 note) ก่อนถึงจะรวมเข้ามาในลูปนี้ — ป้องกันไม่
+    // ให้ตึกที่เจ้าของเคยเปิดสวิตช์แจ้งเตือน (เช่น cutoffWarning) ไว้นานแล้ว
+    // จู่ๆ เริ่มส่งข้อความจริงหาผู้เช่าจริงแบบไม่มีการแจ้งเตือนล่วงหน้าเลย —
+    // ต้องรอคุณต้นกดปุ่ม "🆕 อัปเดต" ให้ตึกนั้นก่อน ตามกฎ staged-rollout
+    // เดิม (แม้ครั้งนี้จะเป็นการแก้บั๊ก ไม่ใช่ฟีเจอร์ใหม่ก็ตาม เพราะผลที่
+    // เกิดขึ้นจริงกับผู้เช่าเหมือนกันทุกประการ)
     if (DIRECTORY_SHEET_ID) {
       try {
         const directoryRows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
         for (const row of directoryRows) {
-          if (row.customerSheetId && row.status !== 'suspended') sheetIds.add(row.customerSheetId);
+          if (!row.customerSheetId || row.status === 'suspended') continue;
+          if (row.customerSheetId === process.env.GOOGLE_SHEET_ID) continue; // นับไปแล้วด้านบน
+          const pv = Number(row.platformVersion) || 0;
+          if (pv >= SCHEDULER_MULTI_BUILDING_VERSION) sheetIds.add(row.customerSheetId);
         }
       } catch (err) {
         console.error('[scheduler] failed to read Directory — falling back to main account only', err.message);
