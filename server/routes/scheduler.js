@@ -326,12 +326,12 @@ async function runSchedulerOnce() {
   // หรือปิด — ข้อความจาก Claude tool/ปฏิทิน (source: 'manual'/'calendar')
   // ยังคงต้องเปิดสวิตช์ไว้เหมือนเดิม (ยังถือเป็น AI-related automation จริง)
   let sentCount = 0, scheduledChecked = 0, scheduledDue = 0;
-  // 2026-07-29 — diagnostic-only fields (ไม่มีข้อความ/ข้อมูลอ่อนไหวหลุด
-  // ออกมา แค่ตัวเลขนับ) ชั่วคราวช่วยไล่บั๊ก "ตั้งเวลาแล้วไม่ยอมส่ง" — ลบออก
-  // ได้ทีหลังถ้าไม่ใช้แล้ว
-  const debugSkipped = { notInvoiceReceiptAndAutomationOff: 0, noRoomOrNoLineUserId: 0 };
-  let debugAttempted = 0;
-  const debugErrors = [];
+  // เก็บ error message ล่าสุด (สูงสุด 3 อัน, ไม่มีข้อความ/ข้อมูลอ่อนไหวหลุด
+  // ออกมา) ไว้ถาวร — เกิดจากการไล่บั๊ก "ตั้งเวลาส่งบิลแล้วไม่ยอมส่ง"
+  // (2026-07-29, root cause ที่พบจริง: LINE API ปฏิเสธการ push เพราะห้อง
+  // ทดสอบผูก LINE ปลอมไว้ ไม่ใช่บั๊กโค้ด) — เก็บไว้ต่อเพราะมีประโยชน์เวลา
+  // เจอเคสแบบนี้อีกในอนาคต ไม่ต้องเพิ่ม log ใหม่ทุกครั้ง
+  let scheduledMessagesErrors = [];
   if (lineConfigured()) {
     const nowStr = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).slice(0, 16).replace(' ', 'T');
     const [rows, rooms] = await Promise.all([readTab('ScheduledMessages'), readTab('Rooms')]);
@@ -347,9 +347,9 @@ async function runSchedulerOnce() {
     // จำนวนห้องที่ส่งพร้อมกันในรอบเดียวกัน (เหลือแค่ 1 ครั้งเสมอ ไม่ว่าจะมี
     // กี่ห้องก็ตาม)
     let invoicesForReceiptSent = null;
+    const sendErrors = [];
     for (const row of due) {
-      if (row.source !== 'invoice_receipt' && !settings.claudeAutomationEnabled) { debugSkipped.notInvoiceReceiptAndAutomationOff++; continue; } // ยังปิดสวิตช์อยู่ — ข้ามไปก่อน รอบหน้าค่อยเช็คใหม่
-      debugAttempted++;
+      if (row.source !== 'invoice_receipt' && !settings.claudeAutomationEnabled) continue; // ยังปิดสวิตช์อยู่ — ข้ามไปก่อน รอบหน้าค่อยเช็คใหม่
       try {
         if (row.room === 'all') {
           const targets = rooms.filter((r) => r.lineUserId);
@@ -378,9 +378,10 @@ async function runSchedulerOnce() {
         }
       } catch (err) {
         console.error('[scheduler] failed to send', row.id, err.message, err.stack);
-        if (debugErrors.length < 3) debugErrors.push(String(err.message || err));
+        if (sendErrors.length < 3) sendErrors.push(String(err.message || err));
       }
     }
+    scheduledMessagesErrors = sendErrors;
   }
 
   if (!settings.claudeAutomationEnabled) {
@@ -391,7 +392,7 @@ async function runSchedulerOnce() {
       dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified },
       leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
       logPrune: logPruneResult, ownerRichMenu: ownerRichMenuResult,
-      scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount, debugAttempted, debugSkipped, debugErrors },
+      scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount, errors: scheduledMessagesErrors },
     };
   }
 
@@ -443,7 +444,7 @@ async function runSchedulerOnce() {
     dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified },
     leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
     logPrune: logPruneResult,
-    scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount, debugAttempted, debugSkipped, debugErrors },
+    scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount, errors: scheduledMessagesErrors },
     recurringTasks: { checked: recurringChecked, ran: recurringRan },
     ownerRichMenu: ownerRichMenuResult,
   };
