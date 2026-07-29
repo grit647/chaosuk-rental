@@ -96,6 +96,24 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const merged = await updateRow('Invoices', req.params.id, req.body);
+    // "ถ้ามีการชำระบิลเรียบร้อยแล้ว ให้ลบออกไปเลยครับ มันจะได้ไม่เต็ม
+    // เหมือนถูกเคลียร์ข้อมูลตลอด หลังจบบิล" (2026-07-29) — พอบิลนี้ปิดจบแล้ว
+    // (status กลายเป็น 'paid' — ไม่ว่าจะมาจากกด "ยืนยันชำระ", ยืนยันสลิป,
+    // หรือทางไหนก็ตามที่เรียก PATCH นี้) ล้างแถว ScheduledMessages ของห้อง
+    // นี้ที่มาจากบิลนี้ทิ้งไปเลย (ทั้งที่ส่งไปแล้วและยังไม่ส่ง) กันชีตค้าง
+    // ข้อมูลเก่าสะสมไปเรื่อยๆ ไม่มีวันจบ — ปลอดภัยเพราะห้องนี้จะมีบิลค้าง
+    // (ไม่ paid) ได้แค่ 1 ใบเสมอ (ระบบกันไม่ให้ออกบิลซ้อน) การมาร์ค paid
+    // ที่นี่จึงหมายความว่า ScheduledMessages ที่เหลือของห้องนี้ต้องเป็นของ
+    // บิลใบนี้เท่านั้น ไม่มีทางเป็นของบิลใบอื่น
+    if (req.body.status === 'paid' && merged.room) {
+      try {
+        const scheduled = await readTab('ScheduledMessages');
+        const closed = scheduled.filter((m) => m.room === merged.room && m.source === 'invoice_receipt');
+        for (const m of closed) await deleteRow('ScheduledMessages', m.id);
+      } catch (err) {
+        console.error('[invoices] failed to clear closed-bill scheduled sends', req.params.id, err.message);
+      }
+    }
     res.json(coerceInvoices([merged])[0]);
   } catch (err) { next(err); }
 });

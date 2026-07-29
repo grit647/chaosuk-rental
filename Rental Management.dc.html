@@ -7509,7 +7509,14 @@ class Component extends DCLogic {
       });
       if (!res.ok) throw new Error('อัปเดตไม่สำเร็จ');
       const updated = await res.json();
-      this.setState(s => ({ invoices: s.invoices.map(i => i.id === id ? updated : i) }));
+      // "ถ้ามีการชำระบิลเรียบร้อยแล้ว ให้ลบออกไปเลยครับ" (2026-07-29) —
+      // เซิร์ฟเวอร์ล้างคิว ScheduledMessages ของบิลนี้ไปแล้ว (PATCH
+      // /api/invoices/:id) — ล้าง state ฝั่งนี้ตามด้วยให้ป้าย "🕒 ตั้งเวลา
+      // ส่ง" หายทันที ไม่ต้องรอรีเฟรชหน้า (เหมือน confirmDeleteInvoice)
+      this.setState(s => ({
+        invoices: s.invoices.map(i => i.id === id ? updated : i),
+        scheduledMessages: s.scheduledMessages.filter(m => !(m.room === updated.room && m.source === 'invoice_receipt')),
+      }));
       this.showAdminToast('ทำเครื่องหมายชำระแล้ว');
       // Thank-you notification — best-effort, doesn't block/alter the paid status either way.
       const total2 = Number(updated.rent || 0) + Number(updated.water || 0) + Number(updated.elec || 0) + Number(updated.trash || 0) + Number(updated.internet || 0);
