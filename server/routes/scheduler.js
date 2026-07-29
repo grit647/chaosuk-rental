@@ -289,10 +289,16 @@ router.get('/run', async (req, res, next) => {
       console.error('[scheduler] owner rich menu badge sync failed', err.message);
     }
 
-    if (!settings.claudeAutomationEnabled) {
-      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew }, cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified }, dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified }, leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified }, logPrune: logPruneResult, ownerRichMenu: ownerRichMenuResult });
-    }
-
+    // ตั้งเวลาส่งข้อความ (ScheduledMessages) — ย้ายมาไว้ก่อนสวิตช์ "เปิดใช้
+    // งานฟีเจอร์นี้" (claudeAutomationEnabled) ด้านล่าง (2026-07-29, ตามคำขอ
+    // "แยกสวิทย์") เพราะเดิมสวิตช์ตัวเดียวคุมทั้ง AI อัตโนมัติ (Claude คิด/
+    // ทำเอง) และ "ตั้งเวลาส่งบิล" (เจ้าของกดตั้งเองทุกครั้ง ไม่มี AI ตัดสิน
+    // ใจอะไรเลย) — ปิดสวิตช์ Claude แล้วลืมว่าบิลที่ตั้งเวลาไว้จะไม่ถูกส่ง
+    // ด้วยเป็นความเสี่ยงจริง (กระทบเงิน/การแจ้งหนี้ผู้เช่าโดยตรง) ตอนนี้แค่
+    // ข้อความที่มาจาก source: 'invoice_receipt' (server/routes/
+    // scheduledMessages.js's POST /) เท่านั้นที่ส่งได้เสมอไม่ว่าสวิตช์จะเปิด
+    // หรือปิด — ข้อความจาก Claude tool/ปฏิทิน (source: 'manual'/'calendar')
+    // ยังคงต้องเปิดสวิตช์ไว้เหมือนเดิม (ยังถือเป็น AI-related automation จริง)
     let sentCount = 0, scheduledChecked = 0, scheduledDue = 0;
     if (lineConfigured()) {
       const nowStr = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).slice(0, 16).replace(' ', 'T');
@@ -302,6 +308,7 @@ router.get('/run', async (req, res, next) => {
       scheduledDue = due.length;
 
       for (const row of due) {
+        if (row.source !== 'invoice_receipt' && !settings.claudeAutomationEnabled) continue; // ยังปิดสวิตช์อยู่ — ข้ามไปก่อน รอบหน้าค่อยเช็คใหม่
         try {
           if (row.room === 'all') {
             const targets = rooms.filter((r) => r.lineUserId);
@@ -316,6 +323,10 @@ router.get('/run', async (req, res, next) => {
           console.error('[scheduler] failed to send', row.id, err.message);
         }
       }
+    }
+
+    if (!settings.claudeAutomationEnabled) {
+      return res.json({ ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน — ยกเว้นบิลที่ตั้งเวลาส่งไว้ ซึ่งยังส่งได้ปกติ)', overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew }, cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified }, dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified }, leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified }, logPrune: logPruneResult, ownerRichMenu: ownerRichMenuResult, scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount } });
     }
 
     // Recurring tasks (server/routes/recurringTasks.js's /parse+save flow) —
