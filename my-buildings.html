@@ -103,7 +103,18 @@
       // read it without threading it through as a param everywhere.
       window._currentPlatformVersion = data.currentPlatformVersion || 0;
 
-      renderContent(data);
+      // "เอาสถานะนี้ไปแสดงบนแดชบอร์ด Server ได้ไหม" (2026-07-29) — เฉพาะ
+      // platform-admin (มี allBuildings) เท่านั้นที่เห็นส่วนนี้ — โหลดคู่กับ
+      // ข้อมูลตึกไปเลย ไม่ต้อง fetch แยกทีหลัง (กันหน้าเว็บกระพริบ/โหลดซ้อน)
+      let uptimeData = null;
+      if (Array.isArray(data.allBuildings)) {
+        try {
+          const uRes = await fetch('/api/settings/uptime-status');
+          if (uRes.ok) uptimeData = await uRes.json();
+        } catch { /* non-fatal — การ์ดสถานะแค่ไม่โผล่ ไม่กระทบหน้าอื่น */ }
+      }
+
+      renderContent(data, uptimeData);
     } catch (e) {
       contentEl.className = 'err';
       contentEl.textContent = 'โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้งครับ';
@@ -180,7 +191,33 @@
       '</div>';
   }
 
-  function renderContent(myBuildings) {
+  // "🖥️ สถานะเซิร์ฟเวอร์" — โชว์สถานะมอนิเตอร์ UptimeRobot (ที่ปิง
+  // GET /api/scheduler/run ทุก 20 นาที) แบบย่อ ไม่ต้องเปิดเว็บแยก
+  // (2026-07-29). uptimeData เป็น null ถ้ายังไม่โหลด/ไม่ใช่ platform-admin
+  // — ไม่โชว์การ์ดนี้เลยในกรณีนั้น
+  function buildUptimeCard(uptimeData) {
+    if (!uptimeData) return '';
+    if (!uptimeData.configured) {
+      return '<div class="building-card" style="cursor:default;opacity:0.7"><div style="flex:1"><div class="building-name">🖥️ สถานะเซิร์ฟเวอร์</div><div class="building-sub">ยังไม่ได้ตั้งค่า UPTIMEROBOT_API_KEY บนเซิร์ฟเวอร์</div></div></div>';
+    }
+    if (uptimeData.error || !uptimeData.monitors.length) {
+      return '<div class="building-card" style="cursor:default;opacity:0.7"><div style="flex:1"><div class="building-name">🖥️ สถานะเซิร์ฟเวอร์</div><div class="building-sub">' + escapeHtml(uptimeData.error || 'ยังไม่มีมอนิเตอร์ตั้งไว้') + '</div></div></div>';
+    }
+    const rows = uptimeData.monitors.map((m) =>
+      '<div style="display:flex;align-items:center;gap:8px;padding:6px 0">' +
+        '<span style="width:8px;height:8px;border-radius:50%;background:' + m.dot + ';flex-shrink:0"></span>' +
+        '<span style="flex:1;font-size:12.5px;color:#241812;font-weight:600">' + escapeHtml(m.name) + '</span>' +
+        '<span style="font-size:11px;font-weight:600;color:' + m.color + '">' + escapeHtml(m.label) + '</span>' +
+        '<span style="font-size:10.5px;color:#9C8B78">Uptime ' + escapeHtml(m.uptimeRatio) + '%</span>' +
+      '</div>'
+    ).join('');
+    return '<div class="building-card" style="cursor:default;flex-direction:column;align-items:stretch">' +
+        '<div class="building-name" style="margin-bottom:4px">🖥️ สถานะเซิร์ฟเวอร์</div>' +
+        rows +
+      '</div>';
+  }
+
+  function renderContent(myBuildings, uptimeData) {
     const contentEl = document.getElementById('content');
     contentEl.className = '';
     const cards = (myBuildings.buildings || []).map(buildCard).join('');
@@ -198,7 +235,7 @@
         .filter((b) => !(myBuildings.buildings || []).some((m) => m.customerSheetId === b.customerSheetId))
         .map(buildAdminCard).join('');
       html += '<div style="font-size:10.5px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#B85B27;margin:22px 0 10px">🔧 ทุกตึกในระบบ (Server only)</div>' +
-        '<div class="list">' + (otherCards || '<div class="loading" style="padding:10px 0">ยังไม่มีตึกอื่นในระบบ</div>') + '</div>';
+        '<div class="list">' + buildUptimeCard(uptimeData) + (otherCards || '<div class="loading" style="padding:10px 0">ยังไม่มีตึกอื่นในระบบ</div>') + '</div>';
     }
 
     html += '<div class="footer-links"><span onclick="openPinModal()">เปลี่ยนรหัสเข้าสู่ระบบ</span><a href="/api/auth/logout-link">ออกจากระบบ</a></div>';

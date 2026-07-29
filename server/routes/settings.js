@@ -7,6 +7,7 @@ const { cloneSchemaToNewSheet } = require('../setupBuilding');
 const { trashSheet } = require('../googleDrive');
 const { genOwnerId, isPlatformAdminSession } = require('./auth');
 const { CURRENT_PLATFORM_VERSION } = require('../platformVersion');
+const uptimeRobot = require('../uptimeRobot');
 
 // Ownership-based (see auth.js's isPlatformAdminSession) — stays true
 // even while the platform admin is browsing another customer's building
@@ -137,6 +138,21 @@ router.post('/setup-building-start', async (req, res) => {
     .catch((err) => { job.done = true; job.error = err.message; });
 
   res.json({ ok: true, jobId });
+});
+
+// "เอาสถานะนี้ไปแสดงบนแดชบอร์ด Server ได้ไหม" (2026-07-29) — โชว์สถานะ
+// มอนิเตอร์ UptimeRobot (ที่ปิง GET /api/scheduler/run ทุก 20 นาที) ในหน้า
+// "🔧 ทุกตึกในระบบ (Server only)" โดยไม่ต้องเปิดเว็บ uptimerobot.com แยก —
+// platform-admin เท่านั้น เหมือน route อื่นๆ ในไฟล์นี้
+router.get('/uptime-status', async (req, res) => {
+  if (!(await isPlatformAdminReq(req))) return res.status(403).json({ error: 'ฟีเจอร์นี้ใช้ได้เฉพาะบัญชีแพลตฟอร์มเท่านั้น' });
+  if (!uptimeRobot.isConfigured()) return res.json({ configured: false, monitors: [] });
+  try {
+    const monitors = await uptimeRobot.getMonitors();
+    res.json({ configured: true, monitors });
+  } catch (err) {
+    res.json({ configured: true, error: err.message, monitors: [] });
+  }
 });
 
 router.get('/setup-building-progress', async (req, res) => {
