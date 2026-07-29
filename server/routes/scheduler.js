@@ -339,6 +339,14 @@ async function runSchedulerOnce() {
     scheduledChecked = rows.length;
     scheduledDue = due.length;
 
+    // "ถ้าอนาคตส่งทีเดียวเป็น 10 ห้องจะเจอปัญหาโควตาไหม" (2026-07-29) —
+    // เจอจริง: เดิมโค้ดด้านล่าง (ตอนมาร์ค receiptSent) อ่านทั้งแท็บ
+    // Invoices ใหม่ "ในลูป" ทุกครั้งที่ส่งสำเร็จ 1 ห้อง — 10 ห้องพร้อมกัน =
+    // อ่านซ้ำ 10 รอบ ทั้งที่จริงอ่านครั้งเดียวพอ (ห้องอื่นไม่ได้แก้ระหว่างนี้)
+    // ย้ายมาอ่านครั้งเดียวก่อนเข้าลูป แทน — ลดจำนวนการอ่าน Sheets ลงตาม
+    // จำนวนห้องที่ส่งพร้อมกันในรอบเดียวกัน (เหลือแค่ 1 ครั้งเสมอ ไม่ว่าจะมี
+    // กี่ห้องก็ตาม)
+    let invoicesForReceiptSent = null;
     for (const row of due) {
       if (row.source !== 'invoice_receipt' && !settings.claudeAutomationEnabled) { debugSkipped.notInvoiceReceiptAndAutomationOff++; continue; } // ยังปิดสวิตช์อยู่ — ข้ามไปก่อน รอบหน้าค่อยเช็คใหม่
       debugAttempted++;
@@ -361,8 +369,8 @@ async function runSchedulerOnce() {
         // ระบบกันไม่ให้ออกบิลซ้อนอยู่แล้ว, orders.js/invoices.js's guard)
         if (row.source === 'invoice_receipt' && row.room !== 'all') {
           try {
-            const invoices = coerceInvoices(await readTab('Invoices'));
-            const inv = invoices.find((i) => i.room === row.room && i.status !== 'paid');
+            if (!invoicesForReceiptSent) invoicesForReceiptSent = coerceInvoices(await readTab('Invoices'));
+            const inv = invoicesForReceiptSent.find((i) => i.room === row.room && i.status !== 'paid');
             if (inv) await updateRow('Invoices', inv.id, { receiptSent: true });
           } catch (err2) {
             console.error('[scheduler] failed to mark invoice receiptSent after scheduled send', row.id, err2.message);
