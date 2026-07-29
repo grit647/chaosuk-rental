@@ -331,6 +331,7 @@ async function runSchedulerOnce() {
   // ได้ทีหลังถ้าไม่ใช้แล้ว
   const debugSkipped = { notInvoiceReceiptAndAutomationOff: 0, noRoomOrNoLineUserId: 0 };
   let debugAttempted = 0;
+  const debugErrors = [];
   if (lineConfigured()) {
     const nowStr = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).slice(0, 16).replace(' ', 'T');
     const [rows, rooms] = await Promise.all([readTab('ScheduledMessages'), readTab('Rooms')]);
@@ -369,6 +370,7 @@ async function runSchedulerOnce() {
         }
       } catch (err) {
         console.error('[scheduler] failed to send', row.id, err.message, err.stack);
+        if (debugErrors.length < 3) debugErrors.push(String(err.message || err));
       }
     }
   }
@@ -381,7 +383,7 @@ async function runSchedulerOnce() {
       dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified },
       leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
       logPrune: logPruneResult, ownerRichMenu: ownerRichMenuResult,
-      scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount, debugAttempted, debugSkipped },
+      scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount, debugAttempted, debugSkipped, debugErrors },
     };
   }
 
@@ -433,7 +435,7 @@ async function runSchedulerOnce() {
     dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified },
     leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
     logPrune: logPruneResult,
-    scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount, debugAttempted, debugSkipped },
+    scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount, debugAttempted, debugSkipped, debugErrors },
     recurringTasks: { checked: recurringChecked, ran: recurringRan },
     ownerRichMenu: ownerRichMenuResult,
   };
