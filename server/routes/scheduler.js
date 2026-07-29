@@ -326,6 +326,11 @@ async function runSchedulerOnce() {
   // หรือปิด — ข้อความจาก Claude tool/ปฏิทิน (source: 'manual'/'calendar')
   // ยังคงต้องเปิดสวิตช์ไว้เหมือนเดิม (ยังถือเป็น AI-related automation จริง)
   let sentCount = 0, scheduledChecked = 0, scheduledDue = 0;
+  // 2026-07-29 — diagnostic-only fields (ไม่มีข้อความ/ข้อมูลอ่อนไหวหลุด
+  // ออกมา แค่ตัวเลขนับ) ชั่วคราวช่วยไล่บั๊ก "ตั้งเวลาแล้วไม่ยอมส่ง" — ลบออก
+  // ได้ทีหลังถ้าไม่ใช้แล้ว
+  const debugSkipped = { notInvoiceReceiptAndAutomationOff: 0, noRoomOrNoLineUserId: 0 };
+  let debugAttempted = 0;
   if (lineConfigured()) {
     const nowStr = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).slice(0, 16).replace(' ', 'T');
     const [rows, rooms] = await Promise.all([readTab('ScheduledMessages'), readTab('Rooms')]);
@@ -334,7 +339,8 @@ async function runSchedulerOnce() {
     scheduledDue = due.length;
 
     for (const row of due) {
-      if (row.source !== 'invoice_receipt' && !settings.claudeAutomationEnabled) continue; // ยังปิดสวิตช์อยู่ — ข้ามไปก่อน รอบหน้าค่อยเช็คใหม่
+      if (row.source !== 'invoice_receipt' && !settings.claudeAutomationEnabled) { debugSkipped.notInvoiceReceiptAndAutomationOff++; continue; } // ยังปิดสวิตช์อยู่ — ข้ามไปก่อน รอบหน้าค่อยเช็คใหม่
+      debugAttempted++;
       try {
         if (row.room === 'all') {
           const targets = rooms.filter((r) => r.lineUserId);
@@ -362,7 +368,7 @@ async function runSchedulerOnce() {
           }
         }
       } catch (err) {
-        console.error('[scheduler] failed to send', row.id, err.message);
+        console.error('[scheduler] failed to send', row.id, err.message, err.stack);
       }
     }
   }
@@ -375,7 +381,7 @@ async function runSchedulerOnce() {
       dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified },
       leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
       logPrune: logPruneResult, ownerRichMenu: ownerRichMenuResult,
-      scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount },
+      scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount, debugAttempted, debugSkipped },
     };
   }
 
@@ -427,7 +433,7 @@ async function runSchedulerOnce() {
     dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified },
     leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
     logPrune: logPruneResult,
-    scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount },
+    scheduledMessages: { checked: scheduledChecked, due: scheduledDue, sent: sentCount, debugAttempted, debugSkipped },
     recurringTasks: { checked: recurringChecked, ran: recurringRan },
     ownerRichMenu: ownerRichMenuResult,
   };
