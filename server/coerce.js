@@ -172,6 +172,14 @@ function coercePaymentLog(rows) {
   return rows.map((r) => ({ ...r, amount: num(r.amount, 0) }));
 }
 
+// ScheduledMessages — ใช้แสดงป้าย "🕒 ตั้งเวลาส่งไว้แล้ว" บนหน้าบิล
+// (2026-07-29) ให้เจ้าของเห็นว่าบิลไหนตั้งเวลาส่งอัตโนมัติไว้แล้วบ้าง โดยไม่
+// ต้องเข้าไปดูใน Google Sheet เอง — `sent` เก็บเป็น string 'TRUE'/'FALSE'
+// ในชีต (เหมือนทุกคอลัมน์ boolean อื่นในระบบนี้) แปลงเป็น boolean จริงตรงนี้
+function coerceScheduledMessages(rows) {
+  return rows.map((r) => ({ ...r, sent: bool(r.sent, false) }));
+}
+
 function coerceRecurringTasks(rows) {
   return rows.map((r) => ({
     ...r,
@@ -376,5 +384,5 @@ async function readIntegrationCredentials() {
 }
 
 module.exports = {
-  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, coerceUnmatchedSlips, coerceStaff, coercePaymentLog, readSettings, readIntegrationCredentials,
+  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, coerceUnmatchedSlips, coerceStaff, coercePaymentLog, coerceScheduledMessages, readSettings, readIntegrationCredentials,
 };

@@ -951,11 +951,16 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       </sc-if>
                       <span onclick="{{ b.onOpenHistory }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap">📋 ประวัติ</span>
                     </div>
-                    <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px">
-                      <sc-if value="{{ b.hasSlipPending }}" hint-placeholder-val="{{ false }}">
-                        <span onclick="{{ b.onOpenSlip }}" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:7px 11px;border-radius:6px;cursor:pointer;background:#FBE7DC;color:#B85B27;white-space:nowrap">📎 ดูสลิป</span>
+                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+                      <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px">
+                        <sc-if value="{{ b.hasSlipPending }}" hint-placeholder-val="{{ false }}">
+                          <span onclick="{{ b.onOpenSlip }}" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:7px 11px;border-radius:6px;cursor:pointer;background:#FBE7DC;color:#B85B27;white-space:nowrap">📎 ดูสลิป</span>
+                        </sc-if>
+                        <span onclick="{{ b.onSendLine }}" style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:7px 13px;border-radius:6px;cursor:pointer;background:{{ b.sendBg }};color:{{ b.sendColor }};white-space:nowrap">{{ b.sendLabel }}</span>
+                      </div>
+                      <sc-if value="{{ b.hasScheduledSend }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:10px;font-weight:600;padding:4px 9px;border-radius:5px;background:#E4EEF7;color:#2C6E8F;white-space:nowrap">{{ b.scheduledSendLabel }}</span>
                       </sc-if>
-                      <span onclick="{{ b.onSendLine }}" style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:7px 13px;border-radius:6px;cursor:pointer;background:{{ b.sendBg }};color:{{ b.sendColor }};white-space:nowrap">{{ b.sendLabel }}</span>
                     </div>
                   </div>
                 </sc-for>
@@ -4328,6 +4333,9 @@ class Component extends DCLogic {
     // advance-payment credit and partial payments, both real money that
     // never touched an invoice's status).
     paymentLog: [],
+    // "ถ้าตั้งเวลา ส่วนนี้ให้แสดงไว้ด้วยครับ" (2026-07-29) — ใช้โชว์ป้าย
+    // "🕒 ตั้งเวลาส่งไว้แล้ว" บนตารางบิลที่รอชำระ (ดู sendChoiceSchedule)
+    scheduledMessages: [],
     showStaffModal: false,
     editingStaffId: null,
     newStaff: { name: '', position: '', salary: '', workStart: '', workEnd: '', workDays: '', startDate: '', endDate: '', phone: '', status: 'active', notes: '', payDay: '' },
@@ -4961,6 +4969,9 @@ class Component extends DCLogic {
         unmatchedSlips: data.unmatchedSlips || [],
         staff: data.staff || [],
         paymentLog: data.paymentLog || [],
+        // "ถ้าตั้งเวลา ส่วนนี้ให้แสดงไว้ด้วยครับ" (2026-07-29) — โหลดมาให้
+        // หน้าบิลโชว์ป้าย "🕒 ตั้งเวลาส่งไว้แล้ว" ต่อห้องที่มีคิวส่งค้างอยู่
+        scheduledMessages: data.scheduledMessages || [],
         propertyProfile: data.propertyProfile,
         waterRate: data.waterRate,
         elecRate: data.elecRate,
@@ -6794,6 +6805,7 @@ class Component extends DCLogic {
     const sendAt = `${s.sendChoiceDate}T${s.sendChoiceTime}`;
     this.setState({ sendChoiceLoading: true });
     let okCount = 0, failCount = 0;
+    const newRows = [];
     for (const roomId of s.sendChoiceRoomIds) {
       try {
         const message = this._buildReceiptMessage(roomId);
@@ -6802,10 +6814,16 @@ class Component extends DCLogic {
           body: JSON.stringify({ room: roomId, message, sendAt }),
         });
         if (!res.ok) throw new Error();
+        newRows.push(await res.json());
         okCount++;
       } catch (err) { failCount++; console.error('sendChoiceSchedule failed for room', roomId, err); }
     }
-    this.setState({ showSendChoiceModal: false, sendChoiceRoomIds: [], sendChoiceLoading: false });
+    // เพิ่มลง state ทันที ไม่ต้องรอโหลดหน้าใหม่ ให้ป้าย "🕒 ตั้งเวลาส่งไว้
+    // แล้ว" บนตารางบิลขึ้นทันทีหลังปิด popup
+    this.setState(st => ({
+      showSendChoiceModal: false, sendChoiceRoomIds: [], sendChoiceLoading: false,
+      scheduledMessages: [...st.scheduledMessages, ...newRows.map(r => ({ ...r, sent: false }))],
+    }));
     const whenLabel = this._fmtDateTh(s.sendChoiceDate) + ' เวลา ' + s.sendChoiceTime + ' น.';
     this.showAdminToast(failCount === 0
       ? `ตั้งเวลาส่งใบแจ้งหนี้ ${okCount} ห้องแล้ว (${whenLabel})`
@@ -7147,6 +7165,14 @@ class Component extends DCLogic {
     if (!iso || typeof iso !== 'string') return iso || '';
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
     return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+  }
+  // Formats a ScheduledMessages row's sendAt ("YYYY-MM-DDTHH:MM") for the
+  // "🕒 ตั้งเวลาส่งไว้แล้ว" badge on the pending-bills table — reuses
+  // _fmtDateTh for the date part, appends the time as-is.
+  _fmtScheduledSendAt(sendAt) {
+    if (!sendAt || typeof sendAt !== 'string') return sendAt || '';
+    const [datePart, timePart] = sendAt.split('T');
+    return this._fmtDateTh(datePart) + (timePart ? ' ' + timePart + ' น.' : '');
   }
   // Applies the room's minimum monthly charge (per explicit user request)
   // on top of a raw units×rate calc — returns both the final charge AND
@@ -9553,6 +9579,12 @@ class Component extends DCLogic {
       // its amounts shouldn't be editable anymore either — editing only
       // makes sense in the earlier "nothing paid yet" stage.
       const canModify = !hasSlipPending && !partial;
+      // "ถ้าตั้งเวลา ส่วนนี้ให้แสดงไว้ด้วยครับ" (2026-07-29) — หาแถว
+      // ScheduledMessages ที่ยังไม่ส่ง (sent: false) ของห้องนี้ ที่ตั้งเวลา
+      // ไว้ล่าสุด (เผื่อมีมากกว่า 1 แถวค้างอยู่ ไม่น่าเกิดปกติแต่กันไว้)
+      const pendingSchedule = (s.scheduledMessages || [])
+        .filter(m => m.room === i.room && !m.sent && m.source === 'invoice_receipt')
+        .sort((a, b) => (a.sendAt || '').localeCompare(b.sendAt || ''))[0];
       return {
         id: i.id, room: i.room, tenant: i.tenant, due: this.formatThaiDateLabel(i.due) || i.due || '—',
         totalDisplay: hasAmountPaid ? this.fmt(remaining) : this.fmt(total),
@@ -9580,6 +9612,8 @@ class Component extends DCLogic {
         canModify, cannotModify: !canModify,
         onDeleteReceipt: () => this.askDeleteInvoice(i.id),
         onOpenHistory: () => this.openBillHistory(i.room),
+        hasScheduledSend: !!pendingSchedule,
+        scheduledSendLabel: pendingSchedule ? ('🕒 ตั้งเวลาส่ง ' + this._fmtScheduledSendAt(pendingSchedule.sendAt)) : '',
       };
     });
     const pendingBillsCount = pendingBills.length;
