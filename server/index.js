@@ -180,6 +180,7 @@ app.use('/api/recurring-tasks', require('./routes/recurringTasks'));
 app.use('/api/unmatched-slips', require('./routes/unmatchedSlips'));
 app.use('/api/system-data', require('./routes/systemData'));
 app.use('/api/scheduler', require('./routes/scheduler'));
+app.use('/api/scheduled-messages', require('./routes/scheduledMessages'));
 app.use('/api/demo-reset', require('./routes/demoReset'));
 app.use('/api/payment-card-image', require('./routes/paymentCard'));
 app.use('/api/payment-log', require('./routes/paymentLog'));

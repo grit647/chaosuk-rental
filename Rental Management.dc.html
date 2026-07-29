@@ -3554,6 +3554,28 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <sc-if value="{{ showSendChoiceModal }}">
+          <div onclick="{{ closeSendChoiceModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">ส่งใบแจ้งหนี้เมื่อไหร่ดี?</div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">ออกบิลสำเร็จแล้ว — {{ sendChoiceRoomLabel }}</div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <button onclick="{{ sendChoiceNow }}" style="background:#C1622D;color:#fff;border:none;border-radius:6px;padding:12px;font-size:13.5px;font-weight:700;cursor:pointer">📤 {{ sendChoiceNowLabel }}</button>
+                <div style="text-align:center;font-size:11px;color:#9C8B78">หรือ</div>
+                <div style="padding:12px;border-radius:8px;background:#FBF7F0;display:flex;flex-direction:column;gap:8px">
+                  <div style="font-size:12.5px;font-weight:700;color:#241812">🕒 ตั้งวันและเวลาส่ง</div>
+                  <div style="display:flex;gap:8px">
+                    <input type="date" value="{{ sendChoiceDate }}" onchange="{{ onSendChoiceDateChange }}" min="{{ todayDateStr }}" style="flex:1;padding:8px;border:1px solid #E3D8C8;border-radius:6px;font-size:13px;color:#241812" />
+                    <input type="time" value="{{ sendChoiceTime }}" onchange="{{ onSendChoiceTimeChange }}" style="width:100px;padding:8px;border:1px solid #E3D8C8;border-radius:6px;font-size:13px;color:#241812" />
+                  </div>
+                  <button onclick="{{ sendChoiceSchedule }}" style="background:#fff;border:1px solid #C1622D;color:#C1622D;border-radius:6px;padding:9px;font-size:12.5px;font-weight:700;cursor:pointer">{{ sendChoiceScheduleLabel }}</button>
+                </div>
+                <button onclick="{{ closeSendChoiceModal }}" style="background:none;border:1px solid #E3D8C8;color:#9C8B78;border-radius:6px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;margin-top:4px">ยังไม่ส่ง (ไปส่งทีหลังที่หน้าบิล)</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showBillHistory }}">
           <div onclick="{{ closeBillHistory }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:380px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
@@ -4239,6 +4261,15 @@ class Component extends DCLogic {
     bulkInvoiceDue: '',
     bulkInvoiceDrafts: {},
     bulkInvoiceLoading: false,
+    // "กดสร้างใบเสร็จแล้วให้ขึ้น popup ใหม่ ถามก่อนว่า ส่งเดียวนี้ กับ
+    // ตั้งวันและเวลาส่ง" (2026-07-29) — เปิดหลังสร้างใบแจ้งหนี้สำเร็จ ทั้ง
+    // ทางออกห้องเดียว (submitInvoice) และออกทั้งหมด (submitBulkInvoice) —
+    // sendChoiceRoomIds เก็บห้องที่เพิ่งออกบิลสำเร็จ (1 ห้อง หรือหลายห้อง)
+    showSendChoiceModal: false,
+    sendChoiceRoomIds: [],
+    sendChoiceDate: '',
+    sendChoiceTime: '09:00',
+    sendChoiceLoading: false,
     // Per-room billing history card ("ประวัติ" button in the pending-bills
     // table) — per explicit user request, to look back at recent water/elec
     // units without leaving the Bills page.
@@ -6560,6 +6591,10 @@ class Component extends DCLogic {
       invoices: [...newInvoices, ...st.invoices],
       rooms: st.rooms.map(r => roomCreditUpdates[r.id] != null ? { ...r, creditBalance: roomCreditUpdates[r.id] } : r),
       showBulkInvoiceModal: false, bulkInvoiceLoading: false,
+      // เปิด popup ถามส่งทันที/ตั้งวันเวลาส่ง ให้ครบทุกห้องที่เพิ่งออกบิล
+      // สำเร็จ (ห้องที่ล้มเหลวไม่รวม — ไม่มีบิลจริงให้ส่ง)
+      showSendChoiceModal: newInvoices.length > 0, sendChoiceRoomIds: newInvoices.map(inv => inv.room),
+      sendChoiceDate: '', sendChoiceTime: '09:00',
     }));
     this.showAdminToast(failCount === 0
       ? `สร้างใบแจ้งหนี้สำเร็จ ${successCount} ห้อง`
@@ -6584,11 +6619,16 @@ class Component extends DCLogic {
     const de = this.deviceCharge(roomId, 'elec'); if (de) next.elec = String(de.charge);
     this.setState({ showInvoiceModal: true, newInvoice: next });
   };
-  sendReceiptLine = (roomId) => this._guard('sendReceiptLine:' + roomId, async () => {
+  // Extracted out of sendReceiptLine (2026-07-29) so the exact same itemized
+  // text can also be used for the new "ตั้งวันเวลาส่ง" (schedule for later)
+  // option on the create-invoice flow — the scheduler only supports plain
+  // text (server/routes/scheduler.js's ScheduledMessages pushMessage), not
+  // the receipt-image/QR generation sendReceiptLine does for an immediate
+  // send, so scheduled sends deliberately fall back to this plain text only.
+  _buildReceiptMessage = (roomId) => {
     const invoice = this.state.invoices.find(i => i.room === roomId && i.status !== 'paid');
-    try {
-      let message;
-      if (invoice) {
+    let message;
+    if (invoice) {
         // Per explicit user request: show ค่าน้ำ/ค่าไฟ with a "(X หน่วย ×
         // อัตรา)" breakdown when this invoice actually has units recorded
         // (waterUnits/elecUnits — frozen at creation time, see
@@ -6666,9 +6706,16 @@ class Component extends DCLogic {
         }
         // Fire-and-forget: a PDF hiccup shouldn't block the LINE message going out.
         fetch('/api/invoices/' + encodeURIComponent(invoice.id) + '/pdf', { method: 'POST' }).catch(err => console.error(err));
-      } else {
-        message = 'แจ้งใบแจ้งหนี้ห้อง ' + roomId + ' ครับ กรุณาตรวจสอบยอดชำระในระบบ';
-      }
+    } else {
+      message = 'แจ้งใบแจ้งหนี้ห้อง ' + roomId + ' ครับ กรุณาตรวจสอบยอดชำระในระบบ';
+    }
+    return message;
+  };
+
+  sendReceiptLine = (roomId) => this._guard('sendReceiptLine:' + roomId, async () => {
+    const invoice = this.state.invoices.find(i => i.room === roomId && i.status !== 'paid');
+    try {
+      const message = this._buildReceiptMessage(roomId);
       // Per explicit user request: when a payment QR is configured, send a
       // SINGLE combined receipt image (itemized bill + QR baked into one
       // picture, server/receiptImage.js) instead of separate text+QR
@@ -6717,6 +6764,54 @@ class Component extends DCLogic {
       this.showAdminToast('ส่งใบแจ้งหนี้ห้อง ' + roomId + ' ทาง LINE และบันทึกใบเสร็จแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ส่ง LINE ไม่สำเร็จ'); }
   });
+
+  // "กดสร้างใบเสร็จแล้วให้ขึ้น popup ใหม่ ถามก่อนว่า ส่งเดียวนี้ กับ ตั้ง
+  // วันละเวลาส่ง" (2026-07-29) — popup เปิดจาก submitInvoice (ห้องเดียว)
+  // และ submitBulkInvoice (ออกทั้งหมด), sendChoiceRoomIds เก็บห้องที่เพิ่ง
+  // ออกบิลสำเร็จไว้แล้ว ใช้ร่วมกันทั้ง 2 ทาง
+  closeSendChoiceModal = () => this.setState({ showSendChoiceModal: false, sendChoiceRoomIds: [] });
+  onSendChoiceDateChange = (e) => this.setState({ sendChoiceDate: e.target.value });
+  onSendChoiceTimeChange = (e) => this.setState({ sendChoiceTime: e.target.value });
+
+  sendChoiceNow = () => this._guard('sendChoiceNow', async () => {
+    const roomIds = this.state.sendChoiceRoomIds;
+    this.setState({ sendChoiceLoading: true });
+    for (const roomId of roomIds) {
+      try { await this.sendReceiptLine(roomId); } catch (err) { console.error('sendChoiceNow failed for room', roomId, err); }
+    }
+    this.setState({ showSendChoiceModal: false, sendChoiceRoomIds: [], sendChoiceLoading: false });
+  });
+
+  // ตั้งเวลาส่ง — ใช้ ScheduledMessages แท็บเดียวกับ Claude's
+  // schedule_line_message tool/add_calendar_event's notifyChannel (ดู
+  // server/routes/scheduler.js's GET /run ซึ่งเป็นตัวส่งจริงตอนถึงเวลา ผ่าน
+  // GitHub Actions cron ภายนอก) — ข้อความที่ตั้งเวลาไว้เป็นข้อความล้วน
+  // (plain text) เหมือนกัน ไม่มีรูปใบเสร็จ/QR แบบส่งทันที เพราะตัวส่งตอน
+  // ถึงเวลาไม่รองรับรูปภาพ (ดู comment ใน _buildReceiptMessage ด้านบน)
+  sendChoiceSchedule = () => this._guard('sendChoiceSchedule', async () => {
+    const s = this.state;
+    if (!s.sendChoiceDate || !s.sendChoiceTime) { this.showAdminToast('กรุณาเลือกวันที่และเวลาที่จะส่ง'); return; }
+    const sendAt = `${s.sendChoiceDate}T${s.sendChoiceTime}`;
+    this.setState({ sendChoiceLoading: true });
+    let okCount = 0, failCount = 0;
+    for (const roomId of s.sendChoiceRoomIds) {
+      try {
+        const message = this._buildReceiptMessage(roomId);
+        const res = await fetch('/api/scheduled-messages', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room: roomId, message, sendAt }),
+        });
+        if (!res.ok) throw new Error();
+        okCount++;
+      } catch (err) { failCount++; console.error('sendChoiceSchedule failed for room', roomId, err); }
+    }
+    this.setState({ showSendChoiceModal: false, sendChoiceRoomIds: [], sendChoiceLoading: false });
+    const whenLabel = this._fmtDateTh(s.sendChoiceDate) + ' เวลา ' + s.sendChoiceTime + ' น.';
+    this.showAdminToast(failCount === 0
+      ? `ตั้งเวลาส่งใบแจ้งหนี้ ${okCount} ห้องแล้ว (${whenLabel})`
+      : `ตั้งเวลาสำเร็จ ${okCount} ห้อง, ไม่สำเร็จ ${failCount} ห้อง`);
+  });
+
   openPayConfirm = (id) => this.setState({ showPayConfirm: true, payConfirmId: id });
 
   // Hides one entry from the Dashboard's "การชำระเงินล่าสุด" widget only —
@@ -7327,6 +7422,8 @@ class Component extends DCLogic {
       this.setState(st => ({
         invoices: [newInv, ...st.invoices], showInvoiceModal: false,
         receiptsSent: Object.fromEntries(Object.entries(st.receiptsSent).filter(([k]) => k !== room.id)),
+        // เปิด popup ถามว่าจะส่งใบแจ้งหนี้ทันที หรือตั้งวันเวลาส่งทีหลัง
+        showSendChoiceModal: true, sendChoiceRoomIds: [room.id], sendChoiceDate: '', sendChoiceTime: '09:00',
       }));
       this.showAdminToast('สร้างใบแจ้งหนี้ห้อง ' + room.id + ' สำเร็จ');
       // The server (POST /api/invoices) auto-applies any advance credit the
@@ -10753,6 +10850,18 @@ class Component extends DCLogic {
       todayDateStr: this._todayStr(),
       submitBulkInvoice: this.submitBulkInvoice,
       bulkInvoiceSubmitLabel: s.bulkInvoiceLoading ? 'กำลังบันทึก...' : `สร้างใบแจ้งหนี้ทั้งหมด (${Object.keys(s.bulkInvoiceDrafts).length} ห้อง)`,
+      // "กดสร้างใบเสร็จแล้วให้ขึ้น popup ใหม่ ถามก่อนว่า ส่งเดียวนี้ กับ
+      // ตั้งวันและเวลาส่ง" (2026-07-29) — popup เดียวกันใช้ทั้งออกบิลห้อง
+      // เดียวและออกทั้งหมด (sendChoiceRoomIds มี 1 หรือหลายห้อง)
+      showSendChoiceModal: s.showSendChoiceModal, closeSendChoiceModal: this.closeSendChoiceModal,
+      sendChoiceRoomCount: s.sendChoiceRoomIds.length,
+      sendChoiceRoomLabel: s.sendChoiceRoomIds.length === 1 ? `ห้อง ${s.sendChoiceRoomIds[0]}` : `${s.sendChoiceRoomIds.length} ห้อง (${s.sendChoiceRoomIds.join(', ')})`,
+      sendChoiceDate: s.sendChoiceDate, onSendChoiceDateChange: this.onSendChoiceDateChange,
+      sendChoiceTime: s.sendChoiceTime, onSendChoiceTimeChange: this.onSendChoiceTimeChange,
+      sendChoiceNow: this.sendChoiceNow, sendChoiceSchedule: this.sendChoiceSchedule,
+      sendChoiceLoading: s.sendChoiceLoading,
+      sendChoiceNowLabel: s.sendChoiceLoading ? 'กำลังส่ง...' : 'ส่งทันที',
+      sendChoiceScheduleLabel: s.sendChoiceLoading ? 'กำลังตั้งเวลา...' : 'ตั้งเวลาส่ง',
       // Per-room draft rows for the bulk modal — recomputed live every
       // render from bulkInvoiceDrafts (same reactive pattern used
       // throughout this file), so editing one room's water/elec here
