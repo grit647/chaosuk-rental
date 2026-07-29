@@ -7167,12 +7167,16 @@ class Component extends DCLogic {
     return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
   }
   // Formats a ScheduledMessages row's sendAt ("YYYY-MM-DDTHH:MM") for the
-  // "🕒 ตั้งเวลาส่งไว้แล้ว" badge on the pending-bills table — reuses
-  // _fmtDateTh for the date part, appends the time as-is.
+  // "🕒 ตั้งเวลาส่งไว้แล้ว" badge on the pending-bills table — วัน/เดือน/ปี
+  // แบบ พ.ศ. (ปี ค.ศ. + 543) เหมือนวันที่อื่นๆ ทั้งหมดในแอปนี้ (ตอนแรกใช้
+  // _fmtDateTh เฉยๆ ซึ่งยังเป็นปี ค.ศ. ดิบๆ อยู่ — ผิดจากธรรมเนียมของแอปนี้
+  // ที่โชว์ปี พ.ศ. ทุกที่ เลยแก้ให้ตรงกัน ตามคำขอ 2026-07-29)
   _fmtScheduledSendAt(sendAt) {
     if (!sendAt || typeof sendAt !== 'string') return sendAt || '';
     const [datePart, timePart] = sendAt.split('T');
-    return this._fmtDateTh(datePart) + (timePart ? ' ' + timePart + ' น.' : '');
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart || '');
+    const dateThai = m ? `${m[3]}/${m[2]}/${Number(m[1]) + 543}` : (datePart || '');
+    return dateThai + (timePart ? ' ' + timePart + ' น.' : '');
   }
   // Applies the room's minimum monthly charge (per explicit user request)
   // on top of a raw units×rate calc — returns both the final charge AND
