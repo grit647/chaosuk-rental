@@ -73,13 +73,16 @@ async function runSchedulerOnce() {
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
     const candidates = invoices.filter((i) => (i.status === 'pending' || i.status === 'partial') && i.due && i.due < todayStr);
     overdueChecked = candidates.length;
+    // ดึงครั้งเดียวก่อนลูป (ดู comment เต็มใน adminNotify.js's preloadedCreds
+    // param) — ห้องเกินกำหนดหลายห้องพร้อมกันไม่ต้องอ่าน Settings ซ้ำทุกห้อง
+    const overdueCreds = candidates.length ? await readIntegrationCredentials() : null;
     for (const inv of candidates) {
       try {
         await updateRow('Invoices', inv.id, { status: 'overdue' });
         overdueNew++;
         const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
         const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
-        notifyAdmin('overdueBill', `บิลห้อง ${inv.room} เกินกำหนดชำระแล้วครับ (ครบกำหนด ${inv.due}) ยอดค้าง ${remaining.toLocaleString()} บาท`).catch(() => {});
+        notifyAdmin('overdueBill', `บิลห้อง ${inv.room} เกินกำหนดชำระแล้วครับ (ครบกำหนด ${inv.due}) ยอดค้าง ${remaining.toLocaleString()} บาท`, overdueCreds).catch(() => {});
       } catch (err) {
         console.error('[scheduler] overdue transition failed', inv.id, err.message);
       }
@@ -144,7 +147,7 @@ async function runSchedulerOnce() {
               : kind === 'final'
               ? `⚠️ ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${finalDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณาตัดน้ำ/ไฟ ได้เลยครับ (ตัดจริงต้องทำเองที่หน้า "Set อุปกรณ์" ระบบไม่ตัดให้อัตโนมัติ)`
               : `🔔 ห้อง ${inv.room} ยังไม่ชำระค่าเช่าครับ (ยอดค้าง ${remaining.toLocaleString()} บาท)`;
-            notifyAdmin('cutoffWarning', msg).catch(() => {});
+            notifyAdmin('cutoffWarning', msg, cutoffCreds).catch(() => {});
             // "ให้ขึ้นปุ่ม ยืนยันที่หน้าไลน์เจ้าของเพื่อให้กดยืนยันเองได้
             // เลย" (2026-07-26) — เฉพาะ tier "final" (วันพิจารณาตัดน้ำ/ไฟ)
             // และเฉพาะห้องที่เชื่อม Tuya ไฟจริงแล้ว (ตัดได้จริงผ่าน
@@ -162,7 +165,7 @@ async function runSchedulerOnce() {
             // เตือนเฉยๆ, final วันที่ 15 มีปุ่มอยู่แล้ว) — ขยายเงื่อนไขจาก
             // "เฉพาะ final" เป็น "reminder หรือ final" ทั้งคู่
             const adminLineId = settings.propertyProfile && settings.propertyProfile.adminLineUserId;
-            if ((kind === 'reminder' || kind === 'final') && room && room.tuyaElecDeviceId && adminLineId && lineConfigured()) {
+            if ((kind === 'reminder' || kind === 'final') && room && room.tuyaElecDeviceId && adminLineId && lineConfigured(cutoffCreds.line)) {
               pushButtonMessage(
                 adminLineId,
                 `⚡ ห้อง ${inv.room} ค้างชำระ ${remaining.toLocaleString()} บาท (${kind === 'final' ? 'เกินกำหนดตัดไฟแล้ว' : 'ถึงกำหนดพิจารณาตัดไฟแล้ว'}) กดปุ่มด้านล่างเพื่อตัดไฟห้องนี้ทันที`,
@@ -185,7 +188,13 @@ async function runSchedulerOnce() {
                 : kind === 'final' ? settings.cutoffFinalMsg
                 : settings.cutoffReminderMsg;
               const tenantMsg = (template || '').replace(/\{ยอดค้าง\}/g, remaining.toLocaleString());
-              pushMessage(room.lineUserId, tenantMsg).catch(() => {});
+              // บั๊กจริงที่พบ (2026-07-29): pushMessage เรียกแบบไม่ส่ง creds
+              // เลย ทำให้ fallback ไปใช้ credentials ของบัญชีหลักเสมอ ไม่ว่า
+              // จะรันให้ตึกไหน — ตึกอื่นที่มี LINE OA แยกต่างหากจะส่งไม่ออก
+              // เลย (LINE ปฏิเสธเพราะ token ผิดช่องทาง) ต้องส่ง cutoffCreds.line
+              // (ดึงไว้แล้วด้านบนในสโคปนี้) เหมือนที่ pushButtonMessage ด้านบน
+              // ทำถูกอยู่แล้ว
+              pushMessage(room.lineUserId, tenantMsg, undefined, cutoffCreds.line).catch(() => {});
               _cutoffNotifiedDates.set(tenantKey, todayStr);
             }
           }
@@ -214,6 +223,10 @@ async function runSchedulerOnce() {
       const unpaid = invoices.filter((i) => (i.status === 'pending' || i.status === 'partial') && i.due);
       dueReminderChecked = unpaid.length;
       const rooms = await readTab('Rooms');
+      // บั๊กจริงที่พบ (2026-07-29) — pushMessage เดิมเรียกไม่ส่ง creds เลย
+      // (ดู comment เต็มในส่วน cutoff warning ด้านบน) ตึกอื่นที่มี LINE OA
+      // แยกต่างหากจะส่งไม่ออกเลย ต้องดึง credentials ของตึกนี้เองมาก่อน
+      const dueReminderCreds = await readIntegrationCredentials();
       for (const inv of unpaid) {
         const daysUntilDue = Math.round((new Date(inv.due + 'T00:00:00Z') - new Date(todayStr2 + 'T00:00:00Z')) / 86400000);
         if (daysUntilDue < 1 || daysUntilDue > reminderDays) continue; // นอกช่วง N วันก่อนครบกำหนด (ไม่รวมวันครบกำหนดเอง)
@@ -221,7 +234,7 @@ async function runSchedulerOnce() {
         if (_cutoffNotifiedDates.get(key) === todayStr2) continue; // วันนี้แจ้งไปแล้ว
         const room = rooms.find((r) => r.id === inv.room);
         if (room && room.lineUserId) {
-          pushMessage(room.lineUserId, msg).catch((err) => console.error('[scheduler] due reminder push failed', err.message));
+          pushMessage(room.lineUserId, msg, undefined, dueReminderCreds.line).catch((err) => console.error('[scheduler] due reminder push failed', err.message));
           dueReminderNotified++;
         }
         _cutoffNotifiedDates.set(key, todayStr2);
@@ -253,6 +266,9 @@ async function runSchedulerOnce() {
       const rooms = await readTab('Rooms');
       const occupied = rooms.filter((r) => r.tenant);
       leaseExpiringChecked = occupied.length;
+      // บั๊กจริงที่พบ (2026-07-29) — pushMessage เดิมเรียกไม่ส่ง creds เลย
+      // (ดู comment เต็มในส่วน cutoff warning ด้านบน)
+      const leaseExpiringCreds = await readIntegrationCredentials();
       for (const room of occupied) {
         const checks = [
           { field: 'tenantIdExpiry', value: room.tenantIdExpiry, kind: 'idCard', label: 'บัตรประชาชนผู้เช่า', tenantLabel: 'บัตรประชาชนของคุณ' },
@@ -263,9 +279,9 @@ async function runSchedulerOnce() {
           if (days !== reminderDays) continue; // เตือนแค่วันที่ตรงเป๊ะเท่านั้น กันแจ้งซ้ำทุกวัน
           const key = `${sheetId}:leaseExpiring:${c.kind}:${room.id}:${c.value}`;
           if (_cutoffNotifiedDates.get(key) === todayStr2) continue;
-          notifyAdmin('leaseExpiring', `📄 ${c.label}ห้อง ${room.id} (${room.tenant}) จะหมดอายุในอีก ${reminderDays} วัน (${c.value})`).catch(() => {});
+          notifyAdmin('leaseExpiring', `📄 ${c.label}ห้อง ${room.id} (${room.tenant}) จะหมดอายุในอีก ${reminderDays} วัน (${c.value})`, leaseExpiringCreds).catch(() => {});
           if (room.lineUserId) {
-            pushMessage(room.lineUserId, `📄 แจ้งเตือนครับ ${c.tenantLabel}จะหมดอายุในอีก ${reminderDays} วัน (${c.value}) รบกวนเตรียมต่ออายุ/อัปเดตให้เรียบร้อยนะครับ`).catch(() => {});
+            pushMessage(room.lineUserId, `📄 แจ้งเตือนครับ ${c.tenantLabel}จะหมดอายุในอีก ${reminderDays} วัน (${c.value}) รบกวนเตรียมต่ออายุ/อัปเดตให้เรียบร้อยนะครับ`, undefined, leaseExpiringCreds.line).catch(() => {});
           }
           _cutoffNotifiedDates.set(key, todayStr2);
           leaseExpiringNotified++;
@@ -332,7 +348,13 @@ async function runSchedulerOnce() {
   // ทดสอบผูก LINE ปลอมไว้ ไม่ใช่บั๊กโค้ด) — เก็บไว้ต่อเพราะมีประโยชน์เวลา
   // เจอเคสแบบนี้อีกในอนาคต ไม่ต้องเพิ่ม log ใหม่ทุกครั้ง
   let scheduledMessagesErrors = [];
-  if (lineConfigured()) {
+  // บั๊กจริงที่พบ (2026-07-29) — lineConfigured() เรียกแบบไม่ส่ง creds เลย
+  // เช็คแค่ credentials ของบัญชีหลัก (process.env) ไม่ใช่ของตึกนี้เอง —
+  // ตึกที่มี LINE OA แยกต่างหาก (บันทึกไว้ผ่านหน้าตั้งค่าของตัวเอง ไม่ใช่
+  // .env) จะโดนข้ามทั้ง block นี้ไปเฉยๆ ทั้งที่จริงมี credentials ของตัวเอง
+  // อยู่แล้ว — ต้องดึง credentials ของตึกนี้มาเช็ค/ใช้จริง
+  const scheduledMsgCreds = await readIntegrationCredentials();
+  if (lineConfigured(scheduledMsgCreds.line)) {
     const nowStr = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).slice(0, 16).replace(' ', 'T');
     const [rows, rooms] = await Promise.all([readTab('ScheduledMessages'), readTab('Rooms')]);
     const due = rows.filter((r) => r.sent !== 'TRUE' && r.sendAt && r.sendAt <= nowStr);
@@ -353,10 +375,10 @@ async function runSchedulerOnce() {
       try {
         if (row.room === 'all') {
           const targets = rooms.filter((r) => r.lineUserId);
-          for (const r of targets) await pushMessage(r.lineUserId, row.message);
+          for (const r of targets) await pushMessage(r.lineUserId, row.message, undefined, scheduledMsgCreds.line);
         } else {
           const room = rooms.find((r) => r.id === row.room);
-          if (room && room.lineUserId) await pushMessage(room.lineUserId, row.message);
+          if (room && room.lineUserId) await pushMessage(room.lineUserId, row.message, undefined, scheduledMsgCreds.line);
         }
         await updateRow('ScheduledMessages', row.id, { sent: 'TRUE' });
         sentCount++;
