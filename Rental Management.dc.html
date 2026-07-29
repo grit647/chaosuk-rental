@@ -6991,15 +6991,23 @@ class Component extends DCLogic {
           }
         } catch { /* non-fatal — worst case the meter baseline stays stale until next refresh */ }
       }
+      // "กรณีที่กดลบใบเสร็จ ให้ลบส่วนของการส่งข้อมูลแบบกำหนดเวลาออกด้วย"
+      // (2026-07-29) — เซิร์ฟเวอร์ลบคิว ScheduledMessages ที่ยังไม่ส่งของ
+      // ห้องนี้ไปแล้ว (DELETE /api/invoices/:id) — ล้าง state ฝั่งนี้ตามด้วย
+      // ให้ป้าย "🕒 ตั้งเวลาส่ง" หายไปทันที ไม่ต้องรอรีเฟรชหน้า
+      const cancelledSchedules = result.cancelledSchedules || 0;
       this.setState(s => ({
         invoices: s.invoices.filter(i => i.id !== id),
         rooms: refunded > 0 && room ? s.rooms.map(r => r.id === room.id ? { ...r, creditBalance: (r.creditBalance || 0) + refunded } : r) : s.rooms,
         showDeleteInvoiceConfirm: false, deleteInvoiceId: '',
         receiptsSent: wasSent ? Object.fromEntries(Object.entries(s.receiptsSent).filter(([k]) => k !== inv.room)) : s.receiptsSent,
+        scheduledMessages: cancelledSchedules > 0
+          ? s.scheduledMessages.filter(m => !(m.room === inv.room && m.source === 'invoice_receipt' && !m.sent))
+          : s.scheduledMessages,
       }));
       this.showAdminToast((refunded > 0
         ? `ลบใบแจ้งหนี้แล้ว — คืนยอด ${this.fmt(refunded)} ที่จ่ายไปแล้วเป็นเงินล่วงหน้าให้ห้อง ${inv.room}`
-        : 'ลบใบแจ้งหนี้แล้ว') + (result.meterReverted ? ' — คืนหน่วยมิเตอร์ล่าสุดให้ด้วยแล้ว' : '') + (wasSent ? ' — แจ้งผู้เช่าทาง LINE แล้วว่ากำลังตรวจสอบข้อมูลใหม่' : ''));
+        : 'ลบใบแจ้งหนี้แล้ว') + (result.meterReverted ? ' — คืนหน่วยมิเตอร์ล่าสุดให้ด้วยแล้ว' : '') + (wasSent ? ' — แจ้งผู้เช่าทาง LINE แล้วว่ากำลังตรวจสอบข้อมูลใหม่' : '') + (cancelledSchedules > 0 ? ` — ยกเลิกคิวส่งที่ตั้งเวลาไว้ ${cancelledSchedules} รายการด้วยแล้ว` : ''));
       if (wasSent) {
         this._lineSend(inv.room, `ขออภัยครับ เรากำลังตรวจสอบข้อมูลใบแจ้งหนี้ห้อง ${inv.room} ใหม่อีกครั้ง รบกวนรอรับใบแจ้งหนี้ฉบับล่าสุดสักครู่นะครับ ขอบคุณครับ 🙏`).catch(err => console.error(err));
       }

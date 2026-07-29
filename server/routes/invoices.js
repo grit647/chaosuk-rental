@@ -159,8 +159,29 @@ router.delete('/:id', async (req, res, next) => {
         if (Object.keys(roomPatch).length) await updateRow('Rooms', invoice.room, roomPatch);
       }
     }
+    // "กรณีที่กดลบใบเสร็จ ให้ลบส่วนของการส่งข้อมูลแบบกำหนดเวลาออกด้วย
+    // ไม่อย่างนั้นมันจะค้าง" (2026-07-29) — ถ้าบิลนี้เคยตั้ง "ตั้งวันเวลาส่ง"
+    // ไว้ (server/routes/scheduledMessages.js's source: 'invoice_receipt')
+    // แล้วโดนลบก่อนถึงเวลาที่ตั้งไว้ คิวเก่าจะยังค้างอยู่ใน ScheduledMessages
+    // เฉยๆ แล้วไปส่งข้อความ "ใบแจ้งหนี้" อ้างถึงบิลที่ไม่มีอยู่แล้วจริงในภาย
+    // หลัง (bug จริงที่เจอวันนี้ตอนไล่ debug ฟีเจอร์ตั้งเวลาส่ง) — ลบทุกแถวที่
+    // ยังไม่ส่ง (sent !== 'TRUE') ของห้องนี้ที่มาจากฟอร์มออกบิลออกไปด้วย
+    // (ไม่แตะ source อื่นอย่าง 'manual'/'calendar' — นั่นไม่ผูกกับบิลใบนี้)
+    let cancelledSchedules = 0;
+    if (invoice) {
+      try {
+        const scheduled = await readTab('ScheduledMessages');
+        const stale = scheduled.filter((m) => m.room === invoice.room && m.source === 'invoice_receipt' && m.sent !== 'TRUE');
+        for (const m of stale) {
+          await deleteRow('ScheduledMessages', m.id);
+          cancelledSchedules++;
+        }
+      } catch (err) {
+        console.error('[invoices] failed to cancel stale scheduled sends for deleted invoice', req.params.id, err.message);
+      }
+    }
     await deleteRow('Invoices', req.params.id);
-    res.json({ ok: true, refundedToCredit: refunded, meterReverted: !!(roomPatch.waterPrev != null || roomPatch.elecPrev != null) });
+    res.json({ ok: true, refundedToCredit: refunded, meterReverted: !!(roomPatch.waterPrev != null || roomPatch.elecPrev != null), cancelledSchedules });
   } catch (err) { next(err); }
 });
 
