@@ -504,6 +504,22 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
             </div>
 
+            <!-- "เอาไปไว้หน้าแดชบอร์ดเราด้วยได้ไหมครับ" (2026-07-29) —
+                 การ์ดสถานะเซิร์ฟเวอร์ (UptimeRobot) แบบย่อ เฉพาะบัญชี
+                 แพลตฟอร์ม (คุณต้น) เท่านั้นที่เห็น — ลูกค้าตึกอื่นไม่ควรเห็น
+                 เพราะเป็นเรื่องระบบหลังบ้านของแพลตฟอร์ม ไม่ใช่ของตึกเขา -->
+            <sc-if value="{{ isPlatformAdmin }}" hint-placeholder-val="{{ false }}">
+              <sc-if value="{{ uptimeCardShow }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC;margin-bottom:14px">
+                  <span style="width:8px;height:8px;border-radius:50%;background:{{ uptimeMonitorDot }};flex-shrink:0"></span>
+                  <div style="flex:1">
+                    <div style="font-size:13px;font-weight:600;color:#241812">🖥️ สถานะเซิร์ฟเวอร์ — {{ uptimeMonitorName }}</div>
+                    <div style="font-size:11px;color:{{ uptimeMonitorColor }};margin-top:2px;font-weight:600">{{ uptimeMonitorLabel }}</div>
+                  </div>
+                </div>
+              </sc-if>
+            </sc-if>
+
             <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC;margin-bottom:14px">
               <div>
                 <div style="display:flex;align-items:center;gap:6px">
@@ -4507,6 +4523,9 @@ class Component extends DCLogic {
     // Which account's data is on screen right now — see loadAuthSession()
     // in componentDidMount / the sidebar badge that reads this.
     authSession: null,
+    // "เอาไปไว้หน้าแดชบอร์ดเราด้วยได้ไหมครับ" (2026-07-29) — สถานะมอนิเตอร์
+    // UptimeRobot บนแดชบอร์ด (platform-admin เท่านั้น) — ดู loadUptimeStatus
+    uptimeStatus: null,
     // Per explicit user request: platform-admin-only "add a new building"
     // form in Settings (see loadAuthSession / authSession.isPlatformAdmin).
     showAddBuildingModal: false,
@@ -4739,6 +4758,17 @@ class Component extends DCLogic {
         // never touches mobileAiMode for a real customer's own session.
         mobileAiMode: data.isDemo ? false : s.mobileAiMode,
       }));
+      // "เอาไปไว้หน้าแดชบอร์ดเราด้วยได้ไหมครับ" (2026-07-29) — การ์ดสถานะ
+      // เซิร์ฟเวอร์ (UptimeRobot) เฉพาะบัญชีแพลตฟอร์ม (คุณต้น) เท่านั้น
+      // เห็น — ไม่ยิง request นี้เลยสำหรับ session ลูกค้าทั่วไป กัน 403
+      // เปล่าๆ ทุกครั้งที่โหลดแดชบอร์ด
+      if (data.isPlatformAdmin) this.loadUptimeStatus();
+    } catch (err) { console.error(err); }
+  };
+  loadUptimeStatus = async () => {
+    try {
+      const res = await fetch('/api/settings/uptime-status');
+      if (res.ok) this.setState({ uptimeStatus: await res.json() });
     } catch (err) { console.error(err); }
   };
   // Full page navigation (not a fetch) is deliberate here — clears the
@@ -11201,6 +11231,15 @@ class Component extends DCLogic {
       // Per explicit user request: "+ เพิ่มตึกใหม่" card in Settings, only
       // ever shown to the platform's own account.
       isPlatformAdmin: !!(s.authSession && s.authSession.isPlatformAdmin),
+      // "เอาไปไว้หน้าแดชบอร์ดเราด้วยได้ไหมครับ" (2026-07-29) — การ์ดสถานะ
+      // เซิร์ฟเวอร์ (UptimeRobot) แบบย่อบนแดชบอร์ด — เวอร์ชันเต็มอยู่ที่หน้า
+      // "จัดการร้าน" (my-buildings.html) อยู่แล้ว อันนี้แค่โชว์ตัวแรกในลิสต์
+      // ให้เห็นไวๆ โดยไม่ต้องสลับหน้า
+      uptimeCardShow: !!(s.uptimeStatus && s.uptimeStatus.configured && s.uptimeStatus.monitors && s.uptimeStatus.monitors.length),
+      uptimeMonitorLabel: (s.uptimeStatus && s.uptimeStatus.monitors && s.uptimeStatus.monitors[0]) ? s.uptimeStatus.monitors[0].label : '',
+      uptimeMonitorColor: (s.uptimeStatus && s.uptimeStatus.monitors && s.uptimeStatus.monitors[0]) ? s.uptimeStatus.monitors[0].color : '#9C8B78',
+      uptimeMonitorDot: (s.uptimeStatus && s.uptimeStatus.monitors && s.uptimeStatus.monitors[0]) ? s.uptimeStatus.monitors[0].dot : '#9C8B78',
+      uptimeMonitorName: (s.uptimeStatus && s.uptimeStatus.monitors && s.uptimeStatus.monitors[0]) ? s.uptimeStatus.monitors[0].name : '',
       showAddBuildingModal: s.showAddBuildingModal, openAddBuildingModal: this.openAddBuildingModal, closeAddBuildingModal: this.closeAddBuildingModal,
       addBuildingDraft: s.addBuildingDraft, onAddBuildingPhone: this.onAddBuildingPhone, onAddBuildingPin: this.onAddBuildingPin, onAddBuildingSheetId: this.onAddBuildingSheetId,
       submitAddBuilding: this.submitAddBuilding, retryAddBuilding: this.retryAddBuilding,
