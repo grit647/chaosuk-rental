@@ -896,6 +896,180 @@ the set of `on<X> = (e) => ...` method definitions against the set of
 `on<X>: this.on<X>` entries actually returned — anything defined but not
 returned is broken exactly like this).
 
+### "ส่งใบแจ้งหนี้เมื่อไหร่ดี?" popup (ส่งทันที / ตั้งวันเวลาส่ง) — built, tested end-to-end, uncovered + fixed 2 real cross-cutting bugs along the way (2026-07-29)
+
+**Feature itself:** right after a bill is created successfully (both
+`submitInvoice`, single room, and `submitBulkInvoice`, "ออกบิลทุกห้องพร้อม
+กัน"), a new popup asks ส่งทันที (calls the existing `sendReceiptLine`
+per room, unchanged behavior — still generates the image+QR receipt)
+or ตั้งวันและเวลาส่ง (2 fields: date + time). The itemized receipt
+text-building logic was extracted out of `sendReceiptLine` into a
+shared `_buildReceiptMessage(roomId)` so both paths use identical
+wording. Scheduling posts to new `POST /api/scheduled-messages`
+(`server/routes/scheduledMessages.js`), which appends to the same
+`ScheduledMessages` Sheet tab the pre-existing `schedule_line_message`
+Claude tool and calendar-event notifications already used —
+`server/routes/scheduler.js`'s `GET /run` (external cron ping) sends
+it when the time arrives. The Bills table shows a "🕒 ตั้งเวลาส่ง
+[date] [time]" badge (blue) for any room with a pending un-sent
+`invoice_receipt`-sourced row, switching to the normal green "✓ ส่ง
+ไลน์แล้ว" once it actually sends.
+
+**Lifecycle cleanup (2 follow-up owner requests, both real gaps):**
+deleting an invoice now cancels ALL its `ScheduledMessages` rows
+(both pending AND already-sent — first pass only handled pending,
+owner caught the already-sent case lingering forever in the sheet);
+marking an invoice **paid** also clears its rows (same reasoning —
+"มันจะได้ไม่เต็ม เหมือนถูกเคลียร์ข้อมูลตลอด หลังจบบิล"). Both match
+by `room + source:'invoice_receipt'` only (not invoice id) — safe
+because a room can only ever have ONE non-paid invoice at a time (the
+pre-existing duplicate-bill guard), so at delete/paid time any
+leftover rows for that room can only belong to the one being
+closed.
+
+**Staged-rollout gate applied correctly** — per the owner's own
+reminder mid-session ("เราเขียนไว้ว่า...ต้องใช้การอัปเดทไปสู่ตึกอื่นๆ
+แทนการแก้ไขแบบรวมทุกตึกที่มี"), `CURRENT_PLATFORM_VERSION` bumped to
+**v4**, documented in `server/platformVersion.js` as the first gate on
+**backend automation behavior**, not just a frontend UI element — real
+side effect (actual LINE messages to real tenants), so it needed the
+same "🆕 อัปเดต" per-building opt-in as any visible feature. Implemented
+as a **fixed local constant** `SCHEDULER_MULTI_BUILDING_VERSION = 4` in
+`scheduler.js` (NOT a live reference to `CURRENT_PLATFORM_VERSION`) —
+otherwise a building that already opted in would silently drop back out
+the next time an unrelated frontend feature bumps the version further.
+The main account itself is exempt from this check (this exact logic
+already ran for it before today, gating it would be a regression).
+
+**Real bug #1 found while testing (much bigger than the scheduling
+feature itself): `GET /api/scheduler/run` only ever ran for the MAIN
+account, never any other building, since it launched.** Root cause:
+this endpoint is hit by an external cron ping with **no session/
+cookie at all**, so `getCurrentSheetId()` always resolved to
+`undefined` and every Sheets call silently fell back to
+`process.env.GOOGLE_SHEET_ID` (main account only) — true for
+`server/sheets.js`'s `SHEET_ID()` fallback since day one. This means
+overdue-bill detection, cutoff/water-elec warnings, due-date
+reminders, and lease/ID-expiring notices likely never fired for ANY
+building except the main one, this whole time — a silent gap nobody
+had noticed because none of those categories has an obvious "it never
+ran" symptom the way "ตั้งเวลาส่งบิลไม่ส่ง" did. **Fixed:** extracted the
+whole per-run body into `runSchedulerOnce()`; the route handler now
+reads every `customerSheetId` from the Directory
+(`GOOGLE_DIRECTORY_SHEET_ID`'s `Users` tab, same source
+`my-buildings.html` uses) plus the main account, and calls
+`runSchedulerOnce()` once per building via `runWithSheetId()` — one
+building's failure is caught/logged, doesn't abort the rest. Also had
+to fix 2 in-memory dedup Maps (`_cutoffNotifiedDates`,
+`_lastLogPruneDate`) that were previously shared across the whole
+process — a room ID like "101" existing in two different buildings'
+own separate spreadsheets would have collided and wrongly suppressed a
+real notification in one building just because another building
+already fired "the same" key that day. Both are now keyed/prefixed by
+`sheetId`.
+
+**Real bug #2 found while testing (the actual reason ห้อง 647's
+scheduled send kept silently failing even after bug #1 was fixed):
+every direct `pushMessage()`/`pushButtonMessage()`/`lineConfigured()`
+call in `scheduler.js`, AND every call inside the shared
+`server/adminNotify.js`'s `notifyAdmin()` used across the WHOLE app
+(not just this file), was called with no `creds` argument.**
+`resolveCreds()` (`server/line.js`) always fell back to
+`process.env.LINE_CHANNEL_ACCESS_TOKEN` — the main account's token —
+regardless of which building's context the code was actually running
+in. A secondary building with its own separate LINE OA (credentials
+saved via its own Settings page, not `.env`) tries to push to a real
+friend of **its own** channel using the **wrong channel's** token,
+which LINE correctly rejects with a 400 `"Failed to send messages"`.
+This bug was invisible before bug #1 got fixed, since `scheduler.js`
+only ever ran for the main account anyway (whose own token always
+happened to match). **Fixed:** every call site in `scheduler.js` now
+fetches `readIntegrationCredentials()` in-scope and threads `.line`
+through (cutoff warnings — both the tenant message and the admin
+"ยืนยันตัดไฟ" button, due reminders, lease-expiring notices, and the
+`ScheduledMessages` send loop including its own `lineConfigured()`
+gate). `adminNotify.js` fixed at the source too, with an optional
+`preloadedCreds` param so a caller already inside a loop (cutoff
+warnings, lease-expiring, overdue bills) can reuse credentials
+fetched once instead of re-reading the Settings tab per notification
+— same N+1 concern as the next paragraph.
+
+**Diagnosing this took several rounds of live production debugging**
+(temporary `debugAttempted`/`debugSkipped`/`debugErrors` fields added
+to the `scheduledMessages` result block, later cleaned up to just a
+permanent slim `errors: []` array — genuinely useful for the next
+"why didn't this send" report without needing another debug round).
+Repeated manual `curl`-ing of `/api/scheduler/run` while debugging
+twice tripped a real **"Quota exceeded for quota metric 'Read
+requests'"** Google Sheets error — a reminder that this endpoint
+(now looping N buildings × ~9-10 tabs each) is expensive to call
+back-to-back; found and fixed one genuine N+1 read pattern in the
+process (the receipt-sent-marking step was re-reading the WHOLE
+`Invoices` tab once per room in a batch send instead of once total —
+fixed by caching it lazily across the loop). **Lesson for next time
+someone needs to manually poke this endpoint while debugging: wait
+at least ~60s between calls, and prefer reading the JSON response via
+`fs.readFileSync` after `curl -o file`, not `require(file)` — Node
+caches `require()` by file path, so re-requiring the same temp file
+path across multiple calls in one session silently returns stale
+data instead of the fresh contents.**
+
+**External cron reliability — replaced GitHub Actions with UptimeRobot
+mid-session.** `.github/workflows/scheduler.yml`'s `cron: '*/10 * * *
+*'` looked fine on paper, but the owner pulled up the actual run
+history (`github.com/grit647/chaosuk-rental/actions/workflows/
+scheduler.yml`) and found real gaps of **1–1.5 hours between runs**,
+not the configured 10 minutes — GitHub's own docs describe scheduled
+workflows as "best effort," and delays like this are a known
+(if under-advertised) limitation, worse for lower-traffic
+repos/accounts. Owner chose to add **UptimeRobot** (free tier, HTTP
+monitor pinging `GET /api/scheduler/run`) as a dedicated, far more
+reliable replacement/supplement — currently set to **every 20
+minutes** (deliberately backed off from the free-tier minimum of 5
+minutes, after walking through the Render free-tier math together:
+pinging more often than Render's own 15-minute idle/sleep threshold
+means the app literally never sleeps, eating close to the full
+750-hour/month free compute quota all by itself; 20-minute pings
+let the app sleep between checks, trading a slightly longer worst-case
+scheduled-send delay for real headroom against that cap). GitHub
+Actions' own cron config was left in place as a redundant backup
+(harmless if both fire close together — worst case is one extra
+no-op check).
+
+**New: `server/uptimeRobot.js`** — thin client for UptimeRobot's
+read-only v2 API (`getMonitors`), maps their numeric status codes
+(0=Paused/1=Not checked/2=Up/8=Seems down/9=Down) to Thai labels +
+colors. `GET /api/settings/uptime-status` (platform-admin gated, same
+pattern as every other route in `settings.js`) surfaces it; a small
+"🖥️ สถานะเซิร์ฟเวอร์" card now shows on BOTH `my-buildings.html`'s
+"🔧 ทุกตึกในระบบ (Server only)" section AND the main Dashboard
+(gated behind `isPlatformAdmin` on the Dashboard specifically — a
+regular customer's own building dashboard never fetches or shows
+this, since server infra status isn't their concern). Requires
+`UPTIMEROBOT_API_KEY` (a **read-only** API key, deliberately not the
+"Main" key which can modify/delete monitors) set in both `server/.env`
+(local) and Render's Environment Variables (production) — same
+2-places-to-update gotcha as every other integration credential in
+this project (see the LINE/Tuya credential notes above).
+
+**Real near-miss caught mid-session, worth flagging for next time:**
+while adding `UPTIMEROBOT_API_KEY` to Render, the owner initially
+opened a DIFFERENT Render service by mistake — one named
+**"chuarsup"** (an old/abbreviated spelling of "เช่าสุข" from when it
+was first created, `chuarsup.onrender.com`, genuinely unrelated —
+its deploy log showed commits about "Projects, Receipts, contract-
+project linking," which reads like the owner's separate "ชัวร์ทรัพย์"
+project, not this one at all). Caught by cross-checking the URL
+(`chuarsup.onrender.com` ≠ `chaosuk-rental.onrender.com`) and the
+deploy log's commit messages (didn't match anything from today's
+session) BEFORE actually saving the wrong env var there. **The
+correct service on Render is literally named "chaosuk-rental"**
+(confirmed by matching a deploy log entry to today's actual commit
+hash) — if a future session needs to guide the owner through Render
+dashboard again, don't assume the service name matches by vibes
+alone; have him confirm the deploy log shows a real, recent, relevant
+commit message before trusting he's in the right place.
+
 ## Permanent rules (do not relax without the owner explicitly re-confirming)
 
 - **Terminology: "เลขมิเตอร์" vs "หน่วย".** "เลขมิเตอร์" (meter number/
