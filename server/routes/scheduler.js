@@ -319,6 +319,22 @@ router.get('/run', async (req, res, next) => {
           }
           await updateRow('ScheduledMessages', row.id, { sent: 'TRUE' });
           sentCount++;
+          // "ถ้าส่งแล้วให้ขึ้นสถานะส่งสำเร็จ" (2026-07-29) — เดิม PATCH
+          // receiptSent:true เกิดแค่ตอนกดส่งเองผ่านปุ่ม (sendReceiptLine,
+          // ฝั่ง frontend) ไม่เคยเกิดเมื่อส่งผ่านคิวตั้งเวลานี้เลย ทำให้ปุ่ม
+          // "ส่งข้อมูล (LINE)" บนตารางบิลยังโชว์ค้างเหมือนไม่เคยส่ง แม้จริงๆ
+          // ส่งไปแล้ว — เติมให้ที่นี่ด้วย เฉพาะ invoice_receipt (มีบิลจริง
+          // ผูกอยู่) หาบิลที่ยังไม่จ่ายของห้องนี้ (มีได้สูงสุด 1 ใบเสมอ —
+          // ระบบกันไม่ให้ออกบิลซ้อนอยู่แล้ว, orders.js/invoices.js's guard)
+          if (row.source === 'invoice_receipt' && row.room !== 'all') {
+            try {
+              const invoices = coerceInvoices(await readTab('Invoices'));
+              const inv = invoices.find((i) => i.room === row.room && i.status !== 'paid');
+              if (inv) await updateRow('Invoices', inv.id, { receiptSent: true });
+            } catch (err2) {
+              console.error('[scheduler] failed to mark invoice receiptSent after scheduled send', row.id, err2.message);
+            }
+          }
         } catch (err) {
           console.error('[scheduler] failed to send', row.id, err.message);
         }
