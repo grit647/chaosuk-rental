@@ -122,7 +122,20 @@ async function runSchedulerOnce() {
       const timeReached = nowTimeStr >= checkTime;
       if ((todayDom === reminderDay || todayDom === finalDay || todayDom === cancelWarningDay) && timeReached) {
         const invoices = coerceInvoices(await readTab('Invoices'));
-        const unpaid = invoices.filter((i) => i.status === 'pending' || i.status === 'partial' || i.status === 'overdue');
+        // "แก้บักครับ ไม่ยุ่งกับข้อมูลที่บันทึกไว้ครับ" (2026-07-30) — บั๊ก
+        // จริงที่เจอ: เดิมกรองแค่ "สถานะยังไม่จ่าย" (pending/partial/overdue)
+        // แล้วเทียบ "วันที่ของเดือนวันนี้" กับวันที่ตั้งไว้ (reminderDay/
+        // finalDay/cancelWarningDay) เท่านั้น — ไม่เคยเช็คเลยว่าบิลใบนั้น
+        // ครบกำหนดจริงหรือยัง (inv.due) ผลคือถ้าออกบิลใหม่ในเดือนที่วันที่
+        // ปัจจุบันดันเลยวันที่ตั้งไว้ไปแล้ว (เช่น ตึกใหม่เพิ่งเริ่มใช้งาน
+        // ออกบิลชุดแรกหลังวันที่ 20 ของเดือน) บิลที่เพิ่งออกจะโดนนับว่า
+        // "ค้างชำระเกินกำหนด" ทันที ทั้งที่ผู้เช่ายังไม่ทันมีเวลาจ่ายเลย —
+        // แก้โดยเพิ่มเงื่อนไข "ครบกำหนดจริงแล้ว" (i.due ผ่านมาแล้ว) ก่อน
+        // ถึงจะเข้าเงื่อนไข reminder/final/cancelWarning ได้ (ไม่แตะ/แก้ไข
+        // ข้อมูลบิลที่บันทึกไว้เดิมเลย แก้แค่ตรรกะตัดสินใจส่งแจ้งเตือน)
+        const unpaid = invoices.filter((i) =>
+          (i.status === 'pending' || i.status === 'partial' || i.status === 'overdue') &&
+          i.due && i.due < todayStr);
         cutoffChecked = unpaid.length;
         // "ข้อความที่ส่งไปให้ลูกค้า เป็นแบบไหน...ครบเลย 3 รายการครับ"
         // (2026-07-26 follow-up) — เดิมแจ้งแค่เจ้าของ/ผู้ดูแล ตอนนี้ส่งหา

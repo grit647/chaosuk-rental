@@ -9966,7 +9966,15 @@ class Component extends DCLogic {
       }
       // "แจ้งเตือน ตัดน้ำตัดไฟ" (2026-07-26) — ต่อจาก comment เต็มด้านบน
       if (pastCutoffDay) {
-        const inv = s.invoices.find(i => i.room === r.id && (i.status === 'pending' || i.status === 'partial' || i.status === 'overdue'));
+        // "แก้บักครับ ไม่ยุ่งกับข้อมูลที่บันทึกไว้ครับ" (2026-07-30) — เดิม
+        // เช็คแค่สถานะ "ยังไม่จ่าย" อย่างเดียว ไม่เคยเช็คว่าบิลครบกำหนดจริง
+        // หรือยัง (inv.due) ทำให้ตึกที่เพิ่งเริ่มใช้งาน ออกบิลชุดแรกหลัง
+        // วันที่ตั้งไว้ (เช่น วันที่ 20) บิลที่เพิ่งออกโดนนับเป็น "ค้างชำระ
+        // เกินกำหนด/พิจารณายกเลิกสัญญา" ทันที ทั้งที่ผู้เช่ายังไม่ทันมีเวลา
+        // จ่ายเลย — เพิ่มเงื่อนไข "ครบกำหนดจริงแล้ว" เหมือนที่แก้ใน
+        // server/routes/scheduler.js (ตัวส่งแจ้งเตือน LINE จริง) ไม่แตะ/
+        // แก้ไขข้อมูลบิลเดิมเลย แก้แค่ตรรกะตัดสินใจแสดงผลที่นี่
+        const inv = s.invoices.find(i => i.room === r.id && (i.status === 'pending' || i.status === 'partial' || i.status === 'overdue') && i.due && i.due < this._todayStr());
         if (inv) {
           const total = (inv.rent || 0) + (inv.water || 0) + (inv.elec || 0) + (inv.trash || 0) + (inv.internet || 0);
           const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
