@@ -7069,6 +7069,15 @@ class Component extends DCLogic {
       this.showAdminToast('บันทึกใบเสร็จห้อง ' + room + ' แล้ว (ไม่พบบิลค้างชำระ — ไม่มีรูปให้เปิด)');
       return;
     }
+    // "หาไม่เจอ...แต่ในคอมไม่อยู่ในดาวโหลด" (2026-07-30 follow-up) — บั๊ก
+    // จริงที่เจอ: window.open() เดิมเรียกหลังจากมี await/fetch หลายรอบ
+    // ผ่านไปแล้ว เบราว์เซอร์ (โดยเฉพาะ Chrome) จะมองว่าไม่ได้มาจากการคลิก
+    // ของผู้ใช้โดยตรงอีกต่อไป แล้วบล็อกป๊อปอัพแบบเงียบๆ (ไม่มี error ให้
+    // เห็นเลย โค้ดทำงานสำเร็จทุกอย่าง สร้างรูปได้จริง แค่แท็บไม่เปิด) —
+    // แก้ตามวิธีมาตรฐาน: เปิดแท็บเปล่าไว้ก่อนทันที (ยังอยู่ในช่วง event
+    // ของการคลิกจริง เบราว์เซอร์เลยไม่บล็อก) แล้วค่อยเปลี่ยนหน้าแท็บนั้น
+    // ไปที่รูปจริงทีหลังตอนสร้างเสร็จ
+    const receiptWindow = window.open('', '_blank');
     try {
       const imgRes = await fetch('/api/invoices/' + encodeURIComponent(invoice.id) + '/receipt-image', { method: 'POST' });
       if (!imgRes.ok) throw new Error((await imgRes.json().catch(() => ({}))).error || 'สร้างรูปใบเสร็จไม่สำเร็จ');
@@ -7083,9 +7092,11 @@ class Component extends DCLogic {
         this.setState(s => ({ invoices: s.invoices.map(i => i.id === updated.id ? updated : i) }));
       }
       this.setState(s => ({ receiptsSent: { ...s.receiptsSent, [room]: true } }));
-      window.open(receiptImageUrl, '_blank');
-      this.showAdminToast('บันทึกใบเสร็จห้อง ' + room + ' แล้ว — เปิดรูปในแท็บใหม่ให้แล้ว');
+      if (receiptWindow) receiptWindow.location.href = receiptImageUrl;
+      else window.open(receiptImageUrl, '_blank'); // เผื่อแท็บเปล่าตอนแรกก็โดนบล็อกอยู่ดี (บาง browser เข้มงวดมาก) ลองอีกครั้ง
+      this.showAdminToast('บันทึกใบเสร็จห้อง ' + room + ' แล้ว — เปิดรูปในแท็บใหม่ให้แล้ว (ถ้าไม่เห็นแท็บเปิด เช็คไอคอนป๊อปอัพถูกบล็อกที่แถบที่อยู่เว็บ หรือดูที่ปุ่ม "ประวัติ" ของห้องนี้แทนได้)');
     } catch (err) {
+      if (receiptWindow) receiptWindow.close(); // ปิดแท็บเปล่าทิ้ง ถ้าสร้างรูปไม่สำเร็จ ไม่ต้องเหลือแท็บว่างค้างไว้
       this.showAdminToast(err.message || 'สร้างรูปใบเสร็จไม่สำเร็จ');
     }
   });
