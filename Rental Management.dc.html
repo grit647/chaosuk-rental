@@ -7050,11 +7050,45 @@ class Component extends DCLogic {
   });
   openSaveReceipt = (roomId) => this.setState({ showSaveReceipt: true, saveReceiptRoom: roomId });
   closeSaveReceipt = () => this.setState({ showSaveReceipt: false, saveReceiptRoom: null });
-  confirmSaveReceipt = () => {
+  // "เรียนรูปแบบใบเสร็จตามนี้ให้หน่อยครับ...รายละเอียดส่วนอื่นๆ ดึงจากนี้
+  // เหมือนเดิม" (2026-07-30) — บั๊ก/ช่องว่างที่เจอ: เดิมปุ่มนี้ (ทางเลือก
+  // สำรองเวลาห้องยังไม่ได้ผูก LINE) แค่ตั้ง flag ในเครื่องแล้วขึ้น toast
+  // เฉยๆ ไม่เคยสร้างรูปใบเสร็จจริงให้เจ้าของเอาไปส่งต่อทางอื่นเลย (ผู้เช่า
+  // ที่ไม่มี LINE จะไม่ได้อะไรเลยนอกจาก toast ว่า "บันทึกแล้ว") — แก้โดย
+  // เรียก endpoint เดียวกับที่ sendReceiptLine ใช้ (POST /api/invoices/:id/
+  // receipt-image, server/receiptImage.js) สร้างรูปใบเสร็จจริง ตัวหนังสือ
+  // ใหญ่/ดึง QR จาก propertyProfile.paymentQrUrl (หน้าตั้งค่า) เหมือนกัน
+  // ทุกอย่าง แล้วเปิดรูปในแท็บใหม่ให้เจ้าของสกรีนช็อต/ปริ้น/ส่งต่อเอง — ใช้
+  // pattern เดียวกับลิงก์ "ดูใบเสร็จที่ส่งไป" ที่มีอยู่แล้วในหน้าประวัติบิล
+  confirmSaveReceipt = () => this._guard('confirmSaveReceipt', async () => {
     const room = this.state.saveReceiptRoom;
-    this.setState(s => ({ receiptsSent: { ...s.receiptsSent, [room]: true }, showSaveReceipt: false, saveReceiptRoom: null }));
-    this.showAdminToast('บันทึกใบเสร็จห้อง ' + room + ' แล้ว');
-  };
+    const invoice = this.state.invoices.find(i => i.room === room && i.status !== 'paid');
+    this.setState({ showSaveReceipt: false, saveReceiptRoom: null });
+    if (!invoice) {
+      this.setState(s => ({ receiptsSent: { ...s.receiptsSent, [room]: true } }));
+      this.showAdminToast('บันทึกใบเสร็จห้อง ' + room + ' แล้ว (ไม่พบบิลค้างชำระ — ไม่มีรูปให้เปิด)');
+      return;
+    }
+    try {
+      const imgRes = await fetch('/api/invoices/' + encodeURIComponent(invoice.id) + '/receipt-image', { method: 'POST' });
+      if (!imgRes.ok) throw new Error((await imgRes.json().catch(() => ({}))).error || 'สร้างรูปใบเสร็จไม่สำเร็จ');
+      const receiptImageUrl = (await imgRes.json()).url;
+      this.setState(s => ({ invoices: s.invoices.map(i => i.id === invoice.id ? { ...i, receiptImageUrl } : i) }));
+      const patchRes = await fetch('/api/invoices/' + encodeURIComponent(invoice.id), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receiptSent: true }),
+      });
+      if (patchRes.ok) {
+        const updated = await patchRes.json();
+        this.setState(s => ({ invoices: s.invoices.map(i => i.id === updated.id ? updated : i) }));
+      }
+      this.setState(s => ({ receiptsSent: { ...s.receiptsSent, [room]: true } }));
+      window.open(receiptImageUrl, '_blank');
+      this.showAdminToast('บันทึกใบเสร็จห้อง ' + room + ' แล้ว — เปิดรูปในแท็บใหม่ให้แล้ว');
+    } catch (err) {
+      this.showAdminToast(err.message || 'สร้างรูปใบเสร็จไม่สำเร็จ');
+    }
+  });
   closePayConfirm = () => this.setState({ showPayConfirm: false, payConfirmId: null });
   confirmPay = () => {
     const id = this.state.payConfirmId;
