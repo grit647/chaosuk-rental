@@ -10063,11 +10063,15 @@ class Component extends DCLogic {
       }
     });
     expiryAlertsAll.sort((a, b) => a.days - b.days);
-    const expiryAlertsWidgetItems = expiryAlertsAll.slice(0, 5);
+    // "ส่วนนี้ถ้ามีข้อมูลให้แสดงทั้งหมดไม่ต้องซ่อนไว้นะครับ มันเป็นส่วน
+    // สำคัญ" (2026-07-31) — เดิมโชว์แค่ 5 รายการแรกแล้วซ่อนที่เหลือไว้หลัง
+    // "และอีก X รายการ" (ไม่มีลิงก์กดดูต่อด้วย) ทำให้พลาดแจ้งเตือนสำคัญได้
+    // ถ้ามีมากกว่า 5 — เปลี่ยนเป็นโชว์ทั้งหมดไม่จำกัดจำนวน
+    const expiryAlertsWidgetItems = expiryAlertsAll;
     const hasExpiryAlerts = expiryAlertsAll.length > 0;
     const noExpiryAlerts = expiryAlertsAll.length === 0;
-    const expiryAlertsExtraCount = Math.max(0, expiryAlertsAll.length - 5);
-    const hasExpiryAlertsExtra = expiryAlertsExtraCount > 0;
+    const expiryAlertsExtraCount = 0;
+    const hasExpiryAlertsExtra = false;
 
     const settingsToggles = [
       { key: 'autoInvoice', label: 'สร้างใบแจ้งหนี้อัตโนมัติ', desc: 'สร้างบิลทุกวันที่ 1 ของเดือน', hasConfig: true, onConfig: this.openAutoInvoice },
@@ -10456,21 +10460,36 @@ class Component extends DCLogic {
       : '';
 
     const contractsView = occupiedRooms.map(r => {
-      const nearExpiry = r.contractEnd.indexOf('2569') !== -1;
+      // "เช็คห้อง 2 สถานะไม่ตรงกัน สถานะหน้านี้เราแสดงส่วนของอะไร"
+      // (2026-07-31) — บั๊กจริงที่เจอ: เดิมเช็ค "ใกล้ครบกำหนด" ด้วยการหา
+      // ว่าปี พ.ศ. "2569" ปรากฏอยู่ในสตริง contractEnd หรือเปล่า
+      // (r.contractEnd.indexOf('2569')) แต่ contractEnd เก็บเป็นรูปแบบ ISO
+      // ปี ค.ศ. จริงๆ (เช่น "2026-08-01") ไม่เคยมีคำว่า "2569" อยู่ในนั้น
+      // เลยแม้แต่ห้องเดียว — ทำให้เช็คนี้พังเงียบๆ คืนค่า false เสมอ ไม่ว่า
+      // สัญญาจะใกล้หมดอายุแค่ไหนก็ตาม (ห้องที่การ์ดแจ้งเตือนบนแดชบอร์ด
+      // บอกว่า "อีก 2 วันหมดอายุ" ก็ยังขึ้น "ปกติ" สีเขียวหน้านี้ตลอด) —
+      // แก้ให้ใช้ตรรกะเดียวกับการ์ดแจ้งเตือนบนแดชบอร์ดเป๊ะๆ (_daysUntil +
+      // EXPIRY_ALERT_WINDOW_DAYS 30 วัน) กันสถานะ 2 หน้าขัดแย้งกันอีก
+      const daysUntilEnd = this._daysUntil(r.contractEnd);
+      const isExpired = daysUntilEnd != null && daysUntilEnd < 0;
+      const nearExpiry = daysUntilEnd != null && daysUntilEnd >= 0 && daysUntilEnd <= EXPIRY_ALERT_WINDOW_DAYS;
       const rating = this.tenantRatingFor(r.id);
       return {
         // "แก้ให้ครบทั้งหมดทีเดียวเลยครับ" (2026-07-26) — ตารางสัญญาเช่า
         // เคยโชว์ค่าดิบ (yyyy-mm-dd) ตรงๆ เหมือนที่การ์ดห้องเคยเป็น
         room: r.id, tenant: r.tenant, moveIn: this.formatThaiDateLabel(r.moveIn) || r.moveIn, contractEnd: this.formatThaiDateLabel(r.contractEnd) || r.contractEnd,
         rentDisplay: this.fmt(r.rent), depositDisplay: this.fmt(r.deposit),
-        statusLabel: nearExpiry ? 'ใกล้ครบกำหนด' : 'ปกติ', statusBg: nearExpiry ? '#C1872E' : '#3B7A52',
+        statusLabel: isExpired ? 'หมดอายุแล้ว' : (nearExpiry ? 'ใกล้ครบกำหนด' : 'ปกติ'),
+        statusBg: isExpired ? '#B24336' : (nearExpiry ? '#C1872E' : '#3B7A52'),
         onRenew: () => this.renewContract(r.id),
         onDelete: () => this.openDeleteContract(r.id),
         onEdit: () => this.openContractForm(r.id),
         ratingStars: rating.stars, ratingLabel: rating.label, ratingTitle: rating.billCount + ' บิลที่ชำระแล้ว',
       };
     });
-    const contractsNearCount = contractsView.filter(c => c.statusLabel === 'ใกล้ครบกำหนด').length;
+    // นับรวมทั้ง "ใกล้ครบกำหนด" และ "หมดอายุแล้ว" (สถานะใหม่จากการแก้บั๊ก
+    // ด้านบน) เพราะทั้ง 2 สถานะคือ "ต้องรีบดู/ต่อสัญญา" เหมือนกัน
+    const contractsNearCount = contractsView.filter(c => c.statusLabel === 'ใกล้ครบกำหนด' || c.statusLabel === 'หมดอายุแล้ว').length;
 
     // ---- Calendar ----
     const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
