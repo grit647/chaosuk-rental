@@ -84,9 +84,14 @@ async function computeTenantUsage(room) {
       const live = await getElecReading(room.tuyaElecDeviceId, creds.tuya);
       result.elecLive = { voltage: live.voltage, current: live.current, power: live.power, energy: live.energy, online: true };
       if (live.energy != null) {
-        const units = Math.max(0, live.energy - Number(room.elecPrev || 0));
+        // "หน่วยมิเตอร์ น้ำไฟ...จำนวนเต็มครับ ไม่มีจุดทศนิยม" — ปัดเป็น
+        // จำนวนเต็มก่อนคำนวณค่าไฟ เหมือนกับ deviceCharge()'s elec branch
+        // ฝั่งเจ้าของเป๊ะๆ (Rental Management.dc.html) กันตัวเลขไม่ตรงกัน
+        // ระหว่างข้อความที่ส่งผู้เช่ากับที่เจ้าของเห็นในเว็บ
+        const rawUnits = Math.max(0, live.energy - Number(room.elecPrev || 0));
+        const units = Math.round(rawUnits);
         const { charge } = applyMinCharge('elec', Math.round(units * roomRate('elec')));
-        result.elecUsage = Number(units.toFixed(2));
+        result.elecUsage = units;
         result.elecCost = charge;
       }
     } catch (err) {
@@ -121,14 +126,33 @@ async function computeTenantUsage(room) {
       }
       result.waterLive = { usage: cumulativeLiters, flowRate: live.flowRate, batteryPercent: live.batteryPercent, online: true };
       if (cumulativeLiters != null) {
-        // WaterLog's cumulativeLiters is our own running total (built from
-        // pulse-count deltas, see server/routes/tuya.js) — it only ever
-        // grows, no device-side rollover to guard against like the old
-        // raw-DP approach did, so the math is a plain subtraction.
+        // "แสดงส่วนนี้ตรง แต่ข้อความที่ส่งไปให้ผู้เช่า ไม่ตรงกัน...ต้องแก้
+        // ข้อความที่ส่งใหม่ทุกห้องเลยครับ" (2026-07-31 follow-up) — บั๊กที่
+        // เพิ่งแก้ไปตัดโค้ด "rollover" branch ทิ้งด้วยเข้าใจผิดว่าไม่จำเป็น
+        // แล้ว (คิดว่า WaterLog โตขึ้นเรื่อยๆ อย่างเดียว ไม่มีวันติดลบ) แต่
+        // จริงๆ แล้ว branch นี้ยังจำเป็นเหมือนเดิม — กรณีห้องที่เพิ่งต่อ
+        // อุปกรณ์ Tuya ใหม่ (WaterLog เพิ่งเริ่มนับจากศูนย์) แต่ waterPrev
+        // ยังเป็นเลขมิเตอร์เก่าจากระบบจดมือ/รอบบิลก่อนหน้า (เช่นห้อง 647:
+        // waterPrev=1500 หน่วย แต่ WaterLog สะสมได้แค่ ~1 หน่วย) การลบกัน
+        // ตรงๆ จะติดลบเสมอ ปัดเป็น 0 ตลอด — ใช้สูตรเดียวกับฝั่งเจ้าของเป๊ะๆ
+        // (Rental Management.dc.html's _waterRolloverUnits) แทน: ถ้าลบแล้ว
+        // ติดลบและไม่มี tuyaWaterMaxLiters กำหนดไว้ ให้ถือว่ายอดสะสมทั้งก้อน
+        // (cumulativeLiters) คือหน่วยที่ใช้ไปเลย (เหมือนเริ่มนับใหม่จาก 0)
         const baselineLiters = Number(room.waterPrev || 0) * 1000;
-        const units = Math.max(0, (cumulativeLiters - baselineLiters) / 1000);
+        let rawUnits;
+        if (cumulativeLiters >= baselineLiters) {
+          rawUnits = Math.max(0, (cumulativeLiters - baselineLiters) / 1000);
+        } else {
+          const maxLiters = Number(room.tuyaWaterMaxLiters || 0);
+          const deltaLiters = maxLiters > 0 ? (maxLiters - baselineLiters) + cumulativeLiters : cumulativeLiters;
+          rawUnits = Math.max(0, deltaLiters / 1000);
+        }
+        // "หน่วยมิเตอร์ น้ำไฟ...จำนวนเต็มครับ ไม่มีจุดทศนิยม" — ปัดเป็นจำนวน
+        // เต็มก่อนคำนวณค่าน้ำ เหมือนกับ deviceCharge()'s water branch ฝั่ง
+        // เจ้าของเป๊ะๆ กันตัวเลขไม่ตรงกันระหว่าง 2 ฝั่ง
+        const units = Math.round(rawUnits);
         const { charge } = applyMinCharge('water', Math.round(units * roomRate('water')));
-        result.waterUsage = Number(units.toFixed(2));
+        result.waterUsage = units;
         result.waterCost = charge;
       }
     } catch (err) {
