@@ -98,20 +98,35 @@ async function computeTenantUsage(room) {
     result.hasWaterDevice = true;
     try {
       const live = await getWaterReading(room.tuyaWaterDeviceId, creds.tuya);
-      result.waterLive = { usage: live.usage, flowRate: live.flowRate, batteryPercent: live.batteryPercent, online: true };
-      if (live.usage != null) {
-        // Same rollover-protection logic as _waterRolloverUnits — a
-        // meter that wraps back to 0 after a max reading would otherwise
-        // report a negative (floored to 0) usage for the whole cycle.
+      // "เราลืมแปลงหน่วยน้ำเป็นลิตร ของการขอดูข้อมูลน้ำไฟ ผู้เช่า ลูกค้า
+      // ตกใจ" (2026-07-31) — บั๊กจริง: live.usage (จาก getWaterReading()
+      // ตรงๆ) คือค่าดิบจาก DP `water_use_data` ซึ่งค้างที่ 0 ถาวรเสมอ (ดู
+      // getWaterReading's comment เต็ม — DP ตัวนี้ไม่เคยอัปเดตจริงบน
+      // อุปกรณ์รุ่นนี้) — routes/tuya.js's GET /status (หน้า Set อุปกรณ์/
+      // แดชบอร์ดเจ้าของ) แก้ไปแล้วโดยเอายอดสะสมจริงจากแท็บ WaterLog มาทับ
+      // usage ก่อนส่งกลับ แต่ endpoint นี้ (ใช้โดยปุ่ม LINE "การใช้น้ำ/ไฟ
+      // ปัจจุบัน" ของผู้เช่า) ไม่เคยได้รับการแก้แบบเดียวกัน เลยยังคำนวณ
+      // จาก live.usage ที่เป็น 0 ตลอด (ทำให้ตัวเลขน้ำที่ผู้เช่าเห็นผิดอยู่
+      // เงียบๆ — ไม่ใช่แค่หน่วยผิด แต่ข้อมูลทั้งก้อนมาจากแหล่งที่ตายแล้ว)
+      // แก้ให้อ่านจาก WaterLog แท็บเดียวกับที่แดชบอร์ดใช้แทน (เอาแถวล่าสุด
+      // ของห้องนี้) แล้วค่อยแปลงลิตร→หน่วย (÷1000) เหมือนเดิม
+      let cumulativeLiters = null;
+      try {
+        const waterLog = await readTab('WaterLog');
+        const roomRows = waterLog.filter((row) => row.room === room.id.toString());
+        const latest = roomRows.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+        if (latest) cumulativeLiters = Number(latest.cumulativeLiters) || 0;
+      } catch (err) {
+        console.error('[tenant] WaterLog cumulative read failed:', err.message);
+      }
+      result.waterLive = { usage: cumulativeLiters, flowRate: live.flowRate, batteryPercent: live.batteryPercent, online: true };
+      if (cumulativeLiters != null) {
+        // WaterLog's cumulativeLiters is our own running total (built from
+        // pulse-count deltas, see server/routes/tuya.js) — it only ever
+        // grows, no device-side rollover to guard against like the old
+        // raw-DP approach did, so the math is a plain subtraction.
         const baselineLiters = Number(room.waterPrev || 0) * 1000;
-        let units;
-        if (live.usage >= baselineLiters) {
-          units = Math.max(0, (live.usage - baselineLiters) / 1000);
-        } else {
-          const maxLiters = Number(room.tuyaWaterMaxLiters || 0);
-          const deltaLiters = maxLiters > 0 ? (maxLiters - baselineLiters) + live.usage : live.usage;
-          units = Math.max(0, deltaLiters / 1000);
-        }
+        const units = Math.max(0, (cumulativeLiters - baselineLiters) / 1000);
         const { charge } = applyMinCharge('water', Math.round(units * roomRate('water')));
         result.waterUsage = Number(units.toFixed(2));
         result.waterCost = charge;
