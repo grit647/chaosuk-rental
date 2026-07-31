@@ -93,6 +93,9 @@ async function computeTenantUsage(room) {
         const { charge } = applyMinCharge('elec', Math.round(units * roomRate('elec')));
         result.elecUsage = units;
         result.elecCost = charge;
+        // "หน่วยที่ใช้ × หน่วยละเท่ากับกี่บาท" (2026-07-31) — ข้อความ LINE
+        // ต้องโชว์เรทต่อหน่วยด้วย ไม่ใช่แค่ยอดรวม — ส่งเรทกลับไปด้วย
+        result.elecRate = roomRate('elec');
       }
     } catch (err) {
       result.elecLive = { online: false, error: err.message };
@@ -154,6 +157,7 @@ async function computeTenantUsage(room) {
         const { charge } = applyMinCharge('water', Math.round(units * roomRate('water')));
         result.waterUsage = units;
         result.waterCost = charge;
+        result.waterRate = roomRate('water');
       }
     } catch (err) {
       result.waterLive = { online: false, error: err.message };

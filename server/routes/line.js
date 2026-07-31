@@ -938,16 +938,21 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
         await reply(`ห้อง ${room.id} ยังไม่ได้เชื่อมต่ออุปกรณ์วัดน้ำ/ไฟกับระบบครับ`);
         return;
       }
+      // "สร้างข้อความที่เข้าใจง่ายๆหน่อยครับ สัญลักษณ์บาทไม่ต้องใช้ครับ
+      // เป็นหน่วยที่ใช้ คูณ หน่วยละเท่ากับกี่บาทเลยครับ ทั้งน้ำ ไฟ"
+      // (2026-07-31) — เปลี่ยนจาก "X หน่วย (฿Y)" (ต้องคิดเองว่าทำไมได้ Y)
+      // เป็น "X หน่วย × หน่วยละ R บาท = Y บาท" (เห็นที่มาของยอดเงินชัดเจน
+      // ในบรรทัดเดียว) เอาสัญลักษณ์ "฿" ออกทั้งหมด ใช้คำว่า "บาท" แทน
       const lines = [`การใช้น้ำ/ไฟห้อง ${room.id} (นับจากบิลล่าสุด):`];
       if (usage.hasElecDevice) {
         lines.push(usage.elecLive && usage.elecLive.online
           ? `⚡ ไฟตอนนี้: ${usage.elecLive.voltage?.toFixed(1)}V · ${usage.elecLive.current?.toFixed(2)}A · ${usage.elecLive.power?.toFixed(1)}W`
           : '⚡ อุปกรณ์ไฟฟ้า: ออฟไลน์');
-        if (usage.elecUsage != null) lines.push(`ไฟที่ใช้รอบนี้: ${usage.elecUsage} หน่วย (฿${usage.elecCost})`);
+        if (usage.elecUsage != null) lines.push(`ไฟที่ใช้รอบนี้: ${usage.elecUsage} หน่วย × หน่วยละ ${usage.elecRate} บาท = ${usage.elecCost.toLocaleString()} บาท`);
       }
       if (usage.hasWaterDevice) {
         if (!(usage.waterLive && usage.waterLive.online)) lines.push('💧 อุปกรณ์น้ำ: ออฟไลน์');
-        if (usage.waterUsage != null) lines.push(`น้ำที่ใช้รอบนี้: ${usage.waterUsage} หน่วย (฿${usage.waterCost})`);
+        if (usage.waterUsage != null) lines.push(`น้ำที่ใช้รอบนี้: ${usage.waterUsage} หน่วย × หน่วยละ ${usage.waterRate} บาท = ${usage.waterCost.toLocaleString()} บาท`);
       }
       await reply(lines.join('\n'));
       return;
