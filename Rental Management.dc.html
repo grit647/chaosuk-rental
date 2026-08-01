@@ -7757,9 +7757,18 @@ class Component extends DCLogic {
       // total too, matching what resolveSlip's 'full' mode already does.
       const inv = this.state.invoices.find(i => i.id === id);
       const total = inv ? (inv.rent || 0) + (inv.water || 0) + (inv.elec || 0) + (inv.trash || 0) + (inv.internet || 0) : undefined;
+      // "ห้อง 7 ทำไมตัวเลขเป็น 1716 แต่บิลถูกตัดชำระแล้วทั้งหมด" (2026-08-01)
+      // — real bug found: กดปุ่มนี้ปิดยอดเต็ม (amountPaid = total) แต่ไม่
+      // เคยล้าง slipsJson เลย ถ้าห้องนั้นเคยมีสลิปบางส่วนค้างอยู่ก่อนหน้า
+      // (เช่น 1,716 บาท) เลขนั้นจะค้างโชว์ใน "สลิปที่ส่งมา" (ประวัติบิล
+      // ย้อนหลัง) ทั้งที่จริงจ่ายครบแล้ว 3,175 — ทำให้ดูเหมือนยังขาดอยู่
+      // ทั้งที่ปิดยอดไปแล้ว เคลียร์ slipsJson ทิ้งด้วยตรงนี้ (เหมือน
+      // resolveSlip's full-payment modes ทำอยู่แล้ว) ดีกว่าปล่อยเลขเก่า
+      // ผิดๆ ค้างไว้ — ผลคือช่อง "สลิปที่ส่งมา" จะว่างเปล่าแทนที่จะโชว์
+      // เลขที่ทำให้เข้าใจผิด (ไม่ได้ลบสลิปจริง แค่ล้างคิวที่ประมวลผลจบแล้ว)
       const res = await fetch('/api/invoices/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'paid', paidDate: new Date().toISOString().slice(0, 10), ...(total != null ? { amountPaid: total } : {}) }),
+        body: JSON.stringify({ status: 'paid', paidDate: new Date().toISOString().slice(0, 10), slipsJson: '[]', ...(total != null ? { amountPaid: total } : {}) }),
       });
       if (!res.ok) throw new Error('อัปเดตไม่สำเร็จ');
       const updated = await res.json();
