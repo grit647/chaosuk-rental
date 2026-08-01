@@ -131,6 +131,13 @@ function coerceInvoices(rows) {
       // ถ้าไปคำนวณจากอัตราปัจจุบันของห้องภายหลัง จะผิดถ้าอัตราถูกแก้ไปแล้ว
       waterRate: r.waterRate === '' || r.waterRate == null ? null : num(r.waterRate, null),
       elecRate: r.elecRate === '' || r.elecRate == null ? null : num(r.elecRate, null),
+      // "งั้นเขียนให้ค่าในสัญญามาบันทึกในส่วนนี้" (2026-08-01) — ต่างจาก
+      // waterRate/elecRate ข้างบน (คำนวณย้อนกลับจากยอดเงิน÷หน่วยของบิล
+      // ใบนั้นๆ เอง อาจผิดถ้าโดนค่าขั้นต่ำครอบ) ตัวนี้คัดลอกมาจากอัตรา
+      // จริงในสัญญาเช่าของห้องโดยตรงเสมอ (server/routes/rooms.js's
+      // PATCH /:id เขียนคาสเคดมาให้ทุกครั้งที่บันทึกสัญญา) จึงไม่มีทางผิด
+      waterRatetrue: r.waterRatetrue === '' || r.waterRatetrue == null ? null : num(r.waterRatetrue, null),
+      elecRatetrue: r.elecRatetrue === '' || r.elecRatetrue == null ? null : num(r.elecRatetrue, null),
       // The combined receipt-as-one-image actually sent via LINE (see
       // server/receiptImage.js + sendReceiptLine in Rental Management.dc.html)
       // — saved here so the owner can look it back up later (bill history
