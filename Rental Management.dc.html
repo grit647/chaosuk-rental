@@ -55,8 +55,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
     <sc-if value="{{ mobileAiMode }}">
       <div style="position:relative;width:100%;height:100%;background:#F1EBE0;overflow:hidden;display:flex;flex-direction:column;box-sizing:border-box">
         <div style="background:#241812;padding:16px 18px;display:flex;align-items:center;gap:10px;flex-shrink:0">
-          <span style="width:30px;height:30px;border-radius:9px;background:#D97757;color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">✦</span>
-          <div style="font-size:14.5px;font-weight:700;color:#F1EBE0;flex:1">Claude ผู้ช่วยดูแลอัตโนมัติ</div>
+          <span style="width:30px;height:30px;border-radius:9px;background:{{ aiEngineHeaderBg }};color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">{{ aiEngineHeaderIcon }}</span>
+          <div style="font-size:14.5px;font-weight:700;color:#F1EBE0;flex:1">{{ aiEngineHeaderName }} ผู้ช่วยดูแลอัตโนมัติ</div>
           <div style="display:flex;gap:6px;flex-shrink:0">
             <div onclick="{{ switchToMobileWeb }}" title="สลับเป็นโหมดเว็บมือถือ" style="padding:7px 10px;border-radius:6px;background:rgba(241,235,224,0.12);color:#F1EBE0;font-size:10.5px;font-weight:600;cursor:pointer;white-space:nowrap">📱 เว็บมือถือ</div>
             <div onclick="{{ switchToAiMode }}" title="โหมด Claude AI" style="padding:7px 10px;border-radius:6px;background:#D97757;color:#fff;font-size:10.5px;font-weight:600;cursor:pointer;white-space:nowrap">✦ AI</div>
@@ -1272,8 +1272,8 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
             <div style="background:linear-gradient(135deg,#FBF3EC,#FFFFFF);border-radius:8px;padding:24px;box-sizing:border-box;max-width:560px;margin-top:16px;border:1px solid #F0DFCF">
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;row-gap:8px">
-                <span style="width:26px;height:26px;border-radius:8px;background:#D97757;color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">✦</span>
-                <div style="font-size:15px;font-weight:700;color:#241812;flex-shrink:0">Claude ผู้ช่วยดูแลอัตโนมัติ</div>
+                <span style="width:26px;height:26px;border-radius:8px;background:{{ aiEngineHeaderBg }};color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">{{ aiEngineHeaderIcon }}</span>
+                <div style="font-size:15px;font-weight:700;color:#241812;flex-shrink:0">{{ aiEngineHeaderName }} ผู้ช่วยดูแลอัตโนมัติ</div>
                 <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
                   <span onclick="{{ onDemoTipClaudeOverview }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
                 </sc-if>
@@ -11687,6 +11687,13 @@ class Component extends DCLogic {
       aiEngineClaudeColor: s.aiEngine !== 'gemini' ? '#fff' : '#7C6E5F',
       aiEngineGeminiBg: s.aiEngine === 'gemini' ? '#4285F4' : '#F1EBE0',
       aiEngineGeminiColor: s.aiEngine === 'gemini' ? '#fff' : '#7C6E5F',
+      // "กรณีใช้ Gemini ให้แถบด้านบนเปลี่ยนเป็น Gemini ด้วยครับ" (2026-08-01)
+      // — หัวการ์ด/แถบบน (ทั้งเวอร์ชันในหน้าตั้งค่า และเวอร์ชันเต็มจอมือถือ)
+      // เปลี่ยนไอคอน/สี/ชื่อตาม aiEngine ที่เลือกไว้ ให้สอดคล้องกับ picker
+      // ด้านล่าง (สีเดียวกับ aiEngineGeminiBg/aiEngineClaudeBg ข้างบน)
+      aiEngineHeaderName: s.aiEngine === 'gemini' ? 'Gemini' : 'Claude',
+      aiEngineHeaderIcon: s.aiEngine === 'gemini' ? 'G' : '✦',
+      aiEngineHeaderBg: s.aiEngine === 'gemini' ? '#4285F4' : '#D97757',
 
       showRecurringModal: s.showRecurringModal, openRecurringModal: this.openRecurringModal, closeRecurringModal: this.closeRecurringModal,
       recurringTasks: recurringTasksView, noRecurringTasks: recurringTasksView.length === 0,
