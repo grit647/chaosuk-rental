@@ -45,6 +45,16 @@ router.post('/', async (req, res, next) => {
     // it here needs no separate confirmation.
     const rooms = coerceRooms(await readTab('Rooms'));
     const room = rooms.find((r) => r.id === b.room);
+    // "ช่วยเอาอัตราค่าบริการ น้ำ ไฟ มาแสดงส่วนนี้ให้ด้วยครับ" (2026-08-01)
+    // — เก็บอัตราที่ใช้คิดจริงตอนออกบิลนี้ลงในตัว invoice เอง (เหมือน
+    // waterUnits/elecUnits ที่ frozen ไว้อยู่แล้วด้านล่าง) แทนที่จะปล่อยให้
+    // ต้องหารย้อนกลับ (water÷waterUnits) เอาเอง หรือไปดูอัตราปัจจุบันของ
+    // ห้องซึ่งอาจถูกแก้ไปแล้วหลังจากนั้น — ใช้อัตราของห้องเองก่อน (ตั้งจาก
+    // สัญญาเช่า) ถ้าไม่มีค่อย fallback อัตรากลาง เหมือน frontend's
+    // roomRate() เป๊ะๆ แต่คำนวณฝั่ง server เพื่อไม่ต้องพึ่ง client ส่งมาให้
+    const settings = await readSettings();
+    const waterRate = room && room.waterRate != null ? room.waterRate : settings.waterRate;
+    const elecRate = room && room.elecRate != null ? room.elecRate : settings.elecRate;
     const credit = room ? room.creditBalance || 0 : 0;
     const applied = Math.min(credit, total);
     // Deliberately NOT 'partial' when credit only covers part of the bill —
@@ -77,6 +87,7 @@ router.post('/', async (req, res, next) => {
       elecUnits: b.elecUnits != null ? Number(b.elecUnits) : '',
       waterPrevReading: b.waterPrevReading != null ? Number(b.waterPrevReading) : '',
       elecPrevReading: b.elecPrevReading != null ? Number(b.elecPrevReading) : '',
+      waterRate, elecRate,
     };
     await appendRow('Invoices', invoice);
     if (applied > 0) {

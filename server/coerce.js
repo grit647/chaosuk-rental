@@ -121,6 +121,16 @@ function coerceInvoices(rows) {
       elecUnits: r.elecUnits === '' || r.elecUnits == null ? null : num(r.elecUnits, null),
       waterPrevReading: r.waterPrevReading === '' || r.waterPrevReading == null ? null : num(r.waterPrevReading, null),
       elecPrevReading: r.elecPrevReading === '' || r.elecPrevReading == null ? null : num(r.elecPrevReading, null),
+      // "ช่วยเอาอัตราค่าบริการ น้ำ ไฟ มาแสดงส่วนนี้ให้ด้วยครับ ผมไม่เห็น
+      // ครับ" (2026-08-01, ดูตรงจาก Google Sheet เลย) — เดิม Invoices tab
+      // เก็บแค่ยอดเงิน (water/elec เป็นบาท) กับ waterUnits/elecUnits (หน่วย)
+      // ไม่เคยเก็บ "อัตรา/หน่วย" ที่ใช้คิดจริงตอนนั้นแยกไว้เลย — คำนวณย้อน
+      // กลับได้ (water÷waterUnits) แต่คุณต้นอยากเห็นตัวเลขอัตราตรงๆ ในชีต
+      // เลยไม่ต้องหารเอง — frozen ตอนสร้างบิลเหมือน waterUnits/elecUnits
+      // ข้างบน (ดู server/routes/invoices.js's POST /) กันปัญหาเดียวกัน:
+      // ถ้าไปคำนวณจากอัตราปัจจุบันของห้องภายหลัง จะผิดถ้าอัตราถูกแก้ไปแล้ว
+      waterRate: r.waterRate === '' || r.waterRate == null ? null : num(r.waterRate, null),
+      elecRate: r.elecRate === '' || r.elecRate == null ? null : num(r.elecRate, null),
       // The combined receipt-as-one-image actually sent via LINE (see
       // server/receiptImage.js + sendReceiptLine in Rental Management.dc.html)
       // — saved here so the owner can look it back up later (bill history
