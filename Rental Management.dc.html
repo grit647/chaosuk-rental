@@ -6465,10 +6465,17 @@ class Component extends DCLogic {
     // แจ้งเตือนให้ไปกรอกที่สัญญาห้องนั้นก่อน แทนที่จะปล่อยให้ค้างไม่มีวัน
     // ครบกำหนดในบิล
     const eligibleAll = this.state.rooms.filter(r => r.tenant && !roomsWithOpenBill.has(r.id));
-    const eligible = eligibleAll.filter(r => !!r.dueDay);
+    const eligible = eligibleAll.filter(r => !!r.dueDay && !this.roomOwnRateMissing(r.id, 'water') && !this.roomOwnRateMissing(r.id, 'elec'));
     const skippedNoDueDay = eligibleAll.filter(r => !r.dueDay).map(r => r.id);
+    // "ต้องเอาราคาที่กำหนดจากสัญญาเช่าไปคิด...ถ้าไม่มี กำหนดให้เป็นข้อความ
+    // 'ยังไม่กรอกอัตราค่าบริการ'" (2026-08-01) — เหมือน skippedNoDueDay
+    // ข้างบนเป๊ะๆ กันคนเลือกโหมดออกบิลรวมแล้วเจอห้องถูกข้ามแบบไม่รู้ตัว
+    // ตอนกดยืนยันจริง (submitBulkInvoice มี safety check ซ้ำอีกชั้นอยู่ดี)
+    const skippedNoRate = eligibleAll.filter(r => r.dueDay && (this.roomOwnRateMissing(r.id, 'water') || this.roomOwnRateMissing(r.id, 'elec'))).map(r => r.id);
     if (skippedNoDueDay.length) {
       this.showAdminToast(`ห้อง ${skippedNoDueDay.join(', ')} ยังไม่ได้กรอก "กำหนดชำระ" ในสัญญา ข้ามไปก่อน — ไปกรอกที่หน้าสัญญาเช่าของห้องนั้นๆ ก่อน แล้วออกบิลรวมใหม่อีกครั้งครับ`);
+    } else if (skippedNoRate.length) {
+      this.showAdminToast(`ห้อง ${skippedNoRate.join(', ')} ยังไม่กรอกอัตราค่าบริการ (น้ำ/ไฟ) ในสัญญาเช่า ข้ามไปก่อน — ไปกรอกที่หน้าสัญญาเช่าของห้องนั้นๆ ก่อน แล้วออกบิลรวมใหม่อีกครั้งครับ`);
     }
     const drafts = {};
     // Defaults every room to "อุปกรณ์" mode, same starting point as the
@@ -6556,9 +6563,18 @@ class Component extends DCLogic {
     const newInvoices = [];
     const roomCreditUpdates = {};
     const roomPrevUpdates = {};
+    // "ต้องเอาราคาที่กำหนดจากสัญญาเช่าไปคิด...ถ้าไม่มี กำหนดให้เป็น
+    // ข้อความ 'ยังไม่กรอกอัตราค่าบริการ'" (2026-08-01) — เหมือน
+    // submitInvoice แต่เป็นการออกบิลทีเดียวหลายห้อง ห้องไหนขาดอัตราแค่ข้าม
+    // ห้องนั้นไป (ไม่บล็อกทั้งชุด) เก็บชื่อห้องที่ข้ามไว้บอกในข้อความสรุป
+    const skippedNoRate = [];
     for (const roomId of roomIds) {
       const room = s.rooms.find(r => r.id === roomId);
       if (!room) continue;
+      if (this.roomOwnRateMissing(roomId, 'water') || this.roomOwnRateMissing(roomId, 'elec')) {
+        skippedNoRate.push(roomId);
+        continue;
+      }
       const draft = s.bulkInvoiceDrafts[roomId] || {};
       const water = Number(draft.water) || 0, elec = Number(draft.elec) || 0;
       // Same units/prevReading capture as submitInvoice, per room.
@@ -6655,9 +6671,10 @@ class Component extends DCLogic {
       showSendChoiceModal: newInvoices.length > 0, sendChoiceRoomIds: newInvoices.map(inv => inv.room),
       sendChoiceDate: '', sendChoiceTime: '09:00',
     }));
-    this.showAdminToast(failCount === 0
+    const skipMsg = skippedNoRate.length ? ` — ข้ามห้อง ${skippedNoRate.join(', ')} เพราะยังไม่กรอกอัตราค่าบริการในสัญญาเช่า` : '';
+    this.showAdminToast((failCount === 0
       ? `สร้างใบแจ้งหนี้สำเร็จ ${successCount} ห้อง`
-      : `สร้างสำเร็จ ${successCount} ห้อง, ไม่สำเร็จ ${failCount} ห้อง`);
+      : `สร้างสำเร็จ ${successCount} ห้อง, ไม่สำเร็จ ${failCount} ห้อง`) + skipMsg);
   });
   openInvoiceModal = () => this.setState({ showInvoiceModal: true, newInvoice: { roomId: '', water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device', rentOverride: '' } });
   openInvoiceForRoom = (roomId) => {
@@ -7193,6 +7210,19 @@ class Component extends DCLogic {
     if (ownRate != null) return ownRate;
     return this.state[globalField];
   }
+  // "ปรกติเราต้องเอาราคาที่กำหนดจากสัญญาเช่าไปคิดนะครับ อัตราค่ากลางมันเป็น
+  // อัตราสำรองไว้...เปลี่ยนเงื่อนไข ถ้าไม่มี กำหนดให้เป็นข้อความ 'ยังไม่กรอก
+  // อัตราค่าบริการ'" (2026-08-01) — roomRate() ด้านบนยังคง fallback ไปใช้
+  // อัตรากลางเหมือนเดิมทุกจุด (ใช้คำนวณ preview ในฟอร์ม/ประวัติบิลย้อนหลัง
+  // ที่ต้องมีตัวเลขแสดงเสมอ ไม่งั้นพัง) — เปลี่ยนแค่ตอน "ออกบิลจริง" เท่านั้น
+  // (submitInvoice/submitBulkInvoice) ให้เช็คก่อนว่าห้องนี้มีอัตราของตัวเอง
+  // จากสัญญาเช่าหรือยัง (room.waterRate/room.elecRate ตั้งไว้จริง ไม่ใช่แค่
+  // ตกไปใช้อัตรากลาง) ถ้ายังไม่มี บล็อกการออกบิลพร้อมข้อความเตือนตรงนี้
+  roomOwnRateMissing(roomId, kind) {
+    const room = this.state.rooms.find(r => r.id === roomId);
+    const roomField = kind === 'water' ? 'waterRate' : 'elecRate';
+    return !room || room[roomField] == null;
+  }
   // Per explicit user request: minimum monthly charge (ค่าดูแลมิเตอร์) —
   // always per-room, no property-wide fallback (unlike roomRate above; "no
   // minimum" is a perfectly normal setting, not a "not configured yet"
@@ -7529,6 +7559,17 @@ class Component extends DCLogic {
     const alreadyPending = s.invoices.find(i => i.room === s.newInvoice.roomId && i.status !== 'paid');
     if (alreadyPending) {
       this.showAdminToast(`ห้อง ${s.newInvoice.roomId} มีใบแจ้งหนี้ค้างอยู่แล้ว (${alreadyPending.id}) กรุณาจัดการบิลเดิมให้เสร็จก่อน (แก้ไข/ลบ/ยืนยันชำระ) จึงจะออกบิลใหม่ได้`);
+      return;
+    }
+    // "ต้องเอาราคาที่กำหนดจากสัญญาเช่าไปคิด...ถ้าไม่มี กำหนดให้เป็นข้อความ
+    // 'ยังไม่กรอกอัตราค่าบริการ'" (2026-08-01) — บล็อกออกบิลจริงถ้าห้องนี้
+    // ยังไม่เคยตั้งอัตราน้ำ/ไฟของตัวเองในสัญญาเช่า (ดู roomOwnRateMissing
+    // ด้านบน) กันบิลผิดจากอัตรากลางที่เป็นแค่ตัวสำรอง ไม่ใช่ตัวเลขจริงของห้อง
+    const missingWater = this.roomOwnRateMissing(s.newInvoice.roomId, 'water');
+    const missingElec = this.roomOwnRateMissing(s.newInvoice.roomId, 'elec');
+    if (missingWater || missingElec) {
+      const which = missingWater && missingElec ? 'น้ำและไฟ' : missingWater ? 'น้ำ' : 'ไฟ';
+      this.showAdminToast(`ห้อง ${s.newInvoice.roomId} ยังไม่กรอกอัตราค่าบริการ (${which}) ในสัญญาเช่า กรุณาไปกรอกที่หน้าสัญญาเช่าของห้องนี้ก่อน แล้วกลับมาออกบิลใหม่อีกครั้งครับ`);
       return;
     }
     const room = s.rooms.find(r => r.id === s.newInvoice.roomId);
