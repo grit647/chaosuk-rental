@@ -153,16 +153,25 @@
       // กล่องสรุปนี้เมื่อมีจ่ายมาแล้วบางส่วน (amountPaid > 0) พร้อมรายการ
       // สลิปที่เคยส่งมา (current.slips มาจาก coerceInvoices เดียวกับที่
       // เว็บฝั่งเจ้าของใช้ — ข้อมูลชุดเดียวกันเป๊ะ ไม่มีทางไม่ตรงกัน)
+      // "สลิปที่ส่งมา...ยังไม่เห็น" (2026-08-01) — เหมือนฝั่งเจ้าของ
+      // (Rental Management.dc.html's billHistoryItems) บิลเก่าบางใบเก็บ
+      // สลิปผ่านฟิลด์เดี่ยวรุ่นก่อน (slipImageUrl/slipUploadedAt) ที่ไม่
+      // เคย sync เข้า current.slips array เลย — fallback แบบเดียวกัน
+      const rawSlips = Array.isArray(current.slips) && current.slips.length ? current.slips
+        : (current.slipImageUrl ? [{ amount: current.slipAmount || amountPaid, date: current.slipDate || current.slipUploadedAt, imageUrl: current.slipImageUrl }] : []);
       const partialHtml = amountPaid > 0 ? (
         '<div style="background:#FFF3E0;border-radius:8px;padding:10px 12px;margin-top:12px">' +
           '<div style="display:flex;justify-content:space-between;font-size:12.5px;color:#B85B27"><span>ชำระแล้ว</span><span style="font-weight:700">฿' + fmt(amountPaid) + '</span></div>' +
           '<div style="display:flex;justify-content:space-between;font-size:12.5px;color:#B24336;margin-top:2px"><span>คงเหลือ</span><span style="font-weight:700">฿' + fmt(remaining) + '</span></div>' +
-          (Array.isArray(current.slips) && current.slips.length ? (
+          (rawSlips.length ? (
             '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #E3D2A8">' +
               '<div style="font-size:10.5px;color:#9C7A2E;font-weight:600;margin-bottom:4px">สลิปที่ส่งมา</div>' +
-              current.slips.slice().reverse().map((sl) =>
-                '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:#B85B27;padding:2px 0">' +
-                  '<span>' + (sl.date || '-') + '</span><span>฿' + fmt(Number(sl.amount) || 0) + '</span>' +
+              rawSlips.slice().reverse().map((sl) =>
+                '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:#B85B27;padding:2px 0">' +
+                  '<span>' + (sl.date || '-') + '</span>' +
+                  '<span style="display:flex;align-items:center;gap:6px">฿' + fmt(Number(sl.amount) || 0) +
+                  (sl.imageUrl ? ' <a href="' + sl.imageUrl + '" target="_blank" rel="noopener" style="color:#B85B27;text-decoration:none">📎</a>' : '') +
+                  '</span>' +
                 '</div>'
               ).join('') +
             '</div>'

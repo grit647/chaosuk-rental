@@ -3642,9 +3642,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <div style="margin-top:2px">
                           <div style="font-size:10.5px;color:#A89A88;font-weight:600;margin-bottom:3px">สลิปที่ส่งมา</div>
                           <sc-for list="{{ h.slips }}" as="sl" hint-placeholder-count="1">
-                            <div style="display:flex;justify-content:space-between;font-size:11px;color:#7C6E5F;padding:2px 0">
+                            <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#7C6E5F;padding:2px 0">
                               <span>{{ sl.dateDisplay }} · {{ sl.senderName }}</span>
-                              <span style="font-family:'IBM Plex Mono',monospace">{{ sl.amountDisplay }}</span>
+                              <span style="display:flex;align-items:center;gap:6px">
+                                <span style="font-family:'IBM Plex Mono',monospace">{{ sl.amountDisplay }}</span>
+                                <sc-if value="{{ sl.imageUrl }}" hint-placeholder-val="{{ false }}">
+                                  <a href="{{ sl.imageUrl }}" target="_blank" rel="noopener" style="color:#C1622D;text-decoration:none">📎</a>
+                                </sc-if>
+                              </span>
                             </div>
                           </sc-for>
                         </div>
@@ -11202,10 +11207,22 @@ class Component extends DCLogic {
           // ผู้เช่าดู tenant-portal.html's currentInvoice card แยกต่างหาก
           const amountPaid = i.amountPaid || 0;
           const hasPartialPayment = amountPaid > 0 && i.status !== 'paid';
-          const slipsForDisplay = (i.slips || []).slice().reverse().map(sl => ({
+          // "สลิปที่ส่งมา...ยังไม่เห็น" (2026-08-01) — i.slips (จาก
+          // slipsJson) เป็น array ใหม่กว่า ใช้กับสลิปที่ส่งเข้ามาหลายใบ
+          // แต่บิลเก่าบางใบ (เช่น INV-4 ที่คุณต้นเจอ) บันทึกสลิปผ่านฟิลด์
+          // เดี่ยวรุ่นก่อนหน้า (slipImageUrl/slipUploadedAt) ซึ่งไม่เคยถูก
+          // sync เข้า slipsJson เลย ทำให้ slips array ว่างเปล่าทั้งที่มี
+          // สลิปจริง — เพิ่ม fallback: ถ้า slips array ว่าง แต่มี
+          // slipImageUrl อยู่ ให้สร้างรายการ 1 ใบจากฟิลด์เดี่ยวแทน (ใช้
+          // slipUploadedAt เป็นวันที่สำรองถ้า slipDate ว่าง, ใช้ amountPaid
+          // เป็นยอดเงินสำรองถ้า slipAmount ว่าง — ดีกว่าไม่แสดงอะไรเลย)
+          const rawSlips = i.slips && i.slips.length ? i.slips
+            : (i.slipImageUrl ? [{ amount: i.slipAmount || amountPaid, date: i.slipDate || i.slipUploadedAt, senderName: i.slipSenderName, imageUrl: i.slipImageUrl }] : []);
+          const slipsForDisplay = rawSlips.slice().reverse().map(sl => ({
             amountDisplay: this.fmt(Number(sl.amount) || 0),
             dateDisplay: this.formatThaiDateLabel(sl.date) || sl.date || '—',
             senderName: sl.senderName || 'ไม่ทราบชื่อผู้โอน',
+            imageUrl: sl.imageUrl || '',
           }));
           return {
             id: i.id, due: this.formatThaiDateLabel(i.due) || i.due || '—',
