@@ -9673,8 +9673,15 @@ class Component extends DCLogic {
     tenantsFiltered.forEach(t => {
       const dw = this.deviceCharge(t.room, 'water');
       const de = this.deviceCharge(t.room, 'elec');
-      t.waterUsageLabel = dw ? `${dw.units} หน่วย × ${this.roomRate(t.room, 'water')} = ${this.fmt(dw.charge)}` : 'อุปกรณ์ไม่พร้อม';
-      t.elecUsageLabel = de ? `${de.units} หน่วย × ${this.roomRate(t.room, 'elec')} = ${this.fmt(de.charge)}` : 'อุปกรณ์ไม่พร้อม';
+      // "กรณีน้ำต้องขึ้นว่า อัตราค่าบริการขั้นต่ำ เพราะ 0 หน่วย × 15 = 80
+      // ลูกค้างง หาว่าคูณผิด" (2026-08-01) — ตอนค่าขั้นต่ำ (ดูแลมิเตอร์)
+      // ครอบ ยอดจริง (dw.charge) ไม่ได้มาจาก units × rate อีกต่อไป
+      // (เป็นค่าขั้นต่ำคงที่) แสดง "units × rate = charge" แบบเดิมต่อ
+      // ไปจะดูเหมือนคูณเลขผิด (0×15 ไม่เท่ากับ 80 จริงๆ) — เช็ค
+      // dw.minApplied ก่อน ถ้าใช่ให้บอกตรงๆ ว่าเป็นค่าขั้นต่ำ ไม่ใช่ผลคูณ
+      // (คำเดียวกับที่ _buildReceiptMessage ใช้อยู่แล้วเวลาส่ง LINE)
+      t.waterUsageLabel = dw ? (dw.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${this.fmt(dw.charge)}` : `${dw.units} หน่วย × ${this.roomRate(t.room, 'water')} = ${this.fmt(dw.charge)}`) : 'อุปกรณ์ไม่พร้อม';
+      t.elecUsageLabel = de ? (de.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${this.fmt(de.charge)}` : `${de.units} หน่วย × ${this.roomRate(t.room, 'elec')} = ${this.fmt(de.charge)}`) : 'อุปกรณ์ไม่พร้อม';
       t.hasUsageData = !!(dw || de);
       // Per explicit user request: battery status for the water flowmeter
       // (battery-powered, BLE-gateway device) shown right on the tenant
@@ -11373,8 +11380,12 @@ class Component extends DCLogic {
         const live = (r && r.tuyaElecDeviceId) ? s.tuyaLiveReadings[s.newInvoice.roomId] : null;
         return (live && live.energy != null) ? String(live.energy) : '0';
       })(),
-      invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? `${d.units} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'water')} = ${d.charge} บาท` : 'อุปกรณ์ไม่พร้อม'; })(),
-      invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? `${d.units} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'elec')} = ${d.charge} บาท` : 'อุปกรณ์ไม่พร้อม'; })(),
+      // "กรณีน้ำต้องขึ้นว่า อัตราค่าบริการขั้นต่ำ...ลูกค้างง หาว่าคูณผิด"
+      // (2026-08-01) — เช็ค d.minApplied เหมือนกับ waterUsageLabel/
+      // elecUsageLabel ข้างบน (ในหน้าผู้เช่า) กันข้อความ "0 หน่วย × 15 =
+      // 80" ที่ดูเหมือนคูณเลขผิดตอนออกบิลจริงด้วย
+      invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? (d.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${d.charge} บาท` : `${d.units} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'water')} = ${d.charge} บาท`) : 'อุปกรณ์ไม่พร้อม'; })(),
+      invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? (d.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${d.charge} บาท` : `${d.units} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'elec')} = ${d.charge} บาท`) : 'อุปกรณ์ไม่พร้อม'; })(),
       // Per explicit user request: a simple always-visible reference line
       // (not a popup/history modal, which they found overlapped awkwardly)
       // showing the water/elec reading from this room's LAST bill —
