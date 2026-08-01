@@ -883,7 +883,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <span onclick="{{ selectedTenant.onOpenConn }}" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:7px 14px;border-radius:6px;cursor:pointer;background:{{ selectedTenant.tokenBg }};color:{{ selectedTenant.tokenColor }};font-family:'IBM Plex Mono',monospace">{{ selectedTenant.tokenIcon }} {{ selectedTenant.tokenLabel }}</span>
                     </sc-if>
                   </div>
-                  <div onclick="{{ selectedTenant.onSendNews }}" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:700;padding:10px 16px;border-radius:7px;cursor:pointer;background:#EDE4D6;color:#B85B27">✉ ส่งข่าวสาร</div>
+                  <div style="display:flex;gap:8px">
+                    <div onclick="{{ selectedTenant.onSendNews }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:700;padding:10px 10px;border-radius:7px;cursor:pointer;background:#EDE4D6;color:#B85B27">✉ ส่งข่าวสาร</div>
+                    <div onclick="{{ selectedTenant.onSendLatestReceipt }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:700;padding:10px 10px;border-radius:7px;cursor:pointer;background:#EDE4D6;color:#B85B27">🧾 ส่งใบเสร็จล่าสุด</div>
+                  </div>
                   <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
                     <div style="text-align:center;margin-top:8px">
                       <span onclick="{{ onDemoTipTenantSendNews }}" style="cursor:pointer;font-size:11px;color:#2C6E8F;font-weight:600">❓ ปุ่มนี้ทำอะไร</span>
@@ -3615,7 +3618,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่าไฟ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ h.elecDisplay }}</span></div>
                       <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1px solid #E3D8C8;padding-top:5px;margin-top:2px"><span style="color:#241812">รวม</span><span style="font-family:'IBM Plex Mono',monospace;color:#C1622D">{{ h.totalDisplay }}</span></div>
                       <sc-if value="{{ h.hasReceiptImage }}" hint-placeholder-val="{{ false }}">
-                        <a href="{{ h.receiptImageUrl }}" target="_blank" rel="noopener" style="text-align:center;font-size:11px;font-weight:600;padding:6px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;text-decoration:none;margin-top:2px">🧾 ดูใบเสร็จที่ส่งไป</a>
+                        <div style="display:flex;gap:6px;margin-top:2px">
+                          <a href="{{ h.receiptImageUrl }}" target="_blank" rel="noopener" style="flex:1;text-align:center;font-size:11px;font-weight:600;padding:6px 4px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;text-decoration:none">🧾 ดูใบเสร็จ</a>
+                          <a href="{{ h.receiptDownloadUrl }}" download style="flex:1;text-align:center;font-size:11px;font-weight:600;padding:6px 4px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;text-decoration:none">⬇️ ดาวน์โหลด</a>
+                        </div>
                       </sc-if>
                     </div>
                   </sc-for>
@@ -5156,6 +5162,16 @@ class Component extends DCLogic {
     });
     if (!res.ok) throw new Error((await res.json()).error || 'ส่งไม่สำเร็จ');
   };
+  // "ส่วนนี้ขอเพิ่มปุ่มดาวน์โหลดใบเสร็จให้ด้วยครับ" (2026-08-01, ประวัติ
+  // บิลย้อนหลัง modal) — receiptImageUrl เป็น Cloudinary URL ปกติ (เมื่อ
+  // ตั้ง Cloudinary ไว้) แค่ <a download> เฉยๆ ใช้ไม่ได้จริงกับ URL ข้าม
+  // origin แบบนี้ (เบราว์เซอร์เพิกเฉย attribute download ถ้าไม่มี header
+  // Content-Disposition จากฝั่งเซิร์ฟเวอร์ ซึ่ง Cloudinary ไม่ส่งมาให้
+  // โดย default) — Cloudinary รองรับ transformation "fl_attachment" แทรก
+  // เข้าไปหลัง "/upload/" เพื่อบังคับดาวน์โหลดจริงแทนเปิดดูในแท็บ ถ้าเป็น
+  // URL ท้องถิ่น (server/uploads/ fallback ตอน Cloudinary ไม่ได้ตั้งค่า)
+  // เป็น same-origin อยู่แล้ว <a download> ใช้ได้ปกติ ไม่ต้องแก้อะไร
+  _forceDownloadUrl = (url) => (url && url.includes('/upload/')) ? url.replace('/upload/', '/upload/fl_attachment/') : (url || '');
   // Per explicit user request: every payment-related LINE message should go
   // out as an image, not just the itemized billing notice (which already
   // has its own dedicated endpoint, /api/invoices/:id/receipt-image, since
@@ -6806,6 +6822,49 @@ class Component extends DCLogic {
       this.setState(s => ({ receiptsSent: { ...s.receiptsSent, [roomId]: true } }));
       this.showAdminToast('ส่งใบแจ้งหนี้ห้อง ' + roomId + ' ทาง LINE และบันทึกใบเสร็จแล้ว');
     } catch (err) { this.showAdminToast(err.message || 'ส่ง LINE ไม่สำเร็จ'); }
+  });
+
+  // "เพิ่ม ส่งใบเสร็จหลังสุดให้หน่อยครับ กันระบบที่ส่งจากออกใบเสร็จส่งอีก
+  // ครั้งไม่ได้ กรณีผู้เช่าแจ้งไม่ได้รับใบเสร็จ" (2026-08-01) — sendReceiptLine
+  // ข้างบนผูกกับ "invoice ที่ยังไม่จ่าย" ตัวเดียวและรันตอนออกบิลใหม่
+  // เท่านั้น เรียกซ้ำจากปุ่มนั้นไม่ได้ (ไม่มีปุ่มให้กดซ้ำเลยหลังบิลถูกส่ง
+  // ไปแล้วครั้งแรก) — ฟังก์ชันนี้แยกต่างหาก หาบิลล่าสุดของห้องนี้ (ไม่ว่า
+  // จ่ายแล้วหรือยัง ต่างจาก sendReceiptLine ที่มองแค่บิลค้างจ่าย) แล้วส่ง
+  // รูปใบเสร็จ (หรือสร้างใหม่ถ้ายังไม่เคยมี receiptImageUrl) ซ้ำได้ทุกเมื่อ
+  sendLatestReceipt = (roomId) => this._guard('sendLatestReceipt:' + roomId, async () => {
+    try {
+      const roomInvoices = this.state.invoices.filter(i => i.room === roomId);
+      if (!roomInvoices.length) { this.showAdminToast('ห้อง ' + roomId + ' ยังไม่เคยออกบิลเลยครับ'); return; }
+      // จัดเรียงเอาบิลล่าสุดก่อน — ใช้ timestamp ที่ฝังอยู่ท้าย invoice id
+      // (รูปแบบ 'INV-<room>-<Date.now()>') เหมือนที่ billHistoryItems ใช้
+      // (ไม่มีฟิลด์ createdAt แยกต่างหากให้เรียงจริงๆ)
+      const sorted = roomInvoices.slice().sort((a, b) => {
+        const ta = Number((a.id || '').split('-').pop()) || 0;
+        const tb = Number((b.id || '').split('-').pop()) || 0;
+        return tb - ta;
+      });
+      const invoice = sorted[0];
+      let receiptImageUrl = invoice.receiptImageUrl || '';
+      if (!receiptImageUrl) {
+        // บิลเก่าที่ยังไม่เคยสร้างรูปใบเสร็จไว้ (ส่งก่อนฟีเจอร์นี้มี หรือ
+        // ตอนนั้นไม่มี QR ตั้งไว้) — สร้างตอนนี้เลย ใช้ endpoint เดียวกับ
+        // sendReceiptLine (server บันทึก receiptImageUrl กลับลง Sheet ให้เอง)
+        try {
+          const imgRes = await fetch('/api/invoices/' + encodeURIComponent(invoice.id) + '/receipt-image', { method: 'POST' });
+          if (imgRes.ok) {
+            receiptImageUrl = (await imgRes.json()).url;
+            this.setState(s => ({ invoices: s.invoices.map(i => i.id === invoice.id ? { ...i, receiptImageUrl } : i) }));
+          }
+        } catch { /* สร้างรูปไม่สำเร็จ — fallback ไปข้อความล้วนด้านล่าง */ }
+      }
+      if (receiptImageUrl) {
+        await this._lineSend(roomId, 'นี่คือใบเสร็จล่าสุดของท่านครับ', receiptImageUrl);
+      } else {
+        const total = invoice.rent + invoice.water + invoice.elec + (invoice.trash || 0) + (invoice.internet || 0);
+        await this._lineSend(roomId, `ใบเสร็จ ${invoice.id} — ยอดรวม ${this.fmt(total)} บาท (ระบบสร้างรูปใบเสร็จไม่สำเร็จ กรุณาติดต่อผู้ดูแลหากต้องการรูปใบเสร็จครับ)`);
+      }
+      this.showAdminToast('ส่งใบเสร็จล่าสุด (' + invoice.id + ') ให้ห้อง ' + roomId + ' ซ้ำทาง LINE แล้ว');
+    } catch (err) { this.showAdminToast(err.message || 'ส่งใบเสร็จซ้ำไม่สำเร็จ'); }
   });
 
   // "กดสร้างใบเสร็จแล้วให้ขึ้น popup ใหม่ ถามก่อนว่า ส่งเดียวนี้ กับ ตั้ง
@@ -9465,6 +9524,13 @@ class Component extends DCLogic {
         tokenIcon: s.tenantTokens[r.id] ? '🔑' : '＋',
         onGenToken: (e) => { e.stopPropagation(); this.generateToken(r.id); },
         onSendNews: (e) => { e.stopPropagation(); this.openNewsModal(r.id); },
+        // "กันระบบที่ส่งจากออกใบเสร็จส่งอีกครั้งไม่ได้ กรณีผู้เช่าแจ้งไม่ได้
+        // รับใบเสร็จ" (2026-08-01) — sendReceiptLine (บิล & ใบแจ้งหนี้
+        // หน้า) เป็น one-shot ที่ผูกกับตอนออกบิลใหม่เท่านั้น ไม่มีทางเรียก
+        // ซ้ำจากที่นั่นได้ถ้าผู้เช่าบอกว่าไม่ได้รับ — ปุ่มนี้อยู่คู่กับ
+        // "ส่งข่าวสาร" แทน ส่งใบเสร็จของบิลล่าสุด (ไม่ว่าจ่ายแล้วหรือยัง)
+        // ซ้ำให้อีกครั้งได้ทุกเมื่อ ดู sendLatestReceipt
+        onSendLatestReceipt: (e) => { e.stopPropagation(); this.sendLatestReceipt(r.id); },
         onOpenConn: (e) => { e.stopPropagation(); this.openConnModal(r.id); },
         telHref: 'tel:' + (r.phone || '').replace(/[^0-9+]/g, ''),
         onCall: (e) => { e.stopPropagation(); },
@@ -11012,6 +11078,7 @@ class Component extends DCLogic {
             // requires a payment QR to be configured — see sendReceiptLine)
             // have this; plain-text-only sends have nothing to look back at.
             receiptImageUrl: i.receiptImageUrl || '',
+            receiptDownloadUrl: this._forceDownloadUrl(i.receiptImageUrl || ''),
             hasReceiptImage: !!i.receiptImageUrl,
           };
         });
