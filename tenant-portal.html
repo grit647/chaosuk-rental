@@ -143,14 +143,38 @@
     let currentHtml;
     if (current) {
       const total = Number(current.rent || 0) + Number(current.water || 0) + Number(current.elec || 0) + Number(current.trash || 0) + Number(current.internet || 0);
-      const remaining = current.remainingDue != null ? current.remainingDue : Math.max(0, total - Number(current.amountPaid || 0));
+      const amountPaid = Number(current.amountPaid || 0);
+      const remaining = current.remainingDue != null ? current.remainingDue : Math.max(0, total - amountPaid);
       const badgeClass = current.status === 'overdue' ? 'badge-overdue' : 'badge-pending';
       const badgeLabel = current.status === 'overdue' ? '⚠️ เกินกำหนดชำระ' : '⏳ รอชำระ';
+      // "กรณีห้อง 4 ชำระบางส่วน...จะได้เห็นทั้งฝั่งเจ้าของ และผู้เช่า"
+      // (2026-08-01) — เดิมผู้เช่าเห็นแค่ "ยอดที่ต้องชำระ" (ยอดคงเหลือ)
+      // เฉยๆ ไม่เห็นเลยว่าตัวเองเคยจ่ายไปแล้วเท่าไร/ส่งสลิปกี่ครั้ง — เพิ่ม
+      // กล่องสรุปนี้เมื่อมีจ่ายมาแล้วบางส่วน (amountPaid > 0) พร้อมรายการ
+      // สลิปที่เคยส่งมา (current.slips มาจาก coerceInvoices เดียวกับที่
+      // เว็บฝั่งเจ้าของใช้ — ข้อมูลชุดเดียวกันเป๊ะ ไม่มีทางไม่ตรงกัน)
+      const partialHtml = amountPaid > 0 ? (
+        '<div style="background:#FFF3E0;border-radius:8px;padding:10px 12px;margin-top:12px">' +
+          '<div style="display:flex;justify-content:space-between;font-size:12.5px;color:#B85B27"><span>ชำระแล้ว</span><span style="font-weight:700">฿' + fmt(amountPaid) + '</span></div>' +
+          '<div style="display:flex;justify-content:space-between;font-size:12.5px;color:#B24336;margin-top:2px"><span>คงเหลือ</span><span style="font-weight:700">฿' + fmt(remaining) + '</span></div>' +
+          (Array.isArray(current.slips) && current.slips.length ? (
+            '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #E3D2A8">' +
+              '<div style="font-size:10.5px;color:#9C7A2E;font-weight:600;margin-bottom:4px">สลิปที่ส่งมา</div>' +
+              current.slips.slice().reverse().map((sl) =>
+                '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:#B85B27;padding:2px 0">' +
+                  '<span>' + (sl.date || '-') + '</span><span>฿' + fmt(Number(sl.amount) || 0) + '</span>' +
+                '</div>'
+              ).join('') +
+            '</div>'
+          ) : '') +
+        '</div>'
+      ) : '';
       currentHtml = '<div class="card">' +
         '<div class="card-title">ยอดที่ต้องชำระ</div>' +
         '<div class="due-amount">฿' + fmt(remaining) + '</div>' +
         '<div class="due-label">ครบกำหนด: ' + (current.due || '-') + '</div>' +
         '<div class="badge ' + badgeClass + '">' + badgeLabel + '</div>' +
+        partialHtml +
         '<div style="margin-top:14px">' +
           rowHtml('ค่าเช่า', current.rent) +
           rowHtml('ค่าน้ำ' + (current.waterUnits != null ? ' (' + current.waterUnits + ' หน่วย)' : ''), current.water) +

@@ -3632,6 +3632,23 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่าน้ำ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ h.waterDisplay }}</span></div>
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ค่าไฟ</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ h.elecDisplay }}</span></div>
                       <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1px solid #E3D8C8;padding-top:5px;margin-top:2px"><span style="color:#241812">รวม</span><span style="font-family:'IBM Plex Mono',monospace;color:#C1622D">{{ h.totalDisplay }}</span></div>
+                      <sc-if value="{{ h.hasPartialPayment }}" hint-placeholder-val="{{ false }}">
+                        <div style="background:#FFF3E0;border-radius:6px;padding:8px;margin-top:2px">
+                          <div style="display:flex;justify-content:space-between;font-size:11.5px"><span style="color:#B85B27">ชำระแล้ว</span><span style="font-family:'IBM Plex Mono',monospace;color:#B85B27;font-weight:600">{{ h.amountPaidDisplay }}</span></div>
+                          <div style="display:flex;justify-content:space-between;font-size:11.5px"><span style="color:#B24336">คงเหลือ</span><span style="font-family:'IBM Plex Mono',monospace;color:#B24336;font-weight:700">{{ h.remainingDueDisplay }}</span></div>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{ h.hasSlips }}" hint-placeholder-val="{{ false }}">
+                        <div style="margin-top:2px">
+                          <div style="font-size:10.5px;color:#A89A88;font-weight:600;margin-bottom:3px">สลิปที่ส่งมา</div>
+                          <sc-for list="{{ h.slips }}" as="sl" hint-placeholder-count="1">
+                            <div style="display:flex;justify-content:space-between;font-size:11px;color:#7C6E5F;padding:2px 0">
+                              <span>{{ sl.dateDisplay }} · {{ sl.senderName }}</span>
+                              <span style="font-family:'IBM Plex Mono',monospace">{{ sl.amountDisplay }}</span>
+                            </div>
+                          </sc-for>
+                        </div>
+                      </sc-if>
                       <sc-if value="{{ h.hasReceiptImage }}" hint-placeholder-val="{{ false }}">
                         <div style="display:flex;gap:6px;margin-top:2px">
                           <a href="{{ h.receiptImageUrl }}" target="_blank" rel="noopener" style="flex:1;text-align:center;font-size:11px;font-weight:600;padding:6px 4px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;text-decoration:none">🧾 ดูใบเสร็จ</a>
@@ -11176,6 +11193,20 @@ class Component extends DCLogic {
           // this bill was issued, not an exact historical reading.
           const waterUnitsEst = waterRate > 0 ? Math.round((i.water / waterRate) * 10) / 10 : null;
           const elecUnitsEst = elecRate > 0 ? Math.round((i.elec / elecRate) * 10) / 10 : null;
+          // "กรณีห้อง 4 ชำระบางส่วน เราไปเลือกดูข้อมูลจากส่วนไหนได้บ้าง
+          // เอาไว้ที่การ์ดห้อง 4 ได้ไหม จะได้เห็นทั้งฝั่งเจ้าของและผู้เช่า"
+          // (2026-08-01) — ก่อนหน้านี้ modal นี้ (เปิดจาก "📋 ประวัติบิล"
+          // ในการ์ดผู้เช่าอยู่แล้ว, selectedTenant.onOpenHistory) โชว์แค่
+          // ยอดรวม/สถานะ ไม่เคยโชว์จ่ายไปแล้วเท่าไร/คงเหลือเท่าไร/สลิปที่
+          // ส่งมา — เพิ่มให้ครบตรงนี้ที่เดียว (เว็บฝั่งเจ้าของ) ส่วนฝั่ง
+          // ผู้เช่าดู tenant-portal.html's currentInvoice card แยกต่างหาก
+          const amountPaid = i.amountPaid || 0;
+          const hasPartialPayment = amountPaid > 0 && i.status !== 'paid';
+          const slipsForDisplay = (i.slips || []).slice().reverse().map(sl => ({
+            amountDisplay: this.fmt(Number(sl.amount) || 0),
+            dateDisplay: this.formatThaiDateLabel(sl.date) || sl.date || '—',
+            senderName: sl.senderName || 'ไม่ทราบชื่อผู้โอน',
+          }));
           return {
             id: i.id, due: this.formatThaiDateLabel(i.due) || i.due || '—',
             statusLabel: meta.label, statusBg: meta.bg, statusColor: '#fff',
@@ -11188,6 +11219,11 @@ class Component extends DCLogic {
             receiptImageUrl: i.receiptImageUrl || '',
             receiptDownloadUrl: this._forceDownloadUrl(i.receiptImageUrl || ''),
             hasReceiptImage: !!i.receiptImageUrl,
+            hasPartialPayment,
+            amountPaidDisplay: this.fmt(amountPaid),
+            remainingDueDisplay: this.fmt(Math.max(0, total - amountPaid)),
+            hasSlips: slipsForDisplay.length > 0,
+            slips: slipsForDisplay,
           };
         });
       })(),
