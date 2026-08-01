@@ -69,6 +69,19 @@
 // check — it already ran this exact logic before the fix, so nothing
 // changes for it either way). คุณต้น clicks "🆕 อัปเดต" per building once
 // he's ready for that building's automation to actually start firing.
-const CURRENT_PLATFORM_VERSION = 4;
+// v5 (2026-08-01): the FIRST gate that can actively BLOCK an existing
+// customer-facing action, not just add a new one — per owner request
+// ("ต้องเอาราคาที่กำหนดจากสัญญาเช่าไปคิด...ถ้าไม่มี กำหนดให้เป็นข้อความ
+// 'ยังไม่กรอกอัตราค่าบริการ'"), submitInvoice/submitBulkInvoice/
+// chooseBulkInvoiceMode now REFUSE to bill a room's water/elec until that
+// room has its own rate set in its lease contract (roomOwnRateMissing),
+// instead of silently falling back to the shared property-wide rate.
+// Deploying this ungated would have instantly stopped ANY building from
+// issuing bills for rooms that never had a contract rate typed in —
+// exactly the "no surprise changes" scenario this whole mechanism exists
+// to prevent (see v4's note above, same reasoning, but this time the
+// change is a restriction rather than a new capability). Gated behind
+// `authSession.platformVersion >= 5` (render var `cfEnforceContractRate`).
+const CURRENT_PLATFORM_VERSION = 5;
 
 module.exports = { CURRENT_PLATFORM_VERSION };
