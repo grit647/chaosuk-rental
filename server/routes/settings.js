@@ -431,6 +431,12 @@ router.put('/', async (req, res, next) => {
       dueReminderMsg: b.dueReminderMsg,
       firstInvoiceMsg: b.firstInvoiceMsg,
       claudeAutomationEnabled: b.claudeAutomationEnabled,
+      // "การ์ดนี้ส่วนบนเพิ่ม (Gemini) ไปอีกตัวครับ มีช่องให้ติ๊กว่าเลือก
+      // ใช้ตัวไหน ส่วนการเชื่อมต่อรอเครดิตเต็มพรุ่งนี้ครับ" (2026-08-01) —
+      // แค่บันทึกว่าเจ้าของอยากใช้ตัวไหน (UI-only ตอนนี้) — ฝั่ง server ที่
+      // จะรับค่านี้ไปเรียก Gemini จริง ยังไม่ได้สร้าง (ดู comment ใน
+      // Rental Management.dc.html's setAiEngine) — ค่าเริ่มต้น 'claude'
+      aiEngine: b.aiEngine,
       // Only written when the owner is actively setting/changing it (see
       // the "ตั้งรหัส PIN" field in Settings) — never sent as part of a
       // routine save, since readSettings() never sends the value back down

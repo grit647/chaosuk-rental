@@ -1285,6 +1285,21 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </span>
                 </div>
               </div>
+              <!-- "การ์ดนี้ส่วนบนเพิ่ม (Gemini) ไปอีกตัวครับ มีช่องให้ติ๊ก
+                   ว่าเลือกใช้ตัวไหน ส่วนการเชื่อมต่อรอเครดิตเต็มพรุ่งนี้
+                   ครับ" (2026-08-01) — picker เลือกว่าจะใช้ AI ตัวไหน
+                   ตอนนี้เป็นแค่บันทึกค่าไว้ (persisted) ยังไม่มีผลจริงกับ
+                   การทำงาน เพราะฝั่ง Gemini ยังไม่ได้เชื่อมต่อ -->
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <span style="font-size:11px;color:#A89A88;font-weight:600">เลือกใช้ AI</span>
+                <div style="display:flex;gap:3px;background:#F7F2E9;padding:2px;border-radius:6px;width:fit-content">
+                  <span onclick="{{ onSetAiEngineClaude }}" style="font-size:10.5px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;background:{{ aiEngineClaudeBg }};color:{{ aiEngineClaudeColor }}">✦ Claude</span>
+                  <span onclick="{{ onSetAiEngineGemini }}" style="font-size:10.5px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;background:{{ aiEngineGeminiBg }};color:{{ aiEngineGeminiColor }}">✦ Gemini</span>
+                </div>
+                <sc-if value="{{ aiEngineIsGemini }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:10.5px;color:#B85B27">(รอเชื่อมต่อจริง — ตอนนี้ยังสั่งงานผ่าน Claude เหมือนเดิม)</span>
+                </sc-if>
+              </div>
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:10px;line-height:1.6">ให้ Claude ช่วยดูแล/ตัดสินใจงานประจำวันของหอพักนี้แทนคุณบางส่วน — รายละเอียดว่าจะดูแลอะไรบ้าง (ออกบิล, แจ้งเตือน, ตรวจอุปกรณ์ ฯลฯ) กำลังออกแบบร่วมกันอยู่</div>
               <div style="font-size:12px;color:{{ claudeApiStatusColor }};font-weight:600;margin-bottom:14px">{{ claudeApiStatusLabel }}</div>
 
@@ -4405,6 +4420,12 @@ class Component extends DCLogic {
     showTuyaPowerConfirm: false,
     tuyaPowerConfirmRoom: null,
     claudeAutomationEnabled: false,
+    // "การ์ดนี้ส่วนบนเพิ่ม (Gemini) ไปอีกตัวครับ มีช่องให้ติ๊กว่าเลือกใช้
+    // ตัวไหน ส่วนการเชื่อมต่อรอเครดิตเต็มพรุ่งนี้ครับ" (2026-08-01) — แค่
+    // picker UI + บันทึกค่าตอนนี้ ('claude' | 'gemini') — การเชื่อมต่อ
+    // Gemini จริง (server/gemini.js เทียบเท่า server/claude.js) ยังไม่ได้
+    // สร้าง ดู setAiEngine's comment ด้านล่าง
+    aiEngine: 'claude',
     claudeAdminEmail: '',
     claudeAdminEmailSaved: false,
     showClaudeEmailModal: false,
@@ -5026,6 +5047,7 @@ class Component extends DCLogic {
         firstInvoiceMsg: data.firstInvoiceMsg != null ? data.firstInvoiceMsg : s.firstInvoiceMsg,
         settings: { ...s.settings, ...data.settings },
         claudeAutomationEnabled: !!data.claudeAutomationEnabled,
+        aiEngine: data.aiEngine === 'gemini' ? 'gemini' : 'claude',
         hasDataResetPin: !!data.hasDataResetPin,
         adminNotify: data.adminNotify || s.adminNotify,
         featuresEnabled: data.featuresEnabled || s.featuresEnabled,
@@ -9209,6 +9231,31 @@ class Component extends DCLogic {
       this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
     }
   });
+  // "การ์ดนี้ส่วนบนเพิ่ม (Gemini) ไปอีกตัวครับ มีช่องให้ติ๊กว่าเลือกใช้ตัว
+  // ไหน ส่วนการเชื่อมต่อรอเครดิตเต็มพรุ่งนี้ครับ" (2026-08-01) — แค่บันทึก
+  // ว่าเจ้าของ "เลือก" ตัวไหนไว้ (persisted, PUT /api/settings เหมือน
+  // toggleClaudeAutomation ข้างบนเป๊ะๆ) — ยังไม่มีผลจริงกับการทำงานของ
+  // ผู้ช่วย เพราะ server ฝั่ง Gemini (เทียบเท่า server/claude.js +
+  // claudeTools.js) ยังไม่ได้สร้าง — สั่งงานด้วยข้อความ/เสียงยังเรียก
+  // Claude API เหมือนเดิมทุกกรณีจนกว่าจะต่อสายจริง (พรุ่งนี้)
+  setAiEngine = (engine) => this._guard('setAiEngine:' + engine, async () => {
+    if (engine === this.state.aiEngine) return;
+    const prev = this.state.aiEngine;
+    this.setState({ aiEngine: engine });
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aiEngine: engine }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      this.showAdminToast(engine === 'gemini'
+        ? 'เลือก Gemini แล้วครับ — ยังรอเชื่อมต่อจริง ตอนนี้สั่งงานยังใช้ Claude เหมือนเดิมก่อน'
+        : 'เลือก Claude แล้วครับ');
+    } catch (err) {
+      this.setState({ aiEngine: prev });
+      this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ');
+    }
+  });
   loadClaudeHealth = async () => {
     try {
       const res = await fetch('/api/claude/health');
@@ -11555,6 +11602,18 @@ class Component extends DCLogic {
       claudeApiStatusLabel: s.claudeApiConnected ? '✓ เชื่อมต่อ Claude API แล้ว' : '✗ ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ใน server/.env',
       claudeAutomationBg: s.claudeAutomationEnabled ? '#D97757' : '#E3D8C8',
       claudeAutomationKnobLeft: s.claudeAutomationEnabled ? '22px' : '2px',
+      // "การ์ดนี้ส่วนบนเพิ่ม (Gemini) ไปอีกตัวครับ มีช่องให้ติ๊กว่าเลือกใช้
+      // ตัวไหน" (2026-08-01) — picker เล็กๆ 2 ปุ่ม (Claude/Gemini) ตรง
+      // มุมบนของการ์ด — สไตล์ pill เหมือนที่ใช้ทั่วแอป (เช่น Token · Auto
+      // (LINE)/กรอกเอง ในหน้าผู้เช่า)
+      aiEngineIsClaude: s.aiEngine !== 'gemini',
+      aiEngineIsGemini: s.aiEngine === 'gemini',
+      onSetAiEngineClaude: () => this.setAiEngine('claude'),
+      onSetAiEngineGemini: () => this.setAiEngine('gemini'),
+      aiEngineClaudeBg: s.aiEngine !== 'gemini' ? '#D97757' : '#F1EBE0',
+      aiEngineClaudeColor: s.aiEngine !== 'gemini' ? '#fff' : '#7C6E5F',
+      aiEngineGeminiBg: s.aiEngine === 'gemini' ? '#4285F4' : '#F1EBE0',
+      aiEngineGeminiColor: s.aiEngine === 'gemini' ? '#fff' : '#7C6E5F',
 
       showRecurringModal: s.showRecurringModal, openRecurringModal: this.openRecurringModal, closeRecurringModal: this.closeRecurringModal,
       recurringTasks: recurringTasksView, noRecurringTasks: recurringTasksView.length === 0,

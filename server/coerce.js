@@ -272,6 +272,11 @@ async function readSettings(preloadedRows) {
     // never forces a welcome message the owner didn't opt into.
     firstInvoiceMsg: map.firstInvoiceMsg || '',
     claudeAutomationEnabled: bool(map.claudeAutomationEnabled, false),
+    // "การ์ดนี้ส่วนบนเพิ่ม (Gemini) ไปอีกตัวครับ...รอเครดิตเต็มพรุ่งนี้
+    // ครับ" (2026-08-01) — UI-only picker ตอนนี้ ยังไม่มีอะไรฝั่ง server
+    // อ่านค่านี้ไปใช้เรียก Gemini จริง — ดู setAiEngine's comment ใน
+    // Rental Management.dc.html
+    aiEngine: map.aiEngine === 'gemini' ? 'gemini' : 'claude',
     // Never expose the actual PIN value to the client — only whether one is
     // set, so the Settings page knows to show "ตั้งรหัส" vs "เปลี่ยนรหัส".
     // The real value is only ever read server-side, in
