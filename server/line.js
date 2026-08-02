@@ -81,6 +81,26 @@ async function replyLinkButton(replyToken, bodyText, buttonLabel, url, creds) {
   return callLineApi('reply', { replyToken, messages: [message] }, creds);
 }
 
+// "ฝั่งเจ้าของเปลี่ยนรูปแบบลิงก์เป็นแบบนี้ให้หน่อยครับ" (2026-08-02) —
+// เหมือน replyLinkButton ข้างบนเป๊ะ (ปุ่ม "uri" แบบเดียวกับปุ่มดูบิล/
+// สัญญา/แจ้งซ่อมที่ tenant ใช้อยู่แล้ว) แค่ส่งแบบ push แทน reply — จำเป็น
+// เพราะข้อความแจ้งสลิปใหม่/แจ้งเจ้าของเป็นการ "แจ้งเตือนเชิงรุก" (push)
+// ไม่ใช่การตอบกลับข้อความที่เพิ่งได้รับ (ไม่มี replyToken ให้ใช้) —
+// เดิมส่งเป็นข้อความ URL ดิบยาวๆ ปนกับข้อความ ดูรกและไม่เป็นมืออาชีพ
+// เท่าปุ่มจริง
+async function pushLinkButton(to, bodyText, buttonLabel, url, creds) {
+  const message = {
+    type: 'template',
+    altText: bodyText,
+    template: {
+      type: 'buttons',
+      text: bodyText.slice(0, 160),
+      actions: [{ type: 'uri', label: buttonLabel.slice(0, 20), uri: url }],
+    },
+  };
+  return callLineApi('push', { to, messages: [message] }, creds);
+}
+
 // "กดปุ่ม ยืนยันที่หน้าไลน์เจ้าของเพื่อให้กดยืนยันเองได้เลย" (2026-07-26) —
 // used for the "🔌 ยืนยันตัดไฟ" button on the cutoff-warning owner push
 // (server/routes/scheduler.js). Uses a POSTBACK action (not `uri` like
@@ -282,7 +302,7 @@ async function deleteRichMenu(richMenuId, creds) {
 }
 
 module.exports = {
-  isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, pushMessageWithConfirmButton, pushButtonMessage, getMessageContent,
+  isConfigured, verifySignature, replyMessage, replyLinkButton, pushLinkButton, pushMessage, pushMessageWithConfirmButton, pushButtonMessage, getMessageContent,
   getMessageQuota, getMessageQuotaConsumption,
   createRichMenu, uploadRichMenuImage, setDefaultRichMenu, linkRichMenuToUser, listRichMenus, deleteRichMenu,
 };

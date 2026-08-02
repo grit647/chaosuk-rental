@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { readTab, updateRow, appendRow } = require('../sheets');
 const { coerceInvoices, coerceRooms, readSettings, readIntegrationCredentials } = require('../coerce');
-const { isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, pushMessageWithConfirmButton, getMessageContent, linkRichMenuToUser, getMessageQuota, getMessageQuotaConsumption } = require('../line');
+const { isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, pushLinkButton, pushMessageWithConfirmButton, getMessageContent, linkRichMenuToUser, getMessageQuota, getMessageQuotaConsumption } = require('../line');
 const { isConfigured: claudeConfigured, readPaymentSlip, isWhisperConfigured, transcribeAudio, callWithTools } = require('../claude');
 const { TOOLS, READ_TOOL_NAMES, executeReadTool, describeWriteTool, executeWriteTool } = require('../claudeTools');
 const { buildCommandSystemPrompt, extractText } = require('./claude');
@@ -352,7 +352,8 @@ async function handleSlipImage(event, req, lineCreds) {
   // (result.kind === 'invoice') เท่านั้น ถ้าเป็นเครดิตล่วงหน้า (ไม่มีบิล
   // ให้ผูก) ยังคงใช้ข้อความเดิมไม่มีลิงก์
   const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://chaosuk-rental.onrender.com';
-  let notifyText = `ห้อง ${room.id} ส่งสลิปเข้ามาแล้วครับ (${amountLabel}) รอตรวจสอบที่หน้า Bills → สลิปรอตรวจสอบ`;
+  const notifyText = `ห้อง ${room.id} ส่งสลิปเข้ามาแล้วครับ (${amountLabel}) รอตรวจสอบที่หน้า Bills → สลิปรอตรวจสอบ`;
+  let linkButton = null;
   if (result.kind === 'invoice') {
     // "หมดอายุการยืนยันเร็วไปหน่อยครับ...ฝั่งเจ้าของ ที่พึ่งส่งข้อความไป
     // นานเกินเปิดลิงก์ยืนยันสลิปไม่ได้ครับ" (2026-08-02) — 5 นาทีสั้นเกินไป
@@ -360,9 +361,12 @@ async function handleSlipImage(event, req, lineCreds) {
     // ใจให้สั้นเพราะ tenant กดจากเมนูสดๆ ทันที) — เจ้าของอาจไม่ได้เปิด LINE
     // ทันทีที่มีแจ้งเตือน ขยายเป็น 24 ชม. ให้พอมีเวลาเปิดดูตามจริง
     const token = sign({ role: 'owner', customerSheetId: getCurrentSheetId() || process.env.GOOGLE_SHEET_ID, openSlipInvoiceId: result.invoiceId, exp: Date.now() + 24 * 60 * 60 * 1000 });
-    notifyText += `\n\nกดยืนยันได้เลยที่นี่ (ลิงก์นี้ใช้ได้ 24 ชม.):\n${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}`;
+    // "ฝั่งเจ้าของเปลี่ยนรูปแบบลิงก์เป็นแบบนี้ให้หน่อยครับ" (2026-08-02) —
+    // ส่งเป็นปุ่มจริง (LINE buttons template) แทนการฝัง URL ดิบยาวๆ ในเนื้อ
+    // ข้อความ — เหมือนปุ่ม "✅ ยืนยันได้รับแล้ว" ฝั่งผู้เช่าที่มีอยู่แล้ว
+    linkButton = { label: '🧾 ตรวจสอบสลิป', url: `${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}` };
   }
-  notifyAdmin('slipPending', notifyText).catch(() => {});
+  notifyAdmin('slipPending', notifyText, null, linkButton).catch(() => {});
 }
 
 // Per explicit user request ("จัดการให้เลยครับ" — fixing the previously

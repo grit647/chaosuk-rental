@@ -6,7 +6,7 @@
 // specific notification category (server/coerce.js's readSettings()
 // adminNotify object) — per explicit user request, nothing gets sent
 // unless deliberately opted into.
-const { pushMessage, isConfigured: lineConfigured } = require('./line');
+const { pushMessage, pushLinkButton, isConfigured: lineConfigured } = require('./line');
 const { readSettings, readIntegrationCredentials } = require('./coerce');
 
 // category must match one of the keys in readSettings()'s adminNotify:
@@ -23,7 +23,13 @@ const { readSettings, readIntegrationCredentials } = require('./coerce');
 // เลย ไม่ต้องอ่านซ้ำทุกรอบ ไม่ระบุก็ยังทำงานได้ปกติ (อ่านเองข้างใน เหมือน
 // เดิม) — เพิ่มหลังเจอ N+1 read pattern จริงจากการแก้บั๊ก LINE credentials
 // ผิดตึกวันนี้เอง (2026-07-29)
-async function notifyAdmin(category, message, preloadedCreds) {
+// linkButton (optional) — { label, url } — "ฝั่งเจ้าของเปลี่ยนรูปแบบ
+// ลิงก์เป็นแบบนี้ให้หน่อยครับ" (2026-08-02, ชี้ไปที่ปุ่ม "✅ ยืนยันได้รับ
+// แล้ว" ของฝั่งผู้เช่าที่ดูเรียบร้อยกว่า) — เดิมลิงก์ที่แนบไปกับ
+// notifyAdmin ทุกจุดเป็นแค่ URL ดิบต่อท้ายข้อความ ยาวและดูรก เมื่อระบุ
+// พารามิเตอร์นี้จะส่งเป็นปุ่มจริง (LINE buttons template, ปุ่ม "uri")
+// แทนที่จะฝัง URL ในเนื้อข้อความ
+async function notifyAdmin(category, message, preloadedCreds, linkButton) {
   try {
     // บั๊กจริงที่พบ (2026-07-29, ระหว่างไล่บั๊ก "ตั้งเวลาส่งบิลแล้วไม่ยอม
     // ส่ง") — เดิม lineConfigured()/pushMessage() เรียกแบบไม่ส่ง creds เลย
@@ -45,7 +51,11 @@ async function notifyAdmin(category, message, preloadedCreds) {
     const adminId = settings.propertyProfile && settings.propertyProfile.adminLineUserId;
     if (!adminId) return;
     if (!settings.adminNotify || !settings.adminNotify[category]) return;
-    await pushMessage(adminId, message, undefined, creds.line);
+    if (linkButton && linkButton.url) {
+      await pushLinkButton(adminId, message, linkButton.label || 'เปิดดู', linkButton.url, creds.line);
+    } else {
+      await pushMessage(adminId, message, undefined, creds.line);
+    }
   } catch (err) {
     // Never let a notification failure break the caller's real work
     // (slip handling, scheduler run, etc.) — just log it.
