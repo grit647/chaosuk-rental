@@ -975,7 +975,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <sc-if value="{{ b.hasSlipPending }}" hint-placeholder-val="{{ false }}">
                           <span onclick="{{ b.onOpenSlip }}" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:7px 11px;border-radius:6px;cursor:pointer;background:#FBE7DC;color:#B85B27;white-space:nowrap">📎 ดูสลิป</span>
                         </sc-if>
-                        <span onclick="{{ b.onSendLine }}" style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:7px 13px;border-radius:6px;cursor:pointer;background:{{ b.sendBg }};color:{{ b.sendColor }};white-space:nowrap">{{ b.sendLabel }}</span>
+                        <span onclick="{{ b.onSendLine }}" style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:7px 13px;border-radius:6px;cursor:{{ b.sendCursor }};background:{{ b.sendBg }};color:{{ b.sendColor }};white-space:nowrap">{{ b.sendLabel }}</span>
                       </div>
                       <sc-if value="{{ b.hasScheduledSend }}" hint-placeholder-val="{{ false }}">
                         <span style="font-size:10px;font-weight:600;padding:4px 9px;border-radius:5px;background:#E4EEF7;color:#2C6E8F;white-space:nowrap">{{ b.scheduledSendLabel }}</span>
@@ -4831,6 +4831,16 @@ class Component extends DCLogic {
   componentDidMount() {
     this._onResize = () => this.setState({ viewportWidth: window.innerWidth });
     window.addEventListener('resize', this._onResize);
+    // "ให้เจ้าของยืนยันได้เลย โดยไม่ต้องมาเข้าเว็บหลักครับ" (2026-08-02) —
+    // ลิงก์แจ้งเตือนสลิปใหม่ทาง LINE (server/routes/line.js's GET
+    // /auto-login, role owner) redirect มาที่ "/?openSlip=<invoiceId>" —
+    // เปิด modal "ดูสลิป" ของบิลนั้นให้อัตโนมัติทันที ไม่ต้องไล่หาเอง แล้ว
+    // ล้างพารามิเตอร์ออกจาก URL กันเปิดซ้ำถ้ากดรีเฟรชหน้าทีหลัง
+    const openSlipId = new URLSearchParams(window.location.search).get('openSlip');
+    if (openSlipId) {
+      this.openSlipReview(openSlipId);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
     this.loadFromServer();
     this.loadLineStatus();
     this.loadLineUsage();
@@ -6948,16 +6958,35 @@ class Component extends DCLogic {
           }
         } catch { /* fall through to plain text below */ }
       }
-      if (receiptImageUrl) {
+      // "ทุกครั้งที่ส่งใบเสร็จไป ให้แนบปุ่มยืนยันฝั่งผู้เช่าไปด้วยครับ...
+      // มีเคสเจ้าของกด แล้วเป็นการออกใบเสร็จใหม่ซึ่งไม่ตรงกับของเดิม
+      // ที่ส่งไป" (2026-08-02, ดู platformVersion.js's v6 note — staged-
+      // rollout gate เพราะเป็นพฤติกรรมใหม่จริง ทั้งฝั่งเจ้าของ (ปุ่มที่
+      // เคยกดได้ตลอดจะปิดถาวร) และฝั่งผู้เช่าจริง (มีปุ่มยืนยันใหม่โผล่มา
+      // แบบไม่มีการแจ้งเตือนล่วงหน้า) — เมื่อมี invoice จริง + เปิดใช้งาน
+      // gate แล้ว ใช้ endpoint ใหม่ (ส่ง + แนบปุ่มยืนยัน + บันทึกสถานะ
+      // "ส่งแล้ว รอยืนยัน" ในคราวเดียวฝั่งเซิร์ฟเวอร์) แทน _lineSend + PATCH
+      // แยก 2 จังหวะแบบเดิม — ปุ่ม "ส่งข้อมูล (LINE)" ในตารางจะถูกปิด
+      // ใช้งานทันทีหลังจากนี้ (ดู pendingBills's onSendLine ด้านล่าง) กัน
+      // กดซ้ำแล้วออกใบเสร็จใหม่ไม่ตรงกับของเดิม — ตึกที่ยังไม่กด "🆕
+      // อัปเดต" ยังคงใช้พฤติกรรมเดิมทุกประการ (ไม่มีปุ่มยืนยัน, ปุ่ม
+      // ส่งข้อมูลกดซ้ำได้เหมือนเดิม) — กรณีไม่มี invoice (ข้อความเตือน
+      // ทั่วไป ไม่ผูกกับบิลใบไหน) ไม่มี invoiceId ให้แนบปุ่ม ยังใช้
+      // _lineSend เดิมเสมอไม่ว่า gate จะเปิดหรือไม่
+      if (invoice && this.cfEnforceReceiptConfirm()) {
+        const res = await fetch('/api/line/invoices/' + encodeURIComponent(invoice.id) + '/send-with-confirm', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId, message: receiptImageUrl ? '' : message, imageUrl: receiptImageUrl || undefined }),
+        });
+        const updated = await res.json();
+        if (!res.ok) throw new Error(updated.error || 'ส่งไม่สำเร็จ');
+        this.setState(s => ({ invoices: s.invoices.map(i => i.id === updated.id ? updated : i) }));
+      } else if (receiptImageUrl) {
         await this._lineSend(roomId, '', receiptImageUrl);
       } else {
         await this._lineSend(roomId, message);
       }
-      // Persist on the invoice itself (server-side) — not just local state —
-      // so the "sent" status survives a refresh and also reflects sends
-      // triggered from the Claude command box (send_invoice_reminder tool),
-      // not only this exact button.
-      if (invoice) {
+      if (invoice && !this.cfEnforceReceiptConfirm()) {
         try {
           const res = await fetch('/api/invoices/' + encodeURIComponent(invoice.id), {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -6970,7 +6999,7 @@ class Component extends DCLogic {
         } catch { /* LINE already sent either way — non-fatal if this save hiccups */ }
       }
       this.setState(s => ({ receiptsSent: { ...s.receiptsSent, [roomId]: true } }));
-      this.showAdminToast('ส่งใบแจ้งหนี้ห้อง ' + roomId + ' ทาง LINE และบันทึกใบเสร็จแล้ว');
+      this.showAdminToast('ส่งใบแจ้งหนี้ห้อง ' + roomId + ' ทาง LINE แล้ว รอผู้เช่ายืนยันครับ');
     } catch (err) { this.showAdminToast(err.message || 'ส่ง LINE ไม่สำเร็จ'); }
   });
 
@@ -7362,6 +7391,13 @@ class Component extends DCLogic {
   // silent-fallback-to-global-rate behavior until then.
   cfEnforceContractRate() {
     return !!(this.state.authSession && this.state.authSession.platformVersion >= 5);
+  }
+  // Staged-rollout gate — see platformVersion.js's v6 note. A building
+  // only starts attaching the confirm-button/disabled-send-button
+  // behavior once คุณต้น clicks "🆕 อัปเดต" for it; every other building
+  // keeps the old always-clickable send button with no confirm step.
+  cfEnforceReceiptConfirm() {
+    return !!(this.state.authSession && this.state.authSession.platformVersion >= 6);
   }
   // Per explicit user request: minimum monthly charge (ค่าดูแลมิเตอร์) —
   // always per-room, no property-wide fallback (unlike roomRate above; "no
@@ -10004,7 +10040,17 @@ class Component extends DCLogic {
       // amount still needs to be the remainder, not the gross total, or the
       // owner sees a number the tenant was never actually asked to pay.
       const hasAmountPaid = (i.amountPaid || 0) > 0;
-      const sentLabel = hasLineId ? '✓ ส่งไลน์แล้ว' : '✓ บันทึกใบเสร็จแล้ว';
+      // "ผู้เช่ากดยืนยัน → ปุ่มเปลี่ยนเป็น ✓ ยืนยันแล้ว...เพราะเราส่ง
+      // ข้อความไปแล้ว" (2026-08-02) — 2 สถานะแยกกันตอนนี้: ส่งแล้วรอ
+      // ยืนยัน กับ ยืนยันแล้วจริง (ดู i.receiptDeliveryConfirmed, เขียน
+      // จาก server/routes/line.js's postback handler เมื่อผู้เช่ากดปุ่ม)
+      // เช็ค gate ก่อนโชว์สถานะรอยืนยัน/ยืนยันแล้ว — ตึกที่ยังไม่กด "🆕
+      // อัปเดต" ไม่มีระบบยืนยันเลย โชว์แค่ "ส่งไลน์แล้ว" เฉยๆ เหมือนเดิม
+      // ทุกประการ (ดู platformVersion.js's v6 note)
+      const enforceReceiptConfirm = this.cfEnforceReceiptConfirm();
+      const sentLabel = hasLineId
+        ? (enforceReceiptConfirm ? (i.receiptDeliveryConfirmed ? '✓ ยืนยันแล้ว' : '✓ ส่งไลน์แล้ว (รอยืนยัน)') : '✓ ส่งไลน์แล้ว')
+        : '✓ บันทึกใบเสร็จแล้ว';
       const hasSlipPending = !!i.slipPending;
       // Per explicit user request (accounting-integrity guard): once a real
       // tenant slip has come in against this bill — either currently
@@ -10043,7 +10089,15 @@ class Component extends DCLogic {
         sendLabel: sent ? sentLabel : (hasLineId ? 'ส่งข้อมูล (LINE)' : 'บันทึกใบเสร็จ'),
         sendBg: sent ? '#E4EFE7' : (hasLineId ? '#06C755' : '#C1622D'),
         sendColor: sent ? '#3B7A52' : '#fff',
-        onSendLine: hasLineId ? (() => this.sendReceiptLine(i.room)) : (() => this.openSaveReceipt(i.room)),
+        // "ปุ่ม 'ส่งข้อมูล (LINE)'...ปิดใช้งานทันที (กดไม่ได้) หลังส่งไป
+        // แล้ว" (2026-08-02) — แก้บั๊กจริง: เดิม onSendLine เรียกได้ตลอด
+        // แม้ label เปลี่ยนเป็น "ส่งไลน์แล้ว" แล้ว (แค่เปลี่ยนสี ไม่ได้ปิด
+        // การกดจริง) กดซ้ำแล้ว sendReceiptLine สร้างใบเสร็จใหม่จากข้อมูล
+        // ปัจจุบัน ซึ่งอาจไม่ตรงกับใบที่ส่งไปแล้วครั้งแรก — ตอนนี้ sent=true
+        // แล้วปิดปุ่มถาวร (การส่งซ้ำทำผ่านระบบยืนยัน 24 ชม. อัตโนมัติแทน
+        // ไม่ใช่ให้เจ้าของกดเองซ้ำ)
+        onSendLine: (sent && enforceReceiptConfirm) ? null : (hasLineId ? (() => this.sendReceiptLine(i.room)) : (() => this.openSaveReceipt(i.room))),
+        sendCursor: sent ? 'default' : 'pointer',
         hasSlipPending, noSlipPending: !hasSlipPending,
         onOpenSlip: () => this.openSlipReview(i.id),
         onEditReceipt: () => this.openEditInvoice(i.id),

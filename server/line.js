@@ -116,6 +116,28 @@ async function pushMessage(to, text, imageUrl, creds) {
   return callLineApi('push', { to, messages }, creds);
 }
 
+// "ทุกครั้งที่ส่งใบเสร็จไป ให้แนบปุ่มยืนยันฝั่งผู้เช่าไปด้วยครับ เราจะได้
+// รู้ว่าระบบส่งข้อความไปจริง" (2026-08-02) — เหมือน pushMessage ข้างบน
+// เป๊ะ (text/image เป็น array เดียวกัน ประหยัดโควต้า ส่งครั้งเดียวจบ) แค่
+// เพิ่ม buttons-template message ต่อท้ายเสมอ ถามให้ผู้เช่ากดยืนยันว่าได้
+// รับแล้ว — postback data เก็บแค่ invoiceId (routes/line.js's postback
+// handler อ่านคืนแล้วตั้ง receiptDeliveryConfirmed=true ให้)
+async function pushMessageWithConfirmButton(to, text, imageUrl, invoiceId, creds) {
+  const messages = [];
+  if (text) messages.push({ type: 'text', text });
+  if (imageUrl) messages.push({ type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl });
+  messages.push({
+    type: 'template',
+    altText: 'กรุณายืนยันว่าได้รับใบแจ้งหนี้นี้แล้วครับ',
+    template: {
+      type: 'buttons',
+      text: 'กรุณากดยืนยันว่าได้รับใบแจ้งหนี้นี้แล้วนะครับ',
+      actions: [{ type: 'postback', label: '✅ ยืนยันได้รับแล้ว', data: `action=confirmReceipt&invoiceId=${invoiceId}`, displayText: 'ยืนยันได้รับใบแจ้งหนี้แล้วครับ' }],
+    },
+  });
+  return callLineApi('push', { to, messages }, creds);
+}
+
 // Per explicit user request: a Dashboard card showing "how much of this
 // month's free LINE message quota has been used" as a donut chart. LINE
 // exposes this as two separate read-only GET endpoints (different from
@@ -260,7 +282,7 @@ async function deleteRichMenu(richMenuId, creds) {
 }
 
 module.exports = {
-  isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, pushButtonMessage, getMessageContent,
+  isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, pushMessageWithConfirmButton, pushButtonMessage, getMessageContent,
   getMessageQuota, getMessageQuotaConsumption,
   createRichMenu, uploadRichMenuImage, setDefaultRichMenu, linkRichMenuToUser, listRichMenus, deleteRichMenu,
 };

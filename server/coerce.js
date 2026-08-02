@@ -144,6 +144,15 @@ function coerceInvoices(rows) {
       // modal), since the image itself is only generated fresh at send time
       // and would otherwise be lost the moment the LINE push completes.
       receiptImageUrl: r.receiptImageUrl || '',
+      // "ทุกครั้งที่ส่งใบเสร็จไป ให้แนบปุ่มยืนยันฝั่งผู้เช่าไปด้วย...ถ้า
+      // ยังไม่กด การทำงานปุ่มอื่นๆ ทำงานไม่ได้" (2026-08-02) — ดู
+      // server/routes/line.js's POST /api/invoices/:id/send-with-confirm
+      // (เขียนฟิลด์พวกนี้) และ server/routes/scheduler.js (อ่านไปเช็คส่ง
+      // ซ้ำ/แจ้งเจ้าของ)
+      receiptDeliveryConfirmed: bool(r.receiptDeliveryConfirmed, false),
+      receiptSendCount: num(r.receiptSendCount, 0),
+      receiptLastSentAt: r.receiptLastSentAt || '',
+      receiptOwnerNotified: bool(r.receiptOwnerNotified, false),
     };
   });
 }

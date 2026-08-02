@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { readTab, updateRow, pruneOldRows } = require('../sheets');
 const { readSettings, coerceRecurringTasks, coerceInvoices, readIntegrationCredentials } = require('../coerce');
-const { pushMessage, pushButtonMessage, isConfigured: lineConfigured } = require('../line');
+const { pushMessage, pushMessageWithConfirmButton, pushButtonMessage, isConfigured: lineConfigured } = require('../line');
 const { runAutomatedInstruction } = require('../automation');
 const { isConfigured: claudeConfigured } = require('../claude');
 const { notifyAdmin } = require('../adminNotify');
@@ -57,7 +57,13 @@ const _lastLogPruneDateBySheet = new Map(); // sheetId -> "YYYY-MM-DD"
 // ครบกำหนด/เตือนสัญญาใกล้หมดอายุ/ตั้งเวลาส่งบิล ฯลฯ) ไม่เคยทำงานให้ตึกอื่น
 // นอกจากบัญชีหลักเลยสักครั้ง — บั๊กจริงที่คุณต้นเจอ ("ตอนนี้ตัวตั้งเวลา
 // ข้อความยังไม่ส่งครับ เลยเวลาไปแล้ว" กับห้อง 647 ที่ไม่มีอยู่ในบัญชีหลัก)
-async function runSchedulerOnce() {
+// "ให้เจ้าของยืนยันได้เลย...ระบบส่งข้อความไปใหม่...แจ้งเจ้าของ" (2026-08-02)
+// — RECEIPT_CONFIRM_VERSION เหมือน SCHEDULER_MULTI_BUILDING_VERSION ข้างบน
+// เป๊ะ (ค่าคงที่ ไม่อ้างอิง CURRENT_PLATFORM_VERSION แบบ live ด้วยเหตุผล
+// เดียวกัน) — คุมเฉพาะ block ยืนยันใบเสร็จข้างล่าง ไม่ใช่ทั้งฟังก์ชัน
+const RECEIPT_CONFIRM_VERSION = 6;
+
+async function runSchedulerOnce(platformVersion = 0) {
   const sheetId = getCurrentSheetId() || process.env.GOOGLE_SHEET_ID;
   const settings = await readSettings();
 
@@ -89,6 +95,55 @@ async function runSchedulerOnce() {
     }
   } catch (err) {
     console.error('[scheduler] overdue check failed', err.message);
+  }
+
+  // "ถ้าผ่านไป 24 ชม. ยังไม่กดยืนยัน ระบบส่งข้อความไปใหม่...ส่งไป 2 ครั้ง
+  // แล้วไม่มีการยืนยัน ให้ส่งข้อความไปหาเจ้าของ" (2026-08-02) — เหมือน
+  // overdue check ข้างบน ทำงานไม่มีเงื่อนไข (basic reliability housekeeping
+  // ไม่ใช่ AI feature ที่ปิดได้) — resend ใช้ receiptImageUrl ที่บันทึกไว้
+  // แล้วจากตอนส่งครั้งแรก (ไม่สร้างใบเสร็จใหม่ กันปัญหาเดิม "ใบเสร็จไม่
+  // ตรงกับของเก่า") ถ้าไม่มีรูป fallback เป็นข้อความสรุปสั้นๆ จากข้อมูลบิล
+  // เอง (server ไม่มีสิทธิ์เข้าถึง _buildReceiptMessage ซึ่งเป็นโค้ดฝั่ง
+  // frontend)
+  let receiptRetried = 0, receiptEscalated = 0;
+  try {
+    // ตึกที่ยังไม่กด "🆕 อัปเดต" ให้ถึง v6 (ดู platformVersion.js's v6
+    // note) ไม่มีทางมีบิลไหนตั้ง receiptSendCount/receiptLastSentAt จริง
+    // อยู่แล้ว (ฝั่ง frontend ก็ gate ไว้เหมือนกัน) แต่เช็คซ้ำตรงนี้ไว้
+    // เป็นชั้นป้องกันที่สอง เผื่อมีทางอื่นเซ็ตค่าเหล่านี้เข้ามาในอนาคต
+    const invoices = platformVersion >= RECEIPT_CONFIRM_VERSION ? coerceInvoices(await readTab('Invoices')) : [];
+    const now = Date.now();
+    const HOURS_24 = 24 * 60 * 60 * 1000;
+    const pendingConfirm = invoices.filter((i) => i.receiptSent && !i.receiptDeliveryConfirmed && i.receiptLastSentAt);
+    if (pendingConfirm.length) {
+      const rooms = await readTab('Rooms');
+      const receiptCreds = await readIntegrationCredentials();
+      for (const inv of pendingConfirm) {
+        const lastSent = new Date(inv.receiptLastSentAt).getTime();
+        if (!lastSent || (now - lastSent) < HOURS_24) continue;
+        const room = rooms.find((r) => r.id === inv.room);
+        if (!room || !room.lineUserId) continue;
+        if (inv.receiptSendCount >= 2) {
+          if (!inv.receiptOwnerNotified) {
+            try {
+              await notifyAdmin('overdueBill', `ผู้เช่าห้อง ${inv.room} ยังไม่ยืนยันรับใบแจ้งหนี้ ${inv.id} เลยครับ (ส่งไปแล้ว ${inv.receiptSendCount} ครั้ง) กรุณาติดต่อผู้เช่าโดยตรงเพื่อยืนยันว่าได้รับบิลแล้วครับ`, receiptCreds);
+              await updateRow('Invoices', inv.id, { receiptOwnerNotified: true });
+              receiptEscalated++;
+            } catch (err) { console.error('[scheduler] receipt escalation failed', inv.id, err.message); }
+          }
+          continue;
+        }
+        try {
+          const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
+          const fallbackText = `ใบแจ้งหนี้ห้อง ${inv.room} (${inv.id}) — ยอดรวม ${total.toLocaleString()} บาท กำหนดชำระ ${inv.due || '-'} (ส่งซ้ำอีกครั้งเผื่อครั้งก่อนไม่ถึงครับ)`;
+          await pushMessageWithConfirmButton(room.lineUserId, inv.receiptImageUrl ? '' : fallbackText, inv.receiptImageUrl || undefined, inv.id, receiptCreds.line);
+          await updateRow('Invoices', inv.id, { receiptSendCount: inv.receiptSendCount + 1, receiptLastSentAt: new Date().toISOString() });
+          receiptRetried++;
+        } catch (err) { console.error('[scheduler] receipt retry failed', inv.id, err.message); }
+      }
+    }
+  } catch (err) {
+    console.error('[scheduler] receipt confirmation check failed', err.message);
   }
 
   // "แจ้งเตือน ตัดน้ำตัดไฟ" (2026-07-26) — ยังไม่ชำระถึงวันที่ reminderDay
@@ -423,6 +478,7 @@ async function runSchedulerOnce() {
     return {
       ran: false, reason: 'ปิดใช้งานอยู่ (เปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ในหน้าตั้งค่าก่อน — ยกเว้นบิลที่ตั้งเวลาส่งไว้ ซึ่งยังส่งได้ปกติ)',
       overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew },
+      receiptConfirmation: { retried: receiptRetried, escalatedToOwner: receiptEscalated },
       cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified },
       dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified },
       leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
@@ -475,6 +531,7 @@ async function runSchedulerOnce() {
   return {
     ran: true,
     overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew },
+    receiptConfirmation: { retried: receiptRetried, escalatedToOwner: receiptEscalated },
     cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified },
     dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified },
     leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
@@ -508,6 +565,12 @@ router.get('/run', async (req, res, next) => {
     // ใหม่สำหรับบัญชีนี้ (ดู CLAUDE.md's staged-rollout rule — gate ป้องกัน
     // "ของใหม่โผล่แบบไม่ทันตั้งตัว" ไม่ใช่ป้องกันของที่ทำงานอยู่แล้ว)
     const sheetIds = new Set();
+    // "ให้เจ้าของยืนยันได้เลย...ระบบส่งข้อความไปใหม่...แจ้งเจ้าของ"
+    // (2026-08-02, ดู platformVersion.js's v6 note) — runSchedulerOnce
+    // ต้องรู้ platformVersion ของแต่ละตึกเอง เพื่อเปิด/ปิดเฉพาะ block
+    // ยืนยันใบเสร็จ (ต่างจาก SCHEDULER_MULTI_BUILDING_VERSION ที่คุมว่า
+    // ตึกนั้นเข้าลูปทั้งฟังก์ชันหรือเปล่า) — เก็บเป็น map แยกต่างหาก
+    const platformVersions = new Map(); // sheetId -> platformVersion
     if (process.env.GOOGLE_SHEET_ID) sheetIds.add(process.env.GOOGLE_SHEET_ID);
 
     // ตึกอื่นๆ ในทำเนียบ — ต้อง platformVersion >= 4 (ดู server/
@@ -516,15 +579,17 @@ router.get('/run', async (req, res, next) => {
     // จู่ๆ เริ่มส่งข้อความจริงหาผู้เช่าจริงแบบไม่มีการแจ้งเตือนล่วงหน้าเลย —
     // ต้องรอคุณต้นกดปุ่ม "🆕 อัปเดต" ให้ตึกนั้นก่อน ตามกฎ staged-rollout
     // เดิม (แม้ครั้งนี้จะเป็นการแก้บั๊ก ไม่ใช่ฟีเจอร์ใหม่ก็ตาม เพราะผลที่
-    // เกิดขึ้นจริงกับผู้เช่าเหมือนกันทุกประการ)
+    // เกิดขึ้นจริงกับผู้เช่าเหมือนกันทุกประการ) — อ่าน platformVersion ของ
+    // ทุกแถวรวมถึงบัญชีหลักเองด้วย (v6's receipt-confirm gate ไม่ได้ยกเว้น
+    // บัญชีหลัก ต่างจาก v4 ข้างบน — ดู platformVersion.js's v6 note)
     if (DIRECTORY_SHEET_ID) {
       try {
         const directoryRows = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
         for (const row of directoryRows) {
           if (!row.customerSheetId || row.status === 'suspended') continue;
-          if (row.customerSheetId === process.env.GOOGLE_SHEET_ID) continue; // นับไปแล้วด้านบน
           const pv = Number(row.platformVersion) || 0;
-          if (pv >= SCHEDULER_MULTI_BUILDING_VERSION) sheetIds.add(row.customerSheetId);
+          if (row.customerSheetId === process.env.GOOGLE_SHEET_ID) { platformVersions.set(row.customerSheetId, pv); continue; } // นับใน sheetIds ไปแล้วด้านบน
+          if (pv >= SCHEDULER_MULTI_BUILDING_VERSION) { sheetIds.add(row.customerSheetId); platformVersions.set(row.customerSheetId, pv); }
         }
       } catch (err) {
         console.error('[scheduler] failed to read Directory — falling back to main account only', err.message);
@@ -534,7 +599,7 @@ router.get('/run', async (req, res, next) => {
     const buildings = {};
     for (const sheetId of sheetIds) {
       try {
-        buildings[sheetId] = await runWithSheetId(sheetId, () => runSchedulerOnce());
+        buildings[sheetId] = await runWithSheetId(sheetId, () => runSchedulerOnce(platformVersions.get(sheetId) || 0));
       } catch (err) {
         console.error('[scheduler] run failed for building', sheetId, err.message);
         buildings[sheetId] = { ran: false, error: err.message };

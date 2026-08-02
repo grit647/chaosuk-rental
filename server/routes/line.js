@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { readTab, updateRow, appendRow } = require('../sheets');
 const { coerceInvoices, coerceRooms, readSettings, readIntegrationCredentials } = require('../coerce');
-const { isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, getMessageContent, linkRichMenuToUser, getMessageQuota, getMessageQuotaConsumption } = require('../line');
+const { isConfigured, verifySignature, replyMessage, replyLinkButton, pushMessage, pushMessageWithConfirmButton, getMessageContent, linkRichMenuToUser, getMessageQuota, getMessageQuotaConsumption } = require('../line');
 const { isConfigured: claudeConfigured, readPaymentSlip, isWhisperConfigured, transcribeAudio, callWithTools } = require('../claude');
 const { TOOLS, READ_TOOL_NAMES, executeReadTool, describeWriteTool, executeWriteTool } = require('../claudeTools');
 const { buildCommandSystemPrompt, extractText } = require('./claude');
@@ -343,7 +343,21 @@ async function handleSlipImage(event, req, lineCreds) {
 
   const result = await attachSlipToRoom(room.id, newSlip);
   await reply(`ได้รับสลิปแล้วครับ ${amountLabel} ${result.note} ขอบคุณครับ 🙏`);
-  notifyAdmin('slipPending', `ห้อง ${room.id} ส่งสลิปเข้ามาแล้วครับ (${amountLabel}) รอตรวจสอบที่หน้า Bills → สลิปรอตรวจสอบ`).catch(() => {});
+  // "ให้เจ้าของยืนยันได้เลย โดยไม่ต้องมาเข้าเว็บหลักครับ" (2026-08-02) —
+  // แนบลิงก์ auto-login (เหมือนที่ tenant ใช้อยู่แล้วสำหรับ ดูบิล/สัญญา/
+  // แจ้งซ่อม แค่ role เป็น owner) พร้อม openSlipInvoiceId — GET /auto-login
+  // ด้านล่างจะ redirect ไปที่ "/?openSlip=<id>" ให้ frontend เปิด modal
+  // "ดูสลิป" ของบิลใบนั้นทันทีที่โหลดเสร็จ เจ้าของกดยืนยันได้เลยจากตรงนั้น
+  // ไม่ต้องเข้าเว็บหลักแล้วไล่หาเอง — เฉพาะกรณีจับคู่กับ invoice จริงได้
+  // (result.kind === 'invoice') เท่านั้น ถ้าเป็นเครดิตล่วงหน้า (ไม่มีบิล
+  // ให้ผูก) ยังคงใช้ข้อความเดิมไม่มีลิงก์
+  const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://chaosuk-rental.onrender.com';
+  let notifyText = `ห้อง ${room.id} ส่งสลิปเข้ามาแล้วครับ (${amountLabel}) รอตรวจสอบที่หน้า Bills → สลิปรอตรวจสอบ`;
+  if (result.kind === 'invoice') {
+    const token = sign({ role: 'owner', customerSheetId: getCurrentSheetId() || process.env.GOOGLE_SHEET_ID, openSlipInvoiceId: result.invoiceId, exp: Date.now() + 5 * 60 * 1000 });
+    notifyText += `\n\nกดยืนยันได้เลยที่นี่ (ลิงก์นี้ใช้ได้ 5 นาที):\n${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}`;
+  }
+  notifyAdmin('slipPending', notifyText).catch(() => {});
 }
 
 // Per explicit user request ("จัดการให้เลยครับ" — fixing the previously
@@ -660,6 +674,14 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
               await handleOwnerRichMenuPostback(event, lineCreds);
             } else if (data.startsWith('staff:')) {
               await handleStaffRichMenuPostback(event, lineCreds);
+            } else if (data.startsWith('action=confirmReceipt')) {
+              // "ทุกครั้งที่ส่งใบเสร็จไป ให้แนบปุ่มยืนยัน...ผู้เช่ากด
+              // ยืนยัน" (2026-08-02) — จาก pushMessageWithConfirmButton,
+              // data เป็น "action=confirmReceipt&invoiceId=XXX" มีตัวแปร
+              // ผสมอยู่ เช็คแยกก่อนเข้า switch คงที่ของ
+              // handleTenantRichMenuPostback ด้านล่าง
+              const invoiceId = new URLSearchParams(data).get('invoiceId');
+              await handleConfirmReceiptPostback(event, lineCreds, invoiceId);
             } else {
               await handleTenantRichMenuPostback(event, lineCreds);
             }
@@ -1264,7 +1286,12 @@ router.get('/auto-login', (req, res) => {
     if (!payload.customerSheetId) return res.status(401).send('ลิงก์ไม่ถูกต้องครับ กรุณากดปุ่มจากเมนูอีกครั้ง');
     const session = { ownerId: payload.ownerId || null, role: 'owner', customerSheetId: payload.customerSheetId, roomId: null, staffId: null };
     setSessionCookie(res, session);
-    return res.redirect('/');
+    // "ให้เจ้าของยืนยันได้เลย โดยไม่ต้องมาเข้าเว็บหลักครับ" (2026-08-02) —
+    // ลิงก์แจ้งเตือนสลิปใหม่ (notifyAdmin('slipPending', ...) ด้านล่าง)
+    // แนบ invoiceId ไว้ใน payload — ส่งต่อผ่าน query string ให้หน้าเว็บ
+    // (Rental Management.dc.html's componentDidMount) เปิด modal "ดูสลิป"
+    // ของบิลนั้นให้อัตโนมัติทันทีที่โหลดเสร็จ ไม่ต้องไล่หาเอง
+    return res.redirect(payload.openSlipInvoiceId ? `/?openSlip=${encodeURIComponent(payload.openSlipInvoiceId)}` : '/');
   }
   if (payload.role === 'staff') {
     if (!payload.customerSheetId || !payload.staffId) return res.status(401).send('ลิงก์ไม่ถูกต้องครับ กรุณากดปุ่มจากเมนูอีกครั้ง');
@@ -1307,5 +1334,59 @@ router.post('/send', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// "ทุกครั้งที่ส่งใบเสร็จไป ให้แนบปุ่มยืนยันฝั่งผู้เช่าไปด้วยครับ...ถ้ายัง
+// ไม่กด การทำงานปุ่มอื่นๆ ทำงานไม่ได้" (2026-08-02) — แทนที่การเรียก
+// POST /send ธรรมดาสำหรับใบเสร็จ ให้ frontend's sendReceiptLine
+// (Rental Management.dc.html) เรียก endpoint นี้แทน — ส่งเนื้อหา
+// (ข้อความ/รูป) + ปุ่มยืนยันในคำขอ push เดียวกัน (ประหยัดโควต้า LINE)
+// แล้วบันทึกสถานะ "ส่งแล้ว รอยืนยัน" ลงตัว invoice เองในคราวเดียว —
+// กันปัญหาเดิมที่กด "ส่งข้อมูล (LINE)" ซ้ำแล้วออกใบเสร็จใหม่ไม่ตรงกับของ
+// เดิม (ปุ่มฝั่งเว็บจะถูกปิดใช้งานทันทีหลัง receiptSent=true จาก endpoint
+// นี้ — ดู pendingBills's onSendLine ใน Rental Management.dc.html)
+router.post('/invoices/:id/send-with-confirm', async (req, res, next) => {
+  try {
+    const creds = await readIntegrationCredentials();
+    const sessionScoped = !!(req.session && req.session.customerSheetId) && !isMainAccountSheetId(req.session.customerSheetId);
+    const lineConfigured = sessionScoped ? !!creds.line && isConfigured(creds.line) : isConfigured(creds.line);
+    if (!lineConfigured) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า LINE (ใส่ Token/Secret ที่หน้าตั้งค่า หรือฝั่งเซิร์ฟเวอร์)' });
+    const { roomId, message, imageUrl } = req.body;
+    if (!roomId || ((!message || !String(message).trim()) && !imageUrl)) {
+      return res.status(400).json({ error: 'กรุณาระบุห้องและข้อความหรือรูปภาพ' });
+    }
+    const rooms = await readTab('Rooms');
+    const room = rooms.find((r) => r.id === roomId);
+    if (!room || !room.lineUserId) {
+      return res.status(400).json({ error: `ห้อง ${roomId} ยังไม่ได้เชื่อมต่อ LINE` });
+    }
+    const existingInvoices = coerceInvoices(await readTab('Invoices'));
+    const existingInvoice = existingInvoices.find((i) => i.id === req.params.id);
+    const prevSendCount = existingInvoice ? existingInvoice.receiptSendCount : 0;
+    await pushMessageWithConfirmButton(room.lineUserId, message, imageUrl, req.params.id, creds.line);
+    const updated = await updateRow('Invoices', req.params.id, {
+      receiptSent: true,
+      receiptDeliveryConfirmed: false,
+      receiptSendCount: prevSendCount + 1,
+      receiptLastSentAt: new Date().toISOString(),
+    });
+    res.json(coerceInvoices([updated])[0]);
+  } catch (err) { next(err); }
+});
+
+// ผู้เช่ากดปุ่ม "✅ ยืนยันได้รับแล้ว" จากข้อความข้างบน — postback data คือ
+// "action=confirmReceipt&invoiceId=XXX" (สร้างจาก pushMessageWithConfirmButton)
+// เพิ่ม case นี้เข้าไปใน handleTenantRichMenuPostback's switch ไม่ได้
+// ตรงๆ เพราะ data มีตัวแปร invoiceId ผสมอยู่ (switch เดิมเทียบ string
+// คงที่ล้วนๆ) — เช็คด้วย startsWith ก่อนเข้า switch แทน ดู
+// handleTenantRichMenuPostback's เรียกใช้ด้านล่าง
+async function handleConfirmReceiptPostback(event, lineCreds, invoiceId) {
+  const reply = (text) => replyMessage(event.replyToken, text, lineCreds);
+  const invoices = coerceInvoices(await readTab('Invoices'));
+  const invoice = invoices.find((i) => i.id === invoiceId);
+  if (!invoice) { await reply('ไม่พบใบแจ้งหนี้นี้แล้วครับ (อาจถูกลบ/แก้ไขไปแล้ว)'); return; }
+  await updateRow('Invoices', invoiceId, { receiptDeliveryConfirmed: true });
+  await reply('ยืนยันรับใบแจ้งหนี้เรียบร้อยแล้วครับ ขอบคุณครับ 🙏');
+}
+
 module.exports = router;
 module.exports.attachSlipToRoom = attachSlipToRoom;
+module.exports.handleConfirmReceiptPostback = handleConfirmReceiptPostback;

@@ -82,6 +82,24 @@
 // to prevent (see v4's note above, same reasoning, but this time the
 // change is a restriction rather than a new capability). Gated behind
 // `authSession.platformVersion >= 5` (render var `cfEnforceContractRate`).
-const CURRENT_PLATFORM_VERSION = 5;
+// v6 (2026-08-02): "ทุกครั้งที่ส่งใบเสร็จไป ให้แนบปุ่มยืนยันฝั่งผู้เช่า
+// ไปด้วยครับ" — every receipt send now attaches a "✅ ยืนยันได้รับแล้ว"
+// LINE button, disables the "ส่งข้อมูล (LINE)" button on the Bills page
+// until the tenant taps it, auto-retries once after 24h, and escalates
+// to the owner via LINE after a 2nd unconfirmed send — a real behavior
+// change for both the owner's own UI (a button that used to always be
+// clickable now permanently disables itself) AND every real tenant (a
+// new confirm button appears on every future bill they receive, with no
+// warning). Gated in 2 places: Rental Management.dc.html's
+// cfEnforceReceiptConfirm() (>= 6) controls whether sendReceiptLine uses
+// the new send-with-confirm endpoint + disables the button, and server/
+// routes/scheduler.js's RECEIPT_CONFIRM_VERSION constant (also 6, fixed
+// — same "don't drift with future version bumps" reasoning as
+// SCHEDULER_MULTI_BUILDING_VERSION) gates the 24h-retry/escalation loop
+// per building. UNLIKE v4's scheduler-reliability fix above, the main
+// account is NOT exempted here — this is a genuinely new behavior for
+// every building including the main one, not a bug fix restoring
+// already-existing behavior.
+const CURRENT_PLATFORM_VERSION = 6;
 
 module.exports = { CURRENT_PLATFORM_VERSION };
