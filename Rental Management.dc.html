@@ -11812,9 +11812,15 @@ class Component extends DCLogic {
       // จริงมาแล้วอย่างน้อย 1 ครั้ง (ไม่โชว์ "0 ครั้ง" เปล่าๆ ให้ดูรกตา)
       geminiUsageShow: s.aiEngine === 'gemini' && s.geminiUsage.totalCalls > 0,
       geminiUsageMonthCalls: s.geminiUsage.monthCalls.toLocaleString('th-TH'),
-      geminiUsageMonthCostDisplay: '$' + s.geminiUsage.monthCostUsd.toFixed(4),
+      // "แปลงเป็นบาทให้หน่อยครับ" (2026-08-02) — GeminiUsageLog เก็บ costUsd
+      // ไว้เป็น USD (ราคาตามที่ Google ตั้งเป็นดอลลาร์) แปลงเป็นบาทแบบคร่าวๆ
+      // ให้ตรงกับที่คุณต้นคุ้นตากว่า — ใช้อัตราคงที่ประมาณการ (~36 บาท/
+      // ดอลลาร์) ไม่ใช่เรตเรียลไทม์จริง เพราะยอดใช้จริงเล็กน้อยมาก
+      // (หลักสตางค์) ความคลาดเคลื่อนจากเรตแปลงไม่มีนัยสำคัญ
+      _usdToThb: 36,
+      geminiUsageMonthCostDisplay: this.fmt(s.geminiUsage.monthCostUsd * 36) + ' บาท',
       geminiUsageTotalCalls: s.geminiUsage.totalCalls.toLocaleString('th-TH'),
-      geminiUsageTotalCostDisplay: '$' + s.geminiUsage.totalCostUsd.toFixed(4),
+      geminiUsageTotalCostDisplay: this.fmt(s.geminiUsage.totalCostUsd * 36) + ' บาท',
 
       showRecurringModal: s.showRecurringModal, openRecurringModal: this.openRecurringModal, closeRecurringModal: this.closeRecurringModal,
       recurringTasks: recurringTasksView, noRecurringTasks: recurringTasksView.length === 0,
