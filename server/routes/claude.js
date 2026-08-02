@@ -1,8 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const { readTab } = require('../sheets');
-const { coerceInvoices, coerceExpenses, coerceRooms, coerceMaintenance } = require('../coerce');
+const { coerceInvoices, coerceExpenses, coerceRooms, coerceMaintenance, readSettings } = require('../coerce');
 const { isConfigured, askClaude, askClaudeWithImage, callWithTools } = require('../claude');
+// "จัดการเชื่อมต่อกันเลยครับ" (2026-08-01) — the Gemini engine picker
+// (Rental Management.dc.html's aiEngine setting) needs an actual working
+// backend, not just a UI toggle. See server/gemini.js's own top-of-file
+// comment for the full design: it exposes a callWithTools with the exact
+// same signature/response-shape as server/claude.js's own, so /command
+// below can share 100% of its tool-loop/safety logic across both engines.
+const { isConfigured: geminiConfigured, callWithTools: callGeminiWithTools } = require('../gemini');
+const { getCurrentSheetId } = require('../requestContext');
 const { TOOLS, READ_TOOL_NAMES, executeReadTool, describeWriteTool, executeWriteTool } = require('../claudeTools');
 
 router.get('/health', (req, res) => {
@@ -91,7 +99,16 @@ function extractText(resp) {
 
 router.post('/command', async (req, res, next) => {
   try {
-    if (!isConfigured()) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ใน server/.env' });
+    // "จัดการเชื่อมต่อกันเลยครับ" (2026-08-01) — reads the SAME `aiEngine`
+    // Settings key the picker on the AI card writes (see Rental
+    // Management.dc.html's setAiEngine) to decide which engine's
+    // callWithTools handles this command. Falls back to Claude if Gemini
+    // was picked but somehow isn't configured (shouldn't happen — it
+    // reuses the same Google service account every OTHER feature in this
+    // app already depends on — but never silently do nothing either way).
+    const settings = await readSettings();
+    const useGemini = settings.aiEngine === 'gemini' && geminiConfigured();
+    if (!useGemini && !isConfigured()) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ใน server/.env' });
     const message = (req.body.message || '').trim();
     if (!message) return res.status(400).json({ error: 'กรุณาพิมพ์คำสั่ง' });
     // Prior turns of this same conversation (plain {role, content: string} pairs
@@ -124,7 +141,9 @@ router.post('/command', async (req, res, next) => {
       // 2048 (not the default 1024) — show_chart calls can carry sizeable
       // xLabels/series arrays plus a written insight, and were getting cut
       // off (empty tool_use, generic "ไม่เข้าใจ" fallback) at the smaller limit.
-      const resp = await callWithTools(buildCommandSystemPrompt(), messages, TOOLS, 2048);
+      const resp = useGemini
+        ? await callGeminiWithTools(buildCommandSystemPrompt(), messages, TOOLS, 2048, getCurrentSheetId())
+        : await callWithTools(buildCommandSystemPrompt(), messages, TOOLS, 2048);
       if (resp.stop_reason !== 'tool_use') {
         const text = extractText(resp) || 'ขอโทษครับ ไม่เข้าใจคำสั่งนี้';
         return res.json({ type: 'answer', text });
