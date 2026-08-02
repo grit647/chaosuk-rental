@@ -354,8 +354,13 @@ async function handleSlipImage(event, req, lineCreds) {
   const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://chaosuk-rental.onrender.com';
   let notifyText = `ห้อง ${room.id} ส่งสลิปเข้ามาแล้วครับ (${amountLabel}) รอตรวจสอบที่หน้า Bills → สลิปรอตรวจสอบ`;
   if (result.kind === 'invoice') {
-    const token = sign({ role: 'owner', customerSheetId: getCurrentSheetId() || process.env.GOOGLE_SHEET_ID, openSlipInvoiceId: result.invoiceId, exp: Date.now() + 5 * 60 * 1000 });
-    notifyText += `\n\nกดยืนยันได้เลยที่นี่ (ลิงก์นี้ใช้ได้ 5 นาที):\n${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}`;
+    // "หมดอายุการยืนยันเร็วไปหน่อยครับ...ฝั่งเจ้าของ ที่พึ่งส่งข้อความไป
+    // นานเกินเปิดลิงก์ยืนยันสลิปไม่ได้ครับ" (2026-08-02) — 5 นาทีสั้นเกินไป
+    // สำหรับลิงก์ที่ส่งเข้า LINE ให้เจ้าของ (คนละเคสกับลิงก์ tenant ที่ตั้ง
+    // ใจให้สั้นเพราะ tenant กดจากเมนูสดๆ ทันที) — เจ้าของอาจไม่ได้เปิด LINE
+    // ทันทีที่มีแจ้งเตือน ขยายเป็น 24 ชม. ให้พอมีเวลาเปิดดูตามจริง
+    const token = sign({ role: 'owner', customerSheetId: getCurrentSheetId() || process.env.GOOGLE_SHEET_ID, openSlipInvoiceId: result.invoiceId, exp: Date.now() + 24 * 60 * 60 * 1000 });
+    notifyText += `\n\nกดยืนยันได้เลยที่นี่ (ลิงก์นี้ใช้ได้ 24 ชม.):\n${BASE_URL}/api/line/auto-login?token=${encodeURIComponent(token)}`;
   }
   notifyAdmin('slipPending', notifyText).catch(() => {});
 }
