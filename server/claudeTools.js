@@ -69,6 +69,19 @@ const TOOLS = [
     input_schema: { type: 'object', properties: {} },
   },
   {
+    // "ขอดูรายการบิลที่ชำระแล้ว" (2026-08-02) — เดิม AI ไม่มีเครื่องมือนี้
+    // เลย ตอบว่าทำไม่ได้ (ถูกต้องแล้วที่ไม่กุคำตอบมั่ว แต่เป็นช่องว่างจริง
+    // ที่ควรเติมให้) — คู่กับ get_pending_invoices ข้างบน, ใช้ข้อมูลชุด
+    // เดียวกับตาราง "✅ บิลที่ชำระแล้ว" ที่เพิ่งเพิ่มในหน้าเว็บ (billing
+    // page, paidBills) ให้ผลตรงกันเป๊ะ
+    name: 'get_paid_invoices',
+    description: 'ดูรายการบิล/ใบแจ้งหนี้ที่ชำระเงินแล้ว (ประวัติการชำระเงิน) — ใช้เมื่อถูกถามว่าห้องไหนจ่ายไปแล้วเท่าไร/เมื่อไร หรือขอดูรายการบิลที่ปิดยอดแล้ว',
+    input_schema: {
+      type: 'object',
+      properties: { roomId: { type: 'string', description: 'กรองเฉพาะห้องนี้ (ไม่ใส่ = ทุกห้อง)' } },
+    },
+  },
+  {
     name: 'get_maintenance',
     description: 'ดูรายการแจ้งซ่อม ทั้งหมดหรือกรองตามสถานะ',
     input_schema: {
@@ -260,7 +273,7 @@ const TOOLS = [
   },
 ];
 
-const READ_TOOL_NAMES = new Set(['get_rooms', 'check_lease_completeness', 'get_pending_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary', 'get_electricity_log', 'get_calendar_events']);
+const READ_TOOL_NAMES = new Set(['get_rooms', 'check_lease_completeness', 'get_pending_invoices', 'get_paid_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary', 'get_electricity_log', 'get_calendar_events']);
 
 async function executeReadTool(name, input) {
   switch (name) {
@@ -297,6 +310,13 @@ async function executeReadTool(name, input) {
     case 'get_pending_invoices': {
       const invoices = coerceInvoices(await readTab('Invoices'));
       return invoices.filter((i) => i.status !== 'paid');
+    }
+    case 'get_paid_invoices': {
+      const invoices = coerceInvoices(await readTab('Invoices'));
+      let paid = invoices.filter((i) => i.status === 'paid');
+      if (input.roomId) paid = paid.filter((i) => String(i.room) === String(input.roomId));
+      paid.sort((a, b) => (b.paidDate || '').localeCompare(a.paidDate || ''));
+      return paid;
     }
     case 'get_maintenance': {
       const list = coerceMaintenance(await readTab('Maintenance'));
