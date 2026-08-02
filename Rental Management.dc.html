@@ -6946,6 +6946,7 @@ class Component extends DCLogic {
       // rather than silently sending nothing.
       const qrUrl = this.state.propertyProfile.paymentQrUrl || '';
       let receiptImageUrl = '';
+      let receiptImageFailed = false;
       if (invoice && qrUrl) {
         try {
           const imgRes = await fetch('/api/invoices/' + encodeURIComponent(invoice.id) + '/receipt-image', { method: 'POST' });
@@ -6955,8 +6956,24 @@ class Component extends DCLogic {
             // mirror it into local state too so the bill-history modal can
             // show a "ดูใบเสร็จที่ส่งไป" link without needing a page refresh.
             this.setState(s => ({ invoices: s.invoices.map(i => i.id === invoice.id ? { ...i, receiptImageUrl } : i) }));
+          } else {
+            receiptImageFailed = true;
           }
-        } catch { /* fall through to plain text below */ }
+        } catch { receiptImageFailed = true; } // fall through to plain text below
+      }
+      // "ตัวจริงที่ส่งไป ส่วนของบิลให้แสดงเป็นใบเสร็จ ตอนนี้เป็นข้อความ
+      // ครับ" (2026-08-02) — real gap found: เดิมถ้าสร้างรูปใบเสร็จไม่
+      // สำเร็จ (เช่น เซิร์ฟเวอร์เพิ่งตื่น/เน็ตสะดุดชั่วคราว) จะเงียบๆ ส่ง
+      // เป็นข้อความล้วนแทนโดยไม่บอกอะไรเจ้าของเลย — เจ้าของไม่รู้ตัวจนกว่า
+      // จะมาเปิดดูแชท LINE เอง — เตือนไว้ก่อน (ไม่บล็อกการส่ง ยังส่งข้อความ
+      // สำรองไปอยู่ดี ดีกว่าไม่ส่งอะไรเลย) เพื่อให้เจ้าของรู้ทันทีว่าอาจ
+      // ต้องลองส่งใหม่อีกครั้งเพื่อให้ได้รูปใบเสร็จแทน
+      if (receiptImageFailed) {
+        // ปุ่ม "ส่งข้อมูล (LINE)" อาจถูกปิดใช้งานไปแล้วหลังส่งนี้ (ตึกที่
+        // เปิด v6 ไว้ — ดู onSendLine ในตาราง) ชี้ทางแก้ที่ใช้ได้เสมอไม่ว่า
+        // เปิด gate นี้หรือไม่แทน: ปุ่ม "ส่งใบเสร็จล่าสุด" ในการ์ดผู้เช่า
+        // (sendLatestReceipt) สร้างรูปใหม่ให้อัตโนมัติถ้ายังไม่มี แล้วส่งซ้ำ
+        this.showAdminToast('⚠️ สร้างรูปใบเสร็จไม่สำเร็จ (อาจเป็นปัญหาชั่วคราว) — ส่งเป็นข้อความแทนไปก่อน ถ้าอยากได้เป็นรูปใบเสร็จ ลองกด "🧾 ส่งใบเสร็จล่าสุด" ในการ์ดผู้เช่าห้องนี้อีกครั้งครับ');
       }
       // "ทุกครั้งที่ส่งใบเสร็จไป ให้แนบปุ่มยืนยันฝั่งผู้เช่าไปด้วยครับ...
       // มีเคสเจ้าของกด แล้วเป็นการออกใบเสร็จใหม่ซึ่งไม่ตรงกับของเดิม
