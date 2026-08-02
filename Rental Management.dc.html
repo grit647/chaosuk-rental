@@ -4834,11 +4834,20 @@ class Component extends DCLogic {
     // "ให้เจ้าของยืนยันได้เลย โดยไม่ต้องมาเข้าเว็บหลักครับ" (2026-08-02) —
     // ลิงก์แจ้งเตือนสลิปใหม่ทาง LINE (server/routes/line.js's GET
     // /auto-login, role owner) redirect มาที่ "/?openSlip=<invoiceId>" —
-    // เปิด modal "ดูสลิป" ของบิลนั้นให้อัตโนมัติทันที ไม่ต้องไล่หาเอง แล้ว
-    // ล้างพารามิเตอร์ออกจาก URL กันเปิดซ้ำถ้ากดรีเฟรชหน้าทีหลัง
+    // เปิด modal ให้อัตโนมัติทันที ไม่ต้องไล่หาเอง แล้วล้างพารามิเตอร์ออก
+    // จาก URL กันเปิดซ้ำถ้ากดรีเฟรชหน้าทีหลัง
+    //
+    // "ล่าสุดยังไม่มีนะครับ" (2026-08-02) — real bug found: เดิมเรียก
+    // openSlipReview() ซึ่งเป็นคนละโมดัลกับที่คิดไว้ — showSlipReview
+    // ("ดูสลิปที่ผู้เช่าส่งมา") เป็นแค่หน้าดูอย่างเดียว ไม่มีช่องกรอกยอด/
+    // ปุ่มยืนยันเลย (ตั้งใจให้เป็นแบบนั้นมาแต่แรก per comment ในหน้านั้นเอง
+    // "หน้านี้สำหรับดูข้อมูลเท่านั้น") — ที่มีช่องกรอกยอด+ปุ่มยืนยันจริงๆ
+    // คือ showSlipQueue ("📎 สลิปรอตรวจสอบ") ต่างหาก — เปลี่ยนมาเปิด
+    // modal นี้แทน (ยังไม่ได้ scope ไปที่ invoice เดียวเป๊ะๆ — โชว์คิวรอ
+    // ตรวจสอบทั้งหมด ซึ่งกรณีปกติจะมีแค่ใบที่เพิ่งแจ้งเตือนมาใบเดียวอยู่แล้ว)
     const openSlipId = new URLSearchParams(window.location.search).get('openSlip');
     if (openSlipId) {
-      this.openSlipReview(openSlipId);
+      this.openSlipQueue();
       window.history.replaceState({}, '', window.location.pathname);
     }
     this.loadFromServer();
