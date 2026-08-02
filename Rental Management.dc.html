@@ -67,7 +67,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
         <div style="flex:1;overflow-y:auto;padding:16px 18px;box-sizing:border-box;display:flex;flex-direction:column">
           <div style="font-size:11px;color:#9C8B78;margin-bottom:10px;line-height:1.5">ทำได้เฉพาะงานในระบบนี้เท่านั้น (ดูข้อมูล, ออกบิล, ส่ง LINE, บันทึกมิเตอร์ ฯลฯ) — รายการที่เพิ่ม/แก้ไข/ลบข้อมูลจะขึ้น popup ให้ยืนยันก่อนทำจริงเสมอ ไม่แตะโค้ด/เซิร์ฟเวอร์</div>
           <sc-if value="{{ claudeCommandHistory }}" hint-placeholder-val="{{ false }}">
-            <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
+            <div id="ai-chat-scroll" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
               <sc-for list="{{ claudeCommandHistory }}" as="h" hint-placeholder-count="4">
                 <div style="align-self:{{ h.align }};max-width:85%;padding:10px 13px;border-radius:9px;background:{{ h.bg }};color:{{ h.color }};font-size:13px;white-space:pre-wrap;line-height:1.5">{{ h.text }}</div>
               </sc-for>
@@ -5165,6 +5165,24 @@ class Component extends DCLogic {
       this.showAdminToast('โหลดข้อมูลจากเซิร์ฟเวอร์ไม่สำเร็จ — ใช้ข้อมูลตัวอย่างชั่วคราว');
     }
   };
+  // "เวลาคุย ให้สกอไว้ข้อความท้ายสุดที่คุยครับ" (2026-08-02) — เดิม
+  // full-screen AI chat mode (mobileAiMode) ไม่มีการเลื่อนอัตโนมัติเลย
+  // ข้อความใหม่ที่เพิ่มเข้า claudeCommandHistory (ทั้งข้อความที่พิมพ์เอง
+  // และคำตอบจาก AI) ถูกเพิ่มต่อท้าย list แต่กล่องแชท (id="ai-chat-scroll",
+  // scrollable) ยังค้างอยู่ตำแหน่งเดิม — ผู้ใช้ต้องเลื่อนเองทุกครั้งเพื่อ
+  // ไปดูข้อความล่าสุด ("สกอ" = scroll). แก้โดยเทียบความยาว
+  // claudeCommandHistory ทุกครั้งที่ component update (componentDidUpdate
+  // ถูกเรียกจาก support.js's runtime หลัง setState ทุกครั้งอยู่แล้ว) —
+  // ถ้าจำนวนข้อความเปลี่ยน เลื่อนกล่องแชทไปสุดด้านล่างอัตโนมัติ.
+  componentDidUpdate() {
+    const hist = this.state.claudeCommandHistory;
+    const len = hist ? hist.length : 0;
+    if (len !== this._lastAiChatLen) {
+      this._lastAiChatLen = len;
+      const el = document.getElementById('ai-chat-scroll');
+      if (el) el.scrollTop = el.scrollHeight;
+    }
+  }
   componentWillUnmount() {
     window.removeEventListener('resize', this._onResize);
     clearTimeout(this._adminToastTimer);
