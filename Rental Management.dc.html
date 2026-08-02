@@ -5965,10 +5965,31 @@ class Component extends DCLogic {
     } catch { /* fall back to the browser's own default voice for th-TH */ }
     return utter;
   };
+  // "โหมดขับรถ...ให้อ่านแบบสรุป อ่านแต่ข้อความ *** สัญลักษณ์ไม่ต้องอ่าน
+  // ครับ" (2026-08-02) — เดิม speakClaudeText อ่านข้อความดิบที่ Claude/
+  // Gemini ตอบมาตรงๆ ทุกตัวอักษร ถ้าคำตอบมี markdown (เช่น **หัวข้อ**,
+  // รายการ - ข้อ 1, # หัวข้อ) เครื่อง TTS จะอ่านสัญลักษณ์เหล่านั้นออกเสียง
+  // ตรงๆ ด้วย (เช่น "ดอกจัน ดอกจัน หัวข้อ ดอกจัน ดอกจัน") ฟังไม่รู้เรื่อง —
+  // ตัดสัญลักษณ์ markdown/จัดรูปแบบทิ้งก่อนส่งเข้า speechSynthesis เสมอ
+  // (ไม่กระทบข้อความที่โชว์บนจอ ซึ่งยังคง markdown ไว้เหมือนเดิม แค่ตัวที่
+  // "พูด" เท่านั้นที่ถูกทำความสะอาด)
+  _cleanTextForSpeech = (text) => {
+    return String(text || '')
+      .replace(/\*\*(.+?)\*\*/g, '$1') // **bold** -> bold
+      .replace(/\*(.+?)\*/g, '$1') // *italic* -> italic
+      .replace(/`{1,3}([^`]*)`{1,3}/g, '$1') // `code`/```code``` -> code
+      .replace(/^#{1,6}\s*/gm, '') // # หัวข้อ -> หัวข้อ
+      .replace(/^[-•]\s*/gm, '') // "- ข้อความ" ต้นบรรทัด -> ข้อความ
+      .replace(/[*_~`#]/g, '') // สัญลักษณ์ที่เหลือ (ไม่มีคู่ปิด/หลุดรอด) ตัดทิ้งเงียบๆ
+      .replace(/\n{2,}/g, ' ') // ย่อหน้าติดกันหลายบรรทัด -> เว้นวรรคเดียว อ่านลื่นกว่า
+      .replace(/\n/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  };
   speakClaudeText = async (text, onEnd) => {
     if (!this.state.claudeDrivingMode || !text || !window.speechSynthesis) { if (onEnd) onEnd(); return; }
     window.speechSynthesis.cancel(); // don't stack multiple answers talking over each other
-    const utter = await this._buildThaiUtterance(text);
+    const utter = await this._buildThaiUtterance(this._cleanTextForSpeech(text));
     if (onEnd) utter.onend = onEnd;
     window.speechSynthesis.speak(utter);
   };
@@ -6037,7 +6058,11 @@ class Component extends DCLogic {
         // own clarifying questions instead of treating every message as a
         // brand-new, context-free request. image (optional): a photo attached
         // via the "+" menu, e.g. a meter reading or a maintenance issue.
-        body: JSON.stringify({ message: message || 'ดูรูปที่แนบมาให้หน่อยครับ', history: this.state.claudeCommandHistory, image: attachedImage || undefined }),
+        // "โหมดขับรถ...ให้อ่านแบบสรุป" (2026-08-02) — ส่ง drivingMode ไปด้วย
+        // ให้ system prompt (buildCommandSystemPrompt) สั่ง AI ให้ตอบสั้น/
+        // สรุปกว่าปกติเป็นพิเศษตอนกำลังฟังเสียงอ่าน (ต่างจากตอนอ่านเองบน
+        // จอ ซึ่งอ่านคำตอบยาวๆ ได้สบายกว่าฟังเสียง)
+        body: JSON.stringify({ message: message || 'ดูรูปที่แนบมาให้หน่อยครับ', history: this.state.claudeCommandHistory, image: attachedImage || undefined, drivingMode: this.state.claudeDrivingMode }),
       });
       this.setState({ claudeAttachedImage: '' });
       const data = await res.json();
