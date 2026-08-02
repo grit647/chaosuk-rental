@@ -15,7 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readTab, appendRow, updateRow, deleteRow } = require('./sheets');
-const { coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, readSettings } = require('./coerce');
+const { coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coercePaymentLog, coerceUnmatchedSlips, readSettings } = require('./coerce');
 const { pushMessage, isConfigured: lineConfigured } = require('./line');
 const { generateInvoicePdf } = require('./pdf');
 
@@ -119,6 +119,31 @@ const TOOLS = [
   {
     name: 'get_financial_summary',
     description: 'ดูสรุปตัวเลขการเงินโดยรวม (รายรับที่ชำระแล้ว, รายจ่ายรวม, จำนวนบิลค้าง, ห้องว่าง, งานซ่อมค้าง)',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    // "เปิด AI ให้เข้าถึงข้อมูลทั้งหมด...จะทดสอบการตรวจสอบบัญชี"
+    // (2026-08-02) — เพิ่มเครื่องมือสำหรับตรวจสอบบัญชีให้ครบขึ้น ไม่เกี่ยว
+    // กับโค้ด/เซิร์ฟเวอร์เลย (ยังคงกฎถาวรใน CLAUDE.md — ไม่มีทางเข้าถึง
+    // โค้ด/config ได้จาก tool ไหนเลยเหมือนเดิม) — PaymentLog คือ ledger
+    // เงินเข้าจริงที่ Dashboard's "รายรับเดือนนี้" ใช้คำนวณ (แยกจาก
+    // get_financial_summary ที่รวมจากยอด invoice status='paid') ใช้เทียบ
+    // กันได้ว่าทำไมตัวเลข 2 จุดอาจไม่ตรงกัน (เช่น เครดิตล่วงหน้าที่ยัง
+    // ไม่ได้ตัดเข้าบิลไหนเลย จะอยู่ใน PaymentLog แต่ไม่อยู่ใน invoice ไหน)
+    name: 'get_payment_log',
+    description: 'ดูประวัติรายการเงินเข้าจริงทั้งหมด (PaymentLog — ต่างจากยอดใน invoice ตรงที่นี่คือ ledger เงินสดจริงที่บันทึกทุกครั้งที่มีเงินเข้า ใช้ตรวจสอบบัญชี/หาสาเหตุตัวเลขไม่ตรงกัน) กรองตามห้องหรือช่วงวันที่ได้',
+    input_schema: {
+      type: 'object',
+      properties: {
+        roomId: { type: 'string', description: 'กรองเฉพาะห้องนี้ (ไม่ใส่ = ทุกห้อง)' },
+        fromDate: { type: 'string', description: 'กรองตั้งแต่วันที่นี้ (YYYY-MM-DD, ไม่ใส่ = ไม่กรอง)' },
+        toDate: { type: 'string', description: 'กรองถึงวันที่นี้ (YYYY-MM-DD, ไม่ใส่ = ไม่กรอง)' },
+      },
+    },
+  },
+  {
+    name: 'get_unmatched_slips',
+    description: 'ดูรายการสลิปที่ผู้เช่าส่งเข้ามาแต่ระบบยังจับคู่กับห้อง/บิลไม่ได้ (LINE ยังไม่เชื่อมต่อกับห้อง) — ใช้ตรวจสอบว่ามีเงินเข้าที่ยังไม่ถูกบันทึกเข้าห้องไหนหรือไม่',
     input_schema: { type: 'object', properties: {} },
   },
   {
@@ -273,7 +298,7 @@ const TOOLS = [
   },
 ];
 
-const READ_TOOL_NAMES = new Set(['get_rooms', 'check_lease_completeness', 'get_pending_invoices', 'get_paid_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary', 'get_electricity_log', 'get_calendar_events']);
+const READ_TOOL_NAMES = new Set(['get_rooms', 'check_lease_completeness', 'get_pending_invoices', 'get_paid_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary', 'get_electricity_log', 'get_calendar_events', 'get_payment_log', 'get_unmatched_slips']);
 
 async function executeReadTool(name, input) {
   switch (name) {
@@ -358,6 +383,16 @@ async function executeReadTool(name, input) {
         openMaintenance: maintenance.filter((m) => m.status !== 'done').length,
       };
     }
+    case 'get_payment_log': {
+      let rows = coercePaymentLog(await readTab('PaymentLog'));
+      if (input.roomId) rows = rows.filter((r) => String(r.room) === String(input.roomId));
+      if (input.fromDate) rows = rows.filter((r) => (r.date || '') >= input.fromDate);
+      if (input.toDate) rows = rows.filter((r) => (r.date || '') <= input.toDate);
+      rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      return { count: rows.length, total: rows.reduce((a, r) => a + (r.amount || 0), 0), rows };
+    }
+    case 'get_unmatched_slips':
+      return coerceUnmatchedSlips(await readTab('UnmatchedSlips'));
     default:
       throw new Error('ไม่รู้จักคำสั่งนี้: ' + name);
   }
