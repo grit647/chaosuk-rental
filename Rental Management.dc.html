@@ -3347,7 +3347,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">ยอด</span><span style="font-weight:600;font-family:'IBM Plex Mono',monospace">{{ sc.amountDisplay }}</span></div>
                       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ sc.date }} · {{ sc.senderName }}</span></div>
                       <sc-if value="{{ sc.imageUrl }}" hint-placeholder-val="{{ false }}">
-                        <a href="{{ sc.imageUrl }}" target="_blank" rel="noopener" style="font-size:11px;color:#C1622D;font-weight:600;text-decoration:none">🔍 ดูสลิปตัวจริง</a>
+                        <span onclick="{{ sc.onView }}" style="font-size:11px;color:#C1622D;font-weight:600;cursor:pointer">🔍 ดูสลิปตัวจริง</span>
                       </sc-if>
                     </div>
                   </sc-for>
@@ -3382,7 +3382,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ cc.date }} · {{ cc.senderName }}</span></div>
                       <div style="display:flex;justify-content:space-between;align-items:center">
                         <sc-if value="{{ cc.imageUrl }}" hint-placeholder-val="{{ false }}">
-                          <a href="{{ cc.imageUrl }}" target="_blank" rel="noopener" style="font-size:11px;color:#C1622D;font-weight:600;text-decoration:none">🔍 ดูสลิปตัวจริง</a>
+                          <span onclick="{{ cc.onView }}" style="font-size:11px;color:#C1622D;font-weight:600;cursor:pointer">🔍 ดูสลิปตัวจริง</span>
                         </sc-if>
                         <div onclick="{{ cc.onDelete }}" style="font-size:11px;color:#B24336;cursor:pointer;font-weight:600">🗑️ ลบสลิปนี้</div>
                       </div>
@@ -3485,7 +3485,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                           </sc-if>
                           <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:6px"><span style="color:#7C6E5F">วันที่/ผู้โอน</span><span>{{ sc.date }} · {{ sc.senderName }}</span></div>
                           <sc-if value="{{ sc.imageUrl }}" hint-placeholder-val="{{ false }}">
-                            <a href="{{ sc.imageUrl }}" target="_blank" rel="noopener" style="font-size:10.5px;color:#C1622D;font-weight:600;text-decoration:none">🔍 ดูสลิปตัวจริง</a>
+                            <span onclick="{{ sc.onView }}" style="font-size:10.5px;color:#C1622D;font-weight:600;cursor:pointer">🔍 ดูสลิปตัวจริง</span>
                           </sc-if>
                         </div>
                       </sc-for>
@@ -3704,7 +3704,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                               <span style="display:flex;align-items:center;gap:6px">
                                 <span style="font-family:'IBM Plex Mono',monospace">{{ sl.amountDisplay }}</span>
                                 <sc-if value="{{ sl.imageUrl }}" hint-placeholder-val="{{ false }}">
-                                  <a href="{{ sl.imageUrl }}" target="_blank" rel="noopener" style="color:#C1622D;text-decoration:none">📎</a>
+                                  <span onclick="{{ sl.onView }}" style="color:#C1622D;cursor:pointer">📎</span>
                                 </sc-if>
                               </span>
                             </div>
@@ -3713,7 +3713,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       </sc-if>
                       <sc-if value="{{ h.hasReceiptImage }}" hint-placeholder-val="{{ false }}">
                         <div style="display:flex;gap:6px;margin-top:2px">
-                          <a href="{{ h.receiptImageUrl }}" target="_blank" rel="noopener" style="flex:1;text-align:center;font-size:11px;font-weight:600;padding:6px 4px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;text-decoration:none">🧾 ดูใบเสร็จ</a>
+                          <span onclick="{{ h.onViewReceipt }}" style="flex:1;text-align:center;font-size:11px;font-weight:600;padding:6px 4px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;cursor:pointer">🧾 ดูใบเสร็จ</span>
                           <a href="{{ h.receiptDownloadUrl }}" download style="flex:1;text-align:center;font-size:11px;font-weight:600;padding:6px 4px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;text-decoration:none">⬇️ ดาวน์โหลด</a>
                         </div>
                       </sc-if>
@@ -4269,6 +4269,28 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <!-- "เวลาเปิดดูบิลหรือใบเสร็จย้อนหลังฝั่งมือถือ...มันเป็นการเปิด
+             URL ใหม่ เวลาปิด มันปิดทั้งหมด ไม่เหมือนฝั่ง PC ที่ขึ้นเป็น
+             แท็บแยก" (2026-08-02) — สาเหตุ: ลิงก์ดูรูปสลิป/ใบเสร็จเดิม
+             ทุกจุดใช้ <a target="_blank"> ซึ่งบน PC เปิดเป็นแท็บใหม่จริง
+             (ปิดแท็บเดียวได้ กลับมาแอปเดิมได้) แต่แอปนี้ถูกเปิดแบบ PWA
+             (เพิ่มไอคอนหน้าจอโฮมมือถือ, display:standalone — ไม่มี browser
+             chrome/แท็บให้สลับ) — target="_blank" ในโหมด standalone จะ
+             เปลี่ยนหน้าทั้ง webview ไปเลย ปิดรูปแล้วเท่ากับออกจากแอปทั้งแอป
+             (ต้องเปิดแอปใหม่จาก home screen) แก้โดยเปลี่ยนทุกจุดที่เคยเป็น
+             <a target="_blank"> ดูรูปสลิป/ใบเสร็จ ให้เปิด lightbox
+             ในแอปแทน (openImageLightbox/closeImageLightbox) — ไม่ออกจาก
+             บริบทแอปเลย ปิดแล้วกลับมาหน้าเดิมทันที (ปุ่มดาวน์โหลด "⬇️"
+             ที่มี download attribute อยู่แล้วไม่แตะ เพราะนั่นบันทึกไฟล์
+             ไม่ใช่การนำทางออกจากแอป). -->
+        <sc-if value="{{ showImageLightbox }}">
+          <div onclick="{{ closeImageLightbox }}" style="position:fixed;inset:0;background:rgba(15,10,7,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:290;padding:20px;box-sizing:border-box">
+            <div onclick="{{ closeImageLightbox }}" style="position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.14);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer">✕</div>
+            <img src="{{ imageLightboxUrl }}" onclick="{{ stop }}" style="max-width:100%;max-height:82vh;border-radius:8px;object-fit:contain">
+            <a href="{{ imageLightboxUrl }}" target="_blank" rel="noopener" onclick="{{ stop }}" style="margin-top:16px;font-size:12.5px;color:#F1EBE0;text-decoration:underline">เปิดในแท็บใหม่ / บันทึกรูป</a>
+          </div>
+        </sc-if>
+
       </div>
       </div>
     </div>
@@ -4356,6 +4378,7 @@ class Component extends DCLogic {
     // (narrow viewport at load time) — switching to the regular admin web
     // view is a manual, explicit choice from there.
     mobileAiMode: (typeof window !== 'undefined' && window.innerWidth < 760),
+    imageLightboxUrl: null,
     // Set only when the command box hands off to a native form (create_room /
     // open_contract_form) from AI mode — lets submitAddRoom/saveContractForm
     // know to return to AI mode afterward, without forcing that on someone
@@ -5951,6 +5974,13 @@ class Component extends DCLogic {
   removeClaudeAttachedImage = () => this.setState({ claudeAttachedImage: '' });
   switchToMobileWeb = () => this.setState({ mobileAiMode: false });
   switchToAiMode = () => this.setState({ mobileAiMode: true });
+  // "เวลาปิด มันปิดทั้งหมด ไม่เหมือนฝั่ง PC" (2026-08-02) — in-app image
+  // lightbox replacing every <a target="_blank"> slip/receipt-viewing
+  // link (see the comment above the lightbox markup near adminToastShow
+  // for the full root-cause explanation — PWA standalone mode has no
+  // browser tabs to switch back to).
+  openImageLightbox = (url) => { if (url) this.setState({ imageLightboxUrl: url }); };
+  closeImageLightbox = () => this.setState({ imageLightboxUrl: null });
   exitBrowserAttempt = () => {
     // window.close() only actually works for tabs/windows that were opened
     // by script — browsers block it for a normal tab the user navigated to
@@ -10194,6 +10224,7 @@ class Component extends DCLogic {
         // dash so the owner fixes the real amount BEFORE confirming anything.
         needsAmount: s2.amount == null, hasAmount: s2.amount != null,
         date: s2.date || '-', senderName: s2.senderName || '-', imageUrl: s2.imageUrl || '', noImage: !s2.imageUrl,
+        onView: () => this.openImageLightbox(s2.imageUrl),
         onDelete: () => this.askDeleteSlip(inv.id, idx),
         amountDraftValue: s.slipAmountDrafts[draftKey] || '',
         onAmountDraftChange: (e) => this.setSlipAmountDraft(draftKey, e.target.value),
@@ -10245,6 +10276,7 @@ class Component extends DCLogic {
       cards: (creditReviewRoomRaw.creditSlips || []).map((s2, idx) => ({
         amountDisplay: s2.amount != null ? this.fmt(Number(s2.amount)) : '-',
         date: s2.date || '-', senderName: s2.senderName || '-', imageUrl: s2.imageUrl || '',
+        onView: () => this.openImageLightbox(s2.imageUrl),
         onDelete: () => this.deleteCreditSlip(creditReviewRoomRaw.id, idx),
       })),
     } : null;
@@ -11483,6 +11515,7 @@ class Component extends DCLogic {
             dateDisplay: this.formatThaiDateLabel(sl.date) || sl.date || '—',
             senderName: sl.senderName || 'ไม่ทราบชื่อผู้โอน',
             imageUrl: sl.imageUrl || '',
+            onView: () => this.openImageLightbox(sl.imageUrl),
           }));
           return {
             id: i.id, due: this.formatThaiDateLabel(i.due) || i.due || '—',
@@ -11496,6 +11529,7 @@ class Component extends DCLogic {
             receiptImageUrl: i.receiptImageUrl || '',
             receiptDownloadUrl: this._forceDownloadUrl(i.receiptImageUrl || ''),
             hasReceiptImage: !!i.receiptImageUrl,
+            onViewReceipt: () => this.openImageLightbox(i.receiptImageUrl),
             hasPartialPayment,
             amountPaidDisplay: this.fmt(amountPaid),
             remainingDueDisplay: this.fmt(Math.max(0, total - amountPaid)),
@@ -12165,6 +12199,8 @@ class Component extends DCLogic {
       cfOwnerIdPreview: s.contractForm.ownerIdImg ? React.createElement('img', { src: s.contractForm.ownerIdImg, style: { width: 56, height: 36, objectFit: 'cover', borderRadius: 4 } }) : null,
       cfHasLeaseDoc: !!s.contractForm.leaseDocName,
 
+      showImageLightbox: !!s.imageLightboxUrl, imageLightboxUrl: s.imageLightboxUrl || '',
+      openImageLightbox: this.openImageLightbox, closeImageLightbox: this.closeImageLightbox,
       adminToastShow: s.adminToast.show, adminToastMessage: s.adminToast.message,
       adminToastBg: s.adminToast.type === 'error' ? '#B24336' : '#3B7A52',
       adminToastBorder: s.adminToast.type === 'error' ? '#8F332A' : '#2C5F40',
