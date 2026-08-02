@@ -406,6 +406,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">รายรับเดือนนี้</div>
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:#241812">{{ kpiPaidSum }}</div>
                 <div style="font-size:12px;color:#3B7A52;margin-top:6px;font-weight:500">อัปเดตตามยอดชำระจริง</div>
+                <div style="font-size:11px;color:#7C6E5F;margin-top:8px;padding-top:8px;border-top:1px solid #EDE6D8">รายรับทั้งหมด <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:#241812">{{ kpiAllTimeRevenue }}</span></div>
               </div>
               <div class="stat-card" onclick="{{ goExpenses }}" style="flex:1;background:#FFFFFF;border-top:3px solid #D9A15B;border-radius:8px;padding:16px;box-sizing:border-box;cursor:pointer">
                 <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">รายจ่ายเดือนนี้</div>
@@ -9969,6 +9970,12 @@ class Component extends DCLogic {
     const dashMonthRevenue = (s.paymentLog || [])
       .filter(p => (p.date || '').slice(0, 7) === currentYm)
       .reduce((a, p) => a + (p.amount || 0), 0);
+    // "รายรับทั้งหมด" — same paymentLog ledger, no month filter, per owner
+    // request 2026-08-02 ("ช่วยแสดงรายรับทั้งหมดให้ด้วยครับ ข้อความต่อจาก
+    // รายรับเดือนนี้") to show the all-time total right under the monthly
+    // figure on the same Dashboard KPI card.
+    const dashAllTimeRevenue = (s.paymentLog || [])
+      .reduce((a, p) => a + (p.amount || 0), 0);
 
     // "การใช้งาน LINE OA" Dashboard card — donut chart of this month's LINE
     // message quota usage (see loadLineUsage / server/routes/line.js's
@@ -11232,6 +11239,7 @@ class Component extends DCLogic {
 
       revenueExpenseChart, hasRevenueExpenseData, noRevenueExpenseData: !hasRevenueExpenseData, revenueExpenseRangeLabel,
       kpiPaidSum: this.fmt(dashMonthRevenue),
+      kpiAllTimeRevenue: this.fmt(dashAllTimeRevenue),
       kpiExpenseSum: this.fmt(expenseTotal),
       kpiNetDisplay: (dashMonthRevenue - expenseTotal >= 0 ? '+' : '−') + this.fmt(Math.abs(dashMonthRevenue - expenseTotal)),
       kpiNetPositive: dashMonthRevenue - expenseTotal >= 0,
