@@ -922,7 +922,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             </div>
 
             <div class="stat-row" style="display:flex;gap:14px;margin-bottom:18px;align-items:flex-start">
-              <sc-for list="{{ billingChips }}" as="c" hint-placeholder-count="4">
+              <sc-for list="{{ billingChips }}" as="c" hint-placeholder-count="5">
                 <div class="stat-card" onclick="{{ c.onClick }}" style="flex:1;background:#FFFFFF;border-top:3px solid {{ c.accent }};border-radius:8px;padding:16px;box-sizing:border-box;cursor:pointer;box-shadow:{{ c.ring }}">
                   <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">{{ c.label }}</div>
                   <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#241812">{{ c.sumDisplay }}</div>
@@ -10000,9 +10000,22 @@ class Component extends DCLogic {
     const sheetUsageColor = sheetUsagePercent >= 90 ? '#B24336' : sheetUsagePercent >= 70 ? '#C1872E' : '#3B7A52';
     const sheetUsageDashArray = ((sheetUsagePercent / 100) * sheetUsageCircumference).toFixed(1) + ' ' + sheetUsageCircumference.toFixed(1);
 
+    // "1500 ห้องหายไป ต้องเอามาแสดงเป็นยอดชำระบางส่วนรวมไว้ด้วยครับ"
+    // (2026-08-02) — เดิม "ชำระแล้ว" การ์ดนับเฉพาะบิล status==='paid'
+    // (จ่ายครบ) และ "รอชำระ" การ์ดนับ remainingDue (ยอดที่ยังค้าง) ของบิล
+    // partial — ทำให้เงินที่ผู้เช่าจ่ายมาแล้วบางส่วน (เช่น ห้อง 4 จ่ายมา
+    // 1,500 จากบิล partial) ไม่ปรากฏเป็นยอด "ที่ได้รับแล้ว" ที่ไหนเลยบน
+    // หน้านี้ (มันซ่อนอยู่ในสูตร remainingDue = total - amountPaid ของการ์ด
+    // "รอชำระ") — เพิ่มการ์ดใหม่แสดงยอดที่ได้รับแล้วจากบิล partial
+    // โดยเฉพาะ ใช้ key 'partial' กรองตาม i.status==='partial' แบบเดียวกับ
+    // การ์ดอื่นๆ ได้เลย (invoicesFiltered ด้านล่างกรองด้วย i.status ===
+    // s.billingFilter อยู่แล้ว).
+    const partialList = s.invoices.filter(i => i.status === 'partial');
+    const partialPaidSum = partialList.reduce((a, i) => a + (i.amountPaid || 0), 0);
     const billingChips = [
       { key: 'all', label: 'รวมเดือนนี้', count: s.invoices.length, sumDisplay: this.fmt(totalSum), accent: '#241812' },
       { key: 'paid', label: 'ชำระแล้ว', count: paidList.length, sumDisplay: this.fmt(paidSum), accent: '#3B7A52' },
+      { key: 'partial', label: 'ชำระบางส่วนรวม', count: partialList.length, sumDisplay: this.fmt(partialPaidSum), accent: '#B85B27' },
       { key: 'pending', label: 'รอชำระ', count: pendingList.length, sumDisplay: this.fmt(pendingSum), accent: '#C1872E' },
       { key: 'overdue', label: 'เกินกำหนด', count: overdueList.length, sumDisplay: this.fmt(overdueSum), accent: '#B24336' },
     ].map(c => ({ ...c, ring: s.billingFilter === c.key ? '0 0 0 2px ' + c.accent + ' inset' : 'none', onClick: () => this.setBillingFilter(c.key) }));
