@@ -173,7 +173,15 @@ async function callWithTools(system, messages, tools, maxTokens = 1024, building
       systemInstruction: { parts: [{ text: system }] },
       contents,
       tools: [{ functionDeclarations: toolsToGeminiDeclarations(tools) }],
-      generationConfig: { maxOutputTokens: maxTokens },
+      // "Gemini ชอบอธิบายยาวเกิน เปลืองเครดิต...ใช้ Gemini โหมดนี้เปลือง
+      // กว่าการใช้ในร้านค้าปลีกส่ง" (2026-08-02) — real bug found: gemini-
+      // 2.5-flash เปิด "extended thinking" เป็นค่าเริ่มต้น (เห็นชัดจากผล
+      // ทดสอบตอนสร้างฟีเจอร์นี้ครั้งแรก มี thoughtsTokenCount ติดมาด้วย
+      // ทุกครั้ง) เพิ่ม token ที่ไม่จำเป็นสำหรับงานประเภทนี้ (เลือก tool /
+      // ตอบคำถามข้อมูล ไม่ใช่งานที่ต้องให้เหตุผลหลายขั้นตอน) — wholesale-
+      // order's server/gemini.js ปิดค่านี้มาตั้งแต่แรกด้วยเหตุผลเดียวกัน
+      // แต่ตอนสร้างไฟล์นี้ลืมใส่ตาม แก้ให้ตรงกันแล้ว ไม่กระทบความแม่นยำ
+      generationConfig: { maxOutputTokens: maxTokens, thinkingConfig: { thinkingBudget: 0 } },
     }),
   });
   if (!res.ok) {

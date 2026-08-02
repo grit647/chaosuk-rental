@@ -12,6 +12,9 @@ const { isConfigured, askClaude, askClaudeWithImage, callWithTools } = require('
 const { isConfigured: geminiConfigured, callWithTools: callGeminiWithTools } = require('../gemini');
 const { getCurrentSheetId } = require('../requestContext');
 const { TOOLS, READ_TOOL_NAMES, executeReadTool, describeWriteTool, executeWriteTool } = require('../claudeTools');
+// "สร้างคำถามสำเร็จรูป/FAQ ลัด ตอบเร็วโดยไม่ต้องเรียก AI เลย" (2026-08-02)
+// — see server/commandFaq.js's own top-of-file comment for the full design.
+const { matchFaq } = require('../commandFaq');
 
 router.get('/health', (req, res) => {
   res.json({ connected: isConfigured() });
@@ -121,7 +124,7 @@ function buildCommandSystemPrompt(drivingMode) {
 
 สำคัญมาก — เรื่องการยืนยันก่อนทำรายการที่แก้ไข/เพิ่ม/ลบข้อมูล (เช่น mark_invoice_paid, create_invoice, add_expense, delete_expense, add_maintenance, set_maintenance_status, send_line_message, send_invoice_reminder, schedule_line_message, update_room_meter, create_room, delete_room, add_calendar_event, delete_calendar_event): ห้ามถามยืนยันเป็นข้อความเองเด็ดขาด (เช่น ห้ามพิมพ์ "ยืนยันไหมครับ?" แล้วรอคำตอบ) — ให้เรียกเครื่องมือ (tool) นั้นทันทีเมื่อมีข้อมูล/พารามิเตอร์ที่จำเป็น (required) ครบถ้วนแล้วเสมอ ระบบภายนอกจะเป็นผู้แสดง popup หรือฟอร์มยืนยันกับผู้ใช้เองโดยอัตโนมัติก่อนทำรายการจริง (ฟอร์มนั้นให้ผู้ใช้กรอก/แก้ไขค่าที่เหลือเองได้ในหน้าจอ) คุณไม่ต้องและห้ามถามซ้ำ และห้ามพยายามถามหาค่าที่ไม่บังคับ (ไม่ใช่ required) เองในแชท — เรียกเครื่องมือทันทีเมื่อรู้แค่ค่าที่บังคับ ปล่อยให้ระบบ/ผู้ใช้กรอกส่วนที่เหลือในฟอร์มแทน ถ้าข้อมูลที่จำเป็น (required) ยังไม่ครบ (เช่น ไม่รู้ว่าจะลบรายการไหน หรือยังไม่รู้เลขห้องที่จะเปิดใหม่) ให้ถามสั้นๆ เฉพาะค่าที่ยังขาดเท่านั้น หรือเรียกเครื่องมือประเภทดูข้อมูล (get_*) เพื่อหาให้เจอก่อน
 
-ตอบเป็นภาษาไทยเสมอ กระชับ ตรงประเด็น${drivingModeInstruction}`;
+ตอบเป็นภาษาไทยเสมอ **กระชับ ตรงประเด็นที่สุด** ตอบแค่สิ่งที่ถูกถามเท่านั้น ห้ามอธิบายเพิ่มเติมที่ไม่ได้ถูกถาม ห้ามสรุปซ้ำ ห้ามเกริ่นนำ ห้ามลงท้ายด้วยข้อเสนอช่วยเหลือเพิ่มเติมถ้าไม่จำเป็น (เช่น "หากต้องการข้อมูลเพิ่มเติมสามารถถามได้") ตอบเป็นประโยคสั้นๆ 1-3 ประโยคพอ ยกเว้นผู้ใช้ขอรายละเอียด/รายการยาวจริงๆ${drivingModeInstruction}`;
 }
 
 function extractText(resp) {
@@ -150,6 +153,15 @@ router.post('/command', async (req, res, next) => {
     // or refine a request across multiple messages instead of every message
     // starting a brand-new, context-free conversation.
     const history = Array.isArray(req.body.history) ? req.body.history : [];
+
+    // "สร้างคำถามสำเร็จรูป/FAQ ลัด ตอบเร็วโดยไม่ต้องเรียก AI เลย"
+    // (2026-08-02) — คำถามข้อมูลพื้นฐานที่พบบ่อย (ห้องว่างกี่ห้อง, บิลค้าง
+    // กี่ใบ ฯลฯ) ตอบตรงนี้เลยจากข้อมูลจริง ไม่เสียเครดิตเรียก Claude/Gemini
+    // เลย — ครอบคลุมทั้งพิมพ์และพูด (เสียงถูกแปลงเป็นข้อความก่อนแล้วส่งเข้า
+    // endpoint นี้เหมือนกันทั้งคู่) เฉพาะคำถามเดี่ยวๆ ไม่มีบริบทก่อนหน้า/
+    // ไม่มีรูปแนบเท่านั้น (ดู matchFaq's เงื่อนไข hasHistory/hasImage)
+    const faqAnswer = await matchFaq(message, { hasHistory: history.length > 0, hasImage: !!req.body.image });
+    if (faqAnswer) return res.json({ type: 'answer', text: faqAnswer });
 
     // Optional image attached via the "+" menu (e.g. a photo of a meter, a
     // maintenance issue, anything relevant) — sent as a data URL, same format
