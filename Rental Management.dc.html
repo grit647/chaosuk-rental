@@ -1317,6 +1317,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <span onclick="{{ onDemoTipClaudeOverview }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
                 </sc-if>
                 <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
+                  <!-- "สร้างปุ่มที่กดแล้วแสดงเต็มหน้าให้หน่อยครับ ที่มี
+                       ฟีเจอร์นี้อันเดียว บนหน้านี้ครับ...ให้อยู่บนส่วนนี้
+                       ของตั้งค่านะครับ" (2026-08-02) — ปุ่มลัดเปิด "โหมด AI
+                       เต็มจอ" ที่มีอยู่แล้ว (เดิมเข้าถึงได้แค่ผ่านมือถือ
+                       เท่านั้น mobileAiMode) ตรงนี้เอาไว้เปิดจากการ์ดในหน้า
+                       ตั้งค่าโดยตรง ไม่ต้องหาทางอื่น — ใช้ switchToAiMode
+                       ตัวเดิม ไม่สร้างระบบใหม่ซ้ำซ้อน -->
+                  <div onclick="{{ switchToAiMode }}" title="เปิดเต็มจอ" style="width:26px;height:26px;border-radius:5px;cursor:pointer;background:#F1EBE0;color:#7C6E5F;font-size:12.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0">⛶</div>
                   <div onclick="{{ openClaudeEmailModal }}" style="font-size:10.5px;font-weight:600;padding:4px 9px;border-radius:5px;cursor:pointer;background:{{ claudeEmailBtnBg }};color:{{ claudeEmailBtnColor }};white-space:nowrap">{{ claudeEmailBtnLabel }}</div>
                   <div onclick="{{ openRecurringModal }}" title="คำสั่งงานประจำ" style="width:26px;height:26px;border-radius:5px;cursor:pointer;background:#F1EBE0;color:#7C6E5F;font-size:12.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0">⚙</div>
                   <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;display:flex;align-items:center;gap:5px;background:{{ claudeAutomationStatusBg }};color:{{ claudeAutomationStatusColor }}">
