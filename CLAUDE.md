@@ -46,6 +46,82 @@ logo badge, use this exact same styling.
 
 ## Known issues / follow-ups
 
+### Render free-tier sleep breaks LINE messages (not URL access) — fixed via Webhook redelivery + event dedup (2026-08-02)
+
+**Owner's real-world symptom:** the app has 2 access paths — direct URL
+and LINE OA. Opening the URL while the Render instance is asleep never
+lost data (browser just waits ~30-60s for cold start, then loads
+normally). LINE was different: a tenant/owner message sent while the
+app was asleep just **vanished silently** — no error anywhere, and
+confusingly the LINE app itself still showed "อ่านแล้ว" (read) on the
+sender's side, which made it look like the bot received and processed
+it when it actually never did. Root cause: LINE's webhook delivery
+expects a 2xx response within ~2 seconds of sending the event — far
+shorter than a cold Render instance takes to wake up — so the request
+just fails/times out, and (in LINE's default configuration) is never
+retried. The "read" checkmark is a LINE-app-side/client status,
+completely unrelated to whether our webhook actually received and
+processed the payload — two independent layers that looked connected
+but aren't.
+
+**Fixed, 2 parts, no code needed for part 1:**
+
+1. **Enabled "Webhook redelivery"** (LINE Developers Console → each
+   channel → Messaging API tab → Webhook settings) for **all 3 LINE OA
+   channels this app has** — ตึกหลัก (main account), บ้านเลขที่1873,
+   บ้านพักครูโจ. Off by default, must be turned on per-channel
+   individually (not a global LINE account setting). When on, LINE
+   retries a failed webhook delivery automatically for an undisclosed
+   period/count — enough to usually catch the server once it's awake,
+   instead of dropping the event outright. No guarantee (LINE doesn't
+   publish retry count/interval, and says it may change without
+   notice), but meaningfully reduces the "message just vanished" case.
+
+2. **Added `isDuplicateWebhookEvent()`** (`server/routes/line.js`,
+   right before `wifiReplyPending`) — LINE's own confirmation dialog
+   for turning on Webhook redelivery explicitly warns duplicate event
+   delivery becomes possible as the tradeoff (network retries can
+   result in the same event arriving twice even after the first
+   attempt actually succeeded). Every LINE event carries a unique
+   `webhookEventId` specifically for this. In-memory `Map` (NOT
+   persisted — resets on deploy/restart, which is fine since the dedup
+   window only needs to cover LINE's own short retry period, not
+   forever), lazily pruned on every call (entries older than 30 min
+   dropped) so it never grows unbounded. Checked first thing in the
+   per-event loop inside `POST /webhook/:customerSheetId?` — a
+   redelivered event already handled gets skipped before touching
+   slip processing, replies, self-linking, or anything else
+   stateful.
+
+**Still open / explicitly deferred by the owner:** a "🔔 ปลุกระบบ" wake
+button embedded in the Rich Menu (URI-action button opening a small
+countdown page — the page LOAD itself reliably wakes the server the
+same way direct URL access always has, unlike a webhook postback which
+inherits the same problem this whole section is about) was discussed
+as a secondary/backup idea. All 3 Rich Menus (tenant/owner/staff) are
+full 6-button 3×2 grids with real custom artwork already, no empty
+slot — adding a 7th button means either sacrificing an existing button
+or commissioning new 7-8-button artwork for all 3, which the owner
+explicitly deferred ("ถ้าแก้ริช ทุกงานเลยครับ เราจะได้ใช้เทคนิคนี้
+ทั้งหมดครับ" — wants to batch it with other Rich Menu work later
+rather than a one-off change now). Increasing UptimeRobot's ping
+frequency (currently every 20 min, longer than Render's ~15 min idle
+threshold, so the app still sleeps between pings) was also considered
+and explicitly rejected by the owner as "ไม่ใช่แนวทาง" — Webhook
+redelivery was judged the better fix since it needs zero app-uptime
+tradeoff.
+
+**Separate note, NOT part of this app:** while investigating, the
+owner also noticed `check-service-24` (a different sister project,
+different codebase/directory, not touched this session) has been
+completely unresponsive since the previous day — "คิวทั้งหมด" button
+taps showing "อ่านแล้ว" with zero replies across many hours, which
+reads as more than ordinary Render cold-start (30-60s) and more likely
+a real crash/outage or exhausted hosting credit. Explicitly deferred
+by the owner ("ส่วนนี้เอาไว้ก่อนครับ") — flagging here only so a future
+session knows this was raised and intentionally not investigated
+today, not forgotten.
+
 ### Permanent gotcha: multi-tenant = separate physical Google Sheets — new columns/tabs must be retrofitted to EVERY existing customer's Sheet, not just the main one
 
 **Discovered concretely 2026-07-23**, same investigation as the Tuya
