@@ -89,6 +89,38 @@ function isAiSessionActive(pendingKey) {
 // code.
 const wifiReplyPending = new Map();
 const WIFI_REPLY_WINDOW_MS = 10 * 60 * 1000;
+
+// "Webhook redelivery" (2026-08-02) — enabled per-channel in LINE
+// Developers Console (Messaging API tab) so LINE auto-retries a webhook
+// delivery if our server didn't respond 2xx in time (e.g. cold-starting
+// from Render free-tier sleep — the whole reason this got turned on: LINE
+// messages sent while the app was asleep used to just vanish, no retry,
+// even though the message showed as "read" in the LINE app itself since
+// that status is purely client-side and unrelated to whether our webhook
+// actually received it). LINE's own confirmation dialog before enabling
+// this warns duplicate events ARE possible as a result — every event LINE
+// sends includes a unique `webhookEventId` specifically for this reason
+// (added alongside the redelivery feature). In-memory Set of recently-seen
+// IDs, deliberately NOT persisted (process-memory only, resets on
+// deploy/restart) — the dedup window only needs to cover LINE's own retry
+// period, which is short and undisclosed, not "forever". Pruned lazily
+// (see isDuplicateWebhookEvent) so this never grows unbounded even if the
+// process stays up for days.
+const processedWebhookEventIds = new Map(); // webhookEventId -> firstSeenAtMs
+const WEBHOOK_DEDUP_WINDOW_MS = 30 * 60 * 1000; // generous — LINE's own retry window is undisclosed but almost certainly shorter than this
+function isDuplicateWebhookEvent(eventId) {
+  if (!eventId) return false; // no ID on this event (shouldn't happen for real LINE payloads) — never block, just don't dedup it
+  const now = Date.now();
+  // Lazy prune: cheap enough to run every call given this Map only holds a
+  // few minutes' worth of event IDs at realistic message volumes for this
+  // app — avoids needing a separate setInterval just for this.
+  for (const [id, seenAt] of processedWebhookEventIds) {
+    if (now - seenAt > WEBHOOK_DEDUP_WINDOW_MS) processedWebhookEventIds.delete(id);
+  }
+  if (processedWebhookEventIds.has(eventId)) return true;
+  processedWebhookEventIds.set(eventId, now);
+  return false;
+}
 // Same restriction as server/automation.js's FORM_ONLY_TOOLS, same
 // reasoning (per CLAUDE.md's permanent rule: lease/contract data + new
 // rooms must always go through the native form UI — some fields, like ID
@@ -408,6 +440,15 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
       const events = (req.body && req.body.events) || [];
       for (const event of events) {
         try {
+          // Skip a redelivered event we already processed — see
+          // isDuplicateWebhookEvent's comment above for why this exists
+          // (Webhook redelivery, enabled 2026-08-02, can resend the same
+          // event if our server was slow/cold-starting the first time even
+          // though it eventually succeeded).
+          if (isDuplicateWebhookEvent(event.webhookEventId)) {
+            console.log('[line] skipping duplicate webhook event', event.webhookEventId, 'for sheet', targetSheetId);
+            continue;
+          }
           if (event.type === 'follow') {
             // Per explicit user request: changed from "type your room number"
             // to "type your phone number" — a room number can be understood
