@@ -1285,19 +1285,26 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </span>
                 </div>
               </div>
-              <!-- "การ์ดนี้ส่วนบนเพิ่ม (Gemini) ไปอีกตัวครับ มีช่องให้ติ๊ก
-                   ว่าเลือกใช้ตัวไหน ส่วนการเชื่อมต่อรอเครดิตเต็มพรุ่งนี้
-                   ครับ" (2026-08-01) — picker เลือกว่าจะใช้ AI ตัวไหน
-                   ตอนนี้เป็นแค่บันทึกค่าไว้ (persisted) ยังไม่มีผลจริงกับ
-                   การทำงาน เพราะฝั่ง Gemini ยังไม่ได้เชื่อมต่อ -->
+              <!-- "การ์ดนี้ส่วนบนเพิ่ม (Gemini) ไปอีกตัวครับ" (2026-08-01) →
+                   "จัดการเชื่อมต่อกันเลยครับ" (2026-08-02) — picker เลือกว่า
+                   จะใช้ AI ตัวไหน, บันทึกค่าไว้ (persisted) แล้วสั่งงานจริง
+                   ผ่าน server/gemini.js's callWithTools (Vertex AI, reuse
+                   Google service account เดียวกับ Sheets) เมื่อเลือก Gemini
+                   ไว้ — ดู server/routes/claude.js's /command สำหรับจุดที่
+                   เลือกเรียกโมดูลไหน -->
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
                 <span style="font-size:11px;color:#A89A88;font-weight:600">เลือกใช้ AI</span>
                 <div style="display:flex;gap:3px;background:#F7F2E9;padding:2px;border-radius:6px;width:fit-content">
                   <span onclick="{{ onSetAiEngineClaude }}" style="font-size:10.5px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;background:{{ aiEngineClaudeBg }};color:{{ aiEngineClaudeColor }}">✦ Claude</span>
                   <span onclick="{{ onSetAiEngineGemini }}" style="font-size:10.5px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;background:{{ aiEngineGeminiBg }};color:{{ aiEngineGeminiColor }}">✦ Gemini</span>
                 </div>
-                <sc-if value="{{ aiEngineIsGemini }}" hint-placeholder-val="{{ false }}">
-                  <span style="font-size:10.5px;color:#B85B27">(รอเชื่อมต่อจริง — ตอนนี้ยังสั่งงานผ่าน Claude เหมือนเดิม)</span>
+                <!-- "สร้างเครดิต ที่ใช้ไปให้หน่อยครับ" (2026-08-02) — เชื่อมต่อ
+                     Gemini จริงแล้ว (ดู server/gemini.js) ข้อความ "รอเชื่อมต่อ"
+                     เดิมไม่ตรงกับความจริงอีกต่อไป เปลี่ยนเป็นโชว์ตัวเลขใช้งาน
+                     สะสมแทน (จาก GeminiUsageLog) — โชว์เฉพาะตอนเลือก Gemini
+                     ไว้ และมีประวัติใช้งานจริงมาแล้วอย่างน้อย 1 ครั้ง -->
+                <sc-if value="{{ geminiUsageShow }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:10.5px;color:#7C6E5F">เดือนนี้ {{ geminiUsageMonthCalls }} ครั้ง ({{ geminiUsageMonthCostDisplay }}) · สะสม {{ geminiUsageTotalCalls }} ครั้ง ({{ geminiUsageTotalCostDisplay }})</span>
                 </sc-if>
               </div>
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:10px;line-height:1.6">ให้ Claude ช่วยดูแล/ตัดสินใจงานประจำวันของหอพักนี้แทนคุณบางส่วน — รายละเอียดว่าจะดูแลอะไรบ้าง (ออกบิล, แจ้งเตือน, ตรวจอุปกรณ์ ฯลฯ) กำลังออกแบบร่วมกันอยู่</div>
@@ -4608,6 +4615,7 @@ class Component extends DCLogic {
     // null for an unlimited/paid plan (LINE's quota API returns
     // { type: 'none' } for those — see server/routes/line.js's /usage).
     lineUsage: { configured: false, used: 0, limit: null },
+    geminiUsage: { totalCalls: 0, totalCostUsd: 0, monthCalls: 0, monthCostUsd: 0 },
     // "ใช้ไปกี่%...สูงสุด 10ล้านเซลล์" (2026-07-26) — Dashboard's Google
     // Sheet card usage gauge, loaded once from GET /api/settings/sheet-usage
     // (see loadSheetUsage), same lazy-load-on-mount pattern as lineUsage.
@@ -4776,6 +4784,7 @@ class Component extends DCLogic {
     this.loadFromServer();
     this.loadLineStatus();
     this.loadLineUsage();
+    this.loadGeminiUsage();
     this.loadSheetUsage();
     this.loadTuyaDevices();
     this.refreshTuyaLive();
@@ -9231,6 +9240,18 @@ class Component extends DCLogic {
       this.setState({ lineUsage: { configured: !!data.configured, used: data.used || 0, limit: data.limit == null ? null : data.limit } });
     } catch (err) { console.error(err); }
   };
+  // "สร้างเครดิต ที่ใช้ไปให้หน่อยครับ" (2026-08-02) — สรุปยอดใช้งาน Gemini
+  // สะสม (จำนวนครั้ง + ค่าใช้จ่ายประมาณการ USD) จาก GeminiUsageLog ผ่าน
+  // GET /api/claude/gemini-usage — ให้เห็นตัวเลขจริงในการ์ด AI ก่อนจะมี
+  // ระบบเก็บค่าบริการจริงผ่าน ช.นายท้าย ในอนาคต
+  loadGeminiUsage = async () => {
+    try {
+      const res = await fetch('/api/claude/gemini-usage');
+      if (!res.ok) return;
+      const data = await res.json();
+      this.setState({ geminiUsage: data });
+    } catch (err) { console.error(err); }
+  };
   // "ใช้ไปกี่%...สูงสุด 10ล้านเซลล์" (2026-07-26) — Dashboard's Google Sheet
   // card usage gauge, real cell-allocation count from Google's API. Loaded
   // once on mount, same as loadLineUsage (doesn't change fast enough to need
@@ -11694,6 +11715,15 @@ class Component extends DCLogic {
       aiEngineHeaderName: s.aiEngine === 'gemini' ? 'Gemini' : 'Claude',
       aiEngineHeaderIcon: s.aiEngine === 'gemini' ? 'G' : '✦',
       aiEngineHeaderBg: s.aiEngine === 'gemini' ? '#4285F4' : '#D97757',
+      // "สร้างเครดิต ที่ใช้ไปให้หน่อยครับ" (2026-08-02) — โชว์เฉพาะตอน
+      // เลือก Gemini ไว้ (ตอนใช้ Claude ยังไม่มีระบบนับแบบนี้ ANTHROPIC_API_KEY
+      // เป็น flat-rate ของโปรเจกต์ ไม่ใช่ per-building) และมีประวัติใช้งาน
+      // จริงมาแล้วอย่างน้อย 1 ครั้ง (ไม่โชว์ "0 ครั้ง" เปล่าๆ ให้ดูรกตา)
+      geminiUsageShow: s.aiEngine === 'gemini' && s.geminiUsage.totalCalls > 0,
+      geminiUsageMonthCalls: s.geminiUsage.monthCalls.toLocaleString('th-TH'),
+      geminiUsageMonthCostDisplay: '$' + s.geminiUsage.monthCostUsd.toFixed(4),
+      geminiUsageTotalCalls: s.geminiUsage.totalCalls.toLocaleString('th-TH'),
+      geminiUsageTotalCostDisplay: '$' + s.geminiUsage.totalCostUsd.toFixed(4),
 
       showRecurringModal: s.showRecurringModal, openRecurringModal: this.openRecurringModal, closeRecurringModal: this.closeRecurringModal,
       recurringTasks: recurringTasksView, noRecurringTasks: recurringTasksView.length === 0,

@@ -17,6 +17,32 @@ router.get('/health', (req, res) => {
   res.json({ connected: isConfigured() });
 });
 
+// "สร้างเครดิต ที่ใช้ไปให้หน่อยครับ" (2026-08-02) — สรุปยอดใช้งาน Gemini
+// สะสมของตึกนี้ จาก GeminiUsageLog (ที่ server/gemini.js's logUsage()
+// เขียนไว้ทุกครั้งที่เรียกจริง) — ให้เจ้าของเห็นว่าใช้ไปเท่าไรแล้ว ก่อนจะ
+// มีระบบเก็บค่าบริการจริงผ่านแพลตฟอร์ม ช.นายท้าย ในอนาคต (ตามที่คุยกันไว้
+// ตอนสร้างฟีเจอร์นี้) — ถ้าตึกนี้ยังไม่มีตาราง GeminiUsageLog เลย (ยังไม่
+// เคยรัน migration ให้) คืนค่า 0 ทุกอย่างเงียบๆ แทนการ error ทั้งหน้า
+router.get('/gemini-usage', async (req, res, next) => {
+  try {
+    let rows = [];
+    try { rows = await readTab('GeminiUsageLog'); } catch { rows = []; }
+    const now = new Date();
+    const thisMonthPrefix = now.toISOString().slice(0, 7); // "YYYY-MM"
+    let totalCalls = 0, totalCostUsd = 0, monthCalls = 0, monthCostUsd = 0;
+    rows.forEach((r) => {
+      const cost = Number(r.costUsd) || 0;
+      totalCalls++;
+      totalCostUsd += cost;
+      if (String(r.timestamp || '').startsWith(thisMonthPrefix)) { monthCalls++; monthCostUsd += cost; }
+    });
+    res.json({
+      totalCalls, totalCostUsd: Math.round(totalCostUsd * 1e6) / 1e6,
+      monthCalls, monthCostUsd: Math.round(monthCostUsd * 1e6) / 1e6,
+    });
+  } catch (err) { next(err); }
+});
+
 router.get('/monthly-summary', async (req, res, next) => {
   try {
     if (!isConfigured()) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ใน server/.env' });
