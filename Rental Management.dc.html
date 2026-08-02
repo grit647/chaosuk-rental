@@ -412,11 +412,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">รายจ่ายเดือนนี้</div>
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:#241812">{{ kpiExpenseSum }}</div>
                 <div style="font-size:12px;color:#7C6E5F;margin-top:6px">ดูบัญชีรายจ่ายทั้งหมด</div>
+                <div style="font-size:11px;color:#7C6E5F;margin-top:8px;padding-top:8px;border-top:1px solid #EDE6D8">รายจ่ายทั้งหมด <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:#241812">{{ kpiExpenseAllTime }}</span></div>
               </div>
               <div class="stat-card" style="flex:1;background:#FFFFFF;border-top:3px solid {{ kpiNetBorder }};border-radius:8px;padding:16px;box-sizing:border-box">
                 <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">{{ kpiNetLabel }}</div>
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:{{ kpiNetColor }}">{{ kpiNetDisplay }}</div>
                 <div style="font-size:12px;margin-top:6px;font-weight:500;color:{{ kpiNetColor }}">{{ kpiNetHint }}</div>
+                <div style="font-size:11px;color:#7C6E5F;margin-top:8px;padding-top:8px;border-top:1px solid #EDE6D8">กำไรสุทธิทั้งหมด <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:{{ kpiNetAllTimeColor }}">{{ kpiNetAllTimeDisplay }}</span></div>
               </div>
               <div class="stat-card" style="flex:1;background:#FFFFFF;border-top:3px solid #D9A15B;border-radius:8px;padding:16px;box-sizing:border-box">
                 <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">ห้องว่าง</div>
@@ -10809,6 +10811,13 @@ class Component extends DCLogic {
     const currentYm2 = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7);
     const expensesThisMonth = s.expenses.filter(e => (e.date || '').slice(0, 7) === currentYm2);
     const expenseTotal = expensesThisMonth.reduce((a, e) => a + e.amount, 0) + staffPayrollTotal;
+    // "เพิ่ม รายจ่ายรวม กับ กำไรสุทธิ รวมด้วยครับ" (2026-08-02) — same
+    // all-time treatment as dashAllTimeRevenue above: sum every Expenses
+    // row ever recorded (no month filter) + current staffPayrollTotal
+    // (payroll has no per-month history to sum, it's a snapshot of active
+    // staff × salary — same figure the monthly card already adds, kept
+    // consistent rather than double-counted differently here).
+    const expenseAllTimeTotal = s.expenses.reduce((a, e) => a + e.amount, 0) + staffPayrollTotal;
     // Per explicit user request: a small icon + the room/common tag (only
     // ค่าซ่อมบำรุง entries ever have one) shown per row so the owner can see
     // at a glance which expenses are tied to a specific room vs. the
@@ -11254,12 +11263,15 @@ class Component extends DCLogic {
       kpiPaidSum: this.fmt(dashMonthRevenue),
       kpiAllTimeRevenue: this.fmt(dashAllTimeRevenue),
       kpiExpenseSum: this.fmt(expenseTotal),
+      kpiExpenseAllTime: this.fmt(expenseAllTimeTotal),
       kpiNetDisplay: (dashMonthRevenue - expenseTotal >= 0 ? '+' : '−') + this.fmt(Math.abs(dashMonthRevenue - expenseTotal)),
       kpiNetPositive: dashMonthRevenue - expenseTotal >= 0,
       kpiNetColor: dashMonthRevenue - expenseTotal >= 0 ? '#3B7A52' : '#B24336',
       kpiNetBorder: dashMonthRevenue - expenseTotal >= 0 ? '#3B7A52' : '#B24336',
       kpiNetLabel: dashMonthRevenue - expenseTotal >= 0 ? 'กำไรสุทธิเดือนนี้' : 'ขาดทุนสุทธิเดือนนี้',
       kpiNetHint: dashMonthRevenue - expenseTotal >= 0 ? 'รายรับมากกว่ารายจ่าย' : 'รายจ่ายมากกว่ารายรับ',
+      kpiNetAllTimeDisplay: (dashAllTimeRevenue - expenseAllTimeTotal >= 0 ? '+' : '−') + this.fmt(Math.abs(dashAllTimeRevenue - expenseAllTimeTotal)),
+      kpiNetAllTimeColor: dashAllTimeRevenue - expenseAllTimeTotal >= 0 ? '#3B7A52' : '#B24336',
       kpiVacantFraction: s.rooms.filter(r => r.status === 'vacant').length + ' / ' + s.rooms.length,
       kpiOverdueCount: overdueList.length + ' ห้อง',
       kpiOverdueSum: 'รวม ' + this.fmt(overdueSum),
