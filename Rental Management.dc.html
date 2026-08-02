@@ -3133,6 +3133,32 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <!-- "การกรอกตัวเลขใบเสร็จผิด...แก้ไขได้จากส่วนไหน" (2026-08-02) —
+             เดิมไม่มีทางแก้ "ยอดที่ยืนยันชำระแล้ว" (amountPaid/status) ของ
+             บิลที่กดยืนยันสลิปไปแล้วเลย มีแค่ "แก้ไขใบแจ้งหนี้" ซึ่งแก้ได้
+             แค่ยอดที่ควรจ่าย (ค่าเช่า/น้ำ/ไฟ) ไม่ใช่ยอดที่จ่ายจริง — เพิ่ม
+             modal นี้ (เปิดจากปุ่ม "✏️" ใน "📋 ประวัติบิล", ดู
+             billHistoryItems's onEditPaidAmount) ให้แก้ไข "ยอดที่ควรจะ
+             ถูกต้อง" ได้โดยตรง โดยใช้ใบแจ้งหนี้เดิม (ไม่สร้างบิลใหม่ ไม่
+             ต้องย้อนกลับไปหน้าคิวสลิป) — เหมือนกลไก "แก้ไขยอดเงินล่วงหน้า"
+             ด้านบนทุกประการ (บันทึกส่วนต่างลง PaymentLog เสมอ ไม่แก้ทับ
+             เงียบๆ) ดู saveEditPaidAmount สำหรับ logic เต็ม. -->
+        <sc-if value="{{ showEditPaidAmountModal }}">
+          <div onclick="{{ closeEditPaidAmountModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">แก้ไขยอดที่ยืนยันชำระ</div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:16px">บิล {{ editPaidAmountInvoiceId }} · ห้อง {{ editPaidAmountRoomId }}</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ยอดที่ถูกต้อง — ชำระแล้วทั้งหมด (บาท)</div>
+              <input type="number" value="{{ editPaidAmountDraft }}" onchange="{{ onEditPaidAmountDraftChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+              <div style="font-size:10.5px;color:#A89A88;margin-top:6px">ยอดบิลนี้ {{ editPaidAmountTotalDisplay }} — ใส่ยอดที่ควรถูกต้อง ระบบจะปรับสถานะบิล (ชำระแล้ว/บางส่วน) ให้อัตโนมัติ และบันทึกส่วนต่างลงบัญชีเงินเข้าให้ตรง ไม่กระทบยอดในใบแจ้งหนี้เดิม</div>
+              <div style="display:flex;gap:10px;margin-top:20px">
+                <button onclick="{{ closeEditPaidAmountModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ saveEditPaidAmount }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึก</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showClearDataModal }}">
           <div onclick="{{ closeClearDataModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:230">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;max-height:88vh;overflow-y:auto;box-sizing:border-box">
@@ -3694,6 +3720,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                           <div style="display:flex;justify-content:space-between;font-size:11.5px"><span style="color:#B85B27">ชำระแล้ว</span><span style="font-family:'IBM Plex Mono',monospace;color:#B85B27;font-weight:600">{{ h.amountPaidDisplay }}</span></div>
                           <div style="display:flex;justify-content:space-between;font-size:11.5px"><span style="color:#B24336">คงเหลือ</span><span style="font-family:'IBM Plex Mono',monospace;color:#B24336;font-weight:700">{{ h.remainingDueDisplay }}</span></div>
                         </div>
+                      </sc-if>
+                      <sc-if value="{{ h.canEditPaidAmount }}" hint-placeholder-val="{{ false }}">
+                        <span onclick="{{ h.onEditPaidAmount }}" style="align-self:flex-start;font-size:10.5px;color:#C1622D;font-weight:600;cursor:pointer;margin-top:1px">✏️ แก้ไขยอดที่ยืนยันชำระ</span>
                       </sc-if>
                       <sc-if value="{{ h.hasSlips }}" hint-placeholder-val="{{ false }}">
                         <div style="margin-top:2px">
@@ -4575,6 +4604,9 @@ class Component extends DCLogic {
     showEditCreditModal: false,
     editCreditRoomId: '',
     editCreditDraft: '',
+    showEditPaidAmountModal: false,
+    editPaidAmountInvoiceId: '',
+    editPaidAmountDraft: '',
     showClearDataModal: false,
     clearDataChecks: {},
     clearDataConfirmText: '',
@@ -8367,6 +8399,60 @@ class Component extends DCLogic {
     } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
   });
 
+  // Direct manual correction of a bill's CONFIRMED-paid amount — added per
+  // explicit user request 2026-08-02 ("การกรอกตัวเลขใบเสร็จผิด...ระบบตัด
+  // ไปแล้ว เราจะแก้ไขได้จากส่วนไหน"). Before this there was no way to fix
+  // amountPaid/status after a slip got confirmed with the wrong number —
+  // "แก้ไขใบแจ้งหนี้" only ever edited the CHARGE fields (rent/water/elec),
+  // never what was actually recorded as paid. Same pattern as
+  // saveEditCredit above: owner enters the CORRECT total (not a delta), we
+  // log the difference into paymentLog so the Dashboard/accounting figures
+  // stay accurate instead of silently drifting from what got corrected.
+  openEditPaidAmount = (invoiceId) => {
+    const inv = this.state.invoices.find(i => i.id === invoiceId);
+    if (!inv) return;
+    this.setState({
+      showEditPaidAmountModal: true, editPaidAmountInvoiceId: invoiceId,
+      editPaidAmountDraft: String(inv.amountPaid || 0),
+    });
+  };
+  closeEditPaidAmountModal = () => this.setState({ showEditPaidAmountModal: false, editPaidAmountInvoiceId: '', editPaidAmountDraft: '' });
+  onEditPaidAmountDraftChange = (e) => this.setState({ editPaidAmountDraft: e.target.value });
+  saveEditPaidAmount = () => this._guard('saveEditPaidAmount:' + this.state.editPaidAmountInvoiceId, async () => {
+    const id = this.state.editPaidAmountInvoiceId;
+    const amt = Number(this.state.editPaidAmountDraft);
+    if (!id || !Number.isFinite(amt) || amt < 0) { this.showAdminToast('กรุณาใส่ยอดเป็นตัวเลข'); return; }
+    const inv = this.state.invoices.find(i => i.id === id);
+    if (!inv) return;
+    const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
+    const before = inv.amountPaid || 0;
+    // Recompute status the same way resolveSlip/markInvoicePaid already do
+    // elsewhere: fully covered → 'paid', something but not enough →
+    // 'partial', corrected back down to nothing → 'pending' (reopens the
+    // bill — matches what would have happened if the slip had simply never
+    // been confirmed). paidDate only makes sense for a genuinely 'paid'
+    // bill; clear it otherwise so a re-opened bill doesn't still show an
+    // old paid date.
+    const newStatus = amt <= 0 ? 'pending' : (total > 0 && amt >= total ? 'paid' : 'partial');
+    try {
+      const res = await fetch('/api/invoices/' + encodeURIComponent(id), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amountPaid: amt, status: newStatus,
+          paidDate: newStatus === 'paid' ? new Date().toISOString().slice(0, 10) : '',
+        }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      const updated = await res.json();
+      this.setState(s => ({
+        invoices: s.invoices.map(i => i.id === id ? updated : i),
+        showEditPaidAmountModal: false, editPaidAmountInvoiceId: '', editPaidAmountDraft: '',
+      }));
+      this.showAdminToast('แก้ไขยอดที่ยืนยันชำระของบิล ' + id + ' เป็น ' + this.fmt(amt) + ' แล้ว');
+      this._logPayment(inv.room, amt - before, 'adjustment', 'แก้ไขยอดชำระบิล ' + id + ' (' + this.fmt(before) + ' → ' + this.fmt(amt) + ')');
+    } catch (err) { this.showAdminToast(err.message || 'บันทึกไม่สำเร็จ'); }
+  });
+
   // Manual amount correction for a slip OCR couldn't read (see ocrFailed in
   // server/routes/line.js) — a real user hit this exact case: confirmed an
   // advance payment that silently went through as ฿0 because the slip's
@@ -11466,6 +11552,15 @@ class Component extends DCLogic {
       confirmRejectUnmatchedSlip: this.confirmRejectUnmatchedSlip,
       showEditCreditModal: s.showEditCreditModal, editCreditRoomId: s.editCreditRoomId, editCreditDraft: s.editCreditDraft,
       closeEditCreditModal: this.closeEditCreditModal, onEditCreditDraftChange: this.onEditCreditDraftChange, saveEditCredit: this.saveEditCredit,
+      showEditPaidAmountModal: s.showEditPaidAmountModal, editPaidAmountDraft: s.editPaidAmountDraft,
+      editPaidAmountInvoiceId: s.editPaidAmountInvoiceId,
+      editPaidAmountRoomId: (s.invoices.find(i => i.id === s.editPaidAmountInvoiceId) || {}).room || '',
+      editPaidAmountTotalDisplay: (() => {
+        const inv = s.invoices.find(i => i.id === s.editPaidAmountInvoiceId);
+        if (!inv) return '-';
+        return this.fmt(inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0));
+      })(),
+      closeEditPaidAmountModal: this.closeEditPaidAmountModal, onEditPaidAmountDraftChange: this.onEditPaidAmountDraftChange, saveEditPaidAmount: this.saveEditPaidAmount,
       showBillHistory: s.showBillHistory, closeBillHistory: this.closeBillHistory,
       billHistoryRoomId: s.billHistoryRoomId,
       billHistoryItems: (() => {
@@ -11535,6 +11630,13 @@ class Component extends DCLogic {
             remainingDueDisplay: this.fmt(Math.max(0, total - amountPaid)),
             hasSlips: slipsForDisplay.length > 0,
             slips: slipsForDisplay,
+            // "กรอกตัวเลขใบเสร็จผิด...แก้ไขได้จากส่วนไหน" (2026-08-02) —
+            // เฉพาะบิลที่มีการยืนยันชำระมาแล้วจริง (paid หรือ partial ที่
+            // amountPaid > 0) เท่านั้นที่มีอะไรให้แก้ — บิลที่ยังไม่มีใคร
+            // ชำระเลย (pending/overdue, amountPaid === 0) ไม่มีตัวเลข
+            // "ที่ยืนยันไปแล้ว" ให้แก้ ปุ่มนี้ไม่ควรโผล่.
+            canEditPaidAmount: i.status === 'paid' || amountPaid > 0,
+            onEditPaidAmount: () => this.openEditPaidAmount(i.id),
           };
         });
       })(),
