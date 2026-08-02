@@ -990,6 +990,45 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               </div>
             </div>
           </div>
+
+          <!-- "ตอนนี้บิลที่ชำระแล้ว เราไม่สามารถดูได้ มันไม่มีรายงานที่
+               บันทึกไว้หรือครับ" (2026-08-02) — ตารางแยกต่างหาก พับ/กางได้
+               (ปุ่มหัวข้อกดเพื่อกาง) เก็บประวัติบิลที่จ่ายแล้วทั้งหมด
+               เรียงจากจ่ายล่าสุดก่อน -->
+          <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;margin-top:16px;overflow-x:auto">
+            <div style="min-width:640px">
+              <div onclick="{{ togglePaidBillsSection }}" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <span style="font-size:13px;color:#7C6E5F">{{ paidBillsToggleIcon }}</span>
+                <div style="font-size:14px;font-weight:700;color:#241812">✅ บิลที่ชำระแล้ว ({{ paidBillsCount }})</div>
+              </div>
+              <sc-if value="{{ showPaidBillsSection }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:14px">
+                  <div style="display:grid;grid-template-columns:0.5fr 1.5fr 1fr 1fr 1.3fr;gap:12px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#9C8B78;padding-bottom:11px;border-bottom:2px solid #EDE1CE">
+                    <div>ห้อง</div><div>ผู้เช่า</div><div>ยอดที่จ่าย</div><div>วันที่จ่าย</div><div>ใบเสร็จ</div>
+                  </div>
+                  <sc-if value="{{ paidBillsCount }}" hint-placeholder-val="{{ true }}">
+                    <sc-for list="{{ paidBills }}" as="pb" hint-placeholder-count="4">
+                      <div style="display:grid;grid-template-columns:0.5fr 1.5fr 1fr 1fr 1.3fr;gap:12px;font-size:12.5px;color:#241812;padding:13px 0;border-bottom:1px solid #F3ECE0;align-items:center">
+                        <div style="font-weight:700;font-family:'IBM Plex Mono',monospace">{{ pb.room }}</div>
+                        <div style="font-weight:500">{{ pb.tenant }}</div>
+                        <div style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:#3B7A52">{{ pb.totalDisplay }}</div>
+                        <div style="color:#7C6E5F;font-size:12px">{{ pb.paidDateDisplay }}</div>
+                        <div style="display:flex;gap:6px">
+                          <span onclick="{{ pb.onOpenHistory }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap">📋 ดูรายละเอียด</span>
+                          <sc-if value="{{ pb.hasReceiptImage }}" hint-placeholder-val="{{ false }}">
+                            <a href="{{ pb.receiptDownloadUrl }}" download style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;text-decoration:none;white-space:nowrap">⬇️</a>
+                          </sc-if>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </sc-if>
+                  <sc-if value="{{ noPaidBills }}" hint-placeholder-val="{{ false }}">
+                    <div style="text-align:center;padding:32px;color:#A89A88;font-size:12.5px">ยังไม่มีบิลที่ชำระแล้วเลย</div>
+                  </sc-if>
+                </div>
+              </sc-if>
+            </div>
+          </div>
           </sc-if>
 
           <sc-if value="{{ isMaintenance }}" hint-placeholder-val="{{ false }}">
@@ -4345,6 +4384,9 @@ class Component extends DCLogic {
     // table) — per explicit user request, to look back at recent water/elec
     // units without leaving the Bills page.
     showBillHistory: false,
+    // "บิลที่ชำระแล้ว เราไม่สามารถดูได้" (2026-08-02) — เริ่มพับไว้เสมอ
+    // กันหน้าบิลยาวเกินไปถ้ามีบิลจ่ายแล้วสะสมมาก
+    showPaidBillsSection: false,
     billHistoryRoomId: '',
     showRoomEditModal: false,
     editRoomForm: { tenant: '', phone: '', rent: '' },
@@ -6522,6 +6564,7 @@ class Component extends DCLogic {
   // when they were created).
   openBillHistory = (roomId) => this.setState({ showBillHistory: true, billHistoryRoomId: roomId });
   closeBillHistory = () => this.setState({ showBillHistory: false, billHistoryRoomId: '' });
+  togglePaidBillsSection = () => this.setState(s => ({ showPaidBillsSection: !s.showPaidBillsSection }));
   openInvoiceModeModal = () => this.setState({ showInvoiceModeModal: true });
   closeInvoiceModeModal = () => this.setState({ showInvoiceModeModal: false });
   chooseSingleInvoiceMode = () => {
@@ -9913,6 +9956,26 @@ class Component extends DCLogic {
     // unmatched-slip room pickers — those aren't about billing status.
     const roomsWithOpenBill = new Set(s.invoices.filter(i => i.status !== 'paid').map(i => i.room));
     const invoiceRoomSelectOptions = roomSelectOptions.filter(o => !roomsWithOpenBill.has(o.value));
+    // "ตอนนี้บิลที่ชำระแล้ว เราไม่สามารถดูได้ มันไม่มีรายงานที่บันทึกไว้
+    // หรือครับ" (2026-08-02) — เดิมมีแค่ยอดรวม/จำนวนบิล "ชำระแล้ว" เป็น
+    // KPI การ์ดสรุปเฉยๆ (ดู paidList ด้านล่าง) ไม่มีที่ไหนให้ไล่ดูรายการ
+    // บิลที่จ่ายแล้วทีละใบเลย (ตารางหลักด้านบนกรองแค่ status !== 'paid')
+    // — เพิ่มตารางแยกต่างหาก พับ/กางได้ (เริ่มพับไว้ กันหน้ายาวเกินไปถ้ามี
+    // บิลจ่ายแล้วสะสมเยอะ) เรียงจากจ่ายล่าสุดก่อน
+    const paidBills = s.invoices.filter(i => i.status === 'paid')
+      .slice().sort((a, b) => (b.paidDate || '').localeCompare(a.paidDate || ''))
+      .map(i => {
+        const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
+        return {
+          id: i.id, room: i.room, tenant: i.tenant,
+          totalDisplay: this.fmt(total),
+          paidDateDisplay: this.formatThaiDateLabel(i.paidDate) || i.paidDate || '—',
+          hasReceiptImage: !!i.receiptImageUrl,
+          receiptImageUrl: i.receiptImageUrl || '',
+          receiptDownloadUrl: this._forceDownloadUrl(i.receiptImageUrl || ''),
+          onOpenHistory: () => this.openBillHistory(i.room),
+        };
+      });
     const pendingBills = s.invoices.filter(i => i.status !== 'paid').map(i => {
       const cd = s.connData[i.room];
       const billRoom = s.rooms.find(r => r.id === i.room);
@@ -11188,6 +11251,9 @@ class Component extends DCLogic {
       newsImagePreview: s.newsForm.image ? React.createElement('img', { src: s.newsForm.image, style: { width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid #E3D8C8' } }) : null,
 
       billingChips, invoicesView, pendingBills, pendingBillsCount, noPendingBills: pendingBillsCount === 0,
+      paidBills, paidBillsCount: paidBills.length, noPaidBills: paidBills.length === 0,
+      showPaidBillsSection: s.showPaidBillsSection, togglePaidBillsSection: this.togglePaidBillsSection,
+      paidBillsToggleIcon: s.showPaidBillsSection ? '▾' : '▸',
       showSlipReview: s.showSlipReview, closeSlipReview: this.closeSlipReview, slipReview, hasSlipReview: !!slipReview,
       showResolveSlipConfirm: s.showResolveSlipConfirm, closeResolveSlipConfirm: this.closeResolveSlipConfirm, confirmResolveSlip: this.confirmResolveSlip,
       resolveSlipConfirmDueDate: s.resolveSlipConfirmDueDate, onResolveSlipDueDateChange: this.onResolveSlipDueDateChange,
