@@ -104,6 +104,31 @@ const requireLogin = (req, res, next) => {
   if (req.session.role === 'tenant') return res.redirect('/tenant-portal');
   next();
 };
+// "ช.นายท้าย" (2026-08-03, แพลตฟอร์มที่ 4 — AI คอยดูแลระบบ/API ของทั้ง 3
+// แพลตฟอร์มพร้อมกัน) — ปิงไม่บ่อย (แค่ทุก 15-20 นาที) เลยยอมให้แตะ Sheets
+// จริงได้ (readTab() ไม่มี session context เลยตรงนี้ → SHEET_ID() fallback
+// ไปที่ process.env.GOOGLE_SHEET_ID บัญชีหลักอัตโนมัติ — ตรงกับที่อยาก
+// เช็ค คือ Sheets ของบัญชีหลักยังต่อได้จริงไหม) ไม่ต้อง auth (แค่สถานะ
+// ระบบ ไม่ใช่ข้อมูลลูกค้า)
+app.get('/api/system-health', async (req, res) => {
+  const checks = {};
+  try {
+    const start = Date.now();
+    await require('./sheets').readTab('Settings');
+    checks.googleSheets = { ok: true, latencyMs: Date.now() - start };
+  } catch (err) {
+    checks.googleSheets = { ok: false, error: err.message };
+  }
+  checks.line = { ok: !!(process.env.LINE_CHANNEL_ACCESS_TOKEN && process.env.LINE_CHANNEL_SECRET), configured: !!process.env.LINE_CHANNEL_ACCESS_TOKEN };
+  try {
+    checks.ai = { ok: require('./claude').isConfigured(), provider: 'claude' };
+  } catch (err) {
+    checks.ai = { ok: false, provider: 'claude', error: err.message };
+  }
+  const allOk = Object.values(checks).every((c) => c.ok);
+  res.json({ ok: allOk, platform: 'chaosuk-rental', timestamp: new Date().toISOString(), checks });
+});
+
 app.get('/', noCache, requireLogin, (req, res) => res.sendFile(path.join(ROOT, 'Rental Management.dc.html')));
 // Per explicit user request: a frictionless demo entry point — no login
 // form, no account needed. Sets a session scoped to a dedicated, separate
