@@ -6,15 +6,20 @@
 // ตรง/ไม่มี ปฏิเสธทันที ป้องกันใครก็ได้ที่รู้ URL มาสั่งส่งข้อความปลอมหา
 // ผู้เช่า/เจ้าของจริงได้
 //
-// ข้อจำกัด (เหมือน /api/system-health): endpoint นี้ไม่มี session/
-// customerSheetId context ให้รู้ว่ากำลังหมายถึงตึกไหน — เข้าถึงได้แค่บัญชี
-// หลัก (server/.env's GOOGLE_SHEET_ID) เท่านั้น ไม่รวมอีก 2 ตึกที่มี Sheet
-// แยกของตัวเอง (บ้านเลขที่1873/บ้านพักครูโจ)
+// ต่างจาก 2 แพลตฟอร์มพี่น้อง (check-service-24/wholesale-order — Sheet
+// เดียวใช้ร่วมกันหลายร้านจริงที่เป็นเจ้าของคนอื่น): เช่าสุขทุกตึกเป็นของ
+// คุณต้นคนเดียว (แค่แยก Google Sheet ต่อตึก) เลยอนุญาตให้ "เลือกทั้งหมด"
+// (ส่งหาทุกตึกพร้อมกัน) ได้ — customerSheetId เป็น optional: ไม่ระบุ =
+// บัญชีหลัก (เหมือนเดิม, backward compatible) ระบุ = ใช้ runWithSheetId
+// สลับไปตึกนั้นก่อนอ่าน/ส่ง
 const express = require('express');
 const router = express.Router();
 const { readTab } = require('./../sheets');
-const { readSettings } = require('../coerce');
+const { readSettings, readIntegrationCredentials } = require('../coerce');
 const { pushMessage, isConfigured: lineConfigured } = require('../line');
+const { runWithSheetId } = require('../requestContext');
+
+const DIRECTORY_SHEET_ID = process.env.GOOGLE_DIRECTORY_SHEET_ID;
 
 function requireSharedKey(req, res, next) {
   const key = req.headers['x-chor-naithai-key'];
@@ -25,18 +30,50 @@ function requireSharedKey(req, res, next) {
 }
 router.use(requireSharedKey);
 
+async function withScope(customerSheetId, fn) {
+  if (!customerSheetId) return fn(); // ไม่ระบุ = บัญชีหลัก (เหมือนเดิมก่อนมี multi-building)
+  return runWithSheetId(customerSheetId, fn);
+}
+
+// รายชื่อตึกทั้งหมดของคุณต้น — ให้ ช.นายท้าย โชว์เป็น dropdown (รวม
+// "ทุกตึก" ได้ เพราะทุกตึกเป็นของคุณต้นคนเดียว ต่างจาก 2 แพลตฟอร์มพี่น้อง
+// ที่ร้าน/ธุรกิจเป็นของคนอื่นจริง)
+router.get('/list-scopes', async (req, res, next) => {
+  try {
+    if (!DIRECTORY_SHEET_ID) return res.json({ scopes: [] });
+    const users = await runWithSheetId(DIRECTORY_SHEET_ID, () => readTab('Users'));
+    const seen = new Set();
+    const rows = users.filter((u) => u.customerSheetId && !seen.has(u.customerSheetId) && seen.add(u.customerSheetId) && u.status !== 'suspended');
+    const scopes = await Promise.all(rows.map(async (u) => {
+      let name = u.customerSheetId === process.env.GOOGLE_SHEET_ID ? 'ตึกหลัก' : 'ตึกของคุณต้น';
+      try {
+        const settings = await runWithSheetId(u.customerSheetId, () => readSettings());
+        if (settings.propertyProfile && settings.propertyProfile.name) name = settings.propertyProfile.name;
+      } catch { /* ใช้ค่า fallback ด้านบน */ }
+      return { id: u.customerSheetId, name };
+    }));
+    res.json({ scopes });
+  } catch (err) { next(err); }
+});
+
 // ส่งข้อความหาเจ้าของ (adminLineUserId ที่ตั้งไว้ในหน้า "ผู้ดูแลหอพัก")
 router.post('/notify-owner', async (req, res, next) => {
   try {
-    const { message } = req.body || {};
+    const { message, customerSheetId } = req.body || {};
     if (!message || !String(message).trim()) return res.status(400).json({ error: 'กรุณาระบุข้อความ' });
-    if (!lineConfigured()) return res.status(400).json({ error: 'บัญชีนี้ยังไม่ได้เชื่อมต่อ LINE' });
-    const settings = await readSettings();
-    const adminId = settings.propertyProfile && settings.propertyProfile.adminLineUserId;
-    if (!adminId) return res.status(400).json({ error: 'ยังไม่ได้เชื่อมบัญชี LINE เจ้าของ (adminLineUserId ว่าง)' });
-    await pushMessage(adminId, message);
+    await withScope(customerSheetId, async () => {
+      const creds = await readIntegrationCredentials();
+      if (!lineConfigured(creds.line)) throw Object.assign(new Error('บัญชีนี้ยังไม่ได้เชื่อมต่อ LINE'), { status: 400 });
+      const settings = await readSettings();
+      const adminId = settings.propertyProfile && settings.propertyProfile.adminLineUserId;
+      if (!adminId) throw Object.assign(new Error('ยังไม่ได้เชื่อมบัญชี LINE เจ้าของ (adminLineUserId ว่าง)'), { status: 400 });
+      await pushMessage(adminId, message, undefined, creds.line);
+    });
     res.json({ ok: true });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 // ค้นหาผู้เช่า (ห้อง) — พิมพ์ชื่อ/เบอร์/เลขห้อง จับคู่แบบ "มีคำนี้อยู่บ้าง"
@@ -47,35 +84,43 @@ router.get('/search-recipient', async (req, res, next) => {
   try {
     const q = String(req.query.q || '').trim().toLowerCase();
     if (!q) return res.json({ results: [] });
-    const rooms = await readTab('Rooms');
-    const results = rooms
-      .filter((r) => {
-        const hay = [r.id, r.tenant, r.phone].filter(Boolean).join(' ').toLowerCase();
-        return hay.includes(q);
-      })
-      .slice(0, 20)
-      .map((r) => ({
-        id: r.id,
-        label: `ห้อง ${r.id}${r.tenant ? ` — ${r.tenant}` : ''}${r.phone ? ` (${r.phone})` : ''}`,
-        hasLine: !!r.lineUserId,
-      }));
+    const results = await withScope(req.query.customerSheetId, async () => {
+      const rooms = await readTab('Rooms');
+      return rooms
+        .filter((r) => {
+          const hay = [r.id, r.tenant, r.phone].filter(Boolean).join(' ').toLowerCase();
+          return hay.includes(q);
+        })
+        .slice(0, 20)
+        .map((r) => ({
+          id: r.id,
+          label: `ห้อง ${r.id}${r.tenant ? ` — ${r.tenant}` : ''}${r.phone ? ` (${r.phone})` : ''}`,
+          hasLine: !!r.lineUserId,
+        }));
+    });
     res.json({ results });
   } catch (err) { next(err); }
 });
 
 router.post('/send-to-recipient', async (req, res, next) => {
   try {
-    const { id, message } = req.body || {};
+    const { id, message, customerSheetId } = req.body || {};
     if (!id) return res.status(400).json({ error: 'กรุณาระบุ id' });
     if (!message || !String(message).trim()) return res.status(400).json({ error: 'กรุณาระบุข้อความ' });
-    if (!lineConfigured()) return res.status(400).json({ error: 'บัญชีนี้ยังไม่ได้เชื่อมต่อ LINE' });
-    const rooms = await readTab('Rooms');
-    const room = rooms.find((r) => String(r.id) === String(id));
-    if (!room) return res.status(404).json({ error: 'ไม่พบห้องนี้' });
-    if (!room.lineUserId) return res.status(400).json({ error: 'ห้องนี้ยังไม่ได้เชื่อมต่อ LINE' });
-    await pushMessage(room.lineUserId, message);
+    await withScope(customerSheetId, async () => {
+      const creds = await readIntegrationCredentials();
+      if (!lineConfigured(creds.line)) throw Object.assign(new Error('บัญชีนี้ยังไม่ได้เชื่อมต่อ LINE'), { status: 400 });
+      const rooms = await readTab('Rooms');
+      const room = rooms.find((r) => String(r.id) === String(id));
+      if (!room) throw Object.assign(new Error('ไม่พบห้องนี้'), { status: 404 });
+      if (!room.lineUserId) throw Object.assign(new Error('ห้องนี้ยังไม่ได้เชื่อมต่อ LINE'), { status: 400 });
+      await pushMessage(room.lineUserId, message, undefined, creds.line);
+    });
     res.json({ ok: true });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 module.exports = router;
