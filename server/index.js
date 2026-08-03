@@ -120,6 +120,20 @@ app.get('/api/system-health', async (req, res) => {
     checks.googleSheets = { ok: false, error: err.message };
   }
   checks.line = { ok: !!(process.env.LINE_CHANNEL_ACCESS_TOKEN && process.env.LINE_CHANNEL_SECRET), configured: !!process.env.LINE_CHANNEL_ACCESS_TOKEN };
+  // โควตาข้อความ LINE ของบัญชีหลัก (server/.env) เท่านั้น — ไม่รวมอีก 2
+  // ตึกที่มี LINE OA แยกของตัวเอง (บ้านเลขที่1873/บ้านพักครูโจ) เพราะ
+  // endpoint นี้ไม่มี session/customerSheetId context ให้รู้ว่าจะเช็คตึก
+  // ไหน (คุณต้นยืนยันแล้วว่าเอาแค่ตัวหลักก่อนพอ) ไม่ error ทั้ง check ถ้า
+  // ดึงโควตาไม่ได้ — เป็นข้อมูลเสริม ไม่ใช่ตัวชี้ว่า LINE เชื่อมต่อได้ไหม
+  if (checks.line.configured) {
+    try {
+      const { getMessageQuota, getMessageQuotaConsumption } = require('./line');
+      const [quota, consumption] = await Promise.all([getMessageQuota(), getMessageQuotaConsumption()]);
+      checks.line.quota = { limit: quota.value ?? null, type: quota.type, used: consumption.totalUsage };
+    } catch (err) {
+      checks.line.quotaError = err.message;
+    }
+  }
   try {
     checks.ai = { ok: require('./claude').isConfigured(), provider: 'claude' };
   } catch (err) {
