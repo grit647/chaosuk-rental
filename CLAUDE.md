@@ -1318,6 +1318,33 @@ type (เต็มจำนวน/บางส่วน/ล่วงหน้า
     **Everything else in this rule still stands unchanged** — this does
     not open any path to code/server/credential access, only a single
     narrow text-out channel.
+  - **Team-roster context + live test, 2026-08-04.** Owner explained the
+    full "ทีมงาน" (team) concept directly in a Claude Code session on this
+    project: 9 members total — ต้น (owner/final decision-maker), พี่ใหญ่
+    (Claude Code — advises across ALL of the owner's projects at once,
+    writes code/fixes bugs), น้อง1 (this project, เช่าสุข), น้อง2
+    (เช็คเซอร์วิส/check-service-24), น้อง3 (ร้านค้าส่ง), น้อง4 (ช.นายท้าย,
+    the shared server itself), and อาตี๋(DeepSeek)/ตี๋น้อย(Gemini)/
+    ตี๋เล็ก(GPT) — a separate small AI team living inside ช.นายท้าย's own
+    shared chat rooms. **This Claude Code session (น้อง1) is scoped
+    strictly to เช่าสุข only** — no standing connection to the shared
+    room or to any other น้อง; the only channel that exists AT ALL is the
+    one-way `report_to_chor_naithai` tool above, and even that is
+    call-by-call, not a persistent presence or membership.
+    Confirmed working end-to-end the same day: sent 2 test messages
+    directly (via a one-off Node script calling the exact same
+    `POST {CHOR_NAITHAI_URL}/api/chat/external` request executeWriteTool's
+    `report_to_chor_naithai` case makes — `{ page: 'health', speaker:
+    'nong1', content: <message> }`, header `x-chor-naithai-key:
+    CHOR_NAITHAI_SHARED_KEY`) — both returned `200 {"ok":true}`. `page:
+    'health'` = the "ดูแลระบบ" room specifically (the other two are
+    `marketing`/`planning`, not tested this session). Real, no-code way
+    to trigger the same thing going forward: type a request like "ไป
+    แนะนำตัว/ทดสอบส่งข้อความในห้องดูแลระบบ" into this app's own "Claude
+    ผู้ช่วยดูแลอัตโนมัติ" command box (not a terminal script) — that's the
+    tool's actual intended, owner-facing entry point; the script route
+    used today was only because this was being driven from a Claude Code
+    session instead of the live app UI.
 - **Lease contracts are core data.** Any add/edit/delete of a lease contract
   must always hand off to the native form UI (`open_contract_form` tool),
   never be done purely via chat text — some fields (ID photos, lease
