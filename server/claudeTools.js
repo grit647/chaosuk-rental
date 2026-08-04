@@ -296,6 +296,25 @@ const TOOLS = [
       required: ['roomId'],
     },
   },
+  {
+    // ข้อยกเว้นถาวรเฉพาะจุด (2026-08-04, คุณต้นยืนยันชัดเจนแยกต่างหากจาก
+    // "No code/server/credential access" — ดู CLAUDE.md's permanent rule
+    // note เต็ม) — ส่งข้อความได้ทางเดียวเท่านั้น (write-only, ไม่มีทาง
+    // อ่าน/แก้ไข/ควบคุมอะไรใน ช.นายท้ายกลับมาเลย) ใช้ secret เดียวกับ
+    // ฟีเจอร์ส่งข้อความ LINE ข้ามระบบที่มีอยู่แล้ว (CHOR_NAITHAI_SHARED_KEY)
+    // เรียกใช้ได้แค่ตอนคุณต้นพิมพ์สั่งในกล่องคำสั่งนี้เท่านั้น (ไม่มีทางถูก
+    // เรียกจาก server/scheduler.js หรืองานอัตโนมัติอื่นใดเลย)
+    name: 'report_to_chor_naithai',
+    description: 'ส่งข้อความไปยังห้องแชทของ ช.นายท้าย (แพลตฟอร์มที่ 4 ที่คอยดูแล/ตรวจสอบระบบทั้งหมด) — ใช้เมื่อคุณต้นสั่งให้ไปแนะนำตัว/รายงานสถานะ/คุยกับทีม AI ตัวอื่นในห้องนั้น ใช้ได้เฉพาะตอนคุณต้นสั่งเท่านั้น ห้ามเรียกเองโดยไม่มีคำสั่ง',
+    input_schema: {
+      type: 'object',
+      properties: {
+        page: { type: 'string', enum: ['health', 'marketing', 'planning'], description: 'ห้องแชทปลายทาง: health=ดูแลระบบ, marketing=การตลาด, planning=แผนงาน' },
+        message: { type: 'string', description: 'ข้อความที่จะส่ง' },
+      },
+      required: ['page', 'message'],
+    },
+  },
 ];
 
 const READ_TOOL_NAMES = new Set(['get_rooms', 'check_lease_completeness', 'get_pending_invoices', 'get_paid_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary', 'get_electricity_log', 'get_calendar_events', 'get_payment_log', 'get_unmatched_slips']);
@@ -468,6 +487,10 @@ async function describeWriteTool(name, input) {
       const dateStr = `${input.year}-${String(input.month).padStart(2, '0')}-${String(input.day).padStart(2, '0')}`;
       const target = input.roomId === 'all' ? 'ทุกห้องที่เชื่อมต่อ LINE แล้ว' : 'ห้อง ' + input.roomId;
       return `ตั้งเวลาส่ง LINE ถึง${target}: "${input.message}" ในวันที่ ${dateStr} เวลา ${input.time} (ต้องเปิดสวิตช์ "เปิดใช้งานฟีเจอร์นี้" ไว้ ไม่งั้นจะไม่ถูกส่งเมื่อถึงเวลา)`;
+    }
+    case 'report_to_chor_naithai': {
+      const pageLabel = { health: 'ดูแลระบบ', marketing: 'การตลาด', planning: 'แผนงาน' }[input.page] || input.page;
+      return `ส่งข้อความไปห้องแชท "${pageLabel}" ของ ช.นายท้าย: "${input.message}"`;
     }
     default:
       return `ทำรายการ "${name}"`;
@@ -714,6 +737,26 @@ async function executeWriteTool(name, input) {
         sendAt, sent: 'FALSE', source: 'manual',
       });
       return { ok: true, message: `ตั้งเวลาส่ง LINE ไว้แล้ว (${sendAt.replace('T', ' ')})` };
+    }
+    case 'report_to_chor_naithai': {
+      // ครั้งแรกที่เช่าสุขเป็นฝ่าย "เรียกออก" ไปหา ช.นายท้าย (เดิมมีแค่ทาง
+      // กลับ — ช.นายท้ายเรียกเข้ามาที่ /api/external ของเช่าสุขเท่านั้น) —
+      // ใช้ secret ตัวเดียวกัน (CHOR_NAITHAI_SHARED_KEY) เข้ารหัสยืนยันตัวตน
+      // ฝั่งปลายทาง (server/routes/chat.js's POST /api/chat/external ของ
+      // ช.นายท้าย) — speaker: 'nong1' ระบุตัวตนว่าเป็นเช่าสุขเสมอ (ไม่ใช่
+      // ตัวแปร ป้องกันไม่ให้เผลอปลอมเป็นน้องตัวอื่น)
+      if (!process.env.CHOR_NAITHAI_SHARED_KEY) throw new Error('ยังไม่ได้ตั้งค่า CHOR_NAITHAI_SHARED_KEY ใน .env');
+      const chorNaithaiUrl = process.env.CHOR_NAITHAI_URL || 'https://chor-naithai.onrender.com';
+      const res = await fetch(`${chorNaithaiUrl}/api/chat/external`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-chor-naithai-key': process.env.CHOR_NAITHAI_SHARED_KEY },
+        body: JSON.stringify({ page: input.page, speaker: 'nong1', content: input.message }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'ส่งไม่สำเร็จ (สถานะ ' + res.status + ')');
+      }
+      return { ok: true, message: 'ส่งข้อความไปห้องแชท ช.นายท้ายแล้ว' };
     }
     default:
       throw new Error('ไม่รู้จักคำสั่งนี้: ' + name);

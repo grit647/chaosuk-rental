@@ -1293,6 +1293,31 @@ type (เต็มจำนวน/บางส่วน/ล่วงหน้า
   automation, ever.** Not a policy switch — there must never be a tool that
   makes this mechanically possible (see `server/claudeTools.js`'s `TOOLS`
   list and its comment block).
+  - **One explicit, narrow exception granted 2026-08-04** (owner
+    explicitly re-confirmed after being shown the exact rule text and
+    asked to confirm specifically, not just generally agreeing to the
+    surrounding feature): a `report_to_chor_naithai` tool may exist,
+    letting the command-box AI send a **plain text message only** to
+    ช.นายท้าย's (the 4th platform's) shared chat room. This is
+    deliberately as narrow as possible — modeled on the already-existing
+    `schedule_line_message` tool (send-only, no read-back, no way to
+    control/query anything): (1) **send-only** — no reading, editing, or
+    querying any of ช.นายท้าย's own data; (2) **interactive-only** —
+    unreachable from `server/scheduler.js`'s recurring-task runner or any
+    other unattended/scheduled path, only callable when the owner is
+    actively typing in this session; (3) uses the same
+    `CHOR_NAITHAI_SHARED_KEY`/`SIBLING_SHARED_KEY` pair already
+    established for the existing cross-platform LINE-messaging feature
+    (no new secret introduced); (4) the AI never sees or handles the key
+    itself — it's a server-side-only header on the outbound `fetch`, same
+    pattern as every other credential in this app's tool layer. See
+    `platform-docs/ทีมงาน.md` in the ช.นายท้าย repo for the "team roster"
+    concept this was built for (owner wants each sibling platform's own
+    AI — "น้อง1/น้อง2/น้อง3" — able to introduce itself and report into
+    the shared room, without the owner manually relaying every message).
+    **Everything else in this rule still stands unchanged** — this does
+    not open any path to code/server/credential access, only a single
+    narrow text-out channel.
 - **Lease contracts are core data.** Any add/edit/delete of a lease contract
   must always hand off to the native form UI (`open_contract_form` tool),
   never be done purely via chat text — some fields (ID photos, lease
