@@ -1146,6 +1146,87 @@ dashboard again, don't assume the service name matches by vibes
 alone; have him confirm the deploy log shows a real, recent, relevant
 commit message before trusting he's in the right place.
 
+### In-memory dedup Maps silently broken by Render's sleep/wake cycle — fixed via persisted NotifyLog tab (2026-08-04)
+
+**Owner's real symptom:** a tenant at "บ้านเลขที่1873" (Sheet nicknamed
+"วิทัสOB2" internally, `customerSheetId`
+`1moUMiEhF2Ie76_Ep8_rgtefWenlQXx7vEUyaO0exk4E` — distinct from
+"บ้านพักครูโจ"'s `1_018tkPfe3OLIyeA_lyek8o0H8esbi15-hBiuAqWzvA`, easy to
+confuse since both buildings share the same owner phone number
+`0995647152`/PIN) got the same "ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว"
+LINE reminder **4 times in one night**, roughly every 20-70 minutes.
+
+**Root cause:** `server/routes/scheduler.js`'s dedup mechanism
+(`_cutoffNotifiedDates`, an in-memory `Map` — "already notified this key
+today, skip") reset to empty every time the Node process restarted.
+Render's free tier sleeps after ~15 min idle; UptimeRobot's ping
+interval is 20 minutes (see the earlier "External cron reliability"
+section — deliberately backed off from 5 min to protect the free-tier
+compute quota) — **longer than the sleep threshold**, so in practice
+almost every scheduler run was a fresh cold start, wiping the Map before
+the next run could ever see it. Every run believed "never sent today"
+and re-sent. This wasn't unique to due-reminders — it silently affected
+**every** notification type sharing that one Map: cutoff warnings (both
+owner and tenant messages), due-date reminders, and lease/ID-expiring
+notices. The owner only happened to notice the due-reminder case because
+it landed on a room he was watching closely that night.
+
+**Fixed:** moved this state from RAM to a new persisted `NotifyLog`
+Sheet tab (`id, key, date` — `migrate-add-notifylog-tab.js`, run against
+all 3 buildings) — read once at the top of each scheduler run into an
+in-memory Set (`_notifiedTodaySet`) scoped to just that one run, written
+back as a **single batched `appendRows()` call** (new function added to
+`server/sheets.js`, same batching lesson as `/api/bootstrap`'s earlier
+9-separate-reads fix) at the end of the run instead of one Sheets API
+write per notification. Old entries pruned after 3 days (only "today"
+is ever checked, no need to keep more).
+
+**Real mistake made while testing this fix, flagging so it isn't
+repeated:** ran `/api/scheduler/run` against the local dev server to
+verify the fix — forgot that local dev still points at the **live
+production Sheet + live LINE credentials**, no sandbox/test mode exists
+anywhere in this app. This actually sent 7 real due-reminder LINE
+messages to real tenants of "บ้านเลขที่1873" mid-test (exactly the kind
+of duplicate the owner had just reported, made worse by testing). Lesson
+for next time: **never call `/api/scheduler/run` (or anything that
+loops `pushMessage`) against local dev without first confirming what
+real messages it might send** — there's no dry-run flag. Consider adding
+one if this class of testing need comes up again.
+
+### Confirmed slips were deleted the instant they got confirmed — no history existed anywhere (fixed 2026-08-04, "อัลบั้มใบเสร็จ")
+
+**Gap found while building a requested "receipt album" page** (browse
+old bills paired with which slip settled them, filterable by month/
+room/payment type): every one of the 5 "confirm this slip" code paths in
+`Rental Management.dc.html` (`markInvoicePaid`, `confirmSlipPaidFor`,
+`resolveSlip`'s 3 modes, `confirmCreditSlips`) wipes
+`slipsJson`/`creditSlipsJson` back to `[]` the instant a payment is
+confirmed — **no copy was ever kept anywhere.** `PaymentLog` (the
+existing revenue ledger) only records `{room, amount, type, note}`, no
+image/date/sender. This means **every payment ever confirmed before
+2026-08-04 has no recoverable slip image tied to it** — not a Cloudinary
+problem (slip images upload to Cloudinary fine, confirmed via
+`/api/uploads/cloudinary-health` on production — persist forever), the
+Invoice/Room's own *reference* to that image was being thrown away at
+confirm time. Owner explicitly accepted this can't be fixed
+retroactively ("ตกลง แก้ตั้งแต่ตอนนี้ไปครับ").
+
+**Fixed going forward:** new `PaidReceipts` Sheet tab (`id, room,
+tenant, invoiceId, date, amount, imageUrl, senderName, paymentType,
+createdAt` — `migrate-add-paidreceipts-tab.js`, run against all 3
+buildings) archived via a new `_archivePaidReceipts()` helper called
+from all 5 confirm paths (deliberately NOT from `rejectSlipFor` — a
+rejection isn't a real payment, shouldn't show up in a receipt history).
+Read through `/api/bootstrap` as an 11th tab in the existing `batchGet`
+call (same reasoning as the other 10 — one Sheets API request total, not
+a new separate one), written via a new `POST /api/paid-receipts`.
+
+New **"อัลบั้มใบเสร็จ"** nav page — grid of slip thumbnails (reuses the
+app's existing `openImageLightbox` modal, already used by the slip
+review queue elsewhere, rather than building a new one), filterable by
+month (native `<input type="month">`), room (`<select>`), and payment
+type (เต็มจำนวน/บางส่วน/ล่วงหน้า toggle chips).
+
 ## Permanent rules (do not relax without the owner explicitly re-confirming)
 
 - **Terminology: "เลขมิเตอร์" vs "หน่วย".** "เลขมิเตอร์" (meter number/
