@@ -154,6 +154,12 @@ app.get('/api/system-health', async (req, res) => {
       { key: 'leaseExpiring', label: 'สัญญาเช่า/บัตรประชาชนใกล้หมดอายุ', enabled: !!(settings.adminNotify && settings.adminNotify.leaseExpiring) },
       { key: 'wifiRequest', label: 'ผู้เช่าขอรหัส Wifi', enabled: !!(settings.adminNotify && settings.adminNotify.wifiRequest) },
       { key: 'slipPending', label: 'สลิปใหม่รอตรวจสอบ', enabled: !!(settings.adminNotify && settings.adminNotify.slipPending) },
+      // "ส่วนนี้ด้วยนะครับ ถ้าอนาคตผู้เช่าเปิดใช้งาน" (2026-08-04) — การ์ด
+      // "Claude ผู้ช่วยดูแลอัตโนมัติ" ในหน้าตั้งค่า — สวิตช์ "เปิดใช้งาน
+      // ฟีเจอร์นี้" (คุมคำสั่งงานประจำ/RecurringTasks และการแจ้งเตือนแบบ
+      // AI-related เท่านั้น — ไม่ใช่การส่งบิลที่ตั้งเวลาไว้ ดู scheduler.js's
+      // comment เรื่อง "แยกสวิทย์")
+      { key: 'claudeAutomationEnabled', label: 'Claude ผู้ช่วยดูแลอัตโนมัติ', enabled: !!settings.claudeAutomationEnabled },
     ].filter((f) => f.enabled);
     // ตรวจ NotifyLog ของวันนี้ — ถ้า key เดียวกันโผล่มากกว่า 1 ครั้งในวัน
     // เดียวกัน แปลว่ากันแจ้งซ้ำล้มเหลวจริง (บั๊กเดียวกับที่เพิ่งเจอ+แก้ไป
@@ -165,14 +171,34 @@ app.get('/api/system-health', async (req, res) => {
     const keyCounts = {};
     todayRows.forEach((r) => { keyCounts[r.key] = (keyCounts[r.key] || 0) + 1; });
     const duplicateKeys = Object.entries(keyCounts).filter(([, count]) => count > 1).map(([key, count]) => ({ key, count }));
+
+    // "คำสั่งงานประจำ" (RecurringTasks, ผูกกับสวิตช์ Claude ผู้ช่วยดูแล
+    // อัตโนมัติด้านบน) — เช็คว่างานที่รันวันนี้ (lastRunDate) มีตัวไหน
+    // ล้มเหลวไหม (server/routes/scheduler.js เขียน "ผิดพลาด: ..." ไว้ใน
+    // lastRunResult ทุกครั้งที่ runAutomatedInstruction พัง) — เฉพาะของ
+    // วันนี้เท่านั้น ไม่งั้นความล้มเหลวเก่าที่แก้ไปแล้วจะแจ้งเตือนซ้ำไม่รู้จบ
+    let recurringTaskFailures = [];
+    if (settings.claudeAutomationEnabled) {
+      const recurringRows = await require('./sheets').readTab('RecurringTasks').catch(() => []);
+      recurringTaskFailures = recurringRows
+        .filter((t) => t.lastRunDate === todayStr && String(t.lastRunResult || '').startsWith('ผิดพลาด'))
+        .map((t) => ({ id: t.id, summary: t.humanSummary || t.actionSummary || t.id, error: t.lastRunResult }));
+    }
+
+    const featureHealthOk = duplicateKeys.length === 0 && recurringTaskFailures.length === 0;
+    const errorParts = [];
+    if (duplicateKeys.length > 0) errorParts.push(`แจ้งเตือนซ้ำ ${duplicateKeys.length} รายการวันนี้: ${duplicateKeys.map((d) => `${d.key} (${d.count} ครั้ง)`).join(', ')}`);
+    if (recurringTaskFailures.length > 0) errorParts.push(`คำสั่งงานประจำล้มเหลว ${recurringTaskFailures.length} รายการวันนี้: ${recurringTaskFailures.map((f) => f.summary).join(', ')}`);
+
     checks.featureHealth = {
-      ok: duplicateKeys.length === 0,
+      ok: featureHealthOk,
       enabledFeatures,
       notifyLogToday: { total: todayRows.length, duplicateKeysDetected: duplicateKeys },
+      recurringTasksToday: { failures: recurringTaskFailures },
       // ให้ ช.นายท้าย (เช็ค data.checks[x].error ทุกตัวที่ ok:false อยู่แล้ว
       // เป็น pattern เดิม — ดู server/scheduler.js's checkOnePlatform)
       // แสดงข้อความนี้ในรายงานได้เลยโดยไม่ต้องแก้โค้ดฝั่งนั้นเพิ่ม
-      ...(duplicateKeys.length > 0 ? { error: `แจ้งเตือนซ้ำ ${duplicateKeys.length} รายการวันนี้: ${duplicateKeys.map((d) => `${d.key} (${d.count} ครั้ง)`).join(', ')}` } : {}),
+      ...(errorParts.length > 0 ? { error: errorParts.join(' | ') } : {}),
     };
   } catch (err) {
     checks.featureHealth = { ok: true, error: err.message }; // ok:true — ไม่ให้ error ของส่วนนี้ทำให้ health check ทั้งหมดขึ้นแดงทั้งที่จริงระบบหลักปกติดี
