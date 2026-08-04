@@ -198,6 +198,13 @@ function coercePaymentLog(rows) {
   return rows.map((r) => ({ ...r, amount: num(r.amount, 0) }));
 }
 
+// PaidReceipts — อัลบั้มใบเสร็จ/สลิปย้อนหลัง (2026-08-04) เก็บสำเนาถาวร
+// ของทุกสลิปที่เคยยืนยันแล้ว (ก่อนหน้านี้ slipsJson ถูกเคลียร์ทิ้งทันทีที่
+// ยืนยัน ไม่มีการเก็บสำเนาไว้เลย — ดู migrate-add-paidreceipts-tab.js)
+function coercePaidReceipts(rows) {
+  return rows.map((r) => ({ ...r, amount: num(r.amount, 0) }));
+}
+
 // ScheduledMessages — ใช้แสดงป้าย "🕒 ตั้งเวลาส่งไว้แล้ว" บนหน้าบิล
 // (2026-07-29) ให้เจ้าของเห็นว่าบิลไหนตั้งเวลาส่งอัตโนมัติไว้แล้วบ้าง โดยไม่
 // ต้องเข้าไปดูใน Google Sheet เอง — `sent` เก็บเป็น string 'TRUE'/'FALSE'
@@ -415,5 +422,5 @@ async function readIntegrationCredentials() {
 }
 
 module.exports = {
-  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, coerceUnmatchedSlips, coerceStaff, coercePaymentLog, coerceScheduledMessages, readSettings, readIntegrationCredentials,
+  num, bool, coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceRecurringTasks, coerceUnmatchedSlips, coerceStaff, coercePaymentLog, coercePaidReceipts, coerceScheduledMessages, readSettings, readIntegrationCredentials,
 };

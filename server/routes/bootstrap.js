@@ -2,13 +2,15 @@ const express = require('express');
 const router = express.Router();
 const { readTabs } = require('../sheets');
 const {
-  coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceUnmatchedSlips, coerceStaff, coercePaymentLog, coerceScheduledMessages, readSettings,
+  coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coerceUnmatchedSlips, coerceStaff, coercePaymentLog, coercePaidReceipts, coerceScheduledMessages, readSettings,
 } = require('../coerce');
 
 // ScheduledMessages เพิ่มเข้ามา (2026-07-29) ให้หน้าบิลโชว์ป้าย "ตั้งเวลา
 // ส่งไว้แล้ว" ได้ — เพิ่มเป็นแท็บที่ 10 ใน batchGet เดียวกัน (ไม่ใช่ readTab
 // แยก) ตามเหตุผลเดียวกับ comment ด้านล่าง (กัน quota เกิน)
-const TABS = ['Rooms', 'Invoices', 'Maintenance', 'Expenses', 'CalendarEvents', 'UnmatchedSlips', 'Staff', 'PaymentLog', 'Settings', 'ScheduledMessages'];
+// PaidReceipts เพิ่มเข้ามา (2026-08-04) — อัลบั้มใบเสร็จ/สลิปย้อนหลัง
+// เหตุผลเดียวกัน (แท็บที่ 11 ใน batchGet เดียวกัน ไม่ใช่ readTab แยก)
+const TABS = ['Rooms', 'Invoices', 'Maintenance', 'Expenses', 'CalendarEvents', 'UnmatchedSlips', 'Staff', 'PaymentLog', 'Settings', 'ScheduledMessages', 'PaidReceipts'];
 
 // 2026-07-24 — was 9 separate readTab() calls via Promise.allSettled (one
 // per tab, kept independent on purpose so one flaky tab's request couldn't
@@ -47,6 +49,7 @@ router.get('/', async (req, res, next) => {
       staff: coerceStaff(data.Staff || []),
       paymentLog: coercePaymentLog(data.PaymentLog || []),
       scheduledMessages: coerceScheduledMessages(data.ScheduledMessages || []),
+      paidReceipts: coercePaidReceipts(data.PaidReceipts || []),
       ...(await readSettings(data.Settings || [])),
     };
     res.json(payload);

@@ -250,6 +250,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <span style="font-size:9px;font-weight:700;background:#2C6E8F;color:#fff;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="หน้านี้มีคำอธิบายในโหมดทดลองแล้ว">?</span>
               </sc-if>
             </div>
+            <div onclick="{{ goReceiptsAlbum }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navReceiptsAlbum.bg }}">
+              <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navReceiptsAlbum.dot }}"></div>
+              <span style="font-size:13.5px;color:{{ navReceiptsAlbum.color }};font-weight:{{ navReceiptsAlbum.weight }}">อัลบั้มใบเสร็จ</span>
+            </div>
             <div onclick="{{ goExpenses }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;background:{{ navExpense.bg }}">
               <div style="width:6px;height:6px;border-radius:1px;flex-shrink:0;background:{{ navExpense.dot }}"></div>
               <span style="font-size:13.5px;color:{{ navExpense.color }};font-weight:{{ navExpense.weight }}">บัญชีรายจ่าย</span>
@@ -2032,6 +2036,68 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 </div>
               </sc-for>
             </div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ isReceiptsAlbum }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px">
+              <div style="font-size:21px;font-weight:700;color:#241812">อัลบั้มใบเสร็จ</div>
+              <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">ดูใบเสร็จ/สลิปย้อนหลังทั้งหมด — คู่กันเป็นชุด พร้อมประเภทการชำระ ({{ receiptsAlbumCount }} รายการ)</div>
+            </div>
+
+            <div style="background:#FFFFFF;border-radius:8px;padding:16px;box-sizing:border-box;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+              <div>
+                <div style="font-size:10.5px;color:#7C6E5F;margin-bottom:4px">เดือน</div>
+                <input type="month" value="{{ receiptsAlbumFilterMonthValue }}" onchange="{{ onReceiptsAlbumMonthChange }}" style="padding:7px 9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box">
+              </div>
+              <div>
+                <div style="font-size:10.5px;color:#7C6E5F;margin-bottom:4px">ห้อง</div>
+                <select value="{{ receiptsAlbumFilterRoomValue }}" onchange="{{ onReceiptsAlbumRoomChange }}" style="padding:7px 9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;min-width:100px">
+                  <option value="">ทุกห้อง</option>
+                  <sc-for list="{{ receiptsAlbumRoomOptions }}" as="ro" hint-placeholder-count="3">
+                    <option value="{{ ro.room }}">{{ ro.room }}</option>
+                  </sc-for>
+                </select>
+              </div>
+              <div>
+                <div style="font-size:10.5px;color:#7C6E5F;margin-bottom:4px">ประเภทการชำระ</div>
+                <div style="display:flex;gap:6px">
+                  <sc-for list="{{ receiptsAlbumTypeChips }}" as="tc" hint-placeholder-count="3">
+                    <div onclick="{{ tc.onClick }}" style="padding:7px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;background:{{ tc.bg }};color:{{ tc.color }};white-space:nowrap">{{ tc.label }}</div>
+                  </sc-for>
+                </div>
+              </div>
+              <sc-if value="{{ hasReceiptsAlbumFilter }}" hint-placeholder-val="{{ false }}">
+                <div onclick="{{ onClearReceiptsAlbumFilters }}" style="margin-left:auto;font-size:11.5px;color:#C1622D;font-weight:600;cursor:pointer;text-decoration:underline;align-self:flex-end">✕ ล้างตัวกรอง</div>
+              </sc-if>
+            </div>
+
+            <sc-if value="{{ receiptsAlbumCount }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px">
+                <sc-for list="{{ receiptsAlbumView }}" as="pr" hint-placeholder-count="6">
+                  <div style="background:#FFFFFF;border-radius:8px;overflow:hidden;box-sizing:border-box;border:1px solid #F0E9DC">
+                    <sc-if value="{{ pr.hasImage }}" hint-placeholder-val="{{ true }}">
+                      <img src="{{ pr.imageUrl }}" onclick="{{ pr.onView }}" style="width:100%;height:150px;object-fit:cover;cursor:pointer;display:block">
+                    </sc-if>
+                    <sc-if value="{{ pr.noImage }}" hint-placeholder-val="{{ false }}">
+                      <div style="width:100%;height:150px;background:#F1EBE0;display:flex;align-items:center;justify-content:center;color:#A89A88;font-size:12px">ไม่มีรูปสลิป</div>
+                    </sc-if>
+                    <div style="padding:10px">
+                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                        <span style="font-size:13px;font-weight:700;color:#241812">ห้อง {{ pr.room }}</span>
+                        <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:9px;background:{{ pr.typeColor }};color:#fff">{{ pr.typeLabel }}</span>
+                      </div>
+                      <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:2px">{{ pr.date }} · {{ pr.senderName }}</div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:#241812">{{ pr.amountDisplay }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ receiptsAlbumEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#FFFFFF;border-radius:8px;padding:30px;box-sizing:border-box;text-align:center;color:#A89A88;font-size:13px">ยังไม่มีข้อมูลในอัลบั้ม — จะเริ่มเก็บอัตโนมัติทุกครั้งที่ยืนยันสลิปตั้งแต่นี้เป็นต้นไป (ของเก่าก่อนหน้าไม่มีข้อมูลสลิปให้ย้อนดู)</div>
+            </sc-if>
           </div>
           </sc-if>
 
@@ -4507,6 +4573,10 @@ class Component extends DCLogic {
     // "ถ้าตั้งเวลา ส่วนนี้ให้แสดงไว้ด้วยครับ" (2026-07-29) — ใช้โชว์ป้าย
     // "🕒 ตั้งเวลาส่งไว้แล้ว" บนตารางบิลที่รอชำระ (ดู sendChoiceSchedule)
     scheduledMessages: [],
+    // อัลบั้มใบเสร็จ/สลิปย้อนหลัง (2026-08-04) — ดู _archivePaidReceipts
+    paidReceipts: [],
+    receiptsAlbumFilterMonth: '', receiptsAlbumFilterRoom: '', receiptsAlbumFilterType: '',
+    receiptsAlbumViewImageUrl: '',
     showStaffModal: false,
     editingStaffId: null,
     newStaff: { name: '', position: '', salary: '', workStart: '', workEnd: '', workDays: '', startDate: '', endDate: '', phone: '', status: 'active', notes: '', payDay: '' },
@@ -5187,6 +5257,8 @@ class Component extends DCLogic {
         // "ถ้าตั้งเวลา ส่วนนี้ให้แสดงไว้ด้วยครับ" (2026-07-29) — โหลดมาให้
         // หน้าบิลโชว์ป้าย "🕒 ตั้งเวลาส่งไว้แล้ว" ต่อห้องที่มีคิวส่งค้างอยู่
         scheduledMessages: data.scheduledMessages || [],
+        // อัลบั้มใบเสร็จ/สลิปย้อนหลัง (2026-08-04)
+        paidReceipts: data.paidReceipts || [],
         propertyProfile: data.propertyProfile,
         waterRate: data.waterRate,
         elecRate: data.elecRate,
@@ -5276,6 +5348,11 @@ class Component extends DCLogic {
   goWaterReport = () => this._nav({ activeNav: 'water' });
   goElecReport = () => this._nav({ activeNav: 'elec' });
   goEquipment = () => this._nav({ activeNav: 'equipment' });
+  goReceiptsAlbum = () => this._nav({ activeNav: 'receiptsAlbum' });
+  onReceiptsAlbumMonthChange = (e) => this.setState({ receiptsAlbumFilterMonth: e.target.value });
+  onReceiptsAlbumRoomChange = (e) => this.setState({ receiptsAlbumFilterRoom: e.target.value });
+  // toggle เดียวกันกดซ้ำ = ปิดตัวกรอง (คลิกอีกครั้งเพื่อยกเลิก)
+  onReceiptsAlbumTypeChange = (type) => this.setState(s => ({ receiptsAlbumFilterType: s.receiptsAlbumFilterType === type ? '' : type }));
   goExpenses = () => this._nav({ activeNav: 'expenses' });
   goContracts = () => this._nav({ activeNav: 'contracts', contractFormRoomId: null });
   goCalendar = () => this._nav({ activeNav: 'calendar' });
@@ -5414,6 +5491,35 @@ class Component extends DCLogic {
     }).then(res => res.ok ? res.json() : null).then(entry => {
       if (entry) this.setState(s => ({ paymentLog: [...s.paymentLog, entry] }));
     }).catch(err => console.error(err));
+  };
+  // อัลบั้มใบเสร็จ/สลิปย้อนหลัง (2026-08-04) — เก็บสำเนาถาวรของสลิปที่
+  // เพิ่งยืนยัน "ก่อน" slipsJson/creditSlipsJson จะถูกเคลียร์ทิ้ง (ดู
+  // server/routes/paidReceipts.js + migrate-add-paidreceipts-tab.js — เดิม
+  // สลิปที่ยืนยันแล้วไม่มีที่เก็บไว้เลย หายไปทันทีที่กดยืนยัน) เรียกจากทุก
+  // จุดที่ resolve สลิป (ยกเว้น rejectSlipFor — ปฏิเสธไม่ใช่การชำระจริง
+  // ไม่ควรเก็บลงอัลบั้ม) fire-and-forget เหมือน _logPayment ด้านบน ไม่ควร
+  // บล็อก/ทำให้ flow การยืนยันหลักล้มเหลวถ้าเก็บอัลบั้มพลาด
+  _archivePaidReceipts = (slips, { room, tenant, invoiceId, paymentType }) => {
+    if (!slips || !slips.length) return;
+    const items = slips.map(sl => ({
+      room, tenant: tenant || '', invoiceId: invoiceId || '',
+      date: sl.date || '', amount: sl.amount, imageUrl: sl.imageUrl || '',
+      senderName: sl.senderName || '', paymentType,
+    })).filter(it => it.amount);
+    if (!items.length) return;
+    fetch('/api/paid-receipts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    }).then(res => res.ok ? res.json() : null).then(result => {
+      if (result && result.saved) {
+        // ไม่มี id จริงจาก server กลับมาเป็นรายตัว (bulk insert) — ใส่ id
+        // ชั่วคราวฝั่ง client พอให้ render key ไม่ซ้ำกัน ข้อมูลจริงจะมาแทนที่
+        // เองรอบถัดไปที่โหลด bootstrap ใหม่ (รีเฟรชหน้า)
+        this.setState(s => ({
+          paidReceipts: [...s.paidReceipts, ...items.map((it, i) => ({ ...it, id: 'tmp-' + Date.now() + '-' + i, createdAt: new Date().toISOString() }))],
+        }));
+      }
+    }).catch(err => console.error('[_archivePaidReceipts]', err));
   };
   _uploadImageForLine = async (dataUrl) => {
     const res = await fetch('/api/uploads/image', {
@@ -8002,6 +8108,7 @@ class Component extends DCLogic {
       });
       if (!res.ok) throw new Error('อัปเดตไม่สำเร็จ');
       const updated = await res.json();
+      if (inv) this._archivePaidReceipts(inv.slips, { room: inv.room, tenant: inv.tenant, invoiceId: id, paymentType: 'full' });
       // "ถ้ามีการชำระบิลเรียบร้อยแล้ว ให้ลบออกไปเลยครับ" (2026-07-29) —
       // เซิร์ฟเวอร์ล้างคิว ScheduledMessages ของบิลนี้ไปแล้ว (PATCH
       // /api/invoices/:id) — ล้าง state ฝั่งนี้ตามด้วยให้ป้าย "🕒 ตั้งเวลา
@@ -8127,6 +8234,7 @@ class Component extends DCLogic {
           invoices: s.invoices.map(i => i.id === id ? { ...i, slipPending: false, slips: [], slipCount: 0, slipsTotal: 0 } : i),
           slipActionLoading: false,
         }));
+        this._archivePaidReceipts(inv.slips, { room: inv.room, tenant: inv.tenant, invoiceId: id, paymentType: 'advance' });
         this.showAdminToast(`บันทึกเป็นเงินล่วงหน้า ${this.fmt(combined)} ให้ห้อง ${inv.room} แล้ว (ยอดรวมเครดิตตอนนี้ ${this.fmt(newCredit)})`);
         // Same fix as confirmCreditSlips above — show the tenant their total
         // remaining advance-payment balance, not just the amount just added.
@@ -8173,6 +8281,7 @@ class Component extends DCLogic {
       });
       if (!res.ok) throw new Error('อัปเดตไม่สำเร็จ');
       const updated = await res.json();
+      this._archivePaidReceipts(inv.slips, { room: inv.room, tenant: inv.tenant, invoiceId: id, paymentType: mode === 'full' ? 'full' : 'partial' });
       let newCredit = null;
       if (overpay > 0) {
         const room = this.state.rooms.find(r => r.id === inv.room);
@@ -8311,6 +8420,7 @@ class Component extends DCLogic {
       });
       if (!res.ok) throw new Error('อัปเดตไม่สำเร็จ');
       const updated = await res.json();
+      this._archivePaidReceipts(room.creditSlips, { room: roomId, tenant: room.tenant, invoiceId: '', paymentType: 'advance' });
       this.setState(s => ({
         rooms: s.rooms.map(r => r.id === roomId ? updated : r),
         showCreditReview: false, creditReviewRoomId: '', creditActionLoading: false,
@@ -10718,6 +10828,39 @@ class Component extends DCLogic {
       };
     });
 
+    // อัลบั้มใบเสร็จ/สลิปย้อนหลัง (2026-08-04) — ดูย้อนหลังว่าใบเสร็จไหนคู่
+    // กับสลิปไหน ชำระแบบไหน (เต็มจำนวน/บางส่วน/ล่วงหน้า) กรองตามเดือน/
+    // ห้อง/ประเภทการชำระได้ — ข้อมูลมาจาก PaidReceipts (ดู
+    // _archivePaidReceipts ด้านบน, migrate-add-paidreceipts-tab.js) เก็บ
+    // เฉพาะการชำระที่ยืนยันแล้วตั้งแต่ฟีเจอร์นี้เปิดใช้งาน ของเก่าก่อนหน้า
+    // ไม่มีข้อมูลสลิปย้อนหลังให้ (กู้คืนไม่ได้ — สลิปเดิมถูกเคลียร์ทิ้งทันที
+    // ที่ยืนยันมาตลอด ไม่เคยมีที่เก็บถาวรมาก่อน)
+    const paymentTypeLabel = { full: 'เต็มจำนวน', partial: 'บางส่วน', advance: 'ล่วงหน้า' };
+    const paymentTypeColor = { full: '#3B7A52', partial: '#B85B27', advance: '#2C6E8F' };
+    let receiptsAlbumFiltered = [...s.paidReceipts].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+    if (s.receiptsAlbumFilterMonth) receiptsAlbumFiltered = receiptsAlbumFiltered.filter(it => (it.date || '').slice(0, 7) === s.receiptsAlbumFilterMonth);
+    if (s.receiptsAlbumFilterRoom) receiptsAlbumFiltered = receiptsAlbumFiltered.filter(it => it.room === s.receiptsAlbumFilterRoom);
+    if (s.receiptsAlbumFilterType) receiptsAlbumFiltered = receiptsAlbumFiltered.filter(it => it.paymentType === s.receiptsAlbumFilterType);
+    const receiptsAlbumView = receiptsAlbumFiltered.map(it => ({
+      id: it.id,
+      room: it.room, tenant: it.tenant || '-', date: it.date || '-',
+      amountDisplay: this.fmt(it.amount) + ' บาท',
+      imageUrl: it.imageUrl, hasImage: !!it.imageUrl, noImage: !it.imageUrl,
+      senderName: it.senderName || '-',
+      typeLabel: paymentTypeLabel[it.paymentType] || it.paymentType,
+      typeColor: paymentTypeColor[it.paymentType] || '#7C6E5F',
+      onView: () => this.openImageLightbox(it.imageUrl),
+    }));
+    const receiptsAlbumRoomOptions = [...new Set(s.paidReceipts.map(it => it.room))].sort().map(room => ({ room }));
+    const receiptsAlbumTypeChips = [
+      { key: 'full', label: 'เต็มจำนวน' }, { key: 'partial', label: 'บางส่วน' }, { key: 'advance', label: 'ล่วงหน้า' },
+    ].map(t => ({
+      ...t, active: s.receiptsAlbumFilterType === t.key,
+      bg: s.receiptsAlbumFilterType === t.key ? (paymentTypeColor[t.key] || '#C1622D') : '#EDE4D6',
+      color: s.receiptsAlbumFilterType === t.key ? '#fff' : '#7C6E5F',
+      onClick: () => this.onReceiptsAlbumTypeChange(t.key),
+    }));
+
     const occupiedRooms = s.rooms.filter(r => r.tenant);
     const windowOpts = [12, 24, 48];
     const buildWindowChips = (hrs, onPick) => windowOpts.map(h => ({
@@ -11213,9 +11356,9 @@ class Component extends DCLogic {
       mobileScale, mobileScaledW: Math.round(402 * mobileScale), mobileScaledH: Math.round(874 * mobileScale),
       navDash: navStyle('dashboard'), navRooms: navStyle('rooms'), navTenants: navStyle('tenants'), navBilling: navStyle('billing'), navMaint: navStyle('maintenance'), navSettings: navStyle('settings'),
       navWater: navStyle('water'), navElec: navStyle('elec'), navEquip: navStyle('equipment'), navExpense: navStyle('expenses'),
-      navContract: navStyle('contracts'),
+      navContract: navStyle('contracts'), navReceiptsAlbum: navStyle('receiptsAlbum'),
       goDashboard: this.goDashboard, goRooms: this.goRooms, goTenants: this.goTenants, goBilling: this.goBilling, goMaintenance: this.goMaintenance, goSettings: this.goSettings,
-      goWaterReport: this.goWaterReport, goElecReport: this.goElecReport, goEquipment: this.goEquipment, goExpenses: this.goExpenses,
+      goWaterReport: this.goWaterReport, goElecReport: this.goElecReport, goEquipment: this.goEquipment, goExpenses: this.goExpenses, goReceiptsAlbum: this.goReceiptsAlbum,
       goContracts: this.goContracts,
       openMaintCount: s.maintenance.filter(m => m.status !== 'done').length,
       hasOpenMaint: s.maintenance.filter(m => m.status !== 'done').length > 0,
@@ -11393,7 +11536,7 @@ class Component extends DCLogic {
       }),
       isDashboard: s.activeNav === 'dashboard', isRooms: s.activeNav === 'rooms', isTenants: s.activeNav === 'tenants', isBilling: s.activeNav === 'billing', isMaintenance: s.activeNav === 'maintenance', isSettings: s.activeNav === 'settings',
       isWaterReport: s.activeNav === 'water', isElecReport: s.activeNav === 'elec', isEquipment: s.activeNav === 'equipment', isExpenses: s.activeNav === 'expenses',
-      isContracts: s.activeNav === 'contracts',
+      isContracts: s.activeNav === 'contracts', isReceiptsAlbum: s.activeNav === 'receiptsAlbum',
 
       revenueExpenseChart, hasRevenueExpenseData, noRevenueExpenseData: !hasRevenueExpenseData, revenueExpenseRangeLabel,
       kpiPaidSum: this.fmt(dashMonthRevenue),
@@ -12118,6 +12261,11 @@ class Component extends DCLogic {
 
       waterRate: s.waterRate, elecRate: s.elecRate, onWaterRateChange: this.onWaterRateChange, onElecRateChange: this.onElecRateChange,
       waterReportView, elecReportView,
+      receiptsAlbumView, receiptsAlbumCount: receiptsAlbumView.length, receiptsAlbumEmpty: receiptsAlbumView.length === 0, receiptsAlbumRoomOptions, receiptsAlbumTypeChips,
+      receiptsAlbumFilterMonthValue: s.receiptsAlbumFilterMonth, onReceiptsAlbumMonthChange: this.onReceiptsAlbumMonthChange,
+      receiptsAlbumFilterRoomValue: s.receiptsAlbumFilterRoom, onReceiptsAlbumRoomChange: this.onReceiptsAlbumRoomChange,
+      hasReceiptsAlbumFilter: !!(s.receiptsAlbumFilterMonth || s.receiptsAlbumFilterRoom || s.receiptsAlbumFilterType),
+      onClearReceiptsAlbumFilters: () => this.setState({ receiptsAlbumFilterMonth: '', receiptsAlbumFilterRoom: '', receiptsAlbumFilterType: '' }),
       waterTotalCostDisplay: Number(waterTotalCostNum).toLocaleString('en-US'),
       elecTotalCostDisplay: Number(elecTotalCostNum).toLocaleString('en-US'),
       claudeCommandInput: s.claudeCommandInput,
