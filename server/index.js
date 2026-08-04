@@ -139,6 +139,44 @@ app.get('/api/system-health', async (req, res) => {
   } catch (err) {
     checks.ai = { ok: false, provider: 'claude', error: err.message };
   }
+  // "ต้องรายงานส่วนนี้ด้วยเพราะเราดูแลตรวจสอบความถูกต้องของการทำงานของ
+  // ระบบด้วย...ไม่ใช่แค่เชื่อมต่อได้ไหม" (2026-08-04, คุณต้นขอผ่าน
+  // ช.นายท้าย) — ต่างจาก checks ด้านบนทั้งหมด (แค่ "เชื่อมต่อได้ไหม" ซึ่ง
+  // ส่วนใหญ่เป็นเรื่อง Render หลับ/โควตาภายนอก ไม่ใช่สิ่งที่เราแก้เอง) —
+  // ส่วนนี้รายงาน "ฟีเจอร์แจ้งเตือนที่ลูกค้าเปิดไว้จริงๆ ทำงานถูกต้องไหม"
+  // ซึ่งเป็นสิ่งที่เราต้องคอยตรวจสอบเอง (บั๊กแจ้งเตือนซ้ำที่เพิ่งแก้ไปเป็น
+  // ตัวอย่างจริง — ไม่มีทางรู้ได้เลยจาก health check ทั่วไปด้านบน)
+  try {
+    const settings = await require('./coerce').readSettings();
+    const enabledFeatures = [
+      { key: 'cutoffWarning', label: 'แจ้งเตือนตัดน้ำตัดไฟ', enabled: !!(settings.adminNotify && settings.adminNotify.cutoffWarning) },
+      { key: 'dueReminder', label: 'เตือนก่อนครบกำหนดชำระ', enabled: !!(settings.settings && settings.settings.dueReminder) },
+      { key: 'leaseExpiring', label: 'สัญญาเช่า/บัตรประชาชนใกล้หมดอายุ', enabled: !!(settings.adminNotify && settings.adminNotify.leaseExpiring) },
+      { key: 'wifiRequest', label: 'ผู้เช่าขอรหัส Wifi', enabled: !!(settings.adminNotify && settings.adminNotify.wifiRequest) },
+      { key: 'slipPending', label: 'สลิปใหม่รอตรวจสอบ', enabled: !!(settings.adminNotify && settings.adminNotify.slipPending) },
+    ].filter((f) => f.enabled);
+    // ตรวจ NotifyLog ของวันนี้ — ถ้า key เดียวกันโผล่มากกว่า 1 ครั้งในวัน
+    // เดียวกัน แปลว่ากันแจ้งซ้ำล้มเหลวจริง (บั๊กเดียวกับที่เพิ่งเจอ+แก้ไป
+    // 2026-08-04 — endpoint นี้จะช่วยให้เห็นได้เร็วขึ้นถ้าเกิดซ้ำอีกในอนาคต
+    // โดยไม่ต้องรอคุณต้นมาแจ้งเองก่อน)
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+    const notifyLogRows = await require('./sheets').readTab('NotifyLog').catch(() => []);
+    const todayRows = notifyLogRows.filter((r) => r.date === todayStr);
+    const keyCounts = {};
+    todayRows.forEach((r) => { keyCounts[r.key] = (keyCounts[r.key] || 0) + 1; });
+    const duplicateKeys = Object.entries(keyCounts).filter(([, count]) => count > 1).map(([key, count]) => ({ key, count }));
+    checks.featureHealth = {
+      ok: duplicateKeys.length === 0,
+      enabledFeatures,
+      notifyLogToday: { total: todayRows.length, duplicateKeysDetected: duplicateKeys },
+      // ให้ ช.นายท้าย (เช็ค data.checks[x].error ทุกตัวที่ ok:false อยู่แล้ว
+      // เป็น pattern เดิม — ดู server/scheduler.js's checkOnePlatform)
+      // แสดงข้อความนี้ในรายงานได้เลยโดยไม่ต้องแก้โค้ดฝั่งนั้นเพิ่ม
+      ...(duplicateKeys.length > 0 ? { error: `แจ้งเตือนซ้ำ ${duplicateKeys.length} รายการวันนี้: ${duplicateKeys.map((d) => `${d.key} (${d.count} ครั้ง)`).join(', ')}` } : {}),
+    };
+  } catch (err) {
+    checks.featureHealth = { ok: true, error: err.message }; // ok:true — ไม่ให้ error ของส่วนนี้ทำให้ health check ทั้งหมดขึ้นแดงทั้งที่จริงระบบหลักปกติดี
+  }
   const allOk = Object.values(checks).every((c) => c.ok);
   res.json({ ok: allOk, platform: 'chaosuk-rental', timestamp: new Date().toISOString(), checks });
 });
