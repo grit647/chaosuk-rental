@@ -315,9 +315,18 @@ const TOOLS = [
       required: ['page', 'message'],
     },
   },
+  {
+    // ข้อยกเว้นถาวรที่ 2 (2026-08-04, วันเดียวกับข้อยกเว้นแรกด้านบน คุณต้น
+    // ยืนยันแยกต่างหากอีกครั้ง) — อ่านย้อนกลับได้แล้ว แต่ **จำกัดแค่ห้อง
+    // "health" เท่านั้น ตายตัวในโค้ด ไม่ใช่พารามิเตอร์ที่ AI เปลี่ยนได้** —
+    // ทดสอบกับเช่าสุขตัวเดียวก่อน ยังไม่ได้อนุมัติให้แพลตฟอร์มอื่นทำตาม
+    name: 'read_chor_naithai_room',
+    description: 'อ่านข้อความล่าสุด 20 รายการในห้องแชท "ดูแลระบบ" ของ ช.นายท้าย — ใช้เพื่อดูว่าพี่ใหญ่หรือ AI ตัวอื่นในห้องนั้นตอบอะไรกลับมาหลังจากส่งข้อความไปแล้ว (report_to_chor_naithai) เรียกใช้ได้เฉพาะตอนคุณต้นสั่งเท่านั้น',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
 ];
 
-const READ_TOOL_NAMES = new Set(['get_rooms', 'check_lease_completeness', 'get_pending_invoices', 'get_paid_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary', 'get_electricity_log', 'get_calendar_events', 'get_payment_log', 'get_unmatched_slips']);
+const READ_TOOL_NAMES = new Set(['get_rooms', 'check_lease_completeness', 'get_pending_invoices', 'get_paid_invoices', 'get_maintenance', 'get_expenses', 'get_financial_summary', 'get_electricity_log', 'get_calendar_events', 'get_payment_log', 'get_unmatched_slips', 'read_chor_naithai_room']);
 
 async function executeReadTool(name, input) {
   switch (name) {
@@ -412,6 +421,21 @@ async function executeReadTool(name, input) {
     }
     case 'get_unmatched_slips':
       return coerceUnmatchedSlips(await readTab('UnmatchedSlips'));
+    case 'read_chor_naithai_room': {
+      // page: 'health' ตายตัวในโค้ด ไม่รับจาก input เลย (ดู CLAUDE.md's
+      // permanent rule exception ที่ 2 — จำกัดแค่ห้องนี้ห้องเดียว)
+      if (!process.env.CHOR_NAITHAI_SHARED_KEY) throw new Error('ยังไม่ได้ตั้งค่า CHOR_NAITHAI_SHARED_KEY ใน .env');
+      const chorNaithaiUrl = process.env.CHOR_NAITHAI_URL || 'https://chor-naithai.onrender.com';
+      const res = await fetch(`${chorNaithaiUrl}/api/chat/external?page=health`, {
+        headers: { 'x-chor-naithai-key': process.env.CHOR_NAITHAI_SHARED_KEY },
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'อ่านไม่สำเร็จ (สถานะ ' + res.status + ')');
+      }
+      const data = await res.json();
+      return (data.logs || []).map((l) => ({ timestamp: l.timestamp, speaker: l.speaker, content: l.content }));
+    }
     default:
       throw new Error('ไม่รู้จักคำสั่งนี้: ' + name);
   }

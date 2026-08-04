@@ -1318,6 +1318,25 @@ type (เต็มจำนวน/บางส่วน/ล่วงหน้า
     **Everything else in this rule still stands unchanged** — this does
     not open any path to code/server/credential access, only a single
     narrow text-out channel.
+  - **Second explicit, narrow exception granted 2026-08-04, same day**
+    (owner explicitly re-confirmed again, separately from the write
+    exception above): a `read_chor_naithai_room` tool may exist, letting
+    the command-box AI **read back** messages from ช.นายท้าย's shared
+    chat room — but **only the "health" page** (the room น้อง1 itself
+    posts into), hardcoded in this tool's own implementation, not a
+    parameter the AI can change. This is a genuine widening beyond the
+    write-only boundary above, deliberately kept as narrow as possible:
+    (1) **read-only for one single page** — cannot request marketing/
+    planning or any other room's messages, the page value is fixed in
+    code, never exposed as an input the model could override; (2) same
+    trust/credential model as the write tool (shared key, interactive-
+    only, server-side header only); (3) being tested with น้อง1
+    (chaosuk-rental) alone first before considering the other siblings —
+    do not assume this exception extends to น้อง2/น้อง3 until the owner
+    separately confirms after seeing น้อง1's version work. This was
+    requested specifically to close a real gap the owner found: น้อง1
+    could post a report but had no way to ever see พี่ใหญ่'s (Claude
+    Code's) reply without the owner manually relaying it every time.
   - **Team-roster context + live test, 2026-08-04.** Owner explained the
     full "ทีมงาน" (team) concept directly in a Claude Code session on this
     project: 9 members total — ต้น (owner/final decision-maker), พี่ใหญ่
