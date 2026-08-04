@@ -73,7 +73,15 @@ const _lastLogPruneDateBySheet = new Map(); // sheetId -> "YYYY-MM-DD"
 // เดียวกัน) — คุมเฉพาะ block ยืนยันใบเสร็จข้างล่าง ไม่ใช่ทั้งฟังก์ชัน
 const RECEIPT_CONFIRM_VERSION = 6;
 
-async function runSchedulerOnce(platformVersion = 0) {
+// testRoomId (2026-08-04) — เจ้าของขอไว้หลังเจอบั๊กแจ้งซ้ำ 2 รอบติดกัน:
+// "สร้างระบบรันห้องเดียวไว้ที่ห้อง 5" — ห้องที่เจ้าของคอยรีเช็คข้อความ OA
+// เป็นประจำอยู่แล้ว ใช้เป็นห้องทดสอบทุกครั้งที่แก้ scheduler.js ต่อไปในอนาคต
+// โดยไม่กระทบผู้เช่าห้องอื่นเลย — เมื่อระบุ (ผ่าน query param ?testRoom=
+// ใน router.get('/run') ด้านล่าง) ทุก section ในฟังก์ชันนี้จะกรองเหลือ
+// เฉพาะห้องนี้ก่อนตัดสินใจส่ง/ไม่ส่ง — ไม่ใช้ query param นี้เลย = พฤติกรรม
+// เดิมทุกประการ (เช่น UptimeRobot/GitHub Actions cron ปิงแบบไม่มี query
+// string เลย ยังทำงานกับทุกห้องเหมือนเดิม)
+async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
   const sheetId = getCurrentSheetId() || process.env.GOOGLE_SHEET_ID;
 
   // **บั๊กจริงที่พบ (2026-08-04)** — โค้ดเดิมของฟังก์ชันนี้ทำ readTab()
@@ -107,8 +115,16 @@ async function runSchedulerOnce(platformVersion = 0) {
   // (ดูการวิเคราะห์ใน CLAUDE.md — การใช้ snapshot เดียวกันทั้งรอบปลอดภัย
   // สำหรับทุก filter ที่ใช้จริงในฟังก์ชันนี้ แม้บาง section จะ updateRow
   // แก้ Invoices ระหว่างทางก็ตาม)
-  const invoicesAll = coerceInvoices(batch.Invoices || []);
-  const roomsAll = batch.Rooms || [];
+  let invoicesAll = coerceInvoices(batch.Invoices || []);
+  let roomsAll = batch.Rooms || [];
+  // ทดสอบเฉพาะห้องเดียว (ดู comment เต็มบนสุดของฟังก์ชัน) — กรองตรงนี้จุด
+  // เดียว ครอบคลุมทุก section ด้านล่างที่ใช้ invoicesAll/roomsAll ทั้งหมด
+  // ไม่ต้องแก้ทีละจุด — ห้องอื่นจะไม่ถูกประมวลผล/ส่งข้อความเลยแม้แต่รายการ
+  // เดียวเมื่อระบุ testRoomId
+  if (testRoomId) {
+    invoicesAll = invoicesAll.filter((i) => i.room === testRoomId);
+    roomsAll = roomsAll.filter((r) => r.id === testRoomId);
+  }
 
   // อ่าน NotifyLog ครั้งเดียวตอนต้นรอบ (แทน in-memory Map เดิม — ดู
   // comment เต็มด้านบน) เก็บเป็น Set ของ key ที่แจ้งไปแล้ว "วันนี้"
@@ -622,8 +638,17 @@ async function runSchedulerOnce(platformVersion = 0) {
 // always fell back to process.env.GOOGLE_SHEET_ID (the main account) only.
 // One building's failure is caught and logged, not allowed to abort the
 // rest — same reasoning as every other try/catch in this file.
+// ทดสอบเฉพาะห้องเดียวข้ามตึกได้ (ดู runSchedulerOnce's testRoomId comment
+// เต็มด้านบน) — 2 query param เสริม ไม่บังคับ ไม่มีผลอะไรถ้าไม่ใส่:
+// - ?testRoom=5 → กรองเหลือแค่ห้อง "5" ทุกตึกที่รัน (ห้องอื่นในทุกตึกจะไม่
+//   ถูกประมวลผล/ส่งข้อความเลย)
+// - ?testSheetId=<id> → รันแค่ตึกเดียวที่ระบุ (ปกติจะรันทุกตึกในทำเนียบ)
+//   ใช้คู่กับ testRoom เวลาอยากทดสอบห้อง 5 ของบ้านเลขที่1873 โดยเฉพาะ ไม่
+//   ให้ไปกระทบห้อง "5" ของตึกอื่น (ถ้าบังเอิญมีห้องเลขเดียวกัน)
 router.get('/run', async (req, res, next) => {
   try {
+    const testRoomId = req.query.testRoom ? String(req.query.testRoom) : null;
+    const testSheetId = req.query.testSheetId ? String(req.query.testSheetId) : null;
     // ตึกหลัก (main account) รันเสมอ ไม่ต้องเช็ค platformVersion — โค้ดชุด
     // นี้ทำงานให้บัญชีหลักอยู่แล้วตั้งแต่ก่อนแก้บั๊กวันนี้ ไม่ใช่พฤติกรรม
     // ใหม่สำหรับบัญชีนี้ (ดู CLAUDE.md's staged-rollout rule — gate ป้องกัน
@@ -662,8 +687,9 @@ router.get('/run', async (req, res, next) => {
 
     const buildings = {};
     for (const sheetId of sheetIds) {
+      if (testSheetId && sheetId !== testSheetId) continue; // ทดสอบตึกเดียว — ข้ามตึกอื่นไปเลย ไม่ต้องรันด้วยซ้ำ
       try {
-        buildings[sheetId] = await runWithSheetId(sheetId, () => runSchedulerOnce(platformVersions.get(sheetId) || 0));
+        buildings[sheetId] = await runWithSheetId(sheetId, () => runSchedulerOnce(platformVersions.get(sheetId) || 0, testRoomId));
       } catch (err) {
         console.error('[scheduler] run failed for building', sheetId, err.message);
         buildings[sheetId] = { ran: false, error: err.message };
