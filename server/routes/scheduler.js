@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { readTab, updateRow, pruneOldRows } = require('../sheets');
+const { readTab, updateRow, pruneOldRows, appendRows } = require('../sheets');
 const { readSettings, coerceRecurringTasks, coerceInvoices, readIntegrationCredentials } = require('../coerce');
 const { pushMessage, pushMessageWithConfirmButton, pushButtonMessage, isConfigured: lineConfigured } = require('../line');
 const { runAutomatedInstruction } = require('../automation');
@@ -20,20 +20,30 @@ const DIRECTORY_SHEET_ID = process.env.GOOGLE_DIRECTORY_SHEET_ID;
 const SCHEDULER_MULTI_BUILDING_VERSION = 4;
 
 // "แจ้งเตือน ตัดน้ำตัดไฟ...แจ้งเตือนยังไม่ชำระ ทุกวันที่เท่าไร ถ้ายังไม่
-// ชำระ วันไหน ตัดน้ำ ตัดไฟ" (2026-07-26) — in-memory throttle (same
-// pattern as notifyBusyPeriod/notifyOwnerInsufficientCredit in
-// server/notifications.js) instead of a persisted Sheet column, to avoid
-// yet another multi-tenant Sheet migration (see CLAUDE.md's "Permanent
-// gotcha") for what's a low-stakes once-a-day nudge — worst case after a
-// rare server restart is one duplicate notification that day.
+// ชำระ วันไหน ตัดน้ำ ตัดไฟ" (2026-07-26) — เดิมเป็น in-memory throttle
+// (same pattern as notifyBusyPeriod/notifyOwnerInsufficientCredit in
+// server/notifications.js) เพื่อเลี่ยงการ migrate Sheet เพิ่ม (ดู
+// CLAUDE.md's "Permanent gotcha") คิดว่า worst case แค่แจ้งซ้ำ 1 ครั้งถ้า
+// เซิร์ฟเวอร์รีสตาร์ทไม่บ่อย
 //
-// 2026-07-29 — keys are now prefixed with the sheetId (see
-// runSchedulerOnce below, which now runs once PER BUILDING). Before this
-// fix a room ID like "101" existing in two different buildings' own
-// separate spreadsheets would collide in this single shared Map, wrongly
-// suppressing a real notification in building B just because building A
-// already fired one for "the same" key today.
-const _cutoffNotifiedDates = new Map(); // "sheetId:reminder:room:invId" | "sheetId:final:room:invId" -> "YYYY-MM-DD"
+// **บั๊กจริงที่พบ (2026-08-04)**: สมมติฐาน "รีสตาร์ทไม่บ่อย" ผิด — Render
+// free tier หลับเมื่อไม่มีคนใช้เกิน ~15 นาที ส่วน UptimeRobot ปิงแค่ทุก 20
+// นาที (นานกว่า threshold ที่จะหลับ) ทำให้ทุกครั้งที่ปิงคือการ cold-start
+// ใหม่ทั้งหมด — Map ในหน่วยความจำหายทุกรอบ ระบบเข้าใจผิดว่า "ยังไม่เคยแจ้ง
+// วันนี้" ทุกครั้ง แจ้งซ้ำทุก ~20-70 นาทีทั้งวัน (คุณต้นเจอจริงกับห้อง
+// บ้านเลขที่1873 — ข้อความ "ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว" ซ้ำ 4
+// ครั้งในคืนเดียว) กระทบทุกฟีเจอร์ที่ใช้ Map นี้ร่วมกัน: cutoff warning
+// (เจ้าของ+ผู้เช่า), due reminder, lease/ID-expiring
+//
+// **แก้แล้ว**: ย้ายไปเก็บถาวรใน Sheet tab ใหม่ `NotifyLog` แทน (ดู
+// migrate-add-notifylog-tab.js) — อ่านครั้งเดียวตอนต้นรอบ (`_notifyLogSet`,
+// ไม่ต้อง persist ข้าม request เอง เพราะอ่านจาก Sheet ใหม่ทุกรอบอยู่แล้ว)
+// เขียนกลับเป็น batch เดียวตอนจบรอบ (`_pendingNotifyRows`) กันปัญหา N+1
+// read/write (บทเรียนเดียวกับ bootstrap 9-คำขอที่เคยแก้มาก่อน)
+//
+// keys ยังคง prefix ด้วย sheetId ตามเดิม (2026-07-29 fix) — แม้ตอนนี้จะ
+// เก็บอยู่ใน Sheet ของตึกนั้นเองอยู่แล้ว (ไม่มีทางชนกับตึกอื่นจริงๆ) แต่คง
+// รูปแบบเดิมไว้เพื่อลดความเสี่ยงตอนแก้โค้ด ไม่ต้องไล่เปลี่ยน key ทุกจุด
 
 // "เก็บข้อมูลไว้สูงสุด 5 ปีเลยครับ" (2026-07-26) — ElectricityLog/WaterLog
 // เก็บได้ถึง 1 แถว/ห้อง/ชั่วโมง ไม่เคยมีวันลบมาก่อน (ดู comment เต็มใน
@@ -66,6 +76,28 @@ const RECEIPT_CONFIRM_VERSION = 6;
 async function runSchedulerOnce(platformVersion = 0) {
   const sheetId = getCurrentSheetId() || process.env.GOOGLE_SHEET_ID;
   const settings = await readSettings();
+
+  // อ่าน NotifyLog ครั้งเดียวตอนต้นรอบ (แทน in-memory Map เดิม — ดู
+  // comment เต็มด้านบน) เก็บเป็น Set ของ key ที่แจ้งไปแล้ว "วันนี้"
+  // เท่านั้น (กรองด้วย date ตอนอ่าน ไม่ต้องสนใจ key ของวันเก่ากว่านั้น) —
+  // ถ้าอ่านไม่สำเร็จ (ตึกที่ยังไม่ได้รัน migrate-add-notifylog-tab.js)
+  // fallback เป็น Set ว่าง แปลว่า "ยังไม่เคยแจ้งอะไรเลยวันนี้" ซึ่งเป็น
+  // พฤติกรรมเดิมก่อนแก้บั๊กนี้ (อาจแจ้งซ้ำได้ถ้ายังไม่ migrate — ไม่ใช่
+  // regression ใหม่ แค่ยังไม่ได้รับการแก้ในตึกนั้น)
+  const _todayForNotifyLog = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+  let _notifiedTodaySet = new Set();
+  try {
+    const notifyLogRows = await readTab('NotifyLog');
+    _notifiedTodaySet = new Set(notifyLogRows.filter((r) => r.date === _todayForNotifyLog).map((r) => r.key));
+  } catch (err) {
+    console.error('[scheduler] NotifyLog read failed (tab อาจยังไม่มี — รัน migrate-add-notifylog-tab.js)', err.message);
+  }
+  const _pendingNotifyRows = []; // เขียนกลับเป็น batch เดียวตอนจบฟังก์ชัน
+  const wasNotifiedToday = (key) => _notifiedTodaySet.has(key);
+  const markNotifiedToday = (key) => {
+    _notifiedTodaySet.add(key); // กันแจ้งซ้ำภายในรอบเดียวกันด้วย ไม่ใช่แค่ข้ามรอบ
+    _pendingNotifyRows.push({ id: 'NL' + Date.now() + Math.random().toString(36).slice(2, 6), key, date: _todayForNotifyLog });
+  };
 
   // Overdue-bill detection runs unconditionally — deliberately NOT gated
   // behind claudeAutomationEnabled below, since transitioning a bill to
@@ -209,7 +241,7 @@ async function runSchedulerOnce(platformVersion = 0) {
           const kind = todayDom === cancelWarningDay ? 'cancelWarning' : todayDom === finalDay ? 'final' : 'reminder';
           const key = `${sheetId}:${kind}:${inv.room}:${inv.id}`;
           const room = rooms.find((r) => r.id === inv.room);
-          if (_cutoffNotifiedDates.get(key) !== todayStr) {
+          if (!wasNotifiedToday(key)) {
             const msg = kind === 'cancelWarning'
               ? `🚨 ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${cancelWarningDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณายกเลิกสัญญาเช่าได้เลยครับ (ต้องไปกดยกเลิกเองที่หน้าสัญญาเช่า ระบบไม่ยกเลิกให้อัตโนมัติ)`
               : kind === 'final'
@@ -243,11 +275,11 @@ async function runSchedulerOnce(platformVersion = 0) {
                 cutoffCreds.line,
               ).catch((err) => console.error('[scheduler] cutoff confirm button push failed', err.message));
             }
-            _cutoffNotifiedDates.set(key, todayStr);
+            markNotifiedToday(key);
             cutoffNotified++;
           }
           const tenantKey = `tenant:${key}`;
-          if (_cutoffNotifiedDates.get(tenantKey) !== todayStr) {
+          if (!wasNotifiedToday(tenantKey)) {
             if (room && room.lineUserId) {
               // "ส่วนนี้เพิ่ม ข้อ 1 2 3 ให้ด้วยครับ" (2026-07-26) — ข้อความ
               // ทั้ง 3 ระดับตอนนี้แก้ไขเองได้จาก Settings แล้ว (เดิมตายตัว
@@ -263,7 +295,7 @@ async function runSchedulerOnce(platformVersion = 0) {
               // (ดึงไว้แล้วด้านบนในสโคปนี้) เหมือนที่ pushButtonMessage ด้านบน
               // ทำถูกอยู่แล้ว
               pushMessage(room.lineUserId, tenantMsg, undefined, cutoffCreds.line).catch(() => {});
-              _cutoffNotifiedDates.set(tenantKey, todayStr);
+              markNotifiedToday(tenantKey);
             }
           }
         }
@@ -299,13 +331,13 @@ async function runSchedulerOnce(platformVersion = 0) {
         const daysUntilDue = Math.round((new Date(inv.due + 'T00:00:00Z') - new Date(todayStr2 + 'T00:00:00Z')) / 86400000);
         if (daysUntilDue < 1 || daysUntilDue > reminderDays) continue; // นอกช่วง N วันก่อนครบกำหนด (ไม่รวมวันครบกำหนดเอง)
         const key = `${sheetId}:dueReminder:${inv.room}:${inv.id}`;
-        if (_cutoffNotifiedDates.get(key) === todayStr2) continue; // วันนี้แจ้งไปแล้ว
+        if (wasNotifiedToday(key)) continue; // วันนี้แจ้งไปแล้ว
         const room = rooms.find((r) => r.id === inv.room);
         if (room && room.lineUserId) {
           pushMessage(room.lineUserId, msg, undefined, dueReminderCreds.line).catch((err) => console.error('[scheduler] due reminder push failed', err.message));
           dueReminderNotified++;
         }
-        _cutoffNotifiedDates.set(key, todayStr2);
+        markNotifiedToday(key);
       }
     }
   } catch (err) {
@@ -346,12 +378,12 @@ async function runSchedulerOnce(platformVersion = 0) {
           const days = daysUntil(c.value);
           if (days !== reminderDays) continue; // เตือนแค่วันที่ตรงเป๊ะเท่านั้น กันแจ้งซ้ำทุกวัน
           const key = `${sheetId}:leaseExpiring:${c.kind}:${room.id}:${c.value}`;
-          if (_cutoffNotifiedDates.get(key) === todayStr2) continue;
+          if (wasNotifiedToday(key)) continue;
           notifyAdmin('leaseExpiring', `📄 ${c.label}ห้อง ${room.id} (${room.tenant}) จะหมดอายุในอีก ${reminderDays} วัน (${c.value})`, leaseExpiringCreds).catch(() => {});
           if (room.lineUserId) {
             pushMessage(room.lineUserId, `📄 แจ้งเตือนครับ ${c.tenantLabel}จะหมดอายุในอีก ${reminderDays} วัน (${c.value}) รบกวนเตรียมต่ออายุ/อัปเดตให้เรียบร้อยนะครับ`, undefined, leaseExpiringCreds.line).catch(() => {});
           }
-          _cutoffNotifiedDates.set(key, todayStr2);
+          markNotifiedToday(key);
           leaseExpiringNotified++;
         }
       }
@@ -372,11 +404,18 @@ async function runSchedulerOnce(platformVersion = 0) {
     if (_lastLogPruneDateBySheet.get(sheetId) !== todayStr3) {
       const cutoff = new Date();
       cutoff.setFullYear(cutoff.getFullYear() - LOG_RETENTION_YEARS);
-      const [elecResult, waterResult] = await Promise.all([
+      // NotifyLog เก็บแค่ไม่กี่วันพอ (ต่างจาก ElectricityLog/WaterLog ที่
+      // เก็บ 5 ปีเพื่อวิเคราะห์แนวโน้ม) — ใช้แค่เช็ค "วันนี้แจ้งไปหรือยัง"
+      // เท่านั้น อดีตไกลกว่า 2-3 วันไม่มีประโยชน์อะไรแล้ว เก็บ 3 วันเผื่อ
+      // edge case ข้ามเที่ยงคืน/timezone
+      const notifyLogCutoff = new Date();
+      notifyLogCutoff.setDate(notifyLogCutoff.getDate() - 3);
+      const [elecResult, waterResult, notifyLogResult] = await Promise.all([
         pruneOldRows('ElectricityLog', 'timestamp', cutoff).catch((err) => { console.error('[scheduler] prune ElectricityLog failed', err.message); return null; }),
         pruneOldRows('WaterLog', 'timestamp', cutoff).catch((err) => { console.error('[scheduler] prune WaterLog failed', err.message); return null; }),
+        pruneOldRows('NotifyLog', 'date', notifyLogCutoff).catch((err) => { console.error('[scheduler] prune NotifyLog failed (tab อาจยังไม่มี)', err.message); return null; }),
       ]);
-      logPruneResult = { elec: elecResult, water: waterResult };
+      logPruneResult = { elec: elecResult, water: waterResult, notifyLog: notifyLogResult };
       _lastLogPruneDateBySheet.set(sheetId, todayStr3);
     }
   } catch (err) {
@@ -525,6 +564,18 @@ async function runSchedulerOnce(platformVersion = 0) {
         // hit during development.
         notifyAdmin('taskFailure', `คำสั่งงานประจำล้มเหลวครับ: "${task.humanSummary || task.actionSummary}"\nข้อผิดพลาด: ${err.message}`).catch(() => {});
       }
+    }
+  }
+
+  // เขียน NotifyLog กลับเป็น batch เดียวตอนจบรอบ (ดู comment เต็มตอนต้น
+  // ฟังก์ชัน) — ทำตรงนี้แทนที่จะเขียนทันทีทุกครั้งที่ markNotifiedToday
+  // ถูกเรียก เพื่อลดจำนวนคำขอ Google Sheets API ต่อรอบ (อาจมีหลายสิบ key
+  // ต่อรอบถ้ามีบิลค้างชำระ/ห้องใกล้หมดสัญญาเยอะพร้อมกัน)
+  if (_pendingNotifyRows.length) {
+    try {
+      await appendRows('NotifyLog', _pendingNotifyRows);
+    } catch (err) {
+      console.error('[scheduler] NotifyLog write failed (tab อาจยังไม่มี — รัน migrate-add-notifylog-tab.js)', err.message);
     }
   }
 

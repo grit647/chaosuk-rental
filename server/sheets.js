@@ -107,6 +107,26 @@ async function appendRow(tab, obj) {
   return obj;
 }
 
+// เพิ่มหลายแถวในคำขอเดียว — ใช้ตอน scheduler.js เขียน NotifyLog หลายรายการ
+// ต่อรอบ (กันแจ้งเตือนซ้ำ, ดู scheduler.js's comment เต็ม) ถ้าใช้ appendRow
+// ทีละแถวจะเป็น N คำขอแยกกัน ซึ่งเป็นบทเรียนเดียวกับที่เจอมาแล้วครั้งก่อน
+// (bootstrap 9 คำขอ → รวมเป็น 1 ด้วย readTabs/batchGet) — ฝั่งเขียนก็ควร
+// รวมเป็นคำขอเดียวเหมือนกันถ้าเขียนหลายแถวพร้อมกันได้
+async function appendRows(tab, objs) {
+  if (!objs || !objs.length) return [];
+  const sheets = await client();
+  const header = await getHeader(sheets, tab);
+  const rows = objs.map((obj) => objectToRow(header, obj));
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID(),
+    range: `${tab}!A1`,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: rows },
+  });
+  return objs;
+}
+
 async function findRowNumber(sheets, tab, header, matchCol, matchValue) {
   const colIdx = header.indexOf(matchCol);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A2:${MAX_COL}1000` });
@@ -241,4 +261,4 @@ async function pruneOldRows(tab, dateField, cutoffDate) {
   return { removedCount, keptCount: kept.length };
 }
 
-module.exports = { readTab, readTabs, appendRow, updateRow, deleteRow, clearTab, getCellUsage, pruneOldRows };
+module.exports = { readTab, readTabs, appendRow, appendRows, updateRow, deleteRow, clearTab, getCellUsage, pruneOldRows };
