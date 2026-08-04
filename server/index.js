@@ -120,11 +120,8 @@ app.get('/api/system-health', async (req, res) => {
     checks.googleSheets = { ok: false, error: err.message };
   }
   checks.line = { ok: !!(process.env.LINE_CHANNEL_ACCESS_TOKEN && process.env.LINE_CHANNEL_SECRET), configured: !!process.env.LINE_CHANNEL_ACCESS_TOKEN };
-  // โควตาข้อความ LINE ของบัญชีหลัก (server/.env) เท่านั้น — ไม่รวมอีก 2
-  // ตึกที่มี LINE OA แยกของตัวเอง (บ้านเลขที่1873/บ้านพักครูโจ) เพราะ
-  // endpoint นี้ไม่มี session/customerSheetId context ให้รู้ว่าจะเช็คตึก
-  // ไหน (คุณต้นยืนยันแล้วว่าเอาแค่ตัวหลักก่อนพอ) ไม่ error ทั้ง check ถ้า
-  // ดึงโควตาไม่ได้ — เป็นข้อมูลเสริม ไม่ใช่ตัวชี้ว่า LINE เชื่อมต่อได้ไหม
+  // โควตาข้อความ LINE ของบัญชีหลัก (server/.env) — เก็บไว้เหมือนเดิมเพื่อ
+  // ไม่ให้ ช.นายท้ายที่อ่าน checks.line.quota อยู่แล้วพัง
   if (checks.line.configured) {
     try {
       const { getMessageQuota, getMessageQuotaConsumption } = require('./line');
@@ -133,6 +130,42 @@ app.get('/api/system-health', async (req, res) => {
     } catch (err) {
       checks.line.quotaError = err.message;
     }
+  }
+  // "ข้อมูลไลน์ของ 1873 ไม่ตรงกับที่ระบบแสดง" (2026-08-04) — เดิมเช็คแค่
+  // บัญชีหลัก ไม่รวมตึกอื่นที่มี LINE OA แยกของตัวเอง (บ้านเลขที่1873/
+  // บ้านพักครูโจ) เพราะ endpoint นี้ไม่มี session ให้รู้ว่าจะเช็คตึกไหน —
+  // แก้โดยวนอ่านทุกตึกจากทำเนียบ (Directory) เหมือน pattern เดียวกับที่
+  // scheduler.js ใช้อยู่แล้ว (runWithSheetId สลับ context ทีละตึก) เพิ่ม
+  // เป็นเช็คใหม่แยกต่างหาก (checks.lineQuotaByBuilding) ไม่แตะ
+  // checks.line.quota เดิม (ยังคงหมายถึงบัญชีหลักอย่างเดียวเหมือนเดิม)
+  try {
+    const { readTab: readTabForDirectory } = require('./sheets');
+    const { readIntegrationCredentials } = require('./coerce');
+    const { getMessageQuota, getMessageQuotaConsumption } = require('./line');
+    const directoryId = process.env.GOOGLE_DIRECTORY_SHEET_ID;
+    const buildings = [{ sheetId: process.env.GOOGLE_SHEET_ID, name: 'บัญชีหลัก' }];
+    if (directoryId) {
+      const directoryRows = await runWithSheetId(directoryId, () => readTabForDirectory('Users'));
+      directoryRows.forEach((row) => {
+        if (row.customerSheetId && row.customerSheetId !== process.env.GOOGLE_SHEET_ID && row.status !== 'suspended') {
+          buildings.push({ sheetId: row.customerSheetId, name: row.propertyName || row.customerSheetId });
+        }
+      });
+    }
+    checks.lineQuotaByBuilding = await Promise.all(buildings.map(async (b) => {
+      try {
+        return await runWithSheetId(b.sheetId, async () => {
+          const creds = await readIntegrationCredentials();
+          if (!creds.line) return { name: b.name, configured: false };
+          const [quota, consumption] = await Promise.all([getMessageQuota(creds.line), getMessageQuotaConsumption(creds.line)]);
+          return { name: b.name, configured: true, limit: quota.value ?? null, type: quota.type, used: consumption.totalUsage };
+        });
+      } catch (err) {
+        return { name: b.name, configured: false, error: err.message };
+      }
+    }));
+  } catch (err) {
+    checks.lineQuotaByBuildingError = err.message; // ไม่ทำให้ health check ทั้งหมดพังถ้าส่วนนี้ error
   }
   try {
     checks.ai = { ok: require('./claude').isConfigured(), provider: 'claude' };
