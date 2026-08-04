@@ -404,8 +404,18 @@ async function readSettings(preloadedRows) {
 // server/line.js and server/tuya.js to use, falling back to undefined
 // fields when not set, which those modules' resolveCreds() then falls
 // back to process.env for.
-async function readIntegrationCredentials() {
-  const rows = await readTab('Settings');
+// preloadedRows: เดิมทุกครั้งที่เรียกฟังก์ชันนี้จะ readTab('Settings') เอง
+// เสมอ — server/routes/scheduler.js เรียกฟังก์ชันนี้ถึง ~7 ครั้งต่อรอบ
+// (overdueCreds, receiptCreds, cutoffCreds, dueReminderCreds,
+// leaseExpiringCreds, ownerRichMenu's creds, scheduledMsgCreds) แปลว่า
+// อ่าน "Settings" ซ้ำ 7 รอบต่อตึกต่อรอบโดยไม่จำเป็น (ข้อมูลเดิมไม่เปลี่ยน
+// ระหว่างรอบเดียวกัน) — เจอจริงว่าทำให้ชน Google Sheets quota บ่อย (ดู
+// scheduler.js's comment เต็ม, 2026-08-04) เพิ่ม param นี้ให้ผู้เรียกส่ง
+// Settings rows ที่อ่านมาแล้วครั้งเดียวเข้ามาแทนได้ (เหมือน readSettings()
+// ด้านบนที่มี preloadedRows อยู่แล้ว) — ถ้าไม่ส่งมา ยัง readTab เองเหมือน
+// เดิมทุกประการ (backward compatible, route อื่นที่เรียกแบบเดิมไม่พัง)
+async function readIntegrationCredentials(preloadedRows) {
+  const rows = preloadedRows || await readTab('Settings');
   const map = {};
   rows.forEach((r) => { map[r.key] = r.value; });
   return {

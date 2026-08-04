@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { readTab, updateRow, pruneOldRows, appendRows } = require('../sheets');
+const { readTab, readTabs, updateRow, pruneOldRows, appendRows } = require('../sheets');
 const { readSettings, coerceRecurringTasks, coerceInvoices, readIntegrationCredentials } = require('../coerce');
 const { pushMessage, pushMessageWithConfirmButton, pushButtonMessage, isConfigured: lineConfigured } = require('../line');
 const { runAutomatedInstruction } = require('../automation');
@@ -75,23 +75,46 @@ const RECEIPT_CONFIRM_VERSION = 6;
 
 async function runSchedulerOnce(platformVersion = 0) {
   const sheetId = getCurrentSheetId() || process.env.GOOGLE_SHEET_ID;
-  const settings = await readSettings();
+
+  // **บั๊กจริงที่พบ (2026-08-04)** — โค้ดเดิมของฟังก์ชันนี้ทำ readTab()
+  // แยกกันถึง 11 ครั้ง (Invoices อ่านซ้ำ 4 รอบ, Rooms อ่านซ้ำ 3 รอบ ในรอบ
+  // เดียวกัน!) บวกกับ readIntegrationCredentials() ที่แต่ละครั้งอ่าน
+  // "Settings" เองอีกถึง ~7 ครั้งต่อรอบ (overdueCreds, receiptCreds,
+  // cutoffCreds, dueReminderCreds, leaseExpiringCreds, ownerRichMenu's
+  // creds, scheduledMsgCreds) — รวมแล้วเกือบ 20 คำขอ Sheets API ต่อตึก
+  // ต่อรอบ พอมี 3 ตึกรันพร้อมกันทุก ~20 นาที (ดู UptimeRobot note) ทำให้
+  // ชน "Quota exceeded for quota metric 'Read requests'" บ่อยมาก —
+  // เจอจริงว่าทำให้ฟีเจอร์กันแจ้งซ้ำ (NotifyLog ด้านล่าง) เขียน/อ่านพลาด
+  // บ่อยจนใช้งานไม่ได้ผลจริง เหมือนบั๊กเดิมของ /api/bootstrap ทุกประการ
+  // (9 readTab แยก → รวมเป็น batchGet เดียว, ดู bootstrap.js's comment)
+  // — แก้แบบเดียวกัน: อ่านทุกแท็บที่ต้องใช้ในฟังก์ชันนี้ครั้งเดียวตอนต้น
+  // แล้วส่งต่อ (ผ่าน preloadedRows param ที่เพิ่มให้ readSettings/
+  // readIntegrationCredentials รองรับอยู่แล้ว) แทนที่จะให้แต่ละจุด
+  // readTab/readIntegrationCredentials เองอีก
+  let batch = {};
+  try {
+    batch = await readTabs(['Settings', 'Invoices', 'Rooms', 'NotifyLog', 'RecurringTasks', 'ScheduledMessages']);
+  } catch (err) {
+    console.error('[scheduler] batch readTabs failed, falling back to individual reads', err.message);
+  }
+  const settingsRows = batch.Settings || await readTab('Settings').catch(() => []);
+  const settings = await readSettings(settingsRows);
+  // ทุกจุดที่เดิมเรียก readIntegrationCredentials() เอง ตอนนี้ส่ง
+  // settingsRows ที่อ่านมาแล้วเข้าไปแทน (ไม่ readTab('Settings') ซ้ำอีก)
+  const sharedCreds = await readIntegrationCredentials(settingsRows);
+
+  // แท็บอื่นๆ ที่ต้องใช้ทั่วทั้งฟังก์ชัน — coerce ครั้งเดียว ใช้ซ้ำได้ทุกจุด
+  // (ดูการวิเคราะห์ใน CLAUDE.md — การใช้ snapshot เดียวกันทั้งรอบปลอดภัย
+  // สำหรับทุก filter ที่ใช้จริงในฟังก์ชันนี้ แม้บาง section จะ updateRow
+  // แก้ Invoices ระหว่างทางก็ตาม)
+  const invoicesAll = coerceInvoices(batch.Invoices || []);
+  const roomsAll = batch.Rooms || [];
 
   // อ่าน NotifyLog ครั้งเดียวตอนต้นรอบ (แทน in-memory Map เดิม — ดู
   // comment เต็มด้านบน) เก็บเป็น Set ของ key ที่แจ้งไปแล้ว "วันนี้"
-  // เท่านั้น (กรองด้วย date ตอนอ่าน ไม่ต้องสนใจ key ของวันเก่ากว่านั้น) —
-  // ถ้าอ่านไม่สำเร็จ (ตึกที่ยังไม่ได้รัน migrate-add-notifylog-tab.js)
-  // fallback เป็น Set ว่าง แปลว่า "ยังไม่เคยแจ้งอะไรเลยวันนี้" ซึ่งเป็น
-  // พฤติกรรมเดิมก่อนแก้บั๊กนี้ (อาจแจ้งซ้ำได้ถ้ายังไม่ migrate — ไม่ใช่
-  // regression ใหม่ แค่ยังไม่ได้รับการแก้ในตึกนั้น)
+  // เท่านั้น (กรองด้วย date ตอนอ่าน ไม่ต้องสนใจ key ของวันเก่ากว่านั้น)
   const _todayForNotifyLog = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
-  let _notifiedTodaySet = new Set();
-  try {
-    const notifyLogRows = await readTab('NotifyLog');
-    _notifiedTodaySet = new Set(notifyLogRows.filter((r) => r.date === _todayForNotifyLog).map((r) => r.key));
-  } catch (err) {
-    console.error('[scheduler] NotifyLog read failed (tab อาจยังไม่มี — รัน migrate-add-notifylog-tab.js)', err.message);
-  }
+  const _notifiedTodaySet = new Set((batch.NotifyLog || []).filter((r) => r.date === _todayForNotifyLog).map((r) => r.key));
   const _pendingNotifyRows = []; // เขียนกลับเป็น batch เดียวตอนจบฟังก์ชัน
   const wasNotifiedToday = (key) => _notifiedTodaySet.has(key);
   const markNotifiedToday = (key) => {
@@ -107,13 +130,13 @@ async function runSchedulerOnce(platformVersion = 0) {
   // re-notifying every 10 minutes for bills already overdue).
   let overdueChecked = 0, overdueNew = 0;
   try {
-    const invoices = coerceInvoices(await readTab('Invoices'));
+    const invoices = invoicesAll;
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
     const candidates = invoices.filter((i) => (i.status === 'pending' || i.status === 'partial') && i.due && i.due < todayStr);
     overdueChecked = candidates.length;
-    // ดึงครั้งเดียวก่อนลูป (ดู comment เต็มใน adminNotify.js's preloadedCreds
-    // param) — ห้องเกินกำหนดหลายห้องพร้อมกันไม่ต้องอ่าน Settings ซ้ำทุกห้อง
-    const overdueCreds = candidates.length ? await readIntegrationCredentials() : null;
+    // ใช้ sharedCreds ที่อ่านมาแล้วครั้งเดียวตอนต้นฟังก์ชัน (ดู comment
+    // เต็มด้านบน) แทนการเรียก readIntegrationCredentials() ใหม่ทุกครั้ง
+    const overdueCreds = candidates.length ? sharedCreds : null;
     for (const inv of candidates) {
       try {
         await updateRow('Invoices', inv.id, { status: 'overdue' });
@@ -143,13 +166,13 @@ async function runSchedulerOnce(platformVersion = 0) {
     // note) ไม่มีทางมีบิลไหนตั้ง receiptSendCount/receiptLastSentAt จริง
     // อยู่แล้ว (ฝั่ง frontend ก็ gate ไว้เหมือนกัน) แต่เช็คซ้ำตรงนี้ไว้
     // เป็นชั้นป้องกันที่สอง เผื่อมีทางอื่นเซ็ตค่าเหล่านี้เข้ามาในอนาคต
-    const invoices = platformVersion >= RECEIPT_CONFIRM_VERSION ? coerceInvoices(await readTab('Invoices')) : [];
+    const invoices = platformVersion >= RECEIPT_CONFIRM_VERSION ? invoicesAll : [];
     const now = Date.now();
     const HOURS_24 = 24 * 60 * 60 * 1000;
     const pendingConfirm = invoices.filter((i) => i.receiptSent && !i.receiptDeliveryConfirmed && i.receiptLastSentAt);
     if (pendingConfirm.length) {
-      const rooms = await readTab('Rooms');
-      const receiptCreds = await readIntegrationCredentials();
+      const rooms = roomsAll;
+      const receiptCreds = sharedCreds;
       for (const inv of pendingConfirm) {
         const lastSent = new Date(inv.receiptLastSentAt).getTime();
         if (!lastSent || (now - lastSent) < HOURS_24) continue;
@@ -208,7 +231,7 @@ async function runSchedulerOnce(platformVersion = 0) {
       const checkTime = settings.cutoffCheckTime || '09:00';
       const timeReached = nowTimeStr >= checkTime;
       if ((todayDom === reminderDay || todayDom === finalDay || todayDom === cancelWarningDay) && timeReached) {
-        const invoices = coerceInvoices(await readTab('Invoices'));
+        const invoices = invoicesAll;
         // "แก้บักครับ ไม่ยุ่งกับข้อมูลที่บันทึกไว้ครับ" (2026-07-30) — บั๊ก
         // จริงที่เจอ: เดิมกรองแค่ "สถานะยังไม่จ่าย" (pending/partial/overdue)
         // แล้วเทียบ "วันที่ของเดือนวันนี้" กับวันที่ตั้งไว้ (reminderDay/
@@ -230,11 +253,11 @@ async function runSchedulerOnce(platformVersion = 0) {
         // เดียวกับ cutoffWarning (ไม่แยกสวิตช์เพิ่ม) ข้อความฝั่งผู้เช่า
         // สุภาพกว่า พูดกับผู้เช่าโดยตรง ไม่ใช้คำว่า "ห้อง X" แบบข้อความ
         // ฝั่งเจ้าของ — dedup แยก key จากฝั่งเจ้าของ (คนละ recipient กัน)
-        const rooms = await readTab('Rooms');
+        const rooms = roomsAll;
         // "กดปุ่ม ยืนยันที่หน้าไลน์เจ้าของเพื่อให้กดยืนยันเองได้เลย"
         // (2026-07-26) — ต้องใช้ creds.line เพื่อ push ปุ่ม postback ให้
         // เจ้าของ (คนละ path จาก notifyAdmin ซึ่งส่งได้แค่ข้อความล้วน)
-        const cutoffCreds = await readIntegrationCredentials();
+        const cutoffCreds = sharedCreds;
         for (const inv of unpaid) {
           const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
           const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
@@ -319,14 +342,11 @@ async function runSchedulerOnce(platformVersion = 0) {
       const todayStr2 = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
       const reminderDays = Number(settings.dueReminderDays) || 3;
       const msg = settings.dueReminderMsg || 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ';
-      const invoices = coerceInvoices(await readTab('Invoices'));
+      const invoices = invoicesAll;
       const unpaid = invoices.filter((i) => (i.status === 'pending' || i.status === 'partial') && i.due);
       dueReminderChecked = unpaid.length;
-      const rooms = await readTab('Rooms');
-      // บั๊กจริงที่พบ (2026-07-29) — pushMessage เดิมเรียกไม่ส่ง creds เลย
-      // (ดู comment เต็มในส่วน cutoff warning ด้านบน) ตึกอื่นที่มี LINE OA
-      // แยกต่างหากจะส่งไม่ออกเลย ต้องดึง credentials ของตึกนี้เองมาก่อน
-      const dueReminderCreds = await readIntegrationCredentials();
+      const rooms = roomsAll;
+      const dueReminderCreds = sharedCreds;
       for (const inv of unpaid) {
         const daysUntilDue = Math.round((new Date(inv.due + 'T00:00:00Z') - new Date(todayStr2 + 'T00:00:00Z')) / 86400000);
         if (daysUntilDue < 1 || daysUntilDue > reminderDays) continue; // นอกช่วง N วันก่อนครบกำหนด (ไม่รวมวันครบกำหนดเอง)
@@ -363,12 +383,10 @@ async function runSchedulerOnce(platformVersion = 0) {
         return Math.round((target - now) / 86400000);
       };
       const reminderDays = Number(settings.leaseExpiringReminderDays) || 7;
-      const rooms = await readTab('Rooms');
+      const rooms = roomsAll;
       const occupied = rooms.filter((r) => r.tenant);
       leaseExpiringChecked = occupied.length;
-      // บั๊กจริงที่พบ (2026-07-29) — pushMessage เดิมเรียกไม่ส่ง creds เลย
-      // (ดู comment เต็มในส่วน cutoff warning ด้านบน)
-      const leaseExpiringCreds = await readIntegrationCredentials();
+      const leaseExpiringCreds = sharedCreds;
       for (const room of occupied) {
         const checks = [
           { field: 'tenantIdExpiry', value: room.tenantIdExpiry, kind: 'idCard', label: 'บัตรประชาชนผู้เช่า', tenantLabel: 'บัตรประชาชนของคุณ' },
@@ -432,7 +450,7 @@ async function runSchedulerOnce(platformVersion = 0) {
   // the counts actually changed since the last tick.
   let ownerRichMenuResult = null;
   try {
-    const creds = await readIntegrationCredentials();
+    const creds = sharedCreds;
     ownerRichMenuResult = await syncOwnerRichMenuBadges(creds.line);
   } catch (err) {
     console.error('[scheduler] owner rich menu badge sync failed', err.message);
@@ -460,22 +478,18 @@ async function runSchedulerOnce(platformVersion = 0) {
   // ตึกที่มี LINE OA แยกต่างหาก (บันทึกไว้ผ่านหน้าตั้งค่าของตัวเอง ไม่ใช่
   // .env) จะโดนข้ามทั้ง block นี้ไปเฉยๆ ทั้งที่จริงมี credentials ของตัวเอง
   // อยู่แล้ว — ต้องดึง credentials ของตึกนี้มาเช็ค/ใช้จริง
-  const scheduledMsgCreds = await readIntegrationCredentials();
+  const scheduledMsgCreds = sharedCreds;
   if (lineConfigured(scheduledMsgCreds.line)) {
     const nowStr = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).slice(0, 16).replace(' ', 'T');
-    const [rows, rooms] = await Promise.all([readTab('ScheduledMessages'), readTab('Rooms')]);
+    const rows = batch.ScheduledMessages || [];
+    const rooms = roomsAll;
     const due = rows.filter((r) => r.sent !== 'TRUE' && r.sendAt && r.sendAt <= nowStr);
     scheduledChecked = rows.length;
     scheduledDue = due.length;
 
-    // "ถ้าอนาคตส่งทีเดียวเป็น 10 ห้องจะเจอปัญหาโควตาไหม" (2026-07-29) —
-    // เจอจริง: เดิมโค้ดด้านล่าง (ตอนมาร์ค receiptSent) อ่านทั้งแท็บ
-    // Invoices ใหม่ "ในลูป" ทุกครั้งที่ส่งสำเร็จ 1 ห้อง — 10 ห้องพร้อมกัน =
-    // อ่านซ้ำ 10 รอบ ทั้งที่จริงอ่านครั้งเดียวพอ (ห้องอื่นไม่ได้แก้ระหว่างนี้)
-    // ย้ายมาอ่านครั้งเดียวก่อนเข้าลูป แทน — ลดจำนวนการอ่าน Sheets ลงตาม
-    // จำนวนห้องที่ส่งพร้อมกันในรอบเดียวกัน (เหลือแค่ 1 ครั้งเสมอ ไม่ว่าจะมี
-    // กี่ห้องก็ตาม)
-    let invoicesForReceiptSent = null;
+    // เดิม lazy-load อ่าน Invoices แยกในลูป (ครั้งแรกที่ต้องใช้เท่านั้น) —
+    // ตอนนี้ใช้ invoicesAll ที่อ่านมาแล้วครั้งเดียวตอนต้นฟังก์ชันแทนได้เลย
+    // (ดู comment เต็มตอนต้นฟังก์ชัน)
     const sendErrors = [];
     for (const row of due) {
       if (row.source !== 'invoice_receipt' && !settings.claudeAutomationEnabled) continue; // ยังปิดสวิตช์อยู่ — ข้ามไปก่อน รอบหน้าค่อยเช็คใหม่
@@ -498,8 +512,7 @@ async function runSchedulerOnce(platformVersion = 0) {
         // ระบบกันไม่ให้ออกบิลซ้อนอยู่แล้ว, orders.js/invoices.js's guard)
         if (row.source === 'invoice_receipt' && row.room !== 'all') {
           try {
-            if (!invoicesForReceiptSent) invoicesForReceiptSent = coerceInvoices(await readTab('Invoices'));
-            const inv = invoicesForReceiptSent.find((i) => i.room === row.room && i.status !== 'paid');
+            const inv = invoicesAll.find((i) => i.room === row.room && i.status !== 'paid');
             if (inv) await updateRow('Invoices', inv.id, { receiptSent: true });
           } catch (err2) {
             console.error('[scheduler] failed to mark invoice receiptSent after scheduled send', row.id, err2.message);
@@ -532,7 +545,7 @@ async function runSchedulerOnce(platformVersion = 0) {
   // necessarily LINE, so this runs independently of the block above.
   let recurringRan = 0, recurringChecked = 0;
   if (claudeConfigured()) {
-    const recurringRows = coerceRecurringTasks(await readTab('RecurringTasks'));
+    const recurringRows = coerceRecurringTasks(batch.RecurringTasks || []);
     recurringChecked = recurringRows.length;
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
     const nowHHMM = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' });
