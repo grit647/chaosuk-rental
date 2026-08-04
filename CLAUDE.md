@@ -1187,11 +1187,60 @@ verify the fix — forgot that local dev still points at the **live
 production Sheet + live LINE credentials**, no sandbox/test mode exists
 anywhere in this app. This actually sent 7 real due-reminder LINE
 messages to real tenants of "บ้านเลขที่1873" mid-test (exactly the kind
-of duplicate the owner had just reported, made worse by testing). Lesson
-for next time: **never call `/api/scheduler/run` (or anything that
-loops `pushMessage`) against local dev without first confirming what
-real messages it might send** — there's no dry-run flag. Consider adding
-one if this class of testing need comes up again.
+of duplicate the owner had just reported, made worse by testing).
+
+**Follow-up (same day): first fix wasn't enough, root cause was actually
+Sheets API quota exhaustion, not the dedup logic itself.** Owner reported
+the duplicates got WORSE after the NotifyLog fix deployed (5 messages
+within one hour instead of every 20-70 min). Investigation found
+`runSchedulerOnce()` was making **~20 separate Sheets API requests per
+building per run** — `readTab()` called 11 times directly (Invoices 4x,
+Rooms 3x, etc.) plus `readIntegrationCredentials()` (which does its own
+independent `readTab('Settings')` every call) invoked ~7 more times.
+Same bug class `/api/bootstrap` already hit once (9 separate reads → 1
+`batchGet`) — reproduced the exact "Quota exceeded for quota metric
+'Read requests'" error live while investigating. When NotifyLog's own
+read/write hit that quota wall, the fix's safe-fallback ("can't read the
+log → assume nothing sent yet, don't block a real reminder") silently
+made the dedup no-op exactly when it mattered most. **Fixed:**
+consolidated to one `readTabs()` call for
+Settings/Invoices/Rooms/NotifyLog/RecurringTasks/ScheduledMessages at the
+top of the function, threaded through every section instead of each one
+re-reading; added an optional `preloadedRows` param to
+`readIntegrationCredentials()` (`server/coerce.js`) matching the pattern
+`readSettings()` already had, so all ~7 credential-lookup call sites
+reuse one shared read.
+
+**Verified working after the batching fix** (2026-08-04, via the
+`?testRoom=`/`?testSheetId=` mechanism below) — `NotifyLog` now shows 7
+real dedup entries from that day's actual cron runs (rooms 2, 5, 8, 10,
+13, 14, 15), and a scoped test run against room 5 correctly recognized
+it was already notified that day and skipped re-sending instead of
+duplicating it.
+
+**New safe-testing mechanism added as a direct result of this whole
+incident:** `GET /api/scheduler/run` now accepts 2 optional query
+params, both complete no-ops when omitted (external cron pings never
+pass query params, so the regular automatic runs are unaffected):
+- `?testRoom=<id>` — filters the shared `invoicesAll`/`roomsAll` arrays
+  (every section in the function reads from these after the batching
+  fix, so one filter point covers everything downstream automatically)
+  down to just that one room, in every building processed.
+- `?testSheetId=<id>` — skips every building except the one specified.
+
+**Owner explicitly designated Room 5 of "บ้านเลขที่1873"** (`customerSheetId`
+`1moUMiEhF2Ie76_Ep8_rgtefWenlQXx7vEUyaO0exk4E`) as the **standing test
+room** for this endpoint going forward — he already watches that room's
+LINE OA messages closely for exactly this purpose. **Any future change
+to `server/routes/scheduler.js` should be verified via:**
+```
+GET /api/scheduler/run?testRoom=5&testSheetId=1moUMiEhF2Ie76_Ep8_rgtefWenlQXx7vEUyaO0exk4E
+```
+**before** trusting it against the full multi-building, multi-room
+production run — this was built specifically because 2 separate testing
+mistakes happened in this one investigation (a real accidental send, and
+a blocked unreliable-mock attempt) trying to verify scheduler changes
+safely without it.
 
 ### Confirmed slips were deleted the instant they got confirmed — no history existed anywhere (fixed 2026-08-04, "อัลบั้มใบเสร็จ")
 
