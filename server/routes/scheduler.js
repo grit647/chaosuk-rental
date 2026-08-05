@@ -9,6 +9,25 @@ const { notifyAdmin } = require('../adminNotify');
 const { syncOwnerRichMenuBadges } = require('../ownerRichMenu');
 const { runWithSheetId, getCurrentSheetId } = require('../requestContext');
 
+// เพิ่มรอบส่งที่ 2 ต่อวัน (2026-08-05, per explicit owner request) —
+// "แค่วันละ 2 ครั้ง ครั้งแรกส่วนที่กำหนด ครั้งที่ 2 บวกไป 6 ชม. แต่ส่งได้
+// ไม่เกิน 18:00 น." ใช้ร่วมกันทั้งหมวดตัดน้ำ/ไฟ (reminder/final/
+// cancelWarning) และหมวดเตือนก่อนครบกำหนด (ใช้ cutoffCheckTime ตัวเดียวกัน
+// ทั้งคู่ ตามที่ UI รวมเป็นช่องเดียวไว้แล้ว) คืนเวลาที่ 2 เป็น string
+// "HH:MM" เทียบกับ "HH:MM" ได้ตรงๆ ด้วย string comparison ปกติ (เหมือนที่
+// โค้ดทั้งไฟล์นี้ทำอยู่แล้วทุกจุด — ใช้ได้เพราะรูปแบบ zero-padded คงที่)
+function addHoursCapped(timeStr, hours, capStr) {
+  const [h, m] = String(timeStr).split(':').map(Number);
+  const [ch, cm] = String(capStr).split(':').map(Number);
+  const capMin = ch * 60 + cm;
+  let totalMin = (h * 60 + m) + hours * 60;
+  if (totalMin > capMin) totalMin = capMin;
+  if (totalMin > 23 * 60 + 59) totalMin = 23 * 60 + 59;
+  const hh = String(Math.floor(totalMin / 60)).padStart(2, '0');
+  const mm = String(totalMin % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
 const DIRECTORY_SHEET_ID = process.env.GOOGLE_DIRECTORY_SHEET_ID;
 // ค่านี้ต้องคงที่ = เวอร์ชันที่ฟีเจอร์นี้เปิดตัวจริง (4) ห้ามอ้างอิง
 // CURRENT_PLATFORM_VERSION แบบ live เพราะค่านั้นจะขยับขึ้นเรื่อยๆ ทุกครั้งที่
@@ -245,7 +264,20 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
       // ต่อวันเดิมยังทำงานเหมือนเดิม กันส่งซ้ำหลายรอบในวันเดียวกัน
       const nowTimeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour12: false }).slice(0, 5); // "HH:MM"
       const checkTime = settings.cutoffCheckTime || '09:00';
-      const timeReached = nowTimeStr >= checkTime;
+      // "กำหนดการส่งไปด้วยครับแค่วันละ 2 ครั้ง ครั้งแรกส่วนที่กำหนด ครั้งที่
+      // 2 บวกไป 6 ชม. แต่ส่งได้ไม่เกิน 18:00 น." (2026-08-05) — checkTime2
+      // ต่อจาก checkTime (addHoursCapped ด้านบนไฟล์) แทนที่จะใช้ boolean
+      // timeReached ตัวเดียว เปลี่ยนเป็น "activeSlot" (0=ยังไม่ถึงเวลาไหน
+      // เลย, 1=ถึงรอบแรกแล้ว, 2=ถึงรอบสองแล้ว) ผูกเข้ากับ key ที่ใช้ dedup
+      // ด้านล่าง (key ต่างกันตาม slot) — เมื่อเวลาข้ามจาก slot 1 ไป slot 2
+      // จะได้ key ใหม่ที่ยังไม่เคยถูก markNotifiedToday มาก่อนในวันนั้น เลย
+      // ส่งได้อีกครั้งโดยอัตโนมัติ ไม่ต้องเปลี่ยนโครงสร้าง if/for ด้านล่างเลย
+      const checkTime2 = addHoursCapped(checkTime, 6, '18:00');
+      // checkTime2 > checkTime (ไม่ใช่แค่ !==) กันเคสตั้งเวลาแรกดึกมาก (เช่น
+      // 20:00) แล้วบวก 6 ชม.โดนเพดาน 18:00 ตัดจนย้อนไปก่อนเวลาแรก — ถ้าเกิด
+      // แบบนั้นถือว่ามีแค่ 1 รอบ ไม่ใช่ 2 รอบสลับลำดับกัน
+      const activeSlot = checkTime2 > checkTime && nowTimeStr >= checkTime2 ? 2 : (nowTimeStr >= checkTime ? 1 : 0);
+      const timeReached = activeSlot > 0;
       if ((todayDom === reminderDay || todayDom === finalDay || todayDom === cancelWarningDay) && timeReached) {
         const invoices = invoicesAll;
         // "แก้บักครับ ไม่ยุ่งกับข้อมูลที่บันทึกไว้ครับ" (2026-07-30) — บั๊ก
@@ -278,7 +310,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
           const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
           const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
           const kind = todayDom === cancelWarningDay ? 'cancelWarning' : todayDom === finalDay ? 'final' : 'reminder';
-          const key = `${sheetId}:${kind}:${inv.room}:${inv.id}`;
+          const key = `${sheetId}:${kind}:${inv.room}:${inv.id}:slot${activeSlot}`;
           const room = rooms.find((r) => r.id === inv.room);
           if (!wasNotifiedToday(key)) {
             const msg = kind === 'cancelWarning'
@@ -364,7 +396,11 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
     // เดียวกับหมวดตัดน้ำ/ไฟด้านบนให้ตรงกับที่ UI สื่อสารไว้
     const nowTimeStrDR = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour12: false }).slice(0, 5); // "HH:MM"
     const checkTimeDR = settings.cutoffCheckTime || '09:00';
-    if (settings.settings && settings.settings.dueReminder && nowTimeStrDR >= checkTimeDR) {
+    // วันละ 2 รอบ เหมือนหมวดตัดน้ำ/ไฟด้านบนทุกประการ (ดู comment เต็มที่
+    // นั่น) — activeSlotDR ผูกเข้า key ด้านล่างแทน boolean เดิม
+    const checkTime2DR = addHoursCapped(checkTimeDR, 6, '18:00');
+    const activeSlotDR = checkTime2DR > checkTimeDR && nowTimeStrDR >= checkTime2DR ? 2 : (nowTimeStrDR >= checkTimeDR ? 1 : 0);
+    if (settings.settings && settings.settings.dueReminder && activeSlotDR > 0) {
       const todayStr2 = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
       const reminderDays = Number(settings.dueReminderDays) || 3;
       const msg = settings.dueReminderMsg || 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ';
@@ -376,7 +412,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
       for (const inv of unpaid) {
         const daysUntilDue = Math.round((new Date(inv.due + 'T00:00:00Z') - new Date(todayStr2 + 'T00:00:00Z')) / 86400000);
         if (daysUntilDue < 1 || daysUntilDue > reminderDays) continue; // นอกช่วง N วันก่อนครบกำหนด (ไม่รวมวันครบกำหนดเอง)
-        const key = `${sheetId}:dueReminder:${inv.room}:${inv.id}`;
+        const key = `${sheetId}:dueReminder:${inv.room}:${inv.id}:slot${activeSlotDR}`;
         if (wasNotifiedToday(key)) continue; // วันนี้แจ้งไปแล้ว
         const room = rooms.find((r) => r.id === inv.room);
         if (room && room.lineUserId) {
