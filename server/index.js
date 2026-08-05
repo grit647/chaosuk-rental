@@ -29,7 +29,7 @@ app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
 // straight through to next() unchanged — zero behavior change for the
 // current owner's existing no-login usage.
 const { getSession, setSessionCookie } = require('./auth');
-const { runWithSheetId } = require('./requestContext');
+const { runWithSheetId, isMainAccountSheetId } = require('./requestContext');
 app.use((req, res, next) => {
   const session = getSession(req);
   if (session && session.customerSheetId) {
@@ -152,11 +152,30 @@ app.get('/api/system-health', async (req, res) => {
         }
       });
     }
-    checks.lineQuotaByBuilding = await Promise.all(buildings.map(async (b) => {
+    // **บั๊กจริงที่พบ (2026-08-05, รายงานผ่าน ช.นายท้าย)** — บัญชีหลักขึ้น
+    // "configured: false" ในเช็คนี้ ทั้งที่ checks.line (เช็คแยกด้านบน,
+    // เก่ากว่า) เห็นว่าเชื่อมต่อปกติดี สาเหตุ: readIntegrationCredentials()
+    // อ่านแค่ Settings ของชีตนั้นๆ เอง — บัญชีหลักไม่เคยบันทึก
+    // lineChannelAccessToken/lineChannelSecret ลง Settings ของตัวเองเลย
+    // (ใช้ process.env.LINE_CHANNEL_ACCESS_TOKEN/SECRET แทนมาตั้งแต่ก่อนมี
+    // ระบบ multi-tenant) ทำให้ creds.line เป็น null เสมอสำหรับบัญชีหลัก —
+    // แต่โค้ดเดิม early-return "configured: false" ทันทีที่เจอ null โดยไม่
+    // เคยลองเรียก getMessageQuota/getMessageQuotaConsumption เลย ทั้งที่
+    // ฟังก์ชันพวกนั้น (ผ่าน resolveCreds ใน server/line.js) จะ fallback ไป
+    // ใช้ process.env ให้เองอยู่แล้วถ้า creds เป็น null/undefined — ตรงกับ
+    // ปัญหาเดียวกับที่ requestContext.js's isMainAccountSheetId ถูกสร้างมา
+    // แก้ให้จุดอื่นในแอปนี้แล้ว (server/routes/line.js's GET /status) แค่
+    // จุดนี้ยังไม่เคยใช้ helper ตัวเดียวกัน — แก้โดยข้ามการเช็ค !creds.line
+    // ไปเลยเฉพาะบัญชีหลัก (ให้ resolveCreds จัดการ fallback เอง) ตึกอื่นๆ
+    // ยังต้องมี creds.line ของตัวเองจริงๆ ก่อนถึงจะนับว่า configured
+    // เหมือนเดิมทุกประการ (ไม่งั้นจะโป๊ะว่าทุกตึกเชื่อมได้ทั้งที่จริงๆ ยังไม่
+    // ได้ตั้งค่า LINE ของตัวเองเลย)
+    const lineQuotaResults = await Promise.all(buildings.map(async (b) => {
       try {
         return await runWithSheetId(b.sheetId, async () => {
           const creds = await readIntegrationCredentials();
-          if (!creds.line) return { name: b.name, configured: false };
+          const isMain = isMainAccountSheetId(b.sheetId);
+          if (!creds.line && !isMain) return { name: b.name, configured: false };
           const [quota, consumption] = await Promise.all([getMessageQuota(creds.line), getMessageQuotaConsumption(creds.line)]);
           return { name: b.name, configured: true, limit: quota.value ?? null, type: quota.type, used: consumption.totalUsage };
         });
@@ -164,8 +183,32 @@ app.get('/api/system-health', async (req, res) => {
         return { name: b.name, configured: false, error: err.message };
       }
     }));
+    // **บั๊กจริงที่พบ (2026-08-05, ตัวที่ 2 — ตัวที่แท้จริงทำให้ทั้งระบบขึ้น
+    // "ok: false" ตลอดกาล)** — ทุก check อื่นในไฟล์นี้เป็น object รูปแบบ
+    // { ok: boolean, ... } เพราะ allOk ด้านล่างสุด
+    // (Object.values(checks).every(c => c.ok)) เช็คแบบนั้นทุกจุด — แต่
+    // checks.lineQuotaByBuilding เดิมถูกเซ็ตเป็น "array" ตรงๆ (ผลลัพธ์ของ
+    // Promise.all ล้วนๆ ไม่มี .ok) ทำให้ (array).ok เป็น undefined เสมอ
+    // (falsy) — allOk เลยเป็น false ตลอดกาลไม่ว่าทุกตึกจะเชื่อมต่อได้ปกติ
+    // แค่ไหนก็ตาม ตรงกับที่ทีม AI ในห้อง ช.นายท้าย รายงานว่า "เช่าสุขมีปัญหา
+    // lineQuotaByBuilding ไม่ผ่าน" ซ้ำๆ มาตั้งแต่เมื่อวาน ทั้งที่ตัวเลขจริง
+    // ทุกตึกปกติดี
+    //
+    // แก้โดย "แปะ" .ok ไว้เป็น property เสริมบน array ตัวเดิมเลย (array ก็
+    // เป็น object ชนิดหนึ่ง ใส่ property ที่ไม่ใช่ index ได้ปกติ) แทนที่จะ
+    // ห่อเป็น { ok, buildings: [...] } แบบ check อื่น — เพราะ JSON.stringify
+    // ของ array จะ serialize เฉพาะ index ตัวเลขเท่านั้น (ไม่รวม property
+    // เสริมแบบนี้) ผลลัพธ์ JSON ที่ ช.นายท้าย (น้อง4, คนละ repo/deploy) เห็น
+    // จะเหมือนเดิมทุกประการ (ยังเป็น array ตรงๆ แบบเดิม) ไม่เสี่ยงพังโค้ดฝั่ง
+    // เขาที่อาจเขียนไว้คาดหวัง array อยู่แล้ว — ได้ .ok ไว้ใช้แค่ฝั่งเราเอง
+    // ตอนคำนวณ allOk เท่านั้น
+    lineQuotaResults.ok = lineQuotaResults.every((r) => r.configured);
+    checks.lineQuotaByBuilding = lineQuotaResults;
   } catch (err) {
-    checks.lineQuotaByBuildingError = err.message; // ไม่ทำให้ health check ทั้งหมดพังถ้าส่วนนี้ error
+    const failed = [];
+    failed.ok = false;
+    failed.error = err.message;
+    checks.lineQuotaByBuilding = failed; // ต้องมี .ok เสมอ เหมือนกับ check อื่นทุกตัว (ดู comment เต็มด้านบน) แต่ยังเป็น array เปล่าเหมือนเดิม ไม่ใช่ object รูปแบบใหม่
   }
   try {
     checks.ai = { ok: require('./claude').isConfigured(), provider: 'claude' };
