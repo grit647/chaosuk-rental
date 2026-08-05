@@ -183,11 +183,41 @@ router.get('/usage', async (req, res, next) => {
       getMessageQuota(creds.line),
       getMessageQuotaConsumption(creds.line),
     ]);
+    const rawUsed = consumption.totalUsage || 0;
+    // "ปรับเป็นเท่าไลน์ OA ไว้เลยครับ...พอถึงวันเราจะได้ Set 0 ใหม่ครับ"
+    // (2026-08-05) — เจ้าของสังเกตว่าตัวเลขที่แอปดึงจาก LINE API ตรงนี้
+    // (quota/consumption — รวม push/multicast/broadcast ทั้งหมด) ไม่ตรงกับ
+    // เลขที่หน้า "บรอดแคสต์ข้อความ" ของ LINE Official Account Manager เอง
+    // แสดง (อาจนับคนละอย่างกันจริงๆ — หน้านั้นน่าจะนับเฉพาะบรอดแคสต์
+    // อย่างเดียว ไม่รวมข้อความที่แอปนี้ส่งอัตโนมัติแบบ push ทีละคน) แทนที่จะ
+    // เถียงว่าใครถูก เปิดทางให้เจ้าของ "คาลิเบรต" ค่าที่แสดงเองได้ตรงๆ
+    // (เหมือน คาลิเบรตมิเตอร์น้ำ ที่มีอยู่แล้ว) ผ่าน lineQuotaOverride ใน
+    // Settings — ถ้าตั้งไว้ (ไม่ใช่ null/ว่าง) ใช้ค่านั้นแสดงแทนค่าจริงจาก
+    // LINE ไปเลย จนกว่าเจ้าของจะมาคาลิเบรตใหม่เอง (เช่น ตอน LINE รีเซ็ต
+    // โควต้าจริงต้นเดือน) — ไม่กระทบเลขจริงที่ LINE เก็บไว้แต่อย่างใด แค่
+    // ค่าที่แอปนี้โชว์เท่านั้น
+    const settingsRows = await readTab('Settings');
+    const overrideRow = settingsRows.find((r) => r.key === 'lineQuotaOverride');
+    const hasOverride = overrideRow && overrideRow.value !== '' && overrideRow.value != null;
     res.json({
       configured: true,
-      used: consumption.totalUsage || 0,
+      used: hasOverride ? Number(overrideRow.value) || 0 : rawUsed,
       limit: quota.type === 'limited' ? quota.value : null,
+      isCalibrated: !!hasOverride,
+      rawUsedFromLine: rawUsed,
     });
+  } catch (err) { next(err); }
+});
+
+// "เดี๋ยวผมดูว่าไลน์ OA ตัดทุกวันไหนให้สำหรับห้องนี้ พอถึงวันเราจะได้ Set 0
+// ใหม่ครับ" — ตั้งค่า/ล้างค่าที่ปรับเทียบเอง (ดู comment เต็มใน GET /usage
+// ด้านบน) ส่ง value เป็น null หรือไม่ส่ง value มาเลย = ล้างค่ากลับไปใช้เลข
+// จริงจาก LINE ตามปกติ
+router.post('/calibrate-quota', async (req, res, next) => {
+  try {
+    const { value } = req.body || {};
+    await updateSettingKV('lineQuotaOverride', value == null || value === '' ? '' : String(Number(value) || 0));
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

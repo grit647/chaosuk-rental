@@ -507,6 +507,23 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       </sc-if>
                     </div>
                   </div>
+                  <!-- "ปรับเป็นเท่าไลน์ OA ไว้เลยครับ...พอถึงวันเราจะได้
+                       Set 0 ใหม่ครับ" (2026-08-05) — เลขที่แอปดึงจาก LINE
+                       API (push/multicast/broadcast รวมกัน) ไม่ตรงกับเลขที่
+                       หน้า "บรอดแคสต์ข้อความ" ของ LINE OA Manager เอง (นับ
+                       คนละอย่างกัน) เจ้าของขอปรับค่าที่แสดงเองได้ตรงๆ
+                       เหมือนคาลิเบรตมิเตอร์น้ำด้านบน — ปรับได้ทุกเมื่อ (เช่น
+                       ตอน LINE รีเซ็ตโควต้าจริงต้นเดือน ก็มา Set 0 ใหม่เอง) -->
+                  <div style="margin-top:10px;padding:9px;border-radius:6px;background:#FBF6EC;border:1px solid #EEDFC0">
+                    <div style="font-size:10.5px;font-weight:700;color:#7C6E5F;margin-bottom:6px">🎯 คาลิเบรตโควตา LINE (ปรับให้ตรงกับหน้า "บรอดแคสต์ข้อความ" ของ LINE)</div>
+                    <div style="display:flex;gap:6px">
+                      <input type="number" value="{{ lineQuotaCalibrateInput }}" onchange="{{ onLineQuotaCalibrateInput }}" placeholder="เช่น 58" style="flex:1;padding:7px;border-radius:6px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                      <div onclick="{{ calibrateLineQuota }}" style="padding:7px 12px;border-radius:6px;background:#2C6E8F;color:#fff;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">คาลิเบรต</div>
+                    </div>
+                    <sc-if value="{{ lineUsageIsCalibrated }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10.5px;color:#7C6E5F;margin-top:6px">ปรับไว้แล้ว — เลขจริงจาก LINE ตอนนี้คือ {{ lineUsageRawFromLine }}</div>
+                    </sc-if>
+                  </div>
                 </sc-if>
               </div>
             </div>
@@ -4834,7 +4851,8 @@ class Component extends DCLogic {
     // used/limit start at 0 until loadLineUsage() resolves; limit stays
     // null for an unlimited/paid plan (LINE's quota API returns
     // { type: 'none' } for those — see server/routes/line.js's /usage).
-    lineUsage: { configured: false, used: 0, limit: null },
+    lineUsage: { configured: false, used: 0, limit: null, isCalibrated: false, rawUsedFromLine: 0 },
+    lineQuotaCalibrateInput: '',
     geminiUsage: { totalCalls: 0, totalCostUsd: 0, monthCalls: 0, monthCostUsd: 0 },
     // "ใช้ไปกี่%...สูงสุด 10ล้านเซลล์" (2026-07-26) — Dashboard's Google
     // Sheet card usage gauge, loaded once from GET /api/settings/sheet-usage
@@ -9715,9 +9733,30 @@ class Component extends DCLogic {
       const res = await fetch('/api/line/usage');
       if (!res.ok) return;
       const data = await res.json();
-      this.setState({ lineUsage: { configured: !!data.configured, used: data.used || 0, limit: data.limit == null ? null : data.limit } });
+      this.setState({ lineUsage: {
+        configured: !!data.configured, used: data.used || 0, limit: data.limit == null ? null : data.limit,
+        isCalibrated: !!data.isCalibrated, rawUsedFromLine: data.rawUsedFromLine || 0,
+      } });
     } catch (err) { console.error(err); }
   };
+  // "ปรับเป็นเท่าไลน์ OA ไว้เลยครับ" (2026-08-05) — ดู comment เต็มใน
+  // server/routes/line.js's POST /calibrate-quota + GET /usage
+  onLineQuotaCalibrateInput = (e) => this.setState({ lineQuotaCalibrateInput: e.target.value });
+  calibrateLineQuota = () => this._guard('calibrateLineQuota', async () => {
+    const value = this.state.lineQuotaCalibrateInput;
+    try {
+      const res = await fetch('/api/line/calibrate-quota', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: value === '' ? null : Number(value) }),
+      });
+      if (!res.ok) throw new Error('คาลิเบรตไม่สำเร็จ');
+      this.setState({ lineQuotaCalibrateInput: '' });
+      await this.loadLineUsage();
+      this.showAdminToast('คาลิเบรตโควตา LINE แล้ว');
+    } catch (err) {
+      this.showAdminToast(err.message || 'คาลิเบรตไม่สำเร็จ');
+    }
+  });
   // "สร้างเครดิต ที่ใช้ไปให้หน่อยครับ" (2026-08-02) — สรุปยอดใช้งาน Gemini
   // สะสม (จำนวนครั้ง + ค่าใช้จ่ายประมาณการ USD) จาก GeminiUsageLog ผ่าน
   // GET /api/claude/gemini-usage — ให้เห็นตัวเลขจริงในการ์ด AI ก่อนจะมี
@@ -11680,6 +11719,12 @@ class Component extends DCLogic {
       lineUsageUsedDisplay: lineUsageUsed.toLocaleString('th-TH'),
       lineUsageLimitDisplay: lineUsageLimit == null ? '' : lineUsageLimit.toLocaleString('th-TH'),
       lineUsageCenterLabel: lineUsageUnlimited ? '∞' : Math.round(lineUsagePercent) + '%',
+      // "คาลิเบรตโควตา LINE" (2026-08-05) — ดู comment เต็มใน loadLineUsage/
+      // calibrateLineQuota ด้านบน
+      lineUsageIsCalibrated: !!s.lineUsage.isCalibrated,
+      lineUsageRawFromLine: (s.lineUsage.rawUsedFromLine || 0).toLocaleString('th-TH'),
+      lineQuotaCalibrateInput: s.lineQuotaCalibrateInput, onLineQuotaCalibrateInput: this.onLineQuotaCalibrateInput,
+      calibrateLineQuota: this.calibrateLineQuota,
       // Dashboard's Google Sheet card usage gauge (see sheetUsage* consts above).
       sheetUsageLoaded: s.sheetUsage.loaded,
       sheetUsageR, sheetUsageColor, sheetUsageDashArray,
