@@ -1023,7 +1023,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <div style="display:flex;gap:6px">
                           <span onclick="{{ pb.onOpenHistory }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap">📋 ดูรายละเอียด</span>
                           <sc-if value="{{ pb.hasReceiptImage }}" hint-placeholder-val="{{ false }}">
-                            <a href="{{ pb.receiptDownloadUrl }}" download style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;text-decoration:none;white-space:nowrap">⬇️</a>
+                            <span onclick="{{ pb.onDownloadReceipt }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap;cursor:pointer">⬇️</span>
                           </sc-if>
                         </div>
                       </div>
@@ -3809,7 +3809,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <sc-if value="{{ h.hasReceiptImage }}" hint-placeholder-val="{{ false }}">
                         <div style="display:flex;gap:6px;margin-top:2px">
                           <span onclick="{{ h.onViewReceipt }}" style="flex:1;text-align:center;font-size:11px;font-weight:600;padding:6px 4px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;cursor:pointer">🧾 ดูใบเสร็จ</span>
-                          <a href="{{ h.receiptDownloadUrl }}" download style="flex:1;text-align:center;font-size:11px;font-weight:600;padding:6px 4px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;text-decoration:none">⬇️ ดาวน์โหลด</a>
+                          <span onclick="{{ h.onDownloadReceipt }}" style="flex:1;text-align:center;font-size:11px;font-weight:600;padding:6px 4px;border-radius:6px;border:1px solid #D8C9B4;color:#7C6E5F;cursor:pointer">⬇️ ดาวน์โหลด</span>
                         </div>
                       </sc-if>
                     </div>
@@ -5447,6 +5447,55 @@ class Component extends DCLogic {
   // URL ท้องถิ่น (server/uploads/ fallback ตอน Cloudinary ไม่ได้ตั้งค่า)
   // เป็น same-origin อยู่แล้ว <a download> ใช้ได้ปกติ ไม่ต้องแก้อะไร
   _forceDownloadUrl = (url) => (url && url.includes('/upload/')) ? url.replace('/upload/', '/upload/fl_attachment/') : (url || '');
+  // "การใช้งานมือถือ ดูบิลได้แต่โหลดลงแกลลอรี่ไม่ได้" (2026-08-05) — บั๊ก
+  // จริงที่พบ: แอปนี้เปิดใช้แบบ PWA (เพิ่มไอคอนหน้าจอโฮม, display:standalone
+  // — ดู comment เต็มเรื่อง openImageLightbox ด้านบนที่อธิบาย standalone
+  // mode ไว้แล้ว) ปุ่ม "ดาวน์โหลด" เดิมเป็น <a href download> ธรรมดาชี้ไปที่
+  // Cloudinary URL ข้าม origin — แม้จะมี fl_attachment (_forceDownloadUrl
+  // ด้านบน) บังคับ header Content-Disposition แล้ว แต่ในโหมด PWA standalone
+  // บนมือถือ (โดยเฉพาะ Android) ไฟล์ที่ดาวน์โหลดแบบนี้มักตกไปอยู่ในโฟลเดอร์
+  // "Downloads" ทั่วไป ไม่ใช่ "แกลลอรี่/รูปภาพ" ที่แอปรูปภาพจะสแกนเจอ — ผู้ใช้
+  // เลยรู้สึกว่า "โหลดไม่ได้" ทั้งที่จริงๆ ไฟล์โหลดลงเครื่องแล้ว แค่หาไม่เจอ
+  //
+  // แก้ด้วย Web Share API (navigator.share พร้อม files — รองรับดีทั้ง
+  // Android Chrome และ iOS Safari 15+) เป็นทางหลัก: ดึงรูปมาเป็น Blob ก่อน
+  // แล้วเปิด share sheet ของเครื่องเอง ให้ผู้ใช้เลือก "บันทึกรูปภาพ"/"Save
+  // Image" เองได้ตรงๆ — เชื่อถือได้กว่า <a download> มากในบริบทนี้ ถ้าเครื่อง
+  // ไม่รองรับ Web Share (เช่นเปิดจาก PC) fallback เป็น blob URL (same-origin
+  // เสมอ ไม่ว่าไฟล์ต้นทางจะเป็น Cloudinary หรือที่ไหนก็ตาม) + <a download>
+  // ปกติ ซึ่งเชื่อถือได้กว่า URL ข้าม origin ตรงๆ อยู่แล้ว
+  downloadReceiptImage = async (url, filename) => {
+    if (!url) return;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('โหลดรูปไม่สำเร็จ');
+      const blob = await res.blob();
+      const safeName = filename || 'ใบเสร็จ.jpg';
+      if (navigator.share && navigator.canShare) {
+        try {
+          const file = new File([blob], safeName, { type: blob.type || 'image/jpeg' });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: 'ใบเสร็จ' });
+            return;
+          }
+        } catch (shareErr) {
+          if (shareErr && shareErr.name === 'AbortError') return; // ผู้ใช้กดยกเลิกเอง ไม่ใช่ error จริง
+          // เครื่อง/เบราว์เซอร์นี้ share ไม่ได้จริง — ไปต่อที่ fallback ด้านล่าง
+        }
+      }
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    } catch (err) {
+      console.error(err);
+      this.showMobileToast('ดาวน์โหลดไม่สำเร็จ ลองเปิดรูปแล้วกดค้างเพื่อบันทึกแทนได้ครับ');
+    }
+  };
   // Per explicit user request: every payment-related LINE message should go
   // out as an image, not just the itemized billing notice (which already
   // has its own dedicated endpoint, /api/invoices/:id/receipt-image, since
@@ -10308,7 +10357,7 @@ class Component extends DCLogic {
           paidDateDisplay: this.formatThaiDateLabel(i.paidDate) || i.paidDate || '—',
           hasReceiptImage: !!i.receiptImageUrl,
           receiptImageUrl: i.receiptImageUrl || '',
-          receiptDownloadUrl: this._forceDownloadUrl(i.receiptImageUrl || ''),
+          onDownloadReceipt: () => this.downloadReceiptImage(i.receiptImageUrl, `ใบเสร็จ-${i.room}-${i.id}.jpg`),
           onOpenHistory: () => this.openBillHistory(i.room),
         };
       });
@@ -11765,9 +11814,9 @@ class Component extends DCLogic {
             // requires a payment QR to be configured — see sendReceiptLine)
             // have this; plain-text-only sends have nothing to look back at.
             receiptImageUrl: i.receiptImageUrl || '',
-            receiptDownloadUrl: this._forceDownloadUrl(i.receiptImageUrl || ''),
             hasReceiptImage: !!i.receiptImageUrl,
             onViewReceipt: () => this.openImageLightbox(i.receiptImageUrl),
+            onDownloadReceipt: () => this.downloadReceiptImage(i.receiptImageUrl, `ใบเสร็จ-${i.room}-${i.id}.jpg`),
             hasPartialPayment,
             amountPaidDisplay: this.fmt(amountPaid),
             remainingDueDisplay: this.fmt(Math.max(0, total - amountPaid)),
