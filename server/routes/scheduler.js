@@ -645,8 +645,38 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
 // - ?testSheetId=<id> → รันแค่ตึกเดียวที่ระบุ (ปกติจะรันทุกตึกในทำเนียบ)
 //   ใช้คู่กับ testRoom เวลาอยากทดสอบห้อง 5 ของบ้านเลขที่1873 โดยเฉพาะ ไม่
 //   ให้ไปกระทบห้อง "5" ของตึกอื่น (ถ้าบังเอิญมีห้องเลขเดียวกัน)
+// **บั๊กจริงที่พบ (2026-08-05)**: NotifyLog กัน "ข้ามรอบ" ได้ (อ่านค่าที่
+// เขียนไว้จากรอบก่อนหน้าได้ถูกต้อง) แต่ไม่ได้กัน "รอบที่ทับซ้อนกัน
+// (concurrent)" เลย — เพราะ _notifiedTodaySet/_pendingNotifyRows ใน
+// runSchedulerOnce() เป็นตัวแปร local ต่อการเรียกแต่ละครั้ง อ่าน NotifyLog
+// สดใหม่ตอนต้น แล้วเขียนกลับเป็น batch ตอนจบเท่านั้น — ถ้ามี 2 คำขอ HTTP
+// เข้ามาที่ /api/scheduler/run ใกล้ๆ กัน (เช่น UptimeRobot ทุก 20 นาที กับ
+// GitHub Actions cron ที่ตั้งใจไว้เป็น backup สำรอง — ดู CLAUDE.md's
+// "External cron reliability" note) ทั้ง 2 คำขอจะอ่าน NotifyLog ก่อนที่
+// อีกฝั่งจะเขียนกลับทัน ทำให้ทั้งคู่เห็นว่า "ยังไม่เคยแจ้งวันนี้" เหมือนกัน
+// และส่งข้อความซ้ำ — เจอจริงกับห้อง 2 ของบ้านเลขที่1873 (ข้อความ "ค่าเช่า
+// ห้องของท่านใกล้ถึงกำหนดชำระแล้ว" ซ้ำ 4 ครั้งใน ~1.5 ชม.) แม้ NotifyLog
+// เองจะบันทึกไว้แค่ 1 แถวต่อวันก็ตาม (เพราะการเขียนซ้ำ/แข่งกันเขียนไม่ใช่
+// สาเหตุ — การส่งซ้ำเกิดตอน "เช็คก่อนส่ง" ไม่ใช่ตอน "เขียน log")
+//
+// แก้ด้วย lock ระดับโปรเซสง่ายๆ: ถ้ามีรอบที่กำลังรันอยู่แล้ว คำขอใหม่ที่
+// เข้ามาซ้อนจะ "รอ" ผลของรอบที่กำลังรันอยู่แทนที่จะเริ่มรอบใหม่ทับซ้อนกัน —
+// รับประกันว่าไม่มี 2 รอบทำงานพร้อมกันเด็ดขาด (Node เดี่ยว process เดียว
+// พอ) หมายเหตุ: ถ้าคำขอทดสอบ (?testRoom=/?testSheetId=) มาซ้อนกับรอบจริง
+// ที่กำลังรันอยู่พอดี จะได้ผลลัพธ์ของรอบจริง (ทุกตึก) แทนผลลัพธ์แบบจำกัด
+// ขอบเขตที่ตั้งใจไว้ — ยอมรับได้เพราะเป็นเคสทดสอบมือที่เกิดไม่บ่อย ไม่ใช่
+// บั๊กที่รายงานมา
+let _schedulerRunInProgress = null;
+
 router.get('/run', async (req, res, next) => {
+  if (_schedulerRunInProgress) {
+    try {
+      const result = await _schedulerRunInProgress;
+      return res.json({ ...result, deduped: true });
+    } catch (err) { return next(err); }
+  }
   try {
+    const runPromise = (async () => {
     const testRoomId = req.query.testRoom ? String(req.query.testRoom) : null;
     const testSheetId = req.query.testSheetId ? String(req.query.testSheetId) : null;
     // ตึกหลัก (main account) รันเสมอ ไม่ต้องเช็ค platformVersion — โค้ดชุด
@@ -696,8 +726,13 @@ router.get('/run', async (req, res, next) => {
       }
     }
 
-    res.json({ buildingsChecked: sheetIds.size, buildings });
+      return { buildingsChecked: sheetIds.size, buildings };
+    })();
+    _schedulerRunInProgress = runPromise;
+    const result = await runPromise;
+    res.json(result);
   } catch (err) { next(err); }
+  finally { _schedulerRunInProgress = null; }
 });
 
 module.exports = router;
