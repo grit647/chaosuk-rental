@@ -2089,7 +2089,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:9px;background:{{ pr.typeColor }};color:#fff">{{ pr.typeLabel }}</span>
                       </div>
                       <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:2px">{{ pr.date }} · {{ pr.senderName }}</div>
-                      <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:#241812">{{ pr.amountDisplay }}</div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:#241812;margin-bottom:6px">{{ pr.amountDisplay }}</div>
+                      <sc-if value="{{ pr.hasReceiptImage }}" hint-placeholder-val="{{ false }}">
+                        <div style="display:flex;gap:5px">
+                          <span onclick="{{ pr.onViewReceipt }}" style="flex:1;text-align:center;font-size:10px;font-weight:600;padding:5px 3px;border-radius:5px;border:1px solid #D8C9B4;color:#7C6E5F;cursor:pointer">🧾 ใบเสร็จ</span>
+                          <span onclick="{{ pr.onDownloadReceipt }}" style="flex:1;text-align:center;font-size:10px;font-weight:600;padding:5px 3px;border-radius:5px;border:1px solid #D8C9B4;color:#7C6E5F;cursor:pointer">⬇️</span>
+                        </div>
+                      </sc-if>
                     </div>
                   </div>
                 </sc-for>
@@ -4382,7 +4388,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           <div onclick="{{ closeImageLightbox }}" style="position:fixed;inset:0;background:rgba(15,10,7,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:290;padding:20px;box-sizing:border-box">
             <div onclick="{{ closeImageLightbox }}" style="position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.14);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer">✕</div>
             <img src="{{ imageLightboxUrl }}" onclick="{{ stop }}" style="max-width:100%;max-height:82vh;border-radius:8px;object-fit:contain">
-            <a href="{{ imageLightboxUrl }}" target="_blank" rel="noopener" onclick="{{ stop }}" style="margin-top:16px;font-size:12.5px;color:#F1EBE0;text-decoration:underline">เปิดในแท็บใหม่ / บันทึกรูป</a>
+            <div onclick="{{ stop }}" style="display:flex;gap:16px;align-items:center;margin-top:16px">
+              <span onclick="{{ onDownloadLightboxImage }}" style="font-size:12.5px;font-weight:600;color:#F1EBE0;cursor:pointer;background:rgba(255,255,255,0.14);padding:9px 16px;border-radius:7px">⬇️ บันทึกรูป</span>
+              <a href="{{ imageLightboxUrl }}" target="_blank" rel="noopener" style="font-size:12.5px;color:#F1EBE0;text-decoration:underline">เปิดในแท็บใหม่</a>
+            </div>
           </div>
         </sc-if>
 
@@ -10890,16 +10899,30 @@ class Component extends DCLogic {
     if (s.receiptsAlbumFilterMonth) receiptsAlbumFiltered = receiptsAlbumFiltered.filter(it => (it.date || '').slice(0, 7) === s.receiptsAlbumFilterMonth);
     if (s.receiptsAlbumFilterRoom) receiptsAlbumFiltered = receiptsAlbumFiltered.filter(it => it.room === s.receiptsAlbumFilterRoom);
     if (s.receiptsAlbumFilterType) receiptsAlbumFiltered = receiptsAlbumFiltered.filter(it => it.paymentType === s.receiptsAlbumFilterType);
-    const receiptsAlbumView = receiptsAlbumFiltered.map(it => ({
-      id: it.id,
-      room: it.room, tenant: it.tenant || '-', date: it.date || '-',
-      amountDisplay: this.fmt(it.amount) + ' บาท',
-      imageUrl: it.imageUrl, hasImage: !!it.imageUrl, noImage: !it.imageUrl,
-      senderName: it.senderName || '-',
-      typeLabel: paymentTypeLabel[it.paymentType] || it.paymentType,
-      typeColor: paymentTypeColor[it.paymentType] || '#7C6E5F',
-      onView: () => this.openImageLightbox(it.imageUrl),
-    }));
+    // "ขอเก็บส่วนของใบเสร็จที่ออกไว้ด้วยครับ" (2026-08-05) — การ์ดเดิมโชว์
+    // แค่ "สลิป" (หลักฐานโอนเงินจากผู้เช่า, it.imageUrl จาก PaidReceipts)
+    // เท่านั้น ไม่เคยโยงกลับไปหา "ใบเสร็จ" จริงที่ระบบออกให้ (รูปบิลรวม
+    // รายการที่ส่งผ่าน LINE ตอนออกบิล, invoice.receiptImageUrl) เลย — โยง
+    // ผ่าน it.invoiceId (บันทึกไว้ตั้งแต่ _archivePaidReceipts) กลับไปหา
+    // s.invoices ตัวเดิม ถ้าใบนั้นถูกลบไปแล้ว (invoiceId ไม่เจอ) หรือเป็น
+    // เงินล่วงหน้าที่ไม่มี invoiceId ตั้งแต่แรก ก็แค่ไม่มีปุ่มนี้โผล่ ไม่ error
+    const receiptsAlbumView = receiptsAlbumFiltered.map(it => {
+      const linkedInvoice = it.invoiceId ? s.invoices.find(i => i.id === it.invoiceId) : null;
+      const receiptImageUrl = linkedInvoice ? (linkedInvoice.receiptImageUrl || '') : '';
+      return {
+        id: it.id,
+        room: it.room, tenant: it.tenant || '-', date: it.date || '-',
+        amountDisplay: this.fmt(it.amount) + ' บาท',
+        imageUrl: it.imageUrl, hasImage: !!it.imageUrl, noImage: !it.imageUrl,
+        senderName: it.senderName || '-',
+        typeLabel: paymentTypeLabel[it.paymentType] || it.paymentType,
+        typeColor: paymentTypeColor[it.paymentType] || '#7C6E5F',
+        onView: () => this.openImageLightbox(it.imageUrl),
+        hasReceiptImage: !!receiptImageUrl,
+        onViewReceipt: () => this.openImageLightbox(receiptImageUrl),
+        onDownloadReceipt: () => this.downloadReceiptImage(receiptImageUrl, `ใบเสร็จ-${it.room}-${it.invoiceId || it.id}.jpg`),
+      };
+    });
     const receiptsAlbumRoomOptions = [...new Set(s.paidReceipts.map(it => it.room))].sort().map(room => ({ room }));
     const receiptsAlbumTypeChips = [
       { key: 'full', label: 'เต็มจำนวน' }, { key: 'partial', label: 'บางส่วน' }, { key: 'advance', label: 'ล่วงหน้า' },
@@ -12500,6 +12523,7 @@ class Component extends DCLogic {
 
       showImageLightbox: !!s.imageLightboxUrl, imageLightboxUrl: s.imageLightboxUrl || '',
       openImageLightbox: this.openImageLightbox, closeImageLightbox: this.closeImageLightbox,
+      onDownloadLightboxImage: () => this.downloadReceiptImage(s.imageLightboxUrl, 'สลิป.jpg'),
       adminToastShow: s.adminToast.show, adminToastMessage: s.adminToast.message,
       adminToastBg: s.adminToast.type === 'error' ? '#B24336' : '#3B7A52',
       adminToastBorder: s.adminToast.type === 'error' ? '#8F332A' : '#2C5F40',
