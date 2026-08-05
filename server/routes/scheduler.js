@@ -354,7 +354,17 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
   // same basic-housekeeping tier as overdue-bill detection above).
   let dueReminderChecked = 0, dueReminderNotified = 0;
   try {
-    if (settings.settings && settings.settings.dueReminder) {
+    // **บั๊กจริงที่พบ (2026-08-05)**: เจ้าของตั้งค่า "เวลาที่จะส่งข้อความ
+    // เตือน" (09:00 น.) ไว้ในหน้าเดียวกับหมวดตัดน้ำ/ไฟ (ดู "SECTION: ตั้งค่า
+    // เตือนก่อนครบกำหนด" ใน Rental Management.dc.html — 2 ช่องนี้ถูกย้ายมา
+    // รวมในป็อปอัพเดียวกับตัดน้ำ/ไฟตั้งแต่ 2026-07-26 แล้ว ใช้ตัวแปร
+    // cutoffCheckTime ตัวเดียวกัน) แต่โค้ดฝั่งนี้ (due reminder) กลับไม่เคย
+    // เช็คเวลาเลย ส่งได้ทุกเวลาที่ scheduler ทำงาน (แม้แต่เที่ยงคืน) ทำให้
+    // ผู้เช่าได้ข้อความตอน 00:01 น. ทั้งที่ตั้งไว้ 09:00 — เพิ่มเช็คเวลาแบบ
+    // เดียวกับหมวดตัดน้ำ/ไฟด้านบนให้ตรงกับที่ UI สื่อสารไว้
+    const nowTimeStrDR = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour12: false }).slice(0, 5); // "HH:MM"
+    const checkTimeDR = settings.cutoffCheckTime || '09:00';
+    if (settings.settings && settings.settings.dueReminder && nowTimeStrDR >= checkTimeDR) {
       const todayStr2 = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
       const reminderDays = Number(settings.dueReminderDays) || 3;
       const msg = settings.dueReminderMsg || 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ';
