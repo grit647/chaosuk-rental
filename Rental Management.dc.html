@@ -11705,7 +11705,12 @@ class Component extends DCLogic {
       showHiddenRecentPayments: s.showHiddenRecentPayments,
       toggleShowHiddenRecentPayments: this.toggleShowHiddenRecentPayments,
       showHiddenRecentPaymentsLabel: s.showHiddenRecentPayments ? '🙈 ซ่อนรายการที่ซ่อนไว้' : `👁️ แสดงรายการที่ซ่อนไว้ (${paidList.filter(i => i.hiddenFromDashboard).length})`,
-      recentPayments: (s.showHiddenRecentPayments ? paidList : paidList.filter(i => !i.hiddenFromDashboard)).slice(-5).reverse().map(i => ({
+      // "การชำระเงินล่าสุด ยังไม่อัปเดทรายการ ทั้งหมดมี 9 รายการแล้วครับ"
+      // (2026-08-05) — เดิม slice(-5) จำกัดไว้แค่ 5 รายการล่าสุดเท่านั้น
+      // ตอนที่ยังไม่มีกล่องเลื่อน (scroll) ตอนนี้การ์ดนี้เลื่อนดูได้แล้ว
+      // (ดู comment เต็มตรง max-height:230px ด้านบน) เลยเอาการจำกัดจำนวน
+      // ออก โชว์ครบทุกรายการที่มีจริง เรียงล่าสุดก่อนเหมือนเดิม
+      recentPayments: (s.showHiddenRecentPayments ? paidList : paidList.filter(i => !i.hiddenFromDashboard)).slice().reverse().map(i => ({
         id: i.id, room: i.room, tenant: i.tenant,
         // Was missing trash/internet — same accounting-audit bug as sumOf
         // above, understating every amount shown in this widget.
