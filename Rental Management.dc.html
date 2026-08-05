@@ -621,12 +621,21 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1fr 1fr 0.6fr;gap:8px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:8px;border-bottom:1px solid #E3D8C8">
                   <div>ห้อง</div><div>ผู้เช่า</div><div>จำนวนเงิน</div><div>วันที่</div><div></div>
                 </div>
-                <sc-for list="{{ recentPayments }}" as="p" hint-placeholder-count="5">
-                  <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1fr 1fr 0.6fr;gap:8px;font-size:12.5px;color:#241812;padding:9px 0;border-bottom:1px solid #F0E9DC;align-items:center;opacity:{{ p.rowOpacity }}">
-                    <div>{{ p.room }}</div><div>{{ p.tenant }}</div><div style="font-family:'IBM Plex Mono',monospace">{{ p.amountDisplay }}</div><div style="color:#7C6E5F">{{ p.date }}</div>
-                    <div onclick="{{ p.onToggleHide }}" style="color:#9C8B78;font-size:11px;cursor:pointer;text-decoration:underline;text-align:right">{{ p.hideLabel }}</div>
-                  </div>
-                </sc-for>
+                <!-- "ช่วยทำสกอร์บาร์ เลื่อนข้อมูลให้หน่อยครับ ส่วนรายการ
+                     แสดงเอาไว้แค่นี้พอแล้วครับ" (2026-08-05) — จำนวนรายการ
+                     (5 รายการล่าสุด, recentPayments) ไม่เปลี่ยน แค่ห่อ
+                     ด้วยกล่องความสูงคงที่ + overflow-y:auto ให้การ์ดนี้ไม่
+                     ขยายสูงตามเนื้อหาไปเรื่อยๆ (คงความสูงเท่าการ์ด
+                     "แจ้งซ่อมล่าสุด" ข้างๆ ไว้เสมอ) มีสกอร์บาร์เลื่อนดูได้
+                     ถ้าเนื้อหายาวเกินกล่อง -->
+                <div style="max-height:230px;overflow-y:auto">
+                  <sc-for list="{{ recentPayments }}" as="p" hint-placeholder-count="5">
+                    <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1fr 1fr 0.6fr;gap:8px;font-size:12.5px;color:#241812;padding:9px 0;border-bottom:1px solid #F0E9DC;align-items:center;opacity:{{ p.rowOpacity }}">
+                      <div>{{ p.room }}</div><div>{{ p.tenant }}</div><div style="font-family:'IBM Plex Mono',monospace">{{ p.amountDisplay }}</div><div style="color:#7C6E5F">{{ p.date }}</div>
+                      <div onclick="{{ p.onToggleHide }}" style="color:#9C8B78;font-size:11px;cursor:pointer;text-decoration:underline;text-align:right">{{ p.hideLabel }}</div>
+                    </div>
+                  </sc-for>
+                </div>
               </div>
               <div class="split-col" style="flex:1;background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
