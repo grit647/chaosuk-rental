@@ -2106,6 +2106,11 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <sc-if value="{{ pr.hasImage }}" hint-placeholder-val="{{ true }}">
                       <img src="{{ pr.imageUrl }}" onclick="{{ pr.onView }}" style="width:100%;height:150px;object-fit:cover;cursor:pointer;display:block">
                     </sc-if>
+                    <sc-if value="{{ pr.isCash }}" hint-placeholder-val="{{ false }}">
+                      <div onclick="{{ pr.onViewReceipt }}" style="width:100%;height:150px;background:#FBF6EC;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#7C6E5F;font-size:12px;cursor:{{ pr.cashCardCursor }}">
+                        <span style="font-size:28px;margin-bottom:6px">💵</span>รับชำระเงินสด
+                      </div>
+                    </sc-if>
                     <sc-if value="{{ pr.noImage }}" hint-placeholder-val="{{ false }}">
                       <div style="width:100%;height:150px;background:#F1EBE0;display:flex;align-items:center;justify-content:center;color:#A89A88;font-size:12px">ไม่มีรูปสลิป</div>
                     </sc-if>
@@ -6271,7 +6276,17 @@ class Component extends DCLogic {
   // browser tabs to switch back to).
   // secondUrl/secondLabel เป็น optional — ใส่มาก็จะโชว์คู่กัน (เช่น สลิป +
   // ใบเสร็จ ในอัลบั้มใบเสร็จ) ไม่ใส่ก็โชว์รูปเดียวแบบเดิมทุกจุดที่เรียกอยู่แล้ว
-  openImageLightbox = (url, secondUrl, secondLabel) => { if (url) this.setState({ imageLightboxUrl: url, imageLightboxSecondUrl: secondUrl || null, imageLightboxSecondLabel: secondLabel || '' }); };
+  // "เก็บข้อมูลไว้หน้าอัลบั้มใบเสร็จให้ด้วยนะครับ" (2026-08-05) — การ์ด
+  // รายการที่ชำระเงินสด ไม่มีรูปสลิป (url ตัวแรกว่างเสมอ) แต่ยังมีใบเสร็จ
+  // จริงให้ดูได้ (secondUrl) — ถ้า url หลักว่างแต่ secondUrl มีค่า สลับให้
+  // secondUrl ขึ้นเป็นรูปหลักแทน ไม่งั้นกดแล้วจะไม่มีอะไรเปิดเลย (เดิม
+  // เช็คแค่ url ตัวแรกอย่างเดียว)
+  openImageLightbox = (url, secondUrl, secondLabel) => {
+    const primary = url || secondUrl;
+    if (!primary) return;
+    const second = url ? (secondUrl || null) : null;
+    this.setState({ imageLightboxUrl: primary, imageLightboxSecondUrl: second, imageLightboxSecondLabel: second ? (secondLabel || '') : '' });
+  };
   closeImageLightbox = () => this.setState({ imageLightboxUrl: null, imageLightboxSecondUrl: null, imageLightboxSecondLabel: '' });
   exitBrowserAttempt = () => {
     // window.close() only actually works for tabs/windows that were opened
@@ -11110,12 +11125,20 @@ class Component extends DCLogic {
     const receiptsAlbumView = receiptsAlbumFiltered.map(it => {
       const linkedInvoice = it.invoiceId ? s.invoices.find(i => i.id === it.invoiceId) : null;
       const receiptImageUrl = linkedInvoice ? (linkedInvoice.receiptImageUrl || '') : '';
+      // "เก็บข้อมูลไว้หน้าอัลบั้มใบเสร็จให้ด้วยนะครับ" (2026-08-05 follow-up)
+      // — รายการที่ชำระด้วยเงินสด (ไม่มีรูปสลิปจริง — imageUrl ว่างตั้งแต่
+      // _archivePaidReceipts's fallbackAmount) เดิมจะโชว์กล่อง "ไม่มีรูปสลิป"
+      // แบบเดียวกับกรณี error/ไม่มีข้อมูล ดูเหมือนพังไป ทั้งที่จริงมีข้อมูล
+      // ครบ (แค่ไม่มีรูป เพราะเป็นเงินสด) — แยกป้ายให้ชัดว่า "เงินสด"
+      // โดยเฉพาะ ไม่ปนกับเคส "ไม่มีรูปสลิป" จริงๆ (ซึ่งไม่ควรเกิดขึ้นได้แล้ว
+      // ตั้งแต่มี fallbackAmount แต่กันไว้เผื่อข้อมูลเก่าก่อนหน้านี้)
+      const isCash = it.paymentMethod === 'cash';
       return {
         id: it.id,
         room: it.room, tenant: it.tenant || '-', date: it.date || '-',
         amountDisplay: this.fmt(it.amount) + ' บาท',
-        imageUrl: it.imageUrl, hasImage: !!it.imageUrl, noImage: !it.imageUrl,
-        senderName: it.senderName || '-',
+        imageUrl: it.imageUrl, hasImage: !!it.imageUrl, isCash, noImage: !it.imageUrl && !isCash,
+        senderName: isCash ? 'เงินสด' : (it.senderName || '-'),
         typeLabel: paymentTypeLabel[it.paymentType] || it.paymentType,
         typeColor: paymentTypeColor[it.paymentType] || '#7C6E5F',
         // "เอามาแสดงประกอบกันได้ไหม" (2026-08-05 follow-up) — เดิมสลิปกับ
@@ -11126,6 +11149,7 @@ class Component extends DCLogic {
         // ว่าง) แค่โชว์สลิปรูปเดียวเหมือนเดิม ไม่พังอะไร
         onView: () => this.openImageLightbox(it.imageUrl, receiptImageUrl || null, 'ใบเสร็จ'),
         hasReceiptImage: !!receiptImageUrl,
+        cashCardCursor: receiptImageUrl ? 'pointer' : 'default',
         onViewReceipt: () => this.openImageLightbox(it.imageUrl, receiptImageUrl || null, 'ใบเสร็จ'),
         onDownloadReceipt: () => this.downloadReceiptImage(receiptImageUrl, `ใบเสร็จ-${it.room}-${it.invoiceId || it.id}.jpg`),
       };
