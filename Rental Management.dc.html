@@ -991,7 +991,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ b.totalDisplay }}</div>
                     <div style="color:#7C6E5F;font-size:12px">{{ b.due }}</div>
                     <div>
-                      <span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:5px 11px;border-radius:6px;background:{{ b.statusBg }};color:{{ b.statusColor }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ b.statusDot }}"></span>{{ b.statusLabel }}</span>
+                      <span onclick="{{ b.onMarkPaid }}" style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:5px 11px;border-radius:6px;background:{{ b.statusBg }};color:{{ b.statusColor }};cursor:{{ b.statusCursor }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ b.statusDot }}"></span>{{ b.statusLabel }}</span>
                     </div>
                     <div style="display:flex;align-items:center;gap:6px">
                       <sc-if value="{{ b.canModify }}" hint-placeholder-val="{{ true }}">
@@ -3130,19 +3130,38 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <!-- "ช่วยสร้างปุ่มรอดำเนินการให้คลิกได้ เมื่อคลิกแล้วให้ขึ้น popup
+             ชำระเงินสด กรอกตัวเลขเงินสด...กรองตัวเลขที่กรอกเหมือนตรวจสอบ
+             สลิป ว่ายอดที่กรอกเป็นชำระบางส่วนหรือชำระทั้งหมด" (2026-08-05)
+             — เปลี่ยนจากป็อปอัพ "ยืนยัน" เฉยๆ (ไม่มีช่องกรอก) เป็นป็อปอัพ
+             "รับชำระเงินสด" มีช่องกรอกยอดเงิน + ตัวอย่างผลลัพธ์แบบสด
+             (เต็มจำนวน/บางส่วน) ก่อนกดยืนยันจริง -->
         <sc-if value="{{ showPayConfirm }}">
           <div onclick="{{ closePayConfirm }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
-            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-sizing:border-box;text-align:center">
-              <div style="width:52px;height:52px;border-radius:50%;background:#E4EFE7;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px">✓</div>
-              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:6px">ยืนยันการชำระเงิน</div>
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;box-sizing:border-box">
+              <div style="width:52px;height:52px;border-radius:50%;background:#E4EFE7;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px">💵</div>
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:6px;text-align:center">รับชำระเงินสด</div>
               <sc-if value="{{ hasPayConfirm }}" hint-placeholder-val="{{ false }}">
-                <div style="font-size:13px;color:#7C6E5F;margin-bottom:4px">ห้อง {{ payConfirmInfo.room }} · {{ payConfirmInfo.tenant }}</div>
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#241812;margin-bottom:18px">{{ payConfirmInfo.totalDisplay }}</div>
+                <div style="font-size:13px;color:#7C6E5F;margin-bottom:2px;text-align:center">ห้อง {{ payConfirmInfo.room }} · {{ payConfirmInfo.tenant }}</div>
+                <div style="font-size:11.5px;color:#9C8B78;margin-bottom:16px;text-align:center">ยอดที่ต้องชำระ {{ payConfirmInfo.remainingDisplay }} บาท</div>
               </sc-if>
-              <div style="font-size:12px;color:#9C8B78;margin-bottom:18px">เมื่อยืนยันแล้ว บิลนี้จะถูกนำออกจากรายการรอชำระ</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">จำนวนเงินสดที่รับ (บาท)</div>
+              <input type="number" value="{{ payConfirmCashAmount }}" onchange="{{ onPayConfirmCashAmount }}" placeholder="เช่น 3175" style="width:100%;padding:10px;border-radius:7px;border:1px solid #E3D8C8;font-size:14px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:10px">
+              <sc-if value="{{ hasPayConfirmPreview }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:9px 11px;border-radius:6px;background:{{ payConfirmPreviewBg }};margin-bottom:14px">
+                  <div style="font-size:12px;font-weight:700;color:{{ payConfirmPreviewColor }}">{{ payConfirmPreviewLabel }}</div>
+                  <sc-if value="{{ payConfirmPreviewIsPartial }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:11px;color:{{ payConfirmPreviewColor }};margin-top:2px">คงเหลือหลังรับชำระ: {{ payConfirmPreviewRemaining }} บาท</div>
+                  </sc-if>
+                  <sc-if value="{{ payConfirmPreviewHasOverpay }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:11px;color:{{ payConfirmPreviewColor }};margin-top:2px">ส่วนเกิน {{ payConfirmPreviewOverpay }} บาท จะเก็บเป็นเงินล่วงหน้าให้อัตโนมัติ</div>
+                  </sc-if>
+                </div>
+              </sc-if>
+              <div style="font-size:11px;color:#9C8B78;margin-bottom:14px">เมื่อยืนยันแล้ว ระบบจะบันทึกเป็น "ชำระเงินสด" (แยกจากสลิปโอนเงิน) และส่งใบเสร็จแจ้งผู้เช่าผ่าน LINE ให้อัตโนมัติ</div>
               <div style="display:flex;gap:10px">
                 <div onclick="{{ closePayConfirm }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</div>
-                <div onclick="{{ confirmPay }}" style="flex:1.3;padding:11px;border-radius:7px;background:#3B7A52;color:#fff;font-size:13px;font-weight:700;cursor:pointer">ยืนยันชำระแล้ว</div>
+                <div onclick="{{ confirmCashPayment }}" style="flex:1.4;padding:11px;border-radius:7px;background:#3B7A52;color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:center">ยืนยันรับชำระเงินสด</div>
               </div>
             </div>
           </div>
@@ -4878,6 +4897,10 @@ class Component extends DCLogic {
     receiptsSent: {},
     showPayConfirm: false,
     payConfirmId: null,
+    // "ช่วยสร้างปุ่มรอดำเนินการให้คลิกได้...ขึ้น popup ชำระเงินสด" (2026-08-05)
+    // — ยอดเงินสดที่เจ้าของพิมพ์กรอกเข้ามาในป็อปอัพยืนยันการชำระ (แทนที่
+    // ป็อปอัพเดิมที่แค่ "ยืนยัน" เฉยๆ ไม่มีช่องกรอกเลย)
+    payConfirmCashAmount: '',
     showSaveReceipt: false,
     saveReceiptRoom: null,
     showDeleteRoom: false,
@@ -5608,13 +5631,28 @@ class Component extends DCLogic {
   // จุดที่ resolve สลิป (ยกเว้น rejectSlipFor — ปฏิเสธไม่ใช่การชำระจริง
   // ไม่ควรเก็บลงอัลบั้ม) fire-and-forget เหมือน _logPayment ด้านบน ไม่ควร
   // บล็อก/ทำให้ flow การยืนยันหลักล้มเหลวถ้าเก็บอัลบั้มพลาด
-  _archivePaidReceipts = (slips, { room, tenant, invoiceId, paymentType }) => {
-    if (!slips || !slips.length) return;
-    const items = slips.map(sl => ({
-      room, tenant: tenant || '', invoiceId: invoiceId || '',
-      date: sl.date || '', amount: sl.amount, imageUrl: sl.imageUrl || '',
-      senderName: sl.senderName || '', paymentType,
-    })).filter(it => it.amount);
+  // "ปุ่มมีการส่งสลิปเข้ามาแต่เป็นการชำระด้วยเงินสด" (2026-08-05) — เพิ่ม
+  // paymentMethod (ผ่านเข้า /api/paid-receipts ด้วย, ดู migrate-add-
+  // payment-method.js) และ fallbackAmount สำหรับกรณีไม่มี slips array จริง
+  // เลย (เช่น เจ้าของกรอกยอดเงินสดเอง ไม่ใช่ผู้เช่าส่งรูปสลิปมา) — สร้าง
+  // รายการเดียวจาก fallbackAmount แทนการ map สลิปตามปกติ
+  _archivePaidReceipts = (slips, { room, tenant, invoiceId, paymentType, paymentMethod, fallbackAmount }) => {
+    let items;
+    if (slips && slips.length) {
+      items = slips.map(sl => ({
+        room, tenant: tenant || '', invoiceId: invoiceId || '',
+        date: sl.date || '', amount: sl.amount, imageUrl: sl.imageUrl || '',
+        senderName: sl.senderName || '', paymentType, paymentMethod: paymentMethod || '',
+      })).filter(it => it.amount);
+    } else if (fallbackAmount) {
+      items = [{
+        room, tenant: tenant || '', invoiceId: invoiceId || '',
+        date: new Date().toISOString().slice(0, 10), amount: fallbackAmount, imageUrl: '',
+        senderName: paymentMethod === 'cash' ? 'เจ้าของ (รับเงินสด)' : '', paymentType, paymentMethod: paymentMethod || '',
+      }];
+    } else {
+      return;
+    }
     if (!items.length) return;
     fetch('/api/paid-receipts', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -6220,6 +6258,11 @@ class Component extends DCLogic {
   };
   removeClaudeAttachedImage = () => this.setState({ claudeAttachedImage: '' });
   switchToMobileWeb = () => this.setState({ mobileAiMode: false });
+  // "ส่วนนี้ผู้เข้าไปกรอก คือ เจ้าของ เท่านั้น" (2026-08-05) — ใช้ตัวเดียวกับ
+  // showSelectBuildingBtn's เกณฑ์ (ไม่ใช่ staff/tenant/demo) เพื่อกัน
+  // "รับชำระเงินสด" ไว้เฉพาะเจ้าของ — ผู้ดูแล (staff) ยังเห็นบิลได้ปกติ แค่
+  // กดรับชำระเงินสดเองไม่ได้
+  isOwnerSession = () => !!(this.state.authSession && this.state.authSession.role !== 'staff' && this.state.authSession.role !== 'tenant' && this.state.authSession.role !== 'demo');
   switchToAiMode = () => this.setState({ mobileAiMode: true });
   // "เวลาปิด มันปิดทั้งหมด ไม่เหมือนฝั่ง PC" (2026-08-02) — in-app image
   // lightbox replacing every <a target="_blank"> slip/receipt-viewing
@@ -7426,7 +7469,7 @@ class Component extends DCLogic {
       : `ตั้งเวลาสำเร็จ ${okCount} ห้อง, ไม่สำเร็จ ${failCount} ห้อง`);
   });
 
-  openPayConfirm = (id) => this.setState({ showPayConfirm: true, payConfirmId: id });
+  openPayConfirm = (id) => this.setState({ showPayConfirm: true, payConfirmId: id, payConfirmCashAmount: '' });
 
   // Hides one entry from the Dashboard's "การชำระเงินล่าสุด" widget only —
   // sets hiddenFromDashboard on the invoice (persisted, so it stays hidden
@@ -7666,13 +7709,93 @@ class Component extends DCLogic {
       this.showAdminToast(err.message || 'สร้างรูปใบเสร็จไม่สำเร็จ');
     }
   });
-  closePayConfirm = () => this.setState({ showPayConfirm: false, payConfirmId: null });
-  confirmPay = () => {
+  closePayConfirm = () => this.setState({ showPayConfirm: false, payConfirmId: null, payConfirmCashAmount: '' });
+  onPayConfirmCashAmount = (e) => this.setState({ payConfirmCashAmount: e.target.value });
+  // "ช่วยสร้างปุ่มรอดำเนินการให้คลิกได้ เมื่อคลิกแล้วให้ขึ้น popup รับชำระ
+  // เงินสด กรอกตัวเลข...กรองตัวเลขที่กรอกเหมือนตรวจสอบสลิป ว่ายอดที่กรอก
+  // เป็นชำระบางส่วนหรือชำระทั้งหมดตามยอดบิล...ปุ่มมีการส่งสลิปเข้ามาแต่เป็น
+  // การชำระด้วยเงินสด...ปรับสถานะเหมือนโลจิกเดิมครับ" (2026-08-05) —
+  // แทนที่ confirmPay เดิม (แค่ "mark paid" ล้วนๆ ไม่มีช่องกรอก) เอาตรรกะ
+  // full/partial + ส่วนเกินกลายเป็นเงินล่วงหน้า มาจาก resolveSlip's mode
+  // 'full'/'partial' เป๊ะ (ผู้ใช้ขอไว้ตรงๆ ว่า "โลจิกเดิม") ต่างกันแค่
+  // ยอดเงินมาจากช่องกรอกเงินสดแทนยอดรวมสลิปที่ผู้เช่าส่งเข้ามาเอง — และ
+  // ติดป้าย paymentMethod:'cash' ไว้ทั้งที่ Invoices/PaidReceipts (ดู
+  // migrate-add-payment-method.js) ให้ต่างจากการชำระผ่านสลิปโอนเงิน
+  // ปกติ — ข้อความ/ใบเสร็จที่ส่งออกฝั่งผู้เช่าก็ระบุ "ชำระเงินสด" ชัดเจน
+  // ไม่ให้สับสนกับที่โอนผ่านธนาคารจริง — เข้าถึงได้เฉพาะเจ้าของ (ดู
+  // isOwnerSession ที่ gate ปุ่มเปิด popup นี้ในหน้า render ด้านล่าง)
+  confirmCashPayment = () => this._guard('confirmCashPayment:' + this.state.payConfirmId, async () => {
     const id = this.state.payConfirmId;
-    this.markInvoicePaid(id);
-    this.setState({ showPayConfirm: false, payConfirmId: null });
-    this.showAdminToast('ยืนยันการชำระบิล ' + id + ' แล้ว');
-  };
+    const inv = this.state.invoices.find(i => i.id === id);
+    const cashAmount = Number(this.state.payConfirmCashAmount) || 0;
+    if (!inv) return;
+    if (cashAmount <= 0) { this.showAdminToast('กรุณากรอกจำนวนเงินสดที่รับมากกว่า 0'); return; }
+    this.setState({ slipActionLoading: true });
+    try {
+      const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
+      const remainingBefore = Math.max(0, total - (inv.amountPaid || 0));
+      const newAmountPaid = (inv.amountPaid || 0) + cashAmount;
+      const newStatus = total > 0 && newAmountPaid >= total ? 'paid' : 'partial';
+      const overpay = Math.max(0, cashAmount - remainingBefore);
+      const patch = {
+        amountPaid: newAmountPaid, status: newStatus, slipPending: false, slipsJson: '[]', paymentMethod: 'cash',
+        paidDate: newStatus === 'paid' ? new Date().toISOString().slice(0, 10) : '',
+      };
+      const res = await fetch('/api/invoices/' + encodeURIComponent(id), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error('อัปเดตไม่สำเร็จ');
+      const updated = await res.json();
+      // ไม่มีสลิปจริง (เจ้าของกรอกเอง ไม่ใช่ผู้เช่าส่งรูปมา) — เก็บเข้า
+      // อัลบั้มใบเสร็จแบบไม่มีรูป (imageUrl ว่าง) แค่ให้มีประวัติไว้ดูย้อนหลัง
+      // เหมือนการชำระแบบอื่นทุกประการ
+      this._archivePaidReceipts(null, { room: inv.room, tenant: inv.tenant, invoiceId: id, paymentType: newStatus === 'paid' ? 'full' : 'partial', paymentMethod: 'cash', fallbackAmount: cashAmount });
+      let newCredit = null;
+      if (overpay > 0) {
+        const room = this.state.rooms.find(r => r.id === inv.room);
+        const currentCredit = (room && room.creditBalance) || 0;
+        newCredit = currentCredit + overpay;
+        await fetch('/api/rooms/' + encodeURIComponent(inv.room), {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ creditBalance: newCredit }),
+        });
+      }
+      this.setState(s => ({
+        invoices: s.invoices.map(i => i.id === id ? updated : i),
+        rooms: newCredit != null ? s.rooms.map(r => r.id === inv.room ? { ...r, creditBalance: newCredit } : r) : s.rooms,
+        slipActionLoading: false,
+        showPayConfirm: false, payConfirmId: null, payConfirmCashAmount: '',
+      }));
+      if (newStatus === 'paid') {
+        const overpayNote = overpay > 0 ? ` (ส่วนเกิน ${this.fmt(overpay)} บาท เก็บไว้เป็นเงินล่วงหน้าให้แล้ว)` : '';
+        this.showAdminToast('รับชำระเงินสดครบเต็มจำนวนแล้ว' + overpayNote);
+        const overpayLine = overpay > 0 ? ` ส่วนเกิน ${this.fmt(overpay)} บาท ระบบเก็บไว้เป็นเงินล่วงหน้าให้แล้วครับ จะหักลบให้อัตโนมัติตอนออกบิลรอบถัดไป ยอดเงินล่วงหน้าคงเหลือทั้งหมดตอนนี้ ${this.fmt(newCredit)} บาท` : '';
+        const fullFallbackMsg = `ขอบคุณที่ชำระค่าเช่าห้อง ${inv.room} จำนวน ${this.fmt(total)} เรียบร้อยแล้วครับ (ชำระเงินสด) 🙏${overpayLine}`;
+        this._paymentCardImage({
+          title: 'ชำระเงินสด ยืนยันแล้ว ✓', subtitle: `ห้อง ${inv.room}`, roomId: inv.room, tenant: inv.tenant,
+          lines: [{ label: 'ยอดที่ชำระ', value: this.fmt(total) + ' บาท' }, { label: 'วิธีชำระ', value: 'เงินสด' }, { label: 'สถานะ', value: 'ชำระครบถ้วนแล้ว' }],
+          highlight: overpay > 0 ? { label: 'ยอดเงินล่วงหน้าคงเหลือในบัญชี', value: this.fmt(newCredit) + ' บาท' } : null,
+          footerNote: overpay > 0 ? `ส่วนเกิน ${this.fmt(overpay)} บาท เก็บไว้เป็นเงินล่วงหน้าให้แล้วครับ จะหักลบให้อัตโนมัติตอนออกบิลรอบถัดไป` : '',
+        }).then(url => this._lineSend(inv.room, url ? '' : fullFallbackMsg, url || undefined)).catch(err => console.error(err));
+        this._logPayment(inv.room, cashAmount, 'invoice_full', 'รับชำระเงินสด (เต็มจำนวน) ' + id);
+      } else {
+        const remaining = total - newAmountPaid;
+        this.showAdminToast(`บันทึกรับชำระเงินสดบางส่วนแล้ว คงเหลือ ${this.fmt(remaining)}`);
+        const partialFallbackMsg = `รับทราบการชำระเงินสดของห้อง ${inv.room} จำนวน ${this.fmt(cashAmount)} แล้วครับ ยอดคงเหลือ ${this.fmt(remaining)} บาท ขอบคุณครับ 🙏`;
+        this._paymentCardImage({
+          title: 'รับชำระเงินสด (บางส่วน) ✓', subtitle: `ห้อง ${inv.room}`, roomId: inv.room, tenant: inv.tenant,
+          lines: [{ label: 'ยอดที่ชำระรอบนี้', value: this.fmt(cashAmount) + ' บาท' }, { label: 'วิธีชำระ', value: 'เงินสด' }],
+          highlight: { label: 'ยอดคงเหลือที่ต้องชำระ', value: this.fmt(remaining) + ' บาท' },
+          includeQr: true,
+        }).then(url => this._lineSend(inv.room, url ? '' : partialFallbackMsg, url || undefined)).catch(err => console.error(err));
+        this._logPayment(inv.room, cashAmount, 'invoice_partial', 'รับชำระเงินสด (บางส่วน) ' + id);
+      }
+    } catch (err) {
+      this.setState({ slipActionLoading: false });
+      this.showAdminToast(err.message || 'ดำเนินการไม่สำเร็จ');
+    }
+  });
   closeInvoiceModal = () => this.setState({ showInvoiceModal: false });
 
   // Per explicit user request: water/elec rates are per-room now (saved from
@@ -10506,9 +10629,13 @@ class Component extends DCLogic {
         // The status badge is purely informational when a slip is pending —
         // per explicit user request, that state is no longer clickable at
         // all (avoids two different click targets — the badge and "ดูสลิป" —
-        // both opening the same thing). Only the plain awaiting-payment
-        // badge still opens the simple confirm-paid popup.
-        onMarkPaid: hasSlipPending ? null : (() => this.openPayConfirm(i.id)),
+        // both opening the same thing). Only the "รอการชำระ"/"ชำระบางส่วน"
+        // badges are clickable, opening the "รับชำระเงินสด" popup.
+        // "ส่วนนี้ผู้เข้าไปกรอก คือ เจ้าของ เท่านั้น" (2026-08-05) — เฉพาะ
+        // เจ้าของ (ไม่ใช่ ผู้ดูแล/staff) เท่านั้นที่คลิกได้ — ผู้ดูแลยังเห็น
+        // ป้ายสถานะปกติ แค่กดไม่ได้ (ไม่ใช่ cursor:pointer)
+        onMarkPaid: (hasSlipPending || !this.isOwnerSession()) ? null : (() => this.openPayConfirm(i.id)),
+        statusCursor: (hasSlipPending || !this.isOwnerSession()) ? 'default' : 'pointer',
         hasLineId,
         sendLabel: sent ? sentLabel : (hasLineId ? 'ส่งข้อมูล (LINE)' : 'บันทึกใบเสร็จ'),
         sendBg: sent ? '#E4EFE7' : (hasLineId ? '#06C755' : '#C1622D'),
@@ -11832,10 +11959,41 @@ class Component extends DCLogic {
       showSlipRejectConfirm: s.showSlipRejectConfirm, closeSlipRejectConfirm: this.closeSlipRejectConfirm,
       slipRejectReasonOptions, confirmDeleteSlip: this.confirmDeleteSlip,
       slipRejectConfirmLabel: s.slipRejectLoading ? 'กำลังลบ...' : 'ยืนยันลบ',
-      showPayConfirm: s.showPayConfirm, closePayConfirm: this.closePayConfirm, confirmPay: this.confirmPay,
+      showPayConfirm: s.showPayConfirm, closePayConfirm: this.closePayConfirm, confirmCashPayment: this.confirmCashPayment,
+      payConfirmCashAmount: s.payConfirmCashAmount, onPayConfirmCashAmount: this.onPayConfirmCashAmount,
       showSaveReceipt: s.showSaveReceipt, saveReceiptRoom: s.saveReceiptRoom, closeSaveReceipt: this.closeSaveReceipt, confirmSaveReceipt: this.confirmSaveReceipt,
-      payConfirmInfo: (() => { const i = s.invoices.find(x => x.id === s.payConfirmId); if (!i) return null; const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0); return { id: i.id, room: i.room, tenant: i.tenant, totalDisplay: this.fmt(total) }; })(),
+      payConfirmInfo: (() => {
+        const i = s.invoices.find(x => x.id === s.payConfirmId);
+        if (!i) return null;
+        const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
+        const remaining = Math.max(0, total - (i.amountPaid || 0));
+        return { id: i.id, room: i.room, tenant: i.tenant, totalDisplay: this.fmt(total), remainingDisplay: this.fmt(remaining), remaining };
+      })(),
       hasPayConfirm: !!s.payConfirmId,
+      // "กรองตัวเลขที่กรอกเหมือนตรวจสอบสลิป ว่ายอดที่กรอกเป็นชำระบางส่วน
+      // หรือชำระทั้งหมด" (2026-08-05) — ตัวอย่างผลลัพธ์แบบสดก่อนกดยืนยันจริง
+      // คำนวณเหมือน confirmCashPayment เป๊ะ (remainingBefore/overpay) แค่ไม่
+      // เขียนอะไรจริงจนกว่าจะกดปุ่ม
+      ...(() => {
+        const i = s.invoices.find(x => x.id === s.payConfirmId);
+        const cashAmount = Number(s.payConfirmCashAmount) || 0;
+        if (!i || cashAmount <= 0) return { hasPayConfirmPreview: false };
+        const total = i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
+        const remainingBefore = Math.max(0, total - (i.amountPaid || 0));
+        const isFull = cashAmount >= remainingBefore;
+        const overpay = isFull ? Math.max(0, cashAmount - remainingBefore) : 0;
+        const remainingAfter = Math.max(0, remainingBefore - cashAmount);
+        return {
+          hasPayConfirmPreview: true,
+          payConfirmPreviewIsPartial: !isFull,
+          payConfirmPreviewBg: isFull ? '#E4EFE7' : '#FBE7DC',
+          payConfirmPreviewColor: isFull ? '#3B7A52' : '#B85B27',
+          payConfirmPreviewLabel: isFull ? '✓ จะบันทึกเป็น: ชำระเต็มจำนวน' : '◐ จะบันทึกเป็น: ชำระบางส่วน',
+          payConfirmPreviewRemaining: this.fmt(remainingAfter),
+          payConfirmPreviewHasOverpay: overpay > 0,
+          payConfirmPreviewOverpay: this.fmt(overpay),
+        };
+      })(),
       showEditInvoiceModal: s.showEditInvoiceModal, editInvoice: s.editInvoice,
       closeEditInvoiceModal: this.closeEditInvoiceModal, submitEditInvoice: this.submitEditInvoice,
       onEditInvoiceRentChange: this.onEditInvoiceRentChange, onEditInvoiceWaterChange: this.onEditInvoiceWaterChange,

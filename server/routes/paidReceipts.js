@@ -27,6 +27,11 @@ router.post('/', async (req, res, next) => {
         imageUrl: it.imageUrl || '',
         senderName: it.senderName || '',
         paymentType: it.paymentType || 'full', // full | partial | advance
+        // "ปุ่มมีการส่งสลิปเข้ามาแต่เป็นการชำระด้วยเงินสด" (2026-08-05,
+        // ดู migrate-add-payment-method.js) — blank = สลิปโอนเงินปกติ
+        // (ความหมายเดิมของทุกแถวก่อนหน้านี้ ไม่เปลี่ยน), 'cash' = เจ้าของ
+        // กรอกรับเงินสดเองผ่าน popup ใหม่
+        paymentMethod: it.paymentMethod || '',
         createdAt: new Date().toISOString(),
       }));
     if (!rows.length) return res.json({ ok: true, saved: 0 });
