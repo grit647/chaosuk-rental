@@ -10437,7 +10437,17 @@ class Component extends DCLogic {
     // them (filters status !== 'paid'). Found during an accounting audit
     // at the user's request. Grouping them with "pending" here, since
     // they're still awaiting further payment either way.
-    const pendingList = s.invoices.filter(i => i.status === 'pending' || i.status === 'partial');
+    //
+    // "บิลที่เกินกำหนด ต้องรวมอยู่กับบิลที่รอชำระด้วยครับ" (2026-08-07) —
+    // เจอบั๊กเดียวกันซ้ำอีกครั้งกับ "overdue": การ์ดสรุป "รอชำระ" ด้านบนขึ้น
+    // 0 ทั้งที่ตารางด้านล่าง "ใบแจ้งหนี้ที่รอชำระ" (filter เดียวกับ pendingBills
+    // — status !== 'paid') โชว์ 2 รายการ (ทั้งคู่สถานะ "เกินกำหนด") — ป้าย
+    // ภาษาไทย "รอชำระ" ถูกใช้ทั้ง 2 จุดแต่นับคนละชุดข้อมูลกัน สับสน — รวม
+    // "overdue" เข้ามาด้วยเหมือนที่ทำกับ "partial" ไปแล้วข้างบน ให้ตัวเลข
+    // ตรงกับตารางด้านล่างจริงๆ (การ์ด "เกินกำหนด" แยกต่างหากยังคงอยู่ ไว้ดู
+    // เจาะจงว่าในนั้นมีกี่รายการที่เลยกำหนดแล้ว — แค่ไม่ให้ "รอชำระ" นับ
+    // ต่ำกว่าความจริงอีกต่อไป)
+    const pendingList = s.invoices.filter(i => i.status === 'pending' || i.status === 'partial' || i.status === 'overdue');
     const overdueList = s.invoices.filter(i => i.status === 'overdue');
     // Was ALSO missing trash/internet in the sum itself (separate bug,
     // same audit) — undercounted every revenue/pending/overdue KPI on the
@@ -10466,8 +10476,12 @@ class Component extends DCLogic {
     const amountReceivedFor = (i) => i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
     const sumOf = (list) => list.reduce((a, i) => a + amountOwedFor(i), 0);
     const paidSum = paidList.reduce((a, i) => a + amountReceivedFor(i), 0);
+    // pendingList ตอนนี้รวม overdue เข้าไปด้วยแล้ว (ดู comment เต็มด้านบน)
+    // — totalSum เดิม paidSum + pendingSum + overdueSum จะนับยอด overdue
+    // ซ้ำ 2 รอบถ้ายังบวก overdueSum แยกต่างหาก (overdueList ยังคงมีไว้แค่
+    // สำหรับการ์ด "เกินกำหนด" ที่แยกโชว์เฉพาะยอดเลยกำหนดเท่านั้น)
     const pendingSum = sumOf(pendingList), overdueSum = sumOf(overdueList);
-    const totalSum = paidSum + pendingSum + overdueSum;
+    const totalSum = paidSum + pendingSum;
 
     // Real accounting bug the owner caught: paidSum above (still used for
     // the Bills page's "ชำระแล้ว" KPI — a bill-STATUS view, left as-is) only
