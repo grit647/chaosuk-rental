@@ -3,7 +3,7 @@ const router = express.Router();
 const { readTab, appendRow } = require('../sheets');
 const { isConfigured, listDevices, getElecReading, getWaterReading, getWaterUsageDeltaLiters, sendCommand } = require('../tuya');
 const { readIntegrationCredentials } = require('../coerce');
-const { isMainAccountSheetId } = require('../requestContext');
+const { isMainAccountSheetId, getCurrentSheetId } = require('../requestContext');
 
 // Shared chart-aggregation helpers (originally written inline inside
 // /elec-history, hoisted to module scope so /water-history — "ส่วนน้ำ
@@ -268,12 +268,23 @@ router.get('/status', async (req, res, next) => {
     // Fire-and-forget historical log for future usage analysis — never let a
     // logging hiccup affect the response above, which has already been sent.
     // Throttled to once per hour per room (see LOG_INTERVAL_MS above).
+    //
+    // Throttle keys prefixed with the current building's sheetId (2026-08-10
+    // — found while wiring pollAndLogUsageForScheduler below, same bug class
+    // as scheduler.js's _cutoffNotifiedDates fix documented in CLAUDE.md):
+    // lastLoggedAt is ONE process-wide Map shared by every building, but
+    // room IDs like "1"/"101" are only unique WITHIN a building's own
+    // separate spreadsheet — two different buildings' room "1" would
+    // collide and wrongly suppress a real log write in one just because the
+    // other building already logged "the same" key recently.
     const now = Date.now();
+    const _sheetIdForLog = getCurrentSheetId() || 'main';
     entries.forEach(([roomId, reading]) => {
       if (reading.voltage == null) return; // device was offline/errored — nothing useful to log
-      const last = lastLoggedAt.get(roomId) || 0;
+      const throttleKey = _sheetIdForLog + ':elec-' + roomId;
+      const last = lastLoggedAt.get(throttleKey) || 0;
       if (now - last < LOG_INTERVAL_MS) return;
-      lastLoggedAt.set(roomId, now);
+      lastLoggedAt.set(throttleKey, now);
       appendRow('ElectricityLog', {
         id: Date.now() + '-' + roomId,
         timestamp: new Date().toISOString(),
@@ -294,7 +305,7 @@ router.get('/status', async (req, res, next) => {
     // per room like ElectricityLog (separate map key prefix so the two
     // don't collide for a room that has both device types linked).
     waterLinked.forEach((r) => {
-      const throttleKey = 'water-' + r.id;
+      const throttleKey = _sheetIdForLog + ':water-' + r.id;
       const last = lastLoggedAt.get(throttleKey) || 0;
       if (now - last < LOG_INTERVAL_MS) return;
       lastLoggedAt.set(throttleKey, now);
@@ -327,6 +338,76 @@ router.get('/status', async (req, res, next) => {
     });
   } catch (err) { next(err); }
 });
+
+// "ตอนนี้เรายิงกันแอปหลับอยู่แล้ว เพิ่มให้มีการบันทึกร่วมด้วยเลยได้ไหมครับ"
+// (2026-08-10) — เดิม ElectricityLog/WaterLog จะถูกบันทึกก็ต่อเมื่อมีคนเปิด
+// แอปนี้ค้างไว้จริง (GET /status ถูกเรียกตอน mount + ทุก 5 นาทีที่แท็บยัง
+// เปิดอยู่ — ดู Rental Management.dc.html's refreshTuyaLive) ถ้าไม่มีใครเปิด
+// แอปเลยช่วงไหน ช่วงนั้นไม่มีข้อมูลบันทึกเลย เจ้าของสังเกตว่า UptimeRobot
+// ping GET /api/scheduler/run ทุก 20 นาทีอยู่แล้ว (กันเซิร์ฟเวอร์หลับ) เลย
+// ขอให้ผูกการบันทึกข้อมูลเข้ากับรอบนั้นไปด้วยเลย — ฟังก์ชันนี้ทำหน้าที่
+// เดียวกับ logging ส่วนท้ายของ /status ด้านบนทุกประการ (ใช้ lastLoggedAt/
+// LOG_INTERVAL_MS Map ตัวเดียวกัน คีย์รูปแบบเดียวกัน กันเขียนซ้ำไม่ว่าจะถูก
+// เรียกจากทางไหนก่อน) แค่ต้องดึงค่าอ่านสดเองแยกต่างหาก (ไม่ได้มี resultMap
+// จาก /status ให้ใช้ร่วม เพราะถูกเรียกจาก scheduler.js ไม่ใช่จาก request
+// ของ /status) — เรียกจาก server/routes/scheduler.js's runSchedulerOnce()
+// ต่อตึก (อยู่ใน runWithSheetId context อยู่แล้ว จึง readTab/appendRow เข้า
+// ชีตของตึกนั้นถูกต้องอัตโนมัติเหมือนทุกจุดอื่นในไฟล์นี้)
+async function pollAndLogUsageForScheduler(sheetId, tuyaCreds, preloadedRooms) {
+  if (!tuyaCreds || !isConfigured(tuyaCreds)) return;
+  // preloadedRooms (optional) — scheduler.js's runSchedulerOnce() already
+  // reads Rooms once via its own batched readTabs() call; passing it in
+  // avoids one extra Sheets API read per building per scheduler run (same
+  // quota-conservation reasoning as everything else that function batches —
+  // see its own big comment block).
+  const rooms = preloadedRooms || await readTab('Rooms');
+  const now = Date.now();
+
+  const elecLinked = rooms.filter((r) => r.tuyaElecDeviceId);
+  await Promise.all(elecLinked.map(async (r) => {
+    const throttleKey = sheetId + ':elec-' + r.id;
+    if (now - (lastLoggedAt.get(throttleKey) || 0) < LOG_INTERVAL_MS) return;
+    try {
+      const reading = await getElecReading(r.tuyaElecDeviceId, tuyaCreds);
+      if (reading.voltage == null) return;
+      lastLoggedAt.set(throttleKey, now);
+      await appendRow('ElectricityLog', {
+        id: Date.now() + '-' + r.id, timestamp: new Date().toISOString(), room: r.id,
+        voltage: reading.voltage, current: reading.current, power: reading.power, energy: reading.energy,
+      });
+    } catch (err) {
+      console.error('[tuya] scheduled elec poll failed for room', r.id, ':', err.message);
+    }
+  }));
+
+  const waterLinked = rooms.filter((r) => r.tuyaWaterDeviceId);
+  // อ่าน WaterLog ครั้งเดียวก่อนเข้า Promise.all (ไม่ใช่แยกอ่านทีละห้องข้าง
+  // ใน loop) — บั๊กเดียวกับที่เคยแก้ใน scheduler.js's receipt-sent-marking
+  // step มาแล้ว (อ่านทั้ง tab ซ้ำต่อห้องแทนที่จะอ่านครั้งเดียวแล้วกรองเอา)
+  const waterLogAll = waterLinked.length ? await readTab('WaterLog').catch(() => []) : [];
+  await Promise.all(waterLinked.map(async (r) => {
+    const throttleKey = sheetId + ':water-' + r.id;
+    if (now - (lastLoggedAt.get(throttleKey) || 0) < LOG_INTERVAL_MS) return;
+    try {
+      lastLoggedAt.set(throttleKey, now);
+      const roomRows = waterLogAll.filter((row) => row.room === r.id.toString());
+      const latest = roomRows.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+      const prevCumulative = latest ? Number(latest.cumulativeLiters) || 0 : 0;
+      const sinceEventTimeMs = latest ? Number(latest.lastProcessedEventTimeMs) || 0 : 0;
+      const { deltaLiters, lastProcessedEventTimeMs } = await getWaterUsageDeltaLiters(r.tuyaWaterDeviceId, sinceEventTimeMs, tuyaCreds);
+      if (deltaLiters <= 0 && lastProcessedEventTimeMs === sinceEventTimeMs) return;
+      const waterReading = await getWaterReading(r.tuyaWaterDeviceId, tuyaCreds).catch(() => ({}));
+      await appendRow('WaterLog', {
+        id: Date.now() + '-' + r.id, timestamp: new Date().toISOString(), room: r.id,
+        cumulativeLiters: prevCumulative + deltaLiters, lastProcessedEventTimeMs,
+        flowRate: waterReading.flowRate, batteryPercent: waterReading.batteryPercent,
+      });
+    } catch (err) {
+      console.error('[tuya] scheduled water poll failed for room', r.id, ':', err.message);
+    }
+  }));
+}
+router.pollAndLogUsageForScheduler = pollAndLogUsageForScheduler;
 
 // Per real user report: the "ปริมาณการใช้ไฟรวม" chart on the Electricity
 // Usage page always showed 0/empty even after weeks of real ElectricityLog

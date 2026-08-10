@@ -8,6 +8,13 @@ const { isConfigured: claudeConfigured } = require('../claude');
 const { notifyAdmin } = require('../adminNotify');
 const { syncOwnerRichMenuBadges } = require('../ownerRichMenu');
 const { runWithSheetId, getCurrentSheetId } = require('../requestContext');
+// "ตอนนี้เรายิงกันแอปหลับอยู่แล้ว เพิ่มให้มีการบันทึกร่วมด้วยเลยได้ไหมครับ"
+// (2026-08-10) — ผูกการบันทึก ElectricityLog/WaterLog เข้ากับรอบ scheduler
+// (ถูก UptimeRobot ปิงทุก 20 นาทีอยู่แล้ว) แทนที่จะพึ่งพาแค่มีคนเปิดแอปทิ้ง
+// ไว้เท่านั้น — ดู pollAndLogUsageForScheduler's comment เต็มใน routes/
+// tuya.js สำหรับเหตุผล/กลไกทั้งหมด (ใช้ throttle Map ตัวเดียวกับ /status
+// จึงไม่บันทึกซ้ำไม่ว่าจะถูกเรียกจากทางไหนก่อน)
+const { pollAndLogUsageForScheduler } = require('./tuya');
 
 // เพิ่มรอบส่งที่ 2 ต่อวัน (2026-08-05, per explicit owner request) —
 // "แค่วันละ 2 ครั้ง ครั้งแรกส่วนที่กำหนด ครั้งที่ 2 บวกไป 6 ชม. แต่ส่งได้
@@ -129,6 +136,16 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
   // ทุกจุดที่เดิมเรียก readIntegrationCredentials() เอง ตอนนี้ส่ง
   // settingsRows ที่อ่านมาแล้วเข้าไปแทน (ไม่ readTab('Settings') ซ้ำอีก)
   const sharedCreds = await readIntegrationCredentials(settingsRows);
+
+  // "ตอนนี้เรายิงกันแอปหลับอยู่แล้ว เพิ่มให้มีการบันทึกร่วมด้วยเลยได้ไหม
+  // ครับ" (2026-08-10) — fire-and-forget โดยเจตนา (ไม่ await) เพราะเป็น
+  // งานเสริม ไม่ใช่แจ้งเตือนที่ต้องรอผลก่อนทำงานส่วนอื่นต่อ — Tuya API อาจ
+  // ช้า/ล้มเหลวได้ ไม่ควรทำให้ทั้งรอบ scheduler ของตึกนี้ช้าตามหรือพังไปด้วย
+  // ส่ง batch.Rooms ที่อ่านมาแล้วเข้าไปแทนให้ฟังก์ชันอ่านเองซ้ำ (ประหยัด
+  // Sheets API call เหมือนจุดอื่นๆ ในฟังก์ชันนี้)
+  pollAndLogUsageForScheduler(sheetId, sharedCreds.tuya, batch.Rooms).catch((err) => {
+    console.error('[scheduler] pollAndLogUsageForScheduler failed for', sheetId, ':', err.message);
+  });
 
   // แท็บอื่นๆ ที่ต้องใช้ทั่วทั้งฟังก์ชัน — coerce ครั้งเดียว ใช้ซ้ำได้ทุกจุด
   // (ดูการวิเคราะห์ใน CLAUDE.md — การใช้ snapshot เดียวกันทั้งรอบปลอดภัย
