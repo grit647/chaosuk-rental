@@ -113,14 +113,20 @@ async function pushLinkButton(to, bodyText, buttonLabel, url, creds) {
 // dashboard to be open. `displayText` is what shows in the chat history as
 // if the owner had typed it themselves (LINE's own UX convention for
 // postback buttons), so the confirmation is visible/auditable in-chat too.
-async function pushButtonMessage(to, bodyText, buttonLabel, postbackData, displayText, creds) {
+// "เพิ่มเป็น 2 ปุ่มครับ ยืนยันกับ รอภายหลัง" (2026-08-10) — เดิมรับปุ่ม
+// เดียว (buttonLabel/postbackData/displayText string เดี่ยวๆ) ตอนนี้รับ
+// เป็น array ของปุ่ม `[{ label, data, displayText }, ...]` แทน (LINE's
+// buttons template รองรับได้ถึง 4 ปุ่มอยู่แล้ว ไม่ต้องเปลี่ยนโครงสร้าง
+// message) — เช็คจุดเรียกทั้งหมดในโปรเจกต์แล้วมีแค่ scheduler.js's cutoff-
+// warning ที่เดียวที่ใช้ฟังก์ชันนี้ ปลอดภัยที่จะเปลี่ยน signature ตรงๆ
+async function pushButtonMessage(to, bodyText, buttons, creds) {
   const message = {
     type: 'template',
     altText: bodyText,
     template: {
       type: 'buttons',
       text: bodyText.slice(0, 160),
-      actions: [{ type: 'postback', label: buttonLabel.slice(0, 20), data: postbackData, displayText: (displayText || buttonLabel).slice(0, 300) }],
+      actions: buttons.map((b) => ({ type: 'postback', label: b.label.slice(0, 20), data: b.data, displayText: (b.displayText || b.label).slice(0, 300) })),
     },
   };
   return callLineApi('push', { to, messages: [message] }, creds);

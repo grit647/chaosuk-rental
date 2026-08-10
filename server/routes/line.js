@@ -1156,6 +1156,17 @@ async function handleOwnerRichMenuPostback(event, lineCreds) {
     return;
   }
 
+  // "เพิ่มเป็น 2 ปุ่มครับ ยืนยันกับ รอภายหลัง" (2026-08-10) — ปุ่มที่ 2 คู่
+  // กับ owner:cutoff_confirm_elec ด้านบน แค่ตอบรับทราบเฉยๆ ไม่ตัดไฟและไม่
+  // ระงับการแจ้งเตือนวันถัดไป (ระบบยังคงเตือนซ้ำทุกวันตามปกติถ้ายังไม่
+  // ชำระ — ปุ่มนี้มีไว้ให้เจ้าของบอกว่า "เห็นแล้ว ยังไม่อยากตัดไฟตอนนี้"
+  // เท่านั้น ไม่ได้เปลี่ยนพฤติกรรมระบบอะไรเลย)
+  if (data.startsWith('owner:cutoff_postpone_elec:')) {
+    const roomId = data.slice('owner:cutoff_postpone_elec:'.length);
+    await reply(`รับทราบครับ ยังไม่ตัดไฟห้อง ${roomId} ตอนนี้ — ถ้าพรุ่งนี้ยังไม่ชำระ ระบบจะแจ้งเตือนอีกครั้งครับ`);
+    return;
+  }
+
   const monthPrefix = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7); // YYYY-MM
 
   switch (data) {

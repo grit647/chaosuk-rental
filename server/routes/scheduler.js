@@ -375,12 +375,18 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
             // "เฉพาะ final" เป็น "reminder หรือ final" ทั้งคู่
             const adminLineId = settings.propertyProfile && settings.propertyProfile.adminLineUserId;
             if ((kind === 'reminder' || kind === 'final') && room && room.tuyaElecDeviceId && adminLineId && lineConfigured(cutoffCreds.line)) {
+              // "เพิ่มเป็น 2 ปุ่มครับ ยืนยันกับ รอภายหลัง" (2026-08-10) —
+              // เดิมมีแค่ปุ่มเดียว (ยืนยันตัดไฟ) เพิ่มปุ่มที่ 2 ให้เจ้าของ
+              // กดรับทราบได้โดยไม่ต้องตัดไฟตอนนี้ (ไม่ได้ระงับการแจ้งเตือน
+              // วันถัดไป — พรุ่งนี้ถ้ายังไม่ชำระ ระบบจะเตือนซ้ำอีกตามปกติ ดู
+              // postback handler ใน routes/line.js's owner:cutoff_postpone_elec)
               pushButtonMessage(
                 adminLineId,
                 `⚡ ห้อง ${inv.room} ค้างชำระ ${remaining.toLocaleString()} บาท (${kind === 'final' ? 'เกินกำหนดตัดไฟแล้ว' : 'ถึงกำหนดพิจารณาตัดไฟแล้ว'}) กดปุ่มด้านล่างเพื่อตัดไฟห้องนี้ทันที`,
-                '🔌 ยืนยันตัดไฟ',
-                `owner:cutoff_confirm_elec:${inv.room}`,
-                `ยืนยันตัดไฟห้อง ${inv.room}`,
+                [
+                  { label: '🔌 ยืนยันตัดไฟ', data: `owner:cutoff_confirm_elec:${inv.room}`, displayText: `ยืนยันตัดไฟห้อง ${inv.room}` },
+                  { label: '⏳ รอภายหลัง', data: `owner:cutoff_postpone_elec:${inv.room}`, displayText: `รอภายหลัง — ห้อง ${inv.room}` },
+                ],
                 cutoffCreds.line,
               ).catch((err) => console.error('[scheduler] cutoff confirm button push failed', err.message));
             }
