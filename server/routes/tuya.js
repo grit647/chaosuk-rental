@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { readTab, appendRow } = require('../sheets');
+const { readTab, appendRow, updateRow } = require('../sheets');
 const { isConfigured, listDevices, getElecReading, getWaterReading, getWaterUsageDeltaLiters, sendCommand } = require('../tuya');
 const { readIntegrationCredentials } = require('../coerce');
 const { isMainAccountSheetId, getCurrentSheetId } = require('../requestContext');
@@ -463,6 +463,15 @@ router.post('/switch', async (req, res, next) => {
     await sendCommand(room.tuyaElecDeviceId, 'switch', on, creds.tuya);
     const reading = await getElecReading(room.tuyaElecDeviceId, creds.tuya);
     res.json({ ok: true, ...reading });
+    // "ถ้ามีการยืนยันการตัดไฟ...ให้แสดงตรงนี้ด้วย" (2026-08-10) — ไม่บล็อก
+    // การตอบ response ด้านบน (fire-and-forget เหมือนจุด logging อื่นๆ ใน
+    // ไฟล์นี้) บันทึกไว้ว่าไฟห้องนี้ถูกตัด/จ่ายคืนแล้วเมื่อไหร่ ให้หน้าบิล
+    // แสดงป้าย "🔌 ตัดไฟแล้ว" ได้ — ตั้งค่าตอนปิด (on:false), เคลียร์กลับ
+    // เป็นว่างตอนเปิดคืน (on:true) กันป้ายค้างจากรอบบิลเก่าที่จ่ายแล้วจริง
+    // (ไม่ได้แยกว่าเป็นการตัดเพราะไม่จ่าย หรือตัดด้วยเหตุผลอื่น — ป้ายนี้
+    // สื่อความจริงตามสภาพ "ไฟห้องนี้ถูกตัดอยู่ตอนนี้" ตรงไปตรงมาที่สุด)
+    updateRow('Rooms', roomId, { elecCutoffAt: on ? '' : new Date().toISOString() })
+      .catch((err) => console.error('[tuya] elecCutoffAt update failed:', err.message));
   } catch (err) { next(err); }
 });
 

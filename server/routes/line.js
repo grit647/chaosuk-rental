@@ -1144,6 +1144,11 @@ async function handleOwnerRichMenuPostback(event, lineCreds) {
       }
       await sendCommand(room.tuyaElecDeviceId, 'switch', false, creds.tuya);
       await reply(`✅ ตัดไฟห้อง ${roomId} เรียบร้อยแล้วครับ (กดจ่ายไฟคืนได้ที่หน้า "Set อุปกรณ์" เมื่อผู้เช่าชำระแล้ว)`);
+      // "ถ้ามีการยืนยันการตัดไฟ...ให้แสดงตรงนี้ด้วย" (2026-08-10) — เหมือน
+      // POST /api/tuya/switch's ทำ (ดู comment เต็มที่นั่น) กัน "🔌 ตัดไฟแล้ว"
+      // แสดงบนหน้าบิลได้แม้กดยืนยันผ่านปุ่ม LINE นี้แทนหน้าเว็บ
+      updateRow('Rooms', roomId, { elecCutoffAt: new Date().toISOString() })
+        .catch((err) => console.error('[line] elecCutoffAt update failed:', err.message));
     } catch (err) {
       console.error('[line] cutoff_confirm_elec failed', err.message);
       await reply(`ตัดไฟห้อง ${roomId} ไม่สำเร็จครับ (${err.message}) — ลองที่หน้า "Set อุปกรณ์" แทนได้ครับ`);

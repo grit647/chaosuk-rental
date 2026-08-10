@@ -99,6 +99,13 @@ const _lastLogPruneDateBySheet = new Map(); // sheetId -> "YYYY-MM-DD"
 // เดียวกัน) — คุมเฉพาะ block ยืนยันใบเสร็จข้างล่าง ไม่ใช่ทั้งฟังก์ชัน
 const RECEIPT_CONFIRM_VERSION = 6;
 
+// "แจ้งเกินกำหนดให้แจ้งตอน9โมงเช้า...ให้ส่งข้อความวันละ 1 ครั้ง...จนกว่าจะ
+// ไปเจอเงื่อนไขใหม่ที่กำหนด" (2026-08-10) — เหมือน RECEIPT_CONFIRM_VERSION
+// ข้างบนเป๊ะ (ค่าคงที่ ไม่อ้างอิง CURRENT_PLATFORM_VERSION แบบ live) — คุม
+// เฉพาะว่า cutoffWarning section ด้านล่างใช้เงื่อนไขวันแบบช่วง (>=, ทุกวัน)
+// หรือแบบเดิม (===, แค่ 3 วันคงที่/เดือน) ไม่ใช่ทั้ง cutoffWarning feature
+const DAILY_CUTOFF_REMINDER_VERSION = 7;
+
 // testRoomId (2026-08-04) — เจ้าของขอไว้หลังเจอบั๊กแจ้งซ้ำ 2 รอบติดกัน:
 // "สร้างระบบรันห้องเดียวไว้ที่ห้อง 5" — ห้องที่เจ้าของคอยรีเช็คข้อความ OA
 // เป็นประจำอยู่แล้ว ใช้เป็นห้องทดสอบทุกครั้งที่แก้ scheduler.js ต่อไปในอนาคต
@@ -295,7 +302,19 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
       // แบบนั้นถือว่ามีแค่ 1 รอบ ไม่ใช่ 2 รอบสลับลำดับกัน
       const activeSlot = checkTime2 > checkTime && nowTimeStr >= checkTime2 ? 2 : (nowTimeStr >= checkTime ? 1 : 0);
       const timeReached = activeSlot > 0;
-      if ((todayDom === reminderDay || todayDom === finalDay || todayDom === cancelWarningDay) && timeReached) {
+      // "ให้ส่งข้อความวันละ 1 ครั้ง...จนกว่าจะไปเจอเงื่อนไขใหม่ที่กำหนด"
+      // (2026-08-10) — เดิมเช็คแค่ 3 วันที่ตั้งไว้เป๊ะๆ (===), เงียบทุกวัน
+      // ระหว่างนั้น ตอนนี้ (เฉพาะตึกที่อัปเดตถึง v7 แล้ว) เช็คแบบ "ถึงหรือ
+      // เลยวันนั้นมาแล้ว" (>=) แทน — ยังคงอยู่ในทุกร์เดียวกันไปเรื่อยๆ จนกว่า
+      // จะข้ามไปทุกร์ถัดไป (kind ด้านล่างเลือกทุกร์สูงสุดที่ข้ามมาแล้วเสมอ)
+      // dedup รายวันเดิม (NotifyLog + activeSlot) ยังกันส่งซ้ำในวันเดียวกัน
+      // เหมือนเดิมทุกประการ — ตึกที่ยังไม่กด "🆕 อัปเดต" ถึง v7 ยังคงพฤติกรรม
+      // เดิม (===, แค่ 3 วันคงที่) ไม่เปลี่ยนแปลงจนกว่าเจ้าของจะกดอัปเดตเอง
+      const dailyCutoffMode = platformVersion >= DAILY_CUTOFF_REMINDER_VERSION;
+      const cutoffDayMatch = dailyCutoffMode
+        ? todayDom >= reminderDay
+        : (todayDom === reminderDay || todayDom === finalDay || todayDom === cancelWarningDay);
+      if (cutoffDayMatch && timeReached) {
         const invoices = invoicesAll;
         // "แก้บักครับ ไม่ยุ่งกับข้อมูลที่บันทึกไว้ครับ" (2026-07-30) — บั๊ก
         // จริงที่เจอ: เดิมกรองแค่ "สถานะยังไม่จ่าย" (pending/partial/overdue)
@@ -326,7 +345,9 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
         for (const inv of unpaid) {
           const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
           const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
-          const kind = todayDom === cancelWarningDay ? 'cancelWarning' : todayDom === finalDay ? 'final' : 'reminder';
+          const kind = dailyCutoffMode
+            ? (todayDom >= cancelWarningDay ? 'cancelWarning' : todayDom >= finalDay ? 'final' : 'reminder')
+            : (todayDom === cancelWarningDay ? 'cancelWarning' : todayDom === finalDay ? 'final' : 'reminder');
           const key = `${sheetId}:${kind}:${inv.room}:${inv.id}:slot${activeSlot}`;
           const room = rooms.find((r) => r.id === inv.room);
           if (!wasNotifiedToday(key)) {

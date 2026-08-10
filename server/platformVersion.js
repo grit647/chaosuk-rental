@@ -100,6 +100,32 @@
 // account is NOT exempted here — this is a genuinely new behavior for
 // every building including the main one, not a bug fix restoring
 // already-existing behavior.
-const CURRENT_PLATFORM_VERSION = 6;
+// v7 (2026-08-10): "แจ้งเกินกำหนดให้แจ้งตอน9โมงเช้า...ถ้าเกินกำหนดจากการ
+// ตั่งค่าปรกติแต่สถานะบิลยังขึ้นค้างชำระ ให้ส่งข้อความวันละ 1 ครั้ง...จนกว่า
+// จะไปเจอเงื่อนไขใหม่ที่กำหนด" — cutoffWarning used to fire ONLY on the 3
+// exact configured calendar days (cutoffReminderDay/cutoffFinalDay/
+// cutoffCancelWarningDay), going silent every day in between. Changed to a
+// RANGE check (todayDom >= threshold, picking the highest tier crossed) so
+// a still-unpaid bill gets a reminder EVERY DAY once it enters a tier,
+// until it either gets paid or crosses into the next tier — same daily-cap
+// dedup (NotifyLog + activeSlot) as before, just a broader trigger window.
+// Real behavior change for every real tenant/owner of an existing
+// building (from "3 messages/month at most" to "up to 1/day"), same "no
+// surprise changes" reasoning as v4's scheduler gate — a fixed local
+// constant DAILY_CUTOFF_REMINDER_VERSION = 7 in scheduler.js gates just
+// this range-check (not RECEIPT_CONFIRM_VERSION or the whole loop), so a
+// building below v7 keeps the old exact-day-only behavior untouched.
+//
+// Also added, same version: the Bills page's "ใบแจ้งหนี้ที่รอชำระ" status
+// badge now shows "รอตัดไฟ"/"ยกเลิกสัญญา" once a bill's own tier crosses
+// cutoffFinalDay/cutoffCancelWarningDay (matching the message the scheduler
+// is now sending daily), and "🔌 ตัดไฟแล้ว" once the owner has actually
+// confirmed cutting a room's power (either via the LINE "ยืนยันตัดไฟ"
+// button or the "Set อุปกรณ์" page's own toggle — new Rooms-tab
+// `elecCutoffAt` column, prototype-auth/migrate-add-elec-cutoff-column.js).
+// Gated behind `authSession.platformVersion >= 7` (render var
+// cfShowCutoffStatusTiers) — purely cosmetic/informational, but still a new
+// customer-facing element per the permanent staged-rollout rule.
+const CURRENT_PLATFORM_VERSION = 7;
 
 module.exports = { CURRENT_PLATFORM_VERSION };
