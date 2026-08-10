@@ -3125,12 +3125,16 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
         <sc-if value="{{ showTuyaPowerConfirm }}">
           <div onclick="{{ closeTuyaPowerConfirm }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:210">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-sizing:border-box;text-align:center">
-              <div style="width:52px;height:52px;border-radius:50%;background:#FBE7E4;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px">⚠️</div>
-              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:6px">ยืนยันตัดไฟห้อง {{ tuyaPowerConfirmRoom }}</div>
-              <div style="font-size:12.5px;color:#9C8B78;margin-bottom:18px;line-height:1.5">ผู้เช่าในห้องนี้จะไม่มีไฟฟ้าใช้ทันทีจนกว่าจะสั่งจ่ายไฟกลับ ตรวจสอบให้แน่ใจก่อนยืนยัน</div>
+              <div style="width:52px;height:52px;border-radius:50%;background:{{ tuyaPowerConfirmIconBg }};display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px">{{ tuyaPowerConfirmIcon }}</div>
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:6px">{{ tuyaPowerConfirmTitle }}</div>
+              <div style="font-size:12.5px;color:#9C8B78;margin-bottom:14px;line-height:1.5">{{ tuyaPowerConfirmDesc }}</div>
+              <!-- "การกดตัดไฟจากส่วนนี้ต้องมีการกรอกรหัส pin เพื่อยืนยันก่อน
+                   ทุกครั้ง ไม่ว่าจะสั่งปิดหรือเปิดใหม่ เป็นรหัส pin เจ้าของ
+                   ครับ" (2026-08-10) -->
+              <input type="password" inputmode="numeric" value="{{ tuyaPowerConfirmPin }}" onchange="{{ onTuyaPowerConfirmPin }}" placeholder="รหัส PIN เจ้าของ" style="width:100%;padding:10px;border-radius:7px;border:1px solid #E3D8C8;font-size:13px;box-sizing:border-box;text-align:center;margin-bottom:16px;font-family:'IBM Plex Mono',monospace">
               <div style="display:flex;gap:10px">
                 <div onclick="{{ closeTuyaPowerConfirm }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</div>
-                <div onclick="{{ confirmTuyaPowerOff }}" style="flex:1.3;padding:11px;border-radius:7px;background:#B24336;color:#fff;font-size:13px;font-weight:700;cursor:pointer">ยืนยันตัดไฟ</div>
+                <div onclick="{{ confirmTuyaPowerOff }}" style="flex:1.3;padding:11px;border-radius:7px;background:{{ tuyaPowerConfirmBtnBg }};color:#fff;font-size:13px;font-weight:700;cursor:pointer">{{ tuyaPowerConfirmBtnLabel }}</div>
               </div>
             </div>
           </div>
@@ -4596,7 +4600,7 @@ const DEMO_TIPS = {
   equipRoomSelect: 'เลือกห้องที่ต้องการตั้งค่าอุปกรณ์จากตรงนี้ก่อน แล้วสลับแท็บ "⚡ ไฟฟ้า" / "💧 น้ำ" ด้านล่างเพื่อกรอก Device ID ของอุปกรณ์ประเภทนั้นๆ ให้ห้องที่เลือกไว้ — แต่ละห้องเชื่อมได้ทั้งอุปกรณ์ไฟและน้ำพร้อมกัน (คนละช่องกัน)',
   equipElec: 'กรอก "Tuya Device ID" ของมิเตอร์ไฟห้องนี้ (คัดลอกจากหน้า Devices ใน Tuya IoT Platform ของตัวเอง) แล้วกด "บันทึกอุปกรณ์ไฟฟ้า" — ด้านล่างจะแสดงค่าโวลต์/แอมป์/วัตต์/หน่วยสะสมแบบเรียลไทม์ กด "รีเฟรช" เพื่อดึงค่าล่าสุด (ระบบดึงอัตโนมัติทุก 5 นาทีถ้าเปิดหน้านี้ค้างไว้ด้วย)',
   equipWater: 'กรอก "Tuya Device ID" ของมิเตอร์น้ำห้องนี้ แล้วกด "บันทึกอุปกรณ์น้ำ" — ช่อง "ค่าสูงสุดก่อนมิเตอร์รีเซ็ต" สำคัญสำหรับมิเตอร์น้ำบางรุ่นที่นับได้ถึงค่าหนึ่งแล้ววนกลับไปเริ่มที่ 0 ใหม่ (เช่น 10000 ลิตร) — ถ้าไม่ตั้งค่านี้ไว้ ระบบอาจคิดหน่วยการใช้น้ำผิดตอนมิเตอร์รีเซ็ตพอดี',
-  equipStatusList: 'รายการนี้สรุปสถานะอุปกรณ์ทุกห้องในตึกพร้อมกัน (ออนไลน์/ออฟไลน์ + ค่าล่าสุด) — สำหรับอุปกรณ์ไฟที่รองรับ จะมีปุ่ม "ตัดไฟ/จ่ายไฟ" ให้กดตัดไฟห้องนั้นได้โดยตรงจากตรงนี้ (มี popup ให้ยืนยันก่อนตัดไฟทุกครั้ง กันกดพลาด) — การตัดไฟเป็นการตัดสินใจของเจ้าของหอพักเองเสมอ ระบบอัตโนมัติจะไม่ตัดไฟให้เองเด็ดขาด อย่างมากแค่เตือนผู้เช่า/แจ้งเจ้าของถ้าค้างชำระ',
+  equipStatusList: 'รายการนี้สรุปสถานะอุปกรณ์ทุกห้องในตึกพร้อมกัน (ออนไลน์/ออฟไลน์ + ค่าล่าสุด) — สำหรับอุปกรณ์ไฟที่รองรับ จะมีปุ่ม "ตัดไฟ/จ่ายไฟ" ให้กดตัดไฟห้องนั้นได้โดยตรงจากตรงนี้ (ต้องกรอกรหัส PIN เจ้าของยืนยันก่อนทุกครั้ง ไม่ว่าจะตัดไฟหรือจ่ายไฟกลับ กันกดพลาด) — การตัดไฟเป็นการตัดสินใจของเจ้าของหอพักเองเสมอ ระบบอัตโนมัติจะไม่ตัดไฟให้เองเด็ดขาด อย่างมากแค่เตือนผู้เช่า/แจ้งเจ้าของถ้าค้างชำระ',
   claudeAttach: 'กด "+" เพื่อเปิดเมนู 3 อย่าง: "📎 เพิ่มไฟล์" แนบรูปไปพร้อมข้อความ (เช่น ถ่ายรูปมิเตอร์น้ำ/ไฟให้ Claude อ่านตัวเลขให้ หรือรูปสลิปโอนเงินให้ช่วยตรวจสอบ), "🧮 กรอกมิเตอร์หลายห้อง" เปิดหน้ากรอกเลขมิเตอร์น้ำ/ไฟทีเดียวครบทุกห้องที่ยังไม่ออกบิล (มีเลขครั้งก่อนโชว์ให้เทียบ) แล้วออกบิลให้เลย และ "🗑️ เคลียร์หน้าแชท" ล้างประวัติการสนทนาทั้งหมดเพื่อเริ่มคุยเรื่องใหม่',
   waterMeterPhoto: 'ถ่ายรูปมิเตอร์น้ำ (ถ่ายได้หลายห้องในรูปเดียวถ้ามีป้ายเลขห้องกำกับ) แล้วอัปโหลด — Claude จะอ่านตัวเลขมิเตอร์ให้อัตโนมัติ ไม่ต้องจดเอง จากนั้นเลือกห้องที่ตรงกัน ตรวจตัวเลขอีกครั้ง แล้วกดบันทึก — ⚠️ ต้องเชื่อมต่อ Claude API ไว้ก่อน (หน้าตั้งค่า) ถึงจะใช้ฟีเจอร์นี้ได้ ถ้ายังไม่ได้เชื่อม ต้องกรอกเลขมิเตอร์เองแทน',
   elecWindow: 'ปุ่ม 12 ชม./24 ชม./48 ชม. นี้ใช้ได้เฉพาะห้องที่ยัง "ไม่ได้เชื่อม" อุปกรณ์ Tuya จริง (โหมดกรอกมิเตอร์เอง) — เป็นตัวเลือกให้ประมาณการใช้ไฟฟ้าล่วงหน้าคร่าวๆ ก่อนออกบิลจริง โดยอิงจากอัตราการใช้ไฟที่กรอกไว้ (เลขมิเตอร์ปัจจุบัน-เก่า) มาคำนวณเป็นรายชั่วโมงตามช่วงที่เลือก — ห้องที่เชื่อมอุปกรณ์ Tuya จริงแล้วจะไม่มีปุ่มนี้ เพราะระบบใช้ยอดสะสมจริงตั้งแต่บิลล่าสุดแทนอยู่แล้ว แม่นกว่าการประมาณ',
@@ -4771,6 +4775,14 @@ class Component extends DCLogic {
     tuyaEnvConnected: false,
     showTuyaPowerConfirm: false,
     tuyaPowerConfirmRoom: null,
+    // "การกดตัดไฟจากส่วนนี้ต้องมีการกรอกรหัส pin เพื่อยืนยันก่อนทุกครั้ง
+    // ไม่ว่าจะสั่งปิดหรือเปิดใหม่" (2026-08-10) — เดิม popup นี้เตือนแค่ตอน
+    // ตัดไฟ (ปิด) เฉยๆ ไม่มีช่องกรอก PIN เลย และตอนจ่ายไฟ (เปิด) คืนไม่มี
+    // popup ใดๆ ทั้งสิ้น (สั่งทันที) — ตอนนี้ทั้ง 2 ทิศทางต้องผ่าน popup
+    // เดียวกันนี้ + กรอก PIN ก่อนเสมอ tuyaPowerConfirmOn บอกว่ากำลังจะ "เปิด"
+    // (true) หรือ "ปิด" (false) ไฟ ให้ข้อความ/ปุ่มปรับคำพูดให้ตรงทิศทาง
+    tuyaPowerConfirmOn: false,
+    tuyaPowerConfirmPin: '',
     claudeAutomationEnabled: false,
     // "การ์ดนี้ส่วนบนเพิ่ม (Gemini) ไปอีกตัวครับ มีช่องให้ติ๊กว่าเลือกใช้
     // ตัวไหน ส่วนการเชื่อมต่อรอเครดิตเต็มพรุ่งนี้ครับ" (2026-08-01) — แค่
@@ -6900,21 +6912,33 @@ class Component extends DCLogic {
       this.refreshTuyaLive();
     } catch (err) { this.showAdminToast(err.message || 'คาลิเบรตไม่สำเร็จ'); }
   });
-  // Turning power ON is low-risk and happens immediately. Turning it OFF cuts
-  // a real tenant's electricity, so it goes through a confirmation modal first.
+  // "การกดตัดไฟจากส่วนนี้ต้องมีการกรอกรหัส pin เพื่อยืนยันก่อนทุกครั้ง
+  // ไม่ว่าจะสั่งปิดหรือเปิดใหม่ เป็นรหัส pin เจ้าของครับ" (2026-08-10) —
+  // เดิมเปิดไฟ (currentlyOn=false → กำลังจะเปิด) สั่งทันทีไม่มี popup เลย,
+  // ปิดไฟมี popup แต่ไม่มีช่องกรอก PIN — ตอนนี้ทั้ง 2 ทิศทางต้องผ่าน popup
+  // เดียวกัน + กรอก PIN ก่อนเสมอ (currentlyOn=true หมายถึงไฟกำลังติดอยู่ →
+  // การกดครั้งนี้คือ "จะปิด", currentlyOn=false → การกดครั้งนี้คือ "จะเปิด")
   toggleTuyaPower = (roomId, currentlyOn) => {
-    if (currentlyOn) {
-      this.setState({ showTuyaPowerConfirm: true, tuyaPowerConfirmRoom: roomId });
-    } else {
-      this._setTuyaSwitch(roomId, true);
-    }
+    this.setState({ showTuyaPowerConfirm: true, tuyaPowerConfirmRoom: roomId, tuyaPowerConfirmOn: !currentlyOn, tuyaPowerConfirmPin: '' });
   };
-  closeTuyaPowerConfirm = () => this.setState({ showTuyaPowerConfirm: false, tuyaPowerConfirmRoom: null });
-  confirmTuyaPowerOff = () => {
+  closeTuyaPowerConfirm = () => this.setState({ showTuyaPowerConfirm: false, tuyaPowerConfirmRoom: null, tuyaPowerConfirmPin: '' });
+  onTuyaPowerConfirmPin = (e) => this.setState({ tuyaPowerConfirmPin: e.target.value });
+  confirmTuyaPowerOff = () => this._guard('confirmTuyaPowerOff', async () => {
     const roomId = this.state.tuyaPowerConfirmRoom;
-    this.setState({ showTuyaPowerConfirm: false, tuyaPowerConfirmRoom: null });
-    this._setTuyaSwitch(roomId, false);
-  };
+    const turnOn = this.state.tuyaPowerConfirmOn;
+    try {
+      // "รหัส pin เจ้าของ" — ใช้ endpoint ร่วมเดียวกับทุกจุด "ยืนยันก่อนทำ"
+      // ในแอปนี้ (server/routes/settings.js's verify-admin-pin) รับได้ทั้ง
+      // adminEditPin ของตึกนี้ หรือ PIN ล็อกอินของเจ้าของ — ตรงกับที่ขอ
+      const verifyRes = await fetch('/api/settings/verify-admin-pin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: this.state.tuyaPowerConfirmPin }),
+      });
+      if (!verifyRes.ok) throw new Error((await verifyRes.json()).error || 'รหัส PIN ไม่ถูกต้อง');
+      this.setState({ showTuyaPowerConfirm: false, tuyaPowerConfirmRoom: null, tuyaPowerConfirmPin: '' });
+      this._setTuyaSwitch(roomId, turnOn);
+    } catch (err) { this.showAdminToast(err.message || 'ยืนยันไม่สำเร็จ'); }
+  });
   _setTuyaSwitch = (roomId, on) => this._guard('_setTuyaSwitch:' + roomId, async () => {
     try {
       const res = await fetch('/api/tuya/switch', {
@@ -11876,6 +11900,19 @@ class Component extends DCLogic {
       showMaintDone: s.showMaintDone, closeMaintDone: this.closeMaintDone, confirmMaintDone: this.confirmMaintDone,
       showTuyaPowerConfirm: s.showTuyaPowerConfirm, tuyaPowerConfirmRoom: s.tuyaPowerConfirmRoom,
       closeTuyaPowerConfirm: this.closeTuyaPowerConfirm, confirmTuyaPowerOff: this.confirmTuyaPowerOff,
+      // "ไม่ว่าจะสั่งปิดหรือเปิดใหม่" (2026-08-10) — ข้อความ/ปุ่ม/สีใน popup
+      // เปลี่ยนตามทิศทาง (s.tuyaPowerConfirmOn: true=กำลังจะเปิด, false=
+      // กำลังจะปิด) แทนที่จะพูดถึง "ตัดไฟ" ตายตัวเหมือนเดิม (ตอนนั้นเปิดไฟ
+      // ไม่มี popup เลย)
+      tuyaPowerConfirmIcon: s.tuyaPowerConfirmOn ? '🔌' : '⚠️',
+      tuyaPowerConfirmIconBg: s.tuyaPowerConfirmOn ? '#E4EFE7' : '#FBE7E4',
+      tuyaPowerConfirmTitle: (s.tuyaPowerConfirmOn ? 'ยืนยันจ่ายไฟห้อง ' : 'ยืนยันตัดไฟห้อง ') + s.tuyaPowerConfirmRoom,
+      tuyaPowerConfirmDesc: s.tuyaPowerConfirmOn
+        ? 'ห้องนี้จะมีไฟฟ้าใช้ได้ตามปกติทันที กรอกรหัส PIN เจ้าของเพื่อยืนยัน'
+        : 'ผู้เช่าในห้องนี้จะไม่มีไฟฟ้าใช้ทันทีจนกว่าจะสั่งจ่ายไฟกลับ กรอกรหัส PIN เจ้าของเพื่อยืนยัน',
+      tuyaPowerConfirmBtnBg: s.tuyaPowerConfirmOn ? '#3B7A52' : '#B24336',
+      tuyaPowerConfirmBtnLabel: s.tuyaPowerConfirmOn ? 'ยืนยันจ่ายไฟ' : 'ยืนยันตัดไฟ',
+      tuyaPowerConfirmPin: s.tuyaPowerConfirmPin, onTuyaPowerConfirmPin: this.onTuyaPowerConfirmPin,
       goCalendar: this.goCalendar,
       isCalendar: s.activeNav === 'calendar',
       navCalendar: navStyle('calendar'),
