@@ -463,15 +463,22 @@ router.post('/switch', async (req, res, next) => {
     await sendCommand(room.tuyaElecDeviceId, 'switch', on, creds.tuya);
     const reading = await getElecReading(room.tuyaElecDeviceId, creds.tuya);
     res.json({ ok: true, ...reading });
-    // "ถ้ามีการยืนยันการตัดไฟ...ให้แสดงตรงนี้ด้วย" (2026-08-10) — ไม่บล็อก
-    // การตอบ response ด้านบน (fire-and-forget เหมือนจุด logging อื่นๆ ใน
-    // ไฟล์นี้) บันทึกไว้ว่าไฟห้องนี้ถูกตัด/จ่ายคืนแล้วเมื่อไหร่ ให้หน้าบิล
-    // แสดงป้าย "🔌 ตัดไฟแล้ว" ได้ — ตั้งค่าตอนปิด (on:false), เคลียร์กลับ
-    // เป็นว่างตอนเปิดคืน (on:true) กันป้ายค้างจากรอบบิลเก่าที่จ่ายแล้วจริง
-    // (ไม่ได้แยกว่าเป็นการตัดเพราะไม่จ่าย หรือตัดด้วยเหตุผลอื่น — ป้ายนี้
-    // สื่อความจริงตามสภาพ "ไฟห้องนี้ถูกตัดอยู่ตอนนี้" ตรงไปตรงมาที่สุด)
-    updateRow('Rooms', roomId, { elecCutoffAt: on ? '' : new Date().toISOString() })
-      .catch((err) => console.error('[tuya] elecCutoffAt update failed:', err.message));
+    // "การจ่ายไฟอาจมี 2 กรณี คือ 1 ชำระบิลทั้งหมด แล้วจ่ายไฟให้ กับ 2 การขอ
+    // ใช้ไฟชั่วคราว คือ การที่บิลยังไม่ชำระแต่ขอให้เปิดการใช้ไฟให้ครับ...
+    // ตัดไฟแล้ว แล้วจ่ายไฟให้ใหม่ ทั้งๆที่ยังไม่จ่ายบิล สถานะตรงนี้ต้องขึ้น
+    // การขอใช้ไฟชั่วคราว" (2026-08-10 follow-up) — เดิม on:true เคลียร์
+    // elecCutoffAt กลับเป็นว่างทันที ทำให้ "ตัดไฟแล้ว → จ่ายไฟกลับคืนทั้งที่
+    // ยังไม่จ่ายบิล" กระโดดกลับไปโชว์ "รอตัดไฟ" เหมือนไม่เคยตัดไฟมาก่อนเลย
+    // ทั้งที่จริงควรมีสถานะที่ 3 แยกต่างหาก ("ขอใช้ไฟชั่วคราว") บอกว่าเคย
+    // ตัดมาแล้วแต่ปล่อยให้ใช้ชั่วคราว ไม่ใช่ไม่เคยตัด — เปลี่ยนมาเป็น: on:
+    // false ตั้ง elecCutoffAt (เหมือนเดิม), on:true ตั้ง elecRestoredAt
+    // แทน (ไม่แตะ elecCutoffAt เลย) — ฝั่งหน้าเว็บเทียบ 2 timestamp นี้เอง
+    // ว่าอันไหนล่าสุดกว่ากัน (ดู pendingBills's isCurrentlyOff/tempPowerGrant
+    // ใน Rental Management.dc.html) ตัดสินใจว่าจะโชว์ "ตัดไฟแล้ว" หรือ
+    // "ขอใช้ไฟชั่วคราว" — ทั้ง 2 ฟิลด์รีเซ็ตกลับว่างเมื่อออกบิลใหม่ให้ห้อง
+    // นั้น (submitInvoice/submitBulkInvoice's roomPatch) กันป้ายค้างข้ามรอบบิล
+    updateRow('Rooms', roomId, on ? { elecRestoredAt: new Date().toISOString() } : { elecCutoffAt: new Date().toISOString() })
+      .catch((err) => console.error('[tuya] elecCutoffAt/elecRestoredAt update failed:', err.message));
   } catch (err) { next(err); }
 });
 

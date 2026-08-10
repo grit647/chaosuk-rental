@@ -93,6 +93,20 @@ router.post('/', async (req, res, next) => {
     if (applied > 0) {
       await updateRow('Rooms', b.room, { creditBalance: credit - applied });
     }
+    // "ทั้ง 2 ฟิลด์รีเซ็ตกลับว่างเมื่อออกบิลใหม่ให้ห้องนั้น" (2026-08-10) —
+    // elecCutoffAt/elecRestoredAt (server/routes/tuya.js's POST /switch)
+    // track this ROOM's most recent power-cutoff/restore event, but a room
+    // can only ever have ONE non-paid invoice at a time (see alreadyPending
+    // check above) — a brand-new billing cycle starting here should never
+    // inherit a stale "🔌 ตัดไฟแล้ว"/"⚡ ขอใช้ไฟชั่วคราว" badge left over
+    // from a PAST, already-resolved cycle. Skipped when this new invoice is
+    // immediately 'paid' in full via advance credit (status check above) —
+    // nothing to reset since there's no unpaid cycle for the badge to
+    // wrongly attach to either way, and skipping avoids a pointless write.
+    if (status !== 'paid') {
+      updateRow('Rooms', b.room, { elecCutoffAt: '', elecRestoredAt: '' })
+        .catch((err) => console.error('[invoices] elecCutoffAt/elecRestoredAt reset failed:', err.message));
+    }
     // Run through coerceInvoices before responding — the raw object above is
     // missing fields (receiptSent, slipPending, slips, remainingDue, etc.)
     // that every OTHER invoice in the frontend's state already has (loaded

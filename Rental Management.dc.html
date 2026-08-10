@@ -6953,7 +6953,19 @@ class Component extends DCLogic {
       });
       if (!res.ok) throw new Error((await res.json()).error || 'สั่งงานอุปกรณ์ไม่สำเร็จ');
       const reading = await res.json();
-      this.setState(s => ({ tuyaLiveReadings: { ...s.tuyaLiveReadings, [roomId]: { ...s.tuyaLiveReadings[roomId], ...reading } } }));
+      // "การจ่ายไฟอาจมี 2 กรณี...การขอใช้ไฟชั่วคราว คือ การที่บิลยังไม่
+      // ชำระแต่ขอให้เปิดการใช้ไฟให้ครับ" (2026-08-10 follow-up) — เดิม
+      // on:true เคลียร์ elecCutoffAt กลับว่างทันที (กระโดดกลับไป "รอตัดไฟ"
+      // เหมือนไม่เคยตัดมาก่อน) ตอนนี้ตั้ง elecRestoredAt แทน (ไม่แตะ
+      // elecCutoffAt) ให้หน้าบิลเทียบ 2 timestamp เองว่าไฟห้องนี้ "กำลังตัด
+      // อยู่" (ตัดไฟแล้ว) หรือ "เคยตัดแล้วแต่จ่ายคืนชั่วคราว" (ขอใช้ไฟ
+      // ชั่วคราว) — ตรงกับที่ backend เก็บใน server/routes/tuya.js ตอนนี้
+      this.setState(s => ({
+        tuyaLiveReadings: { ...s.tuyaLiveReadings, [roomId]: { ...s.tuyaLiveReadings[roomId], ...reading } },
+        rooms: s.rooms.map(r => r.id === roomId
+          ? (on ? { ...r, elecRestoredAt: new Date().toISOString() } : { ...r, elecCutoffAt: new Date().toISOString() })
+          : r),
+      }));
       this.showAdminToast(on ? ('จ่ายไฟห้อง ' + roomId + ' แล้ว') : ('ตัดไฟห้อง ' + roomId + ' แล้ว'));
     } catch (err) { this.showAdminToast(err.message || 'สั่งงานอุปกรณ์ไม่สำเร็จ'); }
   });
@@ -10803,7 +10815,19 @@ class Component extends DCLogic {
       const dueHasPassedForTier = !!(i.due && i.due < todayStrForTier);
       const pastCancelDay = showCutoffTiers && dueHasPassedForTier && todayDomForTier >= (Number(s.cutoffCancelWarningDay) || 25);
       const pastReminderDay = showCutoffTiers && dueHasPassedForTier && todayDomForTier >= (Number(s.cutoffReminderDay) || 7);
-      const elecCutoffAt = billRoom && billRoom.elecCutoffAt;
+      // "การจ่ายไฟอาจมี 2 กรณี คือ 1 ชำระบิลทั้งหมด แล้วจ่ายไฟให้ กับ 2
+      // การขอใช้ไฟชั่วคราว คือ การที่บิลยังไม่ชำระแต่ขอให้เปิดการใช้ไฟให้
+      // ครับ...ตัดไฟแล้ว แล้วจ่ายไฟให้ใหม่ ทั้งๆที่ยังไม่จ่ายบิล สถานะตรงนี้
+      // ต้องขึ้นการขอใช้ไฟชั่วคราว" (2026-08-10 follow-up) — เทียบ 2
+      // timestamp (เขียนโดย server/routes/tuya.js's POST /switch): อันไหน
+      // ล่าสุดกว่ากันบอกว่าไฟห้องนี้ "กำลังถูกตัดอยู่" (elecCutoffAt ใหม่
+      // กว่า) หรือ "เคยตัดมาแล้วแต่จ่ายคืนชั่วคราว" (elecRestoredAt ใหม่
+      // กว่า) — บิลนี้ยังไม่จ่าย (อยู่ใน pendingBills อยู่แล้ว = ยังไม่ paid)
+      // จึงไม่ต้องเช็คสถานะบิลซ้ำอีก แค่เช็คว่าเคยตัดไฟมาก่อนไหมก็พอ
+      const elecCutoffAtRaw = billRoom && billRoom.elecCutoffAt;
+      const elecRestoredAtRaw = billRoom && billRoom.elecRestoredAt;
+      const elecCurrentlyOff = !!elecCutoffAtRaw && (!elecRestoredAtRaw || elecRestoredAtRaw < elecCutoffAtRaw);
+      const elecTempPowerGrant = !!elecCutoffAtRaw && !!elecRestoredAtRaw && elecRestoredAtRaw >= elecCutoffAtRaw;
       // "ยอดที่ต้องชำระ" should show what's actually still owed whenever ANY
       // money is already applied against this bill — not just when status is
       // literally 'partial'. A brand-new invoice that had advance credit
@@ -10847,23 +10871,32 @@ class Component extends DCLogic {
         // A pending slip takes priority over the plain overdue/awaiting-payment
         // label — it's a more specific, more actionable state ("someone
         // already tried to pay, come review it") than either of those.
+        // "ตัดไฟแล้ว แล้วจ่ายไฟให้ใหม่ ทั้งๆที่ยังไม่จ่ายบิล สถานะตรงนี้ต้อง
+        // ขึ้นการขอใช้ไฟชั่วคราว" (2026-08-10 follow-up) — เพิ่มระดับที่ 3
+        // "⚡ ขอใช้ไฟชั่วคราว" แทรกระหว่าง "ตัดไฟแล้ว" (กำลังตัดอยู่จริง)
+        // กับระดับเตือนปกติ — 2 อันนี้ (elecCurrentlyOff/elecTempPowerGrant)
+        // exclusive กันเองอยู่แล้ว (ดู comment เต็มตรงที่คำนวณด้านบน)
         statusLabel: hasSlipPending ? 'รอตรวจสอบสลิป'
-          : elecCutoffAt ? '🔌 ตัดไฟแล้ว'
+          : elecCurrentlyOff ? '🔌 ตัดไฟแล้ว'
+          : elecTempPowerGrant ? '⚡ ขอใช้ไฟชั่วคราว'
           : pastCancelDay ? 'ยกเลิกสัญญา'
           : pastReminderDay ? 'รอตัดไฟ'
           : (overdue ? 'เกินกำหนด' : (partial ? 'ชำระบางส่วน' : 'รอการชำระ')),
         statusBg: hasSlipPending ? '#FBE7DC'
-          : elecCutoffAt ? '#DCE3ED'
+          : elecCurrentlyOff ? '#DCE3ED'
+          : elecTempPowerGrant ? '#FFF3D6'
           : pastCancelDay ? '#E8C4BC'
           : pastReminderDay ? '#F2D9D4'
           : (overdue ? '#F5E1DC' : (partial ? '#FBE7DC' : '#F0E7CF')),
         statusColor: hasSlipPending ? '#B85B27'
-          : elecCutoffAt ? '#2C4A6E'
+          : elecCurrentlyOff ? '#2C4A6E'
+          : elecTempPowerGrant ? '#9C6B1F'
           : pastCancelDay ? '#8B2E20'
           : pastReminderDay ? '#A6392C'
           : (overdue ? '#B24336' : (partial ? '#B85B27' : '#8A6D1F')),
         statusDot: hasSlipPending ? '#B85B27'
-          : elecCutoffAt ? '#2C4A6E'
+          : elecCurrentlyOff ? '#2C4A6E'
+          : elecTempPowerGrant ? '#9C6B1F'
           : pastCancelDay ? '#8B2E20'
           : pastReminderDay ? '#A6392C'
           : (overdue ? '#B24336' : (partial ? '#B85B27' : '#C1872E')),
