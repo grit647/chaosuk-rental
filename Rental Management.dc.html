@@ -18,6 +18,13 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
   .stat-card { flex: 1 1 calc(50% - 7px) !important; min-width: 130px; }
   .split-col { flex: 1 1 100% !important; }
   .reminder-cards-grid { grid-template-columns: 1fr !important; }
+  /* "ปรับหน้า Ui ต่างๆ ให้ทำงานสมบูรณ์ ไม่ล้นหน้าจอ" (2026-08-10 mobile
+     audit) — การ์ดห้องพัก/ผู้เช่า (หน้า "ห้องพัก"/"ผู้เช่า", ไม่ใช่วิดเจ็ต
+     เล็กบน Dashboard ซึ่งตั้งใจตรึง 4 คอลัมน์คงที่คู่กับปุ่มเลื่อนหน้า)
+     เดิม 3 คอลัมน์คงที่ทุกขนาดจอ บนมือถือแคบ (~320-375px) เหลือช่องละ
+     ~95-105px บีบจนชื่อผู้เช่า/เลขห้องอ่านลำบาก ลดเหลือ 2 คอลัมน์บนจอแคบ
+     ให้แต่ละการ์ดกว้างขึ้นแทน (เหมือน .stat-card ที่ใช้ 2 คอลัมน์อยู่แล้ว) */
+  .room-tenant-cards-grid { grid-template-columns: repeat(2, 1fr) !important; }
   /* Real bug the owner hit on a phone: the sticky page-title-+-action-
      buttons row (used on ~15 pages — Bills, Rooms, Tenants, etc.) has no
      wrap/shrink handling, so on a narrow screen an extra button (e.g.
@@ -392,7 +399,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                  เดิมแถบนี้โชว์แค่จอมือถือ (ปุ่ม ☰ เมนู เท่านั้น) ตอนนี้โชว์
                  ทุกขนาดจอถ้ามีปุ่ม "กลับแดชบอร์ด" ให้แสดงด้วย (ไม่แสดงเฉพาะ
                  ตอนอยู่หน้าแดชบอร์ดเองอยู่แล้ว) -->
-            <div style="position:sticky;top:0;z-index:70;background:#F1EBE0;margin:0 -32px;padding:6px 32px 4px;display:flex;align-items:center;gap:8px">
+            <div style="position:sticky;top:0;z-index:70;background:#F1EBE0;margin:0 -32px;padding:6px 32px 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <sc-if value="{{ showMobileMenuBtn }}" hint-placeholder-val="{{ false }}">
                 <div onclick="{{ toggleMobileNav }}" style="display:inline-flex;align-items:center;gap:6px;background:#2B1D14;color:#F1EBE0;padding:6px 11px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(36,24,18,0.25)"><span style="font-size:13px">☰</span> เมนู</div>
               </sc-if>
@@ -752,7 +759,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <span onclick="{{ onDemoTipRoomCard }}" style="cursor:pointer;font-size:14px;background:#2C6E8F;color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">❓</span>
                   </div>
                 </sc-if>
-                <div ontouchstart="{{ onRoomTouchStart }}" ontouchend="{{ onRoomTouchEnd }}" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                <div class="room-tenant-cards-grid" ontouchstart="{{ onRoomTouchStart }}" ontouchend="{{ onRoomTouchEnd }}" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
                   <sc-for list="{{ roomsPageItems }}" as="r" hint-placeholder-count="3">
                     <div onclick="{{ r.onClick }}" style="background:#FFFFFF;border-radius:7px;padding:8px;cursor:pointer;box-sizing:border-box;border:{{ r.cardBorder }}">
                       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#241812">{{ r.id }}</span><span style="font-size:8.5px;font-weight:600;padding:1px 4px;border-radius:4px;background:{{ r.badgeBg }};color:{{ r.badgeColor }};white-space:nowrap">{{ r.statusLabel }}</span></div>
@@ -843,7 +850,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                  send-news) appear in the panel below. -->
             <div style="display:flex;flex-direction:column;gap:16px">
               <div>
-                <div ontouchstart="{{ onTenantTouchStart }}" ontouchend="{{ onTenantTouchEnd }}" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                <div class="room-tenant-cards-grid" ontouchstart="{{ onTenantTouchStart }}" ontouchend="{{ onTenantTouchEnd }}" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
                   <sc-for list="{{ tenantsPageItems }}" as="t" hint-placeholder-count="3">
                     <div onclick="{{ t.onClick }}" style="background:#FFFFFF;border-radius:7px;padding:10px;cursor:pointer;box-sizing:border-box;border:{{ t.cardBorder }}">
                       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#241812">{{ t.room }}</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:{{ t.connBg }};color:{{ t.connColor }};white-space:nowrap"><span style="width:5px;height:5px;border-radius:50%;background:{{ t.connDot }}"></span>{{ t.connLabel }}</span></div>
@@ -2046,7 +2053,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             </div>
 
             <sc-if value="{{ hasStaffPayroll }}" hint-placeholder-val="{{ false }}">
-              <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;margin-bottom:18px">
+              <!-- "ปรับหน้า Ui ต่างๆ ให้ทำงานสมบูรณ์ ไม่ล้นหน้าจอ" (2026-08-10
+                   mobile audit) — ตารางนี้ไม่มี overflow-x:auto/min-width
+                   ห่ออยู่ (ต่างจากตารางอื่นๆ ทั้งหมดในแอปที่มี pattern นี้
+                   อยู่แล้ว เช่น บิล/สัญญาเช่า/มิเตอร์น้ำ-ไฟ) — 4 คอลัมน์
+                   fr-based เลยบีบแคบจนชื่อ/ตำแหน่งอ่านยากบนจอมือถือ แก้ให้
+                   ตรงกับ pattern เดิมของแอป -->
+              <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;margin-bottom:18px;overflow-x:auto">
+                <div style="min-width:420px">
                 <div style="font-size:12px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#B85B27;margin-bottom:10px">เงินเดือนพนักงาน (นับรวมในรายจ่ายเดือนนี้)</div>
                 <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F;padding-bottom:10px;border-bottom:1px solid #E3D8C8">
                   <div>ชื่อ</div><div>ตำแหน่ง</div><div>รับเงินเดือน</div><div>จำนวนเงิน</div>
@@ -2056,10 +2070,17 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <div>{{ pr.name }}</div><div style="color:#7C6E5F">{{ pr.position }}</div><div style="color:#7C6E5F">{{ pr.payDayDisplay }}</div><div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ pr.salaryDisplay }}</div>
                   </div>
                 </sc-for>
+                </div>
               </div>
             </sc-if>
 
-            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
+            <!-- "ปรับหน้า Ui ต่างๆ ให้ทำงานสมบูรณ์ ไม่ล้นหน้าจอ" (2026-08-10
+                 mobile audit) — เหมือนตารางเงินเดือนพนักงานด้านบน ตารางนี้
+                 ไม่มี overflow-x:auto/min-width ห่ออยู่เดิม (ทุกตารางอื่นใน
+                 แอปมี pattern นี้) 5 คอลัมน์ fr-based บีบแคบจน "รายละเอียด"
+                 ที่มักเป็นข้อความยาวอ่านยากบนจอมือถือ -->
+            <div style="background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box;overflow-x:auto">
+              <div style="min-width:520px">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
                 <div style="font-size:12px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#7C6E5F">รายจ่ายทั่วไป</div>
                 <sc-if value="{{ hasHiddenExpenses }}" hint-placeholder-val="{{ false }}">
@@ -2090,6 +2111,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                 </div>
               </sc-for>
+              </div>
             </div>
           </div>
           </sc-if>
