@@ -104,13 +104,36 @@ function dayPeriodLabel(dateStr) {
 }
 const monthPeriodLabel = (monthStr) => monthLabel(monthStr) + ' ' + toBE(monthStr.slice(0, 4));
 const yearPeriodLabel = (yearStr) => String(toBE(yearStr));
-// step±1 ช่วงเวลาไม่ได้ใช้ที่นี่ (ฝั่งหน้าเว็บคำนวณเองตอนกด ‹ › แล้วส่ง
-// period ใหม่มาทาง query string) — เก็บไว้แค่ default (period ไม่ระบุ =
-// "วันนี้/เดือนนี้/ปีนี้" ตามเวลาไทย) และเช็คว่ายังไปต่อ (อนาคต) ได้ไหม
+// "หนึ่งดึงข้อมูลมาแสดงให้ด้วยครับ" (2026-08-10 follow-up) — real bug:
+// defaulting period to literally "today/this month/this year" meant a
+// building whose LAST log entry (ElectricityLog/WaterLog rows only get
+// appended when /status is polled, throttled to once/hour/room — see
+// LOG_INTERVAL_MS below) happened to fall on an earlier day showed a
+// totally empty chart the moment someone opened the page, even though
+// real historical data existed just one ‹ click away. The OLD hourly-only
+// chart (removed earlier today, see git history) had already solved this
+// exact problem by defaulting to "the most recent day that actually has
+// log data" instead of blindly "today" — this restores that same
+// principle for all 3 modes now, not just hourly. Only affects the
+// DEFAULT (period not explicitly passed by the ‹ › buttons) — once a
+// user has navigated anywhere, that explicit choice is always honored.
+function latestBangkokDate(byRoom) {
+  let latest = null;
+  Object.values(byRoom).forEach((rows) => rows.forEach((r) => {
+    const d = bangkokDateStr(new Date(r.timestamp));
+    if (!latest || d > latest) latest = d;
+  }));
+  return latest; // "YYYY-MM-DD" ของแถวล่าสุดที่มีจริง, หรือ null ถ้าไม่มีข้อมูลเลย
+}
 function buildDrillDownChart(byRoom, mode, period, valueField) {
   const now = bangkokDateStr(new Date());
+  // เฉพาะตอนไม่ได้ระบุ period มาเอง (ผู้ใช้ยังไม่เคยกด ‹ ›) ถึงจะ fallback
+  // ไปหาวันที่ล่าสุดที่มีข้อมูลจริงแทน "วันนี้" ตรงๆ — ถ้าไม่มีข้อมูลเลย
+  // (ตึกใหม่ยังไม่เคยเชื่อมอุปกรณ์) ก็กลับไปใช้ "วันนี้" เหมือนเดิม (ว่าง
+  // เท่ากันไม่ว่าจะเลือกวันไหน ไม่มีผลต่างอะไร)
+  const defaultDate = period ? null : (latestBangkokDate(byRoom) || now);
   if (mode === 'day') {
-    const dateStr = period || now;
+    const dateStr = period || defaultDate;
     return {
       period: dateStr,
       periodLabel: dayPeriodLabel(dateStr),
@@ -119,7 +142,7 @@ function buildDrillDownChart(byRoom, mode, period, valueField) {
     };
   }
   if (mode === 'year') {
-    const yearStr = period || now.slice(0, 4);
+    const yearStr = period || defaultDate.slice(0, 4);
     return {
       period: yearStr,
       periodLabel: yearPeriodLabel(yearStr),
@@ -128,7 +151,7 @@ function buildDrillDownChart(byRoom, mode, period, valueField) {
     };
   }
   // month (default)
-  const monthStr = period || now.slice(0, 7);
+  const monthStr = period || defaultDate.slice(0, 7);
   return {
     period: monthStr,
     periodLabel: monthPeriodLabel(monthStr),
