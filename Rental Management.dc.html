@@ -1006,9 +1006,15 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <div style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ b.totalDisplay }}</div>
                     <div style="color:#7C6E5F;font-size:12px">{{ b.due }}</div>
                     <div>
-                      <span onclick="{{ b.onMarkPaid }}" style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:5px 11px;border-radius:6px;background:{{ b.statusBg }};color:{{ b.statusColor }};cursor:{{ b.statusCursor }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ b.statusDot }}"></span>{{ b.statusLabel }}</span>
+                      <span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:5px 11px;border-radius:6px;background:{{ b.statusBg }};color:{{ b.statusColor }};cursor:{{ b.statusCursor }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ b.statusDot }}"></span>{{ b.statusLabel }}</span>
                     </div>
-                    <div style="display:flex;align-items:center;gap:6px">
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                      <!-- "สถานะต้องแยกออกจากกันนะครับ" (2026-08-10) — ปุ่ม
+                           รับชำระเงินสดแยกออกมาจากป้ายสถานะแล้ว (เดิมกดที่
+                           ป้ายสถานะเอง) เงื่อนไขเดิมทุกประการ (canRecordCash) -->
+                      <sc-if value="{{ b.canRecordCash }}" hint-placeholder-val="{{ true }}">
+                        <span onclick="{{ b.onRecordCash }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #B8D4C2;color:#3B7A52;white-space:nowrap">💵 รับเงินสด</span>
+                      </sc-if>
                       <sc-if value="{{ b.canModify }}" hint-placeholder-val="{{ true }}">
                         <span onclick="{{ b.onEditReceipt }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #D8C9B4;color:#7C6E5F;white-space:nowrap">✎ แก้ไข</span>
                         <span onclick="{{ b.onDeleteReceipt }}" style="font-size:10.5px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;border:1px solid #E3B7AC;color:#B24336;white-space:nowrap">🗑 ลบ</span>
@@ -10861,16 +10867,17 @@ class Component extends DCLogic {
           : pastCancelDay ? '#8B2E20'
           : pastReminderDay ? '#A6392C'
           : (overdue ? '#B24336' : (partial ? '#B85B27' : '#C1872E')),
-        // The status badge is purely informational when a slip is pending —
-        // per explicit user request, that state is no longer clickable at
-        // all (avoids two different click targets — the badge and "ดูสลิป" —
-        // both opening the same thing). Only the "รอการชำระ"/"ชำระบางส่วน"
-        // badges are clickable, opening the "รับชำระเงินสด" popup.
-        // "ส่วนนี้ผู้เข้าไปกรอก คือ เจ้าของ เท่านั้น" (2026-08-05) — เฉพาะ
-        // เจ้าของ (ไม่ใช่ ผู้ดูแล/staff) เท่านั้นที่คลิกได้ — ผู้ดูแลยังเห็น
-        // ป้ายสถานะปกติ แค่กดไม่ได้ (ไม่ใช่ cursor:pointer)
-        onMarkPaid: (hasSlipPending || !this.isOwnerSession()) ? null : (() => this.openPayConfirm(i.id)),
-        statusCursor: (hasSlipPending || !this.isOwnerSession()) ? 'default' : 'pointer',
+        // "รอตัดไฟ ทำไมขึ้น ชำระเงินสด สถานะต้องแยกออกจากกันนะครับ"
+        // (2026-08-10) — เดิมป้ายสถานะเองกดได้ (เปิด popup รับชำระเงินสด)
+        // ทำให้ป้าย "รอตัดไฟ"/"ยกเลิกสัญญา" ใหม่ดูสับสน (เหมือนกดแล้วจะไป
+        // เกี่ยวกับการตัดไฟ ทั้งที่จริงเปิด popup รับเงิน) — แยกออกจากกัน
+        // แล้วตามที่ขอ: ป้ายสถานะตอนนี้เป็นข้อมูลอย่างเดียว กดไม่ได้อีกต่อไป
+        // (ทุกสถานะ ไม่ใช่แค่ตอนมีสลิป) ย้ายการรับชำระเงินสดไปเป็นปุ่มแยก
+        // ต่างหาก "💵 รับเงินสด" ในคอลัมน์ "จัดการใบเสร็จ" แทน (ดู
+        // canRecordCash ด้านล่าง — เงื่อนไขเดิมทุกประการแค่ย้ายที่ใช้)
+        statusCursor: 'default',
+        canRecordCash: !hasSlipPending && this.isOwnerSession(),
+        onRecordCash: (hasSlipPending || !this.isOwnerSession()) ? null : (() => this.openPayConfirm(i.id)),
         hasLineId,
         sendLabel: sent ? sentLabel : (hasLineId ? 'ส่งข้อมูล (LINE)' : 'บันทึกใบเสร็จ'),
         sendBg: sent ? '#E4EFE7' : (hasLineId ? '#06C755' : '#C1622D'),
