@@ -382,14 +382,23 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
 
         <div style="flex:1;padding:0 32px 28px;box-sizing:border-box;overflow:auto">
 
-          <sc-if value="{{ showMobileMenuBtn }}" hint-placeholder-val="{{ false }}">
+          <sc-if value="{{ showTopUtilityBar }}" hint-placeholder-val="{{ false }}">
             <!-- Sticky bar pinned above every page's own sticky title header
                  (each of those headers now sticks at top:{{ stickyHeaderTop }}
                  instead of top:0, leaving exactly this bar's height free —
                  so the two stack cleanly instead of overlapping, and the
-                 button stays reachable/pinned the whole time you scroll. -->
-            <div style="position:sticky;top:0;z-index:70;background:#F1EBE0;margin:0 -32px;padding:6px 32px 4px">
-              <div onclick="{{ toggleMobileNav }}" style="display:inline-flex;align-items:center;gap:6px;background:#2B1D14;color:#F1EBE0;padding:6px 11px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(36,24,18,0.25)"><span style="font-size:13px">☰</span> เมนู</div>
+                 button stays reachable/pinned the whole time you scroll.
+                 "แต่ละเพจ ด้านบนให้มีปุ่มกลับมาหน้าแดชบอร์ด" (2026-08-09) —
+                 เดิมแถบนี้โชว์แค่จอมือถือ (ปุ่ม ☰ เมนู เท่านั้น) ตอนนี้โชว์
+                 ทุกขนาดจอถ้ามีปุ่ม "กลับแดชบอร์ด" ให้แสดงด้วย (ไม่แสดงเฉพาะ
+                 ตอนอยู่หน้าแดชบอร์ดเองอยู่แล้ว) -->
+            <div style="position:sticky;top:0;z-index:70;background:#F1EBE0;margin:0 -32px;padding:6px 32px 4px;display:flex;align-items:center;gap:8px">
+              <sc-if value="{{ showMobileMenuBtn }}" hint-placeholder-val="{{ false }}">
+                <div onclick="{{ toggleMobileNav }}" style="display:inline-flex;align-items:center;gap:6px;background:#2B1D14;color:#F1EBE0;padding:6px 11px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(36,24,18,0.25)"><span style="font-size:13px">☰</span> เมนู</div>
+              </sc-if>
+              <sc-if value="{{ showBackToDashboardBtn }}" hint-placeholder-val="{{ false }}">
+                <div onclick="{{ goDashboard }}" style="display:inline-flex;align-items:center;gap:6px;background:#FFFFFF;color:#5A4B3C;padding:6px 11px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #E3D8C8"><span style="font-size:13px">←</span> แดชบอร์ด</div>
+              </sc-if>
             </div>
           </sc-if>
           <sc-if value="{{ showNavBackdrop }}" hint-placeholder-val="{{ false }}">
@@ -10214,6 +10223,10 @@ class Component extends DCLogic {
     const roomMeta = (st) => this.roomStatusMeta(st);
     const invMeta = (st) => this.invStatusMeta(st);
     const maintMeta = (st) => this.maintStatusMeta(st);
+    // "แต่ละเพจ ด้านบนให้มีปุ่มกลับมาหน้าแดชบอร์ด" (2026-08-09) — ปุ่มลอย
+    // ด้านบนของทุกหน้า (ยกเว้นหน้าแดชบอร์ดเอง ซึ่งไม่จำเป็นต้องมีปุ่มกลับ
+    // มาหาตัวเอง) ใช้ goDashboard ตัวเดิมที่ปุ่มเมนูด้านซ้ายใช้อยู่แล้ว
+    const showBackToDashboardBtn = s.activeNav !== 'dashboard';
 
     const navStyle = (key) => {
       const active = s.activeNav === key;
@@ -11657,10 +11670,17 @@ class Component extends DCLogic {
       navZ: isNarrow ? 80 : 1,
       navShadow: (isNarrow && s.mobileNavOpen) ? '8px 0 40px rgba(0,0,0,0.45)' : 'none',
       showMobileMenuBtn: isNarrow,
-      // How far down every page's own sticky title header sticks — 0 on
-      // desktop (no menu bar above it), or just tall enough to clear the
-      // sticky "☰ เมนู" bar on mobile so the two stack instead of overlapping.
-      stickyHeaderTop: isNarrow ? '38px' : '0',
+      showBackToDashboardBtn,
+      // เดิม bar นี้โชว์แค่จอมือถือ (เพื่อปุ่ม ☰ เมนู) ตอนนี้โชว์ทุกขนาด
+      // จอถ้ามีปุ่ม "กลับแดชบอร์ด" ต้องแสดงด้วย (ไม่ใช่แค่ isNarrow เฉยๆ
+      // อีกต่อไป)
+      showTopUtilityBar: isNarrow || showBackToDashboardBtn,
+      // How far down every page's own sticky title header sticks — 0 when
+      // there's no bar above it, or just tall enough to clear the sticky
+      // utility bar (☰ เมนู / ← แดชบอร์ด) so the two stack instead of
+      // overlapping. Used to be mobile-only (isNarrow); now also applies
+      // on desktop whenever the back-to-dashboard button is showing.
+      stickyHeaderTop: (isNarrow || showBackToDashboardBtn) ? '38px' : '0',
       // Page headers use a generous 26px top padding designed for desktop —
       // tightened on mobile so the page title sits closer to the menu bar,
       // reclaiming vertical screen space on small screens.
