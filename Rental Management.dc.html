@@ -1657,9 +1657,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="font-size:11.5px;color:#7C6E5F;margin-top:2px">รวม {{ waterChartTotal }} · เฉลี่ย {{ waterChartAvg }} · สูงสุด {{ waterChartPeak }} {{ waterUnitLabel }}</div>
                 </div>
                 <div style="display:flex;gap:4px;background:#F7F2E9;padding:3px;border-radius:7px">
-                  <div onclick="{{ setWaterChartHour }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ waterHourChipBg }};color:{{ waterHourChipColor }}">รายชั่วโมง</div>
-                  <div onclick="{{ setWaterChartDay }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ waterDayChipBg }};color:{{ waterDayChipColor }}">รายวัน</div>
-                  <div onclick="{{ setWaterChartMonth }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ waterMonthChipBg }};color:{{ waterMonthChipColor }}">รายเดือน</div>
+                  <div onclick="{{ setWaterChartDay }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ waterDayChipBg }};color:{{ waterDayChipColor }}">สรุปรายวัน</div>
+                  <div onclick="{{ setWaterChartMonth }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ waterMonthChipBg }};color:{{ waterMonthChipColor }}">สรุปรายเดือน</div>
+                  <div onclick="{{ setWaterChartYear }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ waterYearChipBg }};color:{{ waterYearChipColor }}">สรุปรายปี</div>
                 </div>
               </div>
               <div style="display:flex;align-items:flex-end;gap:12px;height:180px;padding-top:10px">
@@ -1724,12 +1724,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="font-size:11.5px;color:#7C6E5F;margin-top:2px">รวม {{ elecChartTotal }} · เฉลี่ย {{ elecChartAvg }} · สูงสุด {{ elecChartPeak }} {{ elecUnitLabel }}</div>
                 </div>
                 <div style="display:flex;gap:4px;background:#F7F2E9;padding:3px;border-radius:7px">
-                  <!-- "รายชั่วโมง 24 กราฟ เผื่อเอาไปดูการใช้ไฟระบบ TOU"
-                       (2026-07-26) — โหมดที่ 3 เฉพาะกราฟไฟฟ้า (TOU คือ
-                       เรื่องค่าไฟ ไม่เกี่ยวกับน้ำ ไม่ได้เพิ่มให้กราฟน้ำ) -->
-                  <div onclick="{{ setElecChartHour }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ elecHourChipBg }};color:{{ elecHourChipColor }}">รายชั่วโมง</div>
-                  <div onclick="{{ setElecChartDay }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ elecDayChipBg }};color:{{ elecDayChipColor }}">รายวัน</div>
-                  <div onclick="{{ setElecChartMonth }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ elecMonthChipBg }};color:{{ elecMonthChipColor }}">รายเดือน</div>
+                  <!-- "เปลี่ยนหัวข้อนี้ใหม่ เป็น สรุปรายวัน สรุปรายเดือน
+                       สรุปรายปี" (2026-08-10) — เอา "รายชั่วโมง" ออก
+                       (ทั้งฝั่งนี้และฝั่งน้ำ) แทนที่ด้วย "สรุปรายปี" -->
+                  <div onclick="{{ setElecChartDay }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ elecDayChipBg }};color:{{ elecDayChipColor }}">สรุปรายวัน</div>
+                  <div onclick="{{ setElecChartMonth }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ elecMonthChipBg }};color:{{ elecMonthChipColor }}">สรุปรายเดือน</div>
+                  <div onclick="{{ setElecChartYear }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ elecYearChipBg }};color:{{ elecYearChipColor }}">สรุปรายปี</div>
                 </div>
               </div>
               <div style="display:flex;align-items:flex-end;gap:12px;height:180px;padding-top:10px">
@@ -4939,7 +4939,7 @@ class Component extends DCLogic {
     waterWindows: {},
     elecWindows: {},
     usageSeries: {
-      waterDay: [], waterMonth: [], waterHour: [], elecDay: [], elecMonth: [], elecHour: [],
+      waterDay: [], waterMonth: [], waterYear: [], elecDay: [], elecMonth: [], elecYear: [],
     },
     equipSelectedRoom: '101',
     tuyaForm: { elecName: '', elecDeviceId: '', waterDeviceId: '', waterMaxLiters: '' },
@@ -5282,7 +5282,7 @@ class Component extends DCLogic {
       const res = await fetch('/api/tuya/elec-history');
       if (!res.ok) return;
       const data = await res.json();
-      this.setState(s => ({ usageSeries: { ...s.usageSeries, elecDay: data.day || [], elecMonth: data.month || [], elecHour: data.hour || [] } }));
+      this.setState(s => ({ usageSeries: { ...s.usageSeries, elecDay: data.day || [], elecMonth: data.month || [], elecYear: data.year || [] } }));
     } catch (err) { console.error(err); }
   };
   loadWaterHistory = async () => {
@@ -5290,7 +5290,7 @@ class Component extends DCLogic {
       const res = await fetch('/api/tuya/water-history');
       if (!res.ok) return;
       const data = await res.json();
-      this.setState(s => ({ usageSeries: { ...s.usageSeries, waterDay: data.day || [], waterMonth: data.month || [], waterHour: data.hour || [] } }));
+      this.setState(s => ({ usageSeries: { ...s.usageSeries, waterDay: data.day || [], waterMonth: data.month || [], waterYear: data.year || [] } }));
     } catch (err) { console.error(err); }
   };
   // Auto-refresh toggle (Dashboard) — off by default (every refresh is a
@@ -11296,24 +11296,21 @@ class Component extends DCLogic {
         total: total.toLocaleString('en-US'), avg: avg.toLocaleString('en-US'), peak: max.toLocaleString('en-US'),
       };
     };
-    // "รายชั่วโมงให้ไปด้วยครับ จะได้เหมือนไฟ" (2026-07-26) — เพิ่มโหมดที่ 3
-    // ให้กราฟน้ำเหมือนไฟฟ้า ดึงจาก GET /api/tuya/water-history's ใหม่ hour
-    // bucket (server/routes/tuya.js's buildHourlyChart, ใช้ร่วมกับไฟฟ้า)
-    const waterSeries = s.waterChartMode === 'day' ? s.usageSeries.waterDay : s.waterChartMode === 'hour' ? s.usageSeries.waterHour : s.usageSeries.waterMonth;
-    // "รายชั่วโมง 24 กราฟ เผื่อเอาไปดูการใช้ไฟระบบ TOU" (2026-07-26) —
-    // เพิ่มโหมดที่ 3 ให้กราฟไฟฟ้า (เฉพาะไฟฟ้า ไม่ใช่น้ำ — TOU เป็นเรื่อง
-    // ค่าไฟ) ดึงจาก server/routes/tuya.js's GET /api/tuya/elec-history's
-    // ใหม่ hour bucket
-    const elecSeries = s.elecChartMode === 'day' ? s.usageSeries.elecDay : s.elecChartMode === 'hour' ? s.usageSeries.elecHour : s.usageSeries.elecMonth;
+    // "เปลี่ยนหัวข้อนี้ใหม่ เป็น สรุปรายวัน สรุปรายเดือน สรุปรายปี"
+    // (2026-08-10) — เอาโหมด "รายชั่วโมง" ออก (ทั้งน้ำและไฟ) แทนที่ด้วย
+    // "รายปี" ดึงจาก GET /api/tuya/water-history & elec-history's ใหม่
+    // year bucket (server/routes/tuya.js's yearKey/yearLabel/trailingYearKeys)
+    const waterSeries = s.waterChartMode === 'day' ? s.usageSeries.waterDay : s.waterChartMode === 'year' ? s.usageSeries.waterYear : s.usageSeries.waterMonth;
+    const elecSeries = s.elecChartMode === 'day' ? s.usageSeries.elecDay : s.elecChartMode === 'year' ? s.usageSeries.elecYear : s.usageSeries.elecMonth;
     const waterChart = buildChart(waterSeries, '#3E93B8');
     const elecChart = buildChart(elecSeries, '#D9A15B');
     const chipOn = (active) => active ? { bg: '#C1622D', color: '#fff' } : { bg: '#EDE4D6', color: '#7C6E5F' };
     const waterDayChip = chipOn(s.waterChartMode === 'day');
     const waterMonthChip = chipOn(s.waterChartMode === 'month');
-    const waterHourChip = chipOn(s.waterChartMode === 'hour');
+    const waterYearChip = chipOn(s.waterChartMode === 'year');
     const elecDayChip = chipOn(s.elecChartMode === 'day');
     const elecMonthChip = chipOn(s.elecChartMode === 'month');
-    const elecHourChip = chipOn(s.elecChartMode === 'hour');
+    const elecYearChip = chipOn(s.elecChartMode === 'year');
 
     // ---- Tuya IoT devices ----
     const equipRoomOptions = s.rooms.map(r => {
@@ -12697,15 +12694,15 @@ class Component extends DCLogic {
       meterRegistry, commonEquipment,
       waterChartBars: waterChart.bars, waterChartTotal: waterChart.total, waterChartAvg: waterChart.avg, waterChartPeak: waterChart.peak,
       elecChartBars: elecChart.bars, elecChartTotal: elecChart.total, elecChartAvg: elecChart.avg, elecChartPeak: elecChart.peak,
-      waterUnitLabel: s.waterChartMode === 'day' ? 'ม³/วัน' : s.waterChartMode === 'hour' ? 'ม³/ชม.' : 'ม³/เดือน', elecUnitLabel: s.elecChartMode === 'day' ? 'kWh/วัน' : s.elecChartMode === 'hour' ? 'kWh/ชม.' : 'kWh/เดือน',
+      waterUnitLabel: s.waterChartMode === 'day' ? 'ม³/วัน' : s.waterChartMode === 'year' ? 'ม³/ปี' : 'ม³/เดือน', elecUnitLabel: s.elecChartMode === 'day' ? 'kWh/วัน' : s.elecChartMode === 'year' ? 'kWh/ปี' : 'kWh/เดือน',
       waterDayChipBg: waterDayChip.bg, waterDayChipColor: waterDayChip.color, waterMonthChipBg: waterMonthChip.bg, waterMonthChipColor: waterMonthChip.color,
-      waterHourChipBg: waterHourChip.bg, waterHourChipColor: waterHourChip.color,
+      waterYearChipBg: waterYearChip.bg, waterYearChipColor: waterYearChip.color,
       elecDayChipBg: elecDayChip.bg, elecDayChipColor: elecDayChip.color, elecMonthChipBg: elecMonthChip.bg, elecMonthChipColor: elecMonthChip.color,
-      elecHourChipBg: elecHourChip.bg, elecHourChipColor: elecHourChip.color,
+      elecYearChipBg: elecYearChip.bg, elecYearChipColor: elecYearChip.color,
       setWaterChartDay: () => this.setWaterChartMode('day'), setWaterChartMonth: () => this.setWaterChartMode('month'),
-      setWaterChartHour: () => this.setWaterChartMode('hour'),
+      setWaterChartYear: () => this.setWaterChartMode('year'),
       setElecChartDay: () => this.setElecChartMode('day'), setElecChartMonth: () => this.setElecChartMode('month'),
-      setElecChartHour: () => this.setElecChartMode('hour'),
+      setElecChartYear: () => this.setElecChartMode('year'),
       equipRoomOptions,
       equipSelectedRoom: s.equipSelectedRoom,
       equipSelTenant: equipSelRoom.tenant || '(ห้องว่าง)',
