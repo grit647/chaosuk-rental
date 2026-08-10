@@ -1662,14 +1662,29 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div onclick="{{ setWaterChartYear }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ waterYearChipBg }};color:{{ waterYearChipColor }}">สรุปรายปี</div>
                 </div>
               </div>
-              <div style="display:flex;align-items:flex-end;gap:12px;height:180px;padding-top:10px">
-                <sc-for list="{{ waterChartBars }}" as="b" hint-placeholder-count="7">
-                  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:8px">
-                    <div style="font-size:11px;font-weight:600;color:#241812;font-family:'IBM Plex Mono',monospace">{{ b.value }}</div>
-                    <div style="width:100%;max-width:44px;border-radius:6px 6px 0 0;background:{{ b.accent }};height:{{ b.heightPct }}"></div>
-                    <div style="font-size:11px;color:#7C6E5F">{{ b.label }}</div>
-                  </div>
-                </sc-for>
+              <!-- "สามารถกดย้อนไปดูข้อมูลที่บันทึกรายวันย้อนหลัง...ย้อนไปดู
+                   เดือนย้อนหลังได้ ที่มีข้อมูล" (2026-08-10) — ปุ่ม ‹ ›
+                   เลื่อนช่วงเวลาที่กำลังดูอยู่ (ใช้ร่วมกันทั้ง 3 แท็บ:
+                   วัน/เดือน/ปี) -->
+              <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px">
+                <div onclick="{{ waterChartPrev }}" style="cursor:pointer;width:26px;height:26px;border-radius:6px;background:#F7F2E9;display:flex;align-items:center;justify-content:center;font-size:14px;color:#5A4B3C;font-weight:700">‹</div>
+                <div style="font-size:12.5px;font-weight:600;color:#241812;min-width:110px;text-align:center">{{ waterChartPeriodLabel }}</div>
+                <div onclick="{{ waterChartNext }}" style="cursor:{{ waterChartNextCursor }};width:26px;height:26px;border-radius:6px;background:#F7F2E9;display:flex;align-items:center;justify-content:center;font-size:14px;color:{{ waterChartNextColor }};font-weight:700">›</div>
+              </div>
+              <!-- "กราฟที่แสดงติดกันและไม่สามารถแสดงค่าได้ชัด...คลิกเข้าไป
+                   ที่กราฟ แล้วขึ้น popup" (2026-08-10) — สูงสุด 31 แท่ง
+                   (โหมดเดือน) จึงห่อด้วย overflow-x:auto ให้เลื่อนดูได้แทน
+                   บีบทุกแท่งให้พอดีจอ, เอาตัวเลขเหนือแท่งออก คลิกแท่งเพื่อ
+                   เปิด popup ดูค่าแทน (ดู showChartBarPopup) -->
+              <div style="overflow-x:auto">
+                <div style="display:flex;align-items:flex-end;gap:6px;height:180px;padding-top:10px;min-width:{{ waterChartBarsMinWidth }}">
+                  <sc-for list="{{ waterChartBars }}" as="b" hint-placeholder-count="7">
+                    <div onclick="{{ b.onClick }}" style="flex-shrink:0;width:26px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px;cursor:pointer">
+                      <div style="width:100%;max-width:44px;border-radius:6px 6px 0 0;background:{{ b.accent }};height:{{ b.heightPct }};min-height:2px"></div>
+                      <div style="font-size:10px;color:#7C6E5F;white-space:nowrap">{{ b.label }}</div>
+                    </div>
+                  </sc-for>
+                </div>
               </div>
             </div>
 
@@ -1732,14 +1747,20 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div onclick="{{ setElecChartYear }}" style="font-size:11.5px;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;background:{{ elecYearChipBg }};color:{{ elecYearChipColor }}">สรุปรายปี</div>
                 </div>
               </div>
-              <div style="display:flex;align-items:flex-end;gap:12px;height:180px;padding-top:10px">
-                <sc-for list="{{ elecChartBars }}" as="b" hint-placeholder-count="7">
-                  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:8px">
-                    <div style="font-size:11px;font-weight:600;color:#241812;font-family:'IBM Plex Mono',monospace">{{ b.value }}</div>
-                    <div style="width:100%;max-width:44px;border-radius:6px 6px 0 0;background:{{ b.accent }};height:{{ b.heightPct }}"></div>
-                    <div style="font-size:11px;color:#7C6E5F">{{ b.label }}</div>
-                  </div>
-                </sc-for>
+              <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px">
+                <div onclick="{{ elecChartPrev }}" style="cursor:pointer;width:26px;height:26px;border-radius:6px;background:#F7F2E9;display:flex;align-items:center;justify-content:center;font-size:14px;color:#5A4B3C;font-weight:700">‹</div>
+                <div style="font-size:12.5px;font-weight:600;color:#241812;min-width:110px;text-align:center">{{ elecChartPeriodLabel }}</div>
+                <div onclick="{{ elecChartNext }}" style="cursor:{{ elecChartNextCursor }};width:26px;height:26px;border-radius:6px;background:#F7F2E9;display:flex;align-items:center;justify-content:center;font-size:14px;color:{{ elecChartNextColor }};font-weight:700">›</div>
+              </div>
+              <div style="overflow-x:auto">
+                <div style="display:flex;align-items:flex-end;gap:6px;height:180px;padding-top:10px;min-width:{{ elecChartBarsMinWidth }}">
+                  <sc-for list="{{ elecChartBars }}" as="b" hint-placeholder-count="7">
+                    <div onclick="{{ b.onClick }}" style="flex-shrink:0;width:26px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px;cursor:pointer">
+                      <div style="width:100%;max-width:44px;border-radius:6px 6px 0 0;background:{{ b.accent }};height:{{ b.heightPct }};min-height:2px"></div>
+                      <div style="font-size:10px;color:#7C6E5F;white-space:nowrap">{{ b.label }}</div>
+                    </div>
+                  </sc-for>
+                </div>
               </div>
             </div>
 
@@ -4471,6 +4492,20 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <!-- "กราฟที่แสดงติดกันและไม่สามารถแสดงค่าได้ชัด ใช้วิธีคลิกเข้าไปที่
+             กราฟ แล้วขึ้น popup ขึ้นค่ามาแสดงให้ครับ" (2026-08-10) — popup
+             กลางจอเดียว ใช้ร่วมกันทั้งกราฟน้ำและไฟ (ดู showChartBarPopup ใน
+             buildChart's onClick ของแต่ละแท่ง) -->
+        <sc-if value="{{ hasChartBarPopup }}" hint-placeholder-val="{{ false }}">
+          <div onclick="{{ closeChartBarPopup }}" style="position:fixed;inset:0;background:rgba(36,24,18,0.5);z-index:290;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">
+            <div onclick="{{ stop }}" style="background:#fff;border-radius:12px;padding:22px 30px;min-width:180px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+              <div style="font-size:12.5px;color:#7C6E5F;margin-bottom:6px">{{ chartBarPopupLabel }}</div>
+              <div style="font-size:26px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace">{{ chartBarPopupValue }}</div>
+              <div style="font-size:12px;color:#A89A88;margin-top:2px">{{ chartBarPopupUnit }}</div>
+            </div>
+          </div>
+        </sc-if>
+
       </div>
       </div>
     </div>
@@ -4938,9 +4973,18 @@ class Component extends DCLogic {
     elecChartMode: 'day',
     waterWindows: {},
     elecWindows: {},
-    usageSeries: {
-      waterDay: [], waterMonth: [], waterYear: [], elecDay: [], elecMonth: [], elecYear: [],
-    },
+    // "แสดงข้อมูลในกราฟใหม่ครับ...ย้อนไปดูข้อมูลย้อนหลัง...ที่มีข้อมูล"
+    // (2026-08-10) — เปลี่ยนจาก cache 3 series ต่อ tab ล่วงหน้า (day/month/
+    // year โหลดมาพร้อมกันตั้งแต่แรก) เป็นโหลดทีละช่วงเวลาตามที่กำลังดูอยู่
+    // จริง (mode + period) แทน เพราะตอนนี้แต่ละโหมดเจาะลึกลงไปในช่วงเวลา
+    // เดียว (ไม่ใช่แนวโน้มย้อนหลังแบบเลื่อนอีกต่อไป) — Period ตัวไหนเป็น
+    // null แปลว่ายังไม่เคยโหลด ให้ server เลือกวันนี้/เดือนนี้/ปีนี้เป็น
+    // ค่าเริ่มต้นให้เอง (ดู loadWaterHistory/loadElecHistory)
+    waterChartBarsRaw: [], elecChartBarsRaw: [],
+    waterChartPeriod: null, elecChartPeriod: null,
+    waterChartPeriodLabel: '', elecChartPeriodLabel: '',
+    waterChartCanGoNext: false, elecChartCanGoNext: false,
+    chartBarPopup: null,
     equipSelectedRoom: '101',
     tuyaForm: { elecName: '', elecDeviceId: '', waterDeviceId: '', waterMaxLiters: '' },
     waterCalibrateInput: '',
@@ -5277,22 +5321,77 @@ class Component extends DCLogic {
     // the owner showing "รวม 0"). Same piggyback cadence as loadElecHistory.
     this.loadWaterHistory();
   };
-  loadElecHistory = async () => {
+  // "แสดงข้อมูลในกราฟใหม่ครับ" (2026-08-10) — mode/period ไม่ระบุ = ใช้ค่า
+  // ปัจจุบันใน state (การเรียกจาก refreshTuyaLive ตอน mount/refresh/
+  // auto-poll ไม่ต้องรู้ว่าผู้ใช้กำลังดูช่วงไหนอยู่) — ปุ่ม ‹ › และปุ่ม
+  // เปลี่ยนแท็บ (สรุปรายวัน/เดือน/ปี) ส่ง mode/period ที่ต้องการมาตรงๆ แทน
+  // เพื่อไม่ต้องพึ่ง setState ที่เพิ่งเรียกไปก่อนหน้า (this.state อาจยังไม่
+  // อัปเดตทันเวลาถ้าอ่านจาก state แทน)
+  loadElecHistory = async (mode, period) => {
+    const m = mode || this.state.elecChartMode;
+    const p = period !== undefined ? period : this.state.elecChartPeriod;
     try {
-      const res = await fetch('/api/tuya/elec-history');
+      const qs = new URLSearchParams({ mode: m, ...(p ? { period: p } : {}) });
+      const res = await fetch('/api/tuya/elec-history?' + qs.toString());
       if (!res.ok) return;
       const data = await res.json();
-      this.setState(s => ({ usageSeries: { ...s.usageSeries, elecDay: data.day || [], elecMonth: data.month || [], elecYear: data.year || [] } }));
+      this.setState({
+        elecChartBarsRaw: data.bars || [],
+        elecChartPeriod: data.period || p,
+        elecChartPeriodLabel: data.periodLabel || '',
+        elecChartCanGoNext: !!data.canGoNext,
+      });
     } catch (err) { console.error(err); }
   };
-  loadWaterHistory = async () => {
+  loadWaterHistory = async (mode, period) => {
+    const m = mode || this.state.waterChartMode;
+    const p = period !== undefined ? period : this.state.waterChartPeriod;
     try {
-      const res = await fetch('/api/tuya/water-history');
+      const qs = new URLSearchParams({ mode: m, ...(p ? { period: p } : {}) });
+      const res = await fetch('/api/tuya/water-history?' + qs.toString());
       if (!res.ok) return;
       const data = await res.json();
-      this.setState(s => ({ usageSeries: { ...s.usageSeries, waterDay: data.day || [], waterMonth: data.month || [], waterYear: data.year || [] } }));
+      this.setState({
+        waterChartBarsRaw: data.bars || [],
+        waterChartPeriod: data.period || p,
+        waterChartPeriodLabel: data.periodLabel || '',
+        waterChartCanGoNext: !!data.canGoNext,
+      });
     } catch (err) { console.error(err); }
   };
+  // เปลี่ยนแท็บ (สรุปรายวัน/เดือน/ปี) — รีเซ็ต period กลับเป็น null (ให้
+  // server เลือก "วันนี้/เดือนนี้/ปีนี้" ใหม่ตามโหมดที่เพิ่งเปลี่ยนไป แทนที่
+  // จะค้างที่ period เดิมของโหมดก่อนหน้า ซึ่งความหมายคนละแบบกัน)
+  setWaterChartMode = (m) => { this.setState({ waterChartMode: m, waterChartPeriod: null }); this.loadWaterHistory(m, null); };
+  setElecChartMode = (m) => { this.setState({ elecChartMode: m, elecChartPeriod: null }); this.loadElecHistory(m, null); };
+  // ปุ่ม ‹ › เลื่อนดูช่วงเวลาก่อนหน้า/ถัดไป — คำนวณ period ใหม่ฝั่งหน้าเว็บ
+  // (pure string arithmetic บน YYYY-MM-DD/YYYY-MM/YYYY ที่ server ส่งกลับมา
+  // ล่าสุด) แล้วส่งไปขอข้อมูลช่วงนั้นแทน ไม่จำกัดว่าย้อนหลังได้กี่ครั้ง
+  // (periods ที่ไม่มีข้อมูลจะแสดงเป็น 0 ทุกแท่ง เหมือน pattern เดิมของแอปนี้)
+  // แต่ไปข้างหน้าได้ไม่เกิน "วันนี้/เดือนนี้/ปีนี้" (canGoNext จาก server)
+  _stepPeriod = (mode, periodStr, delta) => {
+    if (mode === 'day') {
+      const d = new Date(periodStr + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + delta);
+      return d.toISOString().slice(0, 10);
+    }
+    if (mode === 'year') return String(Number(periodStr) + delta);
+    // month
+    let [y, m] = periodStr.split('-').map(Number);
+    m += delta;
+    while (m > 12) { m -= 12; y += 1; }
+    while (m < 1) { m += 12; y -= 1; }
+    return y + '-' + String(m).padStart(2, '0');
+  };
+  waterChartPrev = () => { const next = this._stepPeriod(this.state.waterChartMode, this.state.waterChartPeriod, -1); this.loadWaterHistory(this.state.waterChartMode, next); };
+  waterChartNext = () => { if (!this.state.waterChartCanGoNext) return; const next = this._stepPeriod(this.state.waterChartMode, this.state.waterChartPeriod, 1); this.loadWaterHistory(this.state.waterChartMode, next); };
+  elecChartPrev = () => { const next = this._stepPeriod(this.state.elecChartMode, this.state.elecChartPeriod, -1); this.loadElecHistory(this.state.elecChartMode, next); };
+  elecChartNext = () => { if (!this.state.elecChartCanGoNext) return; const next = this._stepPeriod(this.state.elecChartMode, this.state.elecChartPeriod, 1); this.loadElecHistory(this.state.elecChartMode, next); };
+  // "กราฟที่แสดงติดกันและไม่สามารถแสดงค่าได้ชัด...คลิกเข้าไปที่กราฟ แล้ว
+  // ขึ้น popup ขึ้นค่ามาแสดง" (2026-08-10) — แท่งมากสุด 31 แท่ง (โหมดเดือน)
+  // ทำให้ตัวเลขเหนือแท่งเดิมอ่านไม่ออก เอาออกทั้งหมด ใช้คลิกเปิด popup แทน
+  showChartBarPopup = (label, value, unit) => this.setState({ chartBarPopup: { label, value, unit } });
+  closeChartBarPopup = () => this.setState({ chartBarPopup: null });
   // Auto-refresh toggle (Dashboard) — off by default (every refresh is a
   // Google Sheets read, no need to poll when nobody's watching the screen).
   // When on, re-runs the same bootstrap load used on page-open every 30s so
@@ -6150,8 +6249,6 @@ class Component extends DCLogic {
       }).catch(() => this.showAdminToast('บันทึกอัตราค่าไฟไม่สำเร็จ'));
     });
   };
-  setWaterChartMode = (m) => this.setState({ waterChartMode: m });
-  setElecChartMode = (m) => this.setState({ elecChartMode: m });
   setWaterWindow = (roomId, hrs) => this.setState(s => ({ waterWindows: { ...s.waterWindows, [roomId]: hrs } }));
   setElecWindow = (roomId, hrs) => this.setState(s => ({ elecWindows: { ...s.elecWindows, [roomId]: hrs } }));
 
@@ -11287,23 +11384,31 @@ class Component extends DCLogic {
     const meterRegistry = occupiedRooms.map(r => ({ room: r.id, tenant: r.tenant, waterMeterNo: r.waterMeterNo, elecMeterNo: r.elecMeterNo }));
 
     // ---- Usage charts ----
-    const buildChart = (series, accent) => {
+    // "แสดงข้อมูลในกราฟใหม่ครับ...คลิกเข้าไปที่กราฟ แล้วขึ้น popup ขึ้นค่า
+    // มาแสดง" (2026-08-10) — เอาตัวเลขที่เคยโชว์เหนือทุกแท่งออก (สูงสุด 31
+    // แท่งในโหมดเดือนทำให้อ่านไม่ออก) ให้คลิกแท่งแทนเพื่อเปิด popup กลาง
+    // จอโชว์ค่าที่ชัดเจนแทน (ดู showChartBarPopup/chartBarPopup)
+    const buildChart = (series, accent, unitShort) => {
       const max = Math.max(1, ...series.map(x => x.value));
       const total = series.reduce((a, x) => a + x.value, 0);
       const avg = series.length ? Math.round(total / series.length) : 0;
       return {
-        bars: series.map(x => ({ label: x.label, value: x.value.toLocaleString('en-US'), heightPct: Math.round((x.value / max) * 100) + '%', accent })),
+        bars: series.map(x => ({
+          label: x.label, heightPct: Math.round((x.value / max) * 100) + '%', accent,
+          onClick: () => this.showChartBarPopup(x.label, x.value.toLocaleString('en-US'), unitShort),
+        })),
         total: total.toLocaleString('en-US'), avg: avg.toLocaleString('en-US'), peak: max.toLocaleString('en-US'),
       };
     };
-    // "เปลี่ยนหัวข้อนี้ใหม่ เป็น สรุปรายวัน สรุปรายเดือน สรุปรายปี"
-    // (2026-08-10) — เอาโหมด "รายชั่วโมง" ออก (ทั้งน้ำและไฟ) แทนที่ด้วย
-    // "รายปี" ดึงจาก GET /api/tuya/water-history & elec-history's ใหม่
-    // year bucket (server/routes/tuya.js's yearKey/yearLabel/trailingYearKeys)
-    const waterSeries = s.waterChartMode === 'day' ? s.usageSeries.waterDay : s.waterChartMode === 'year' ? s.usageSeries.waterYear : s.usageSeries.waterMonth;
-    const elecSeries = s.elecChartMode === 'day' ? s.usageSeries.elecDay : s.elecChartMode === 'year' ? s.usageSeries.elecYear : s.usageSeries.elecMonth;
-    const waterChart = buildChart(waterSeries, '#3E93B8');
-    const elecChart = buildChart(elecSeries, '#D9A15B');
+    // "แสดงข้อมูลในกราฟใหม่ครับ รายวันจะมีทั้งหมด 24 กราฟ รายชั่วโมง...
+    // สามารถกดย้อนไปดูข้อมูลที่บันทึกรายวันย้อนหลัง...รายเดือน จะมีทั้งหมด
+    // 30-31 กราฟ ตามวันของแต่ละเดือน สามารถย้อนไปดูเดือนย้อนหลังได้ ที่มี
+    // ข้อมูล รายปีก็หลักการเดียวกันครับ" (2026-08-10) — เปลี่ยนจาก cache
+    // 3 series พร้อมกันมาเป็นดึงเฉพาะช่วงเวลาที่กำลังดูอยู่ (waterChartBarsRaw/
+    // elecChartBarsRaw จาก loadWaterHistory/loadElecHistory ใหม่ — ดูปุ่ม
+    // ‹ periodLabel › ในเทมเพลตสำหรับการเลื่อนดูช่วงเวลาก่อนหน้า/ถัดไป)
+    const waterChart = buildChart(s.waterChartBarsRaw, '#3E93B8', 'ม³');
+    const elecChart = buildChart(s.elecChartBarsRaw, '#D9A15B', 'kWh');
     const chipOn = (active) => active ? { bg: '#C1622D', color: '#fff' } : { bg: '#EDE4D6', color: '#7C6E5F' };
     const waterDayChip = chipOn(s.waterChartMode === 'day');
     const waterMonthChip = chipOn(s.waterChartMode === 'month');
@@ -12694,6 +12799,11 @@ class Component extends DCLogic {
       meterRegistry, commonEquipment,
       waterChartBars: waterChart.bars, waterChartTotal: waterChart.total, waterChartAvg: waterChart.avg, waterChartPeak: waterChart.peak,
       elecChartBars: elecChart.bars, elecChartTotal: elecChart.total, elecChartAvg: elecChart.avg, elecChartPeak: elecChart.peak,
+      // สูงสุด 31 แท่ง (โหมดเดือน) ต้องการความกว้างขั้นต่ำมากกว่าการ์ดจริง
+      // ถึงจะเลื่อนดู (overflow-x:auto) ได้แทนที่จะบีบจนอ่านไม่ออก — 32px/แท่ง
+      // (26px กว้าง + 6px gap) คูณจำนวนแท่งจริงของช่วงเวลานั้นๆ
+      waterChartBarsMinWidth: (waterChart.bars.length * 32) + 'px',
+      elecChartBarsMinWidth: (elecChart.bars.length * 32) + 'px',
       waterUnitLabel: s.waterChartMode === 'day' ? 'ม³/วัน' : s.waterChartMode === 'year' ? 'ม³/ปี' : 'ม³/เดือน', elecUnitLabel: s.elecChartMode === 'day' ? 'kWh/วัน' : s.elecChartMode === 'year' ? 'kWh/ปี' : 'kWh/เดือน',
       waterDayChipBg: waterDayChip.bg, waterDayChipColor: waterDayChip.color, waterMonthChipBg: waterMonthChip.bg, waterMonthChipColor: waterMonthChip.color,
       waterYearChipBg: waterYearChip.bg, waterYearChipColor: waterYearChip.color,
@@ -12703,6 +12813,27 @@ class Component extends DCLogic {
       setWaterChartYear: () => this.setWaterChartMode('year'),
       setElecChartDay: () => this.setElecChartMode('day'), setElecChartMonth: () => this.setElecChartMode('month'),
       setElecChartYear: () => this.setElecChartMode('year'),
+      // "สามารถกดย้อนไปดูข้อมูลที่บันทึกรายวันย้อนหลัง...ย้อนไปดูเดือน
+      // ย้อนหลังได้ ที่มีข้อมูล" (2026-08-10) — ปุ่ม ‹ › เลื่อนช่วงเวลา +
+      // ป้ายบอกช่วงที่กำลังดูอยู่ (เช่น "10 ส.ค. 2569" / "สิงหาคม 2569" /
+      // "2569") ปุ่ม › (ไปข้างหน้า) กดไม่ได้ถ้าอยู่ที่วันนี้/เดือนนี้/ปีนี้
+      // แล้ว (waterChartCanGoNext/elecChartCanGoNext จาก server)
+      waterChartPeriodLabel: s.waterChartPeriodLabel, elecChartPeriodLabel: s.elecChartPeriodLabel,
+      waterChartPrev: this.waterChartPrev, waterChartNext: this.waterChartNext,
+      elecChartPrev: this.elecChartPrev, elecChartNext: this.elecChartNext,
+      waterChartNextCursor: s.waterChartCanGoNext ? 'pointer' : 'default',
+      waterChartNextColor: s.waterChartCanGoNext ? '#5A4B3C' : '#C9BBA4',
+      elecChartNextCursor: s.elecChartCanGoNext ? 'pointer' : 'default',
+      elecChartNextColor: s.elecChartCanGoNext ? '#5A4B3C' : '#C9BBA4',
+      // "คลิกเข้าไปที่กราฟ แล้วขึ้น popup ขึ้นค่ามาแสดงให้ครับ" (2026-08-10)
+      // (ตั้งชื่อ flag ว่า hasChartBarPopup ไม่ใช่ showChartBarPopup เพื่อไม่
+      // ให้ชื่อชนกับ this.showChartBarPopup ตัว handler ที่แต่ละแท่งกราฟ
+      // เรียกตอนคลิก — คนละตัวกัน อันนี้แค่บอกว่า popup เปิดอยู่ไหม)
+      hasChartBarPopup: !!s.chartBarPopup,
+      chartBarPopupLabel: s.chartBarPopup ? s.chartBarPopup.label : '',
+      chartBarPopupValue: s.chartBarPopup ? s.chartBarPopup.value : '',
+      chartBarPopupUnit: s.chartBarPopup ? s.chartBarPopup.unit : '',
+      closeChartBarPopup: this.closeChartBarPopup,
       equipRoomOptions,
       equipSelectedRoom: s.equipSelectedRoom,
       equipSelTenant: equipSelRoom.tenant || '(ห้องว่าง)',

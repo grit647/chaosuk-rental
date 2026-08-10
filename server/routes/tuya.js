@@ -13,52 +13,13 @@ const { isMainAccountSheetId } = require('../requestContext');
 // class fixed for the hourly chart below).
 const bangkokDateStr = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }); // "YYYY-MM-DD"
 const dayKey = (d) => bangkokDateStr(d);
-const dayLabel = (key) => {
-  const d = new Date(key + 'T00:00:00Z');
-  return d.getUTCDate() + '/' + (d.getUTCMonth() + 1);
-};
 const monthKey = (d) => bangkokDateStr(d).slice(0, 7); // YYYY-MM
 const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 const monthLabel = (key) => {
   const [y, m] = key.split('-');
   return monthNames[Number(m) - 1];
 };
-// "เปลี่ยนหัวข้อนี้ใหม่ เป็น สรุปรายวัน สรุปรายเดือน สรุปรายปี" (2026-08-10)
-// — เพิ่มมุมมอง "รายปี" ตัวที่ 3 แทนที่ "รายชั่วโมง" เดิม (ถูกเอาออกทั้งฝั่ง
-// หน้าเว็บด้วย) ใช้ตรรกะ aggregate() ตัวเดิมกับ day/month ทุกอย่าง แค่
-// bucket เป็นปีแทน — ปีที่แสดงเป็น พ.ศ. (+543) ให้ตรงกับรูปแบบวันที่อื่นๆ
-// ในแอปนี้ทั้งหมด (เช่น "5 ส.ค. 2569")
-const yearKey = (d) => bangkokDateStr(d).slice(0, 4); // YYYY (ค.ศ., ใช้เป็น key ภายในเท่านั้น)
-const yearLabel = (key) => String(Number(key) + 543);
-function trailingYearKeys(n) {
-  const [y] = bangkokDateStr(new Date()).split('-').map(Number);
-  const keys = [];
-  for (let i = n - 1; i >= 0; i--) keys.push(String(y - i));
-  return keys;
-}
-// Fixed trailing windows anchored on "today" in Bangkok time — pure
-// day/month-count arithmetic (Thailand has no DST, so plain UTC ms
-// stepping anchored at the Bangkok Y-M-D is safe here).
-function trailingDayKeys(n) {
-  const [y, m, dd] = bangkokDateStr(new Date()).split('-').map(Number);
-  const base = Date.UTC(y, m - 1, dd);
-  const keys = [];
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(base - i * 86400000);
-    keys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`);
-  }
-  return keys;
-}
-function trailingMonthKeys(n) {
-  const [y, m] = bangkokDateStr(new Date()).split('-').map(Number);
-  const keys = [];
-  for (let i = n - 1; i >= 0; i--) {
-    let yy = y, mm = m - i;
-    while (mm <= 0) { mm += 12; yy -= 1; }
-    keys.push(`${yy}-${String(mm).padStart(2, '0')}`);
-  }
-  return keys;
-}
+const toBE = (yyyy) => Number(yyyy) + 543;
 // groups raw log rows (any tab — ElectricityLog or WaterLog) by room,
 // skipping rows with no room/timestamp or an unparseable timestamp (real
 // bug hit in production: a malformed timestamp made new Date(...).getTime()
@@ -104,14 +65,77 @@ function aggregate(byRoom, bucketFn, labelFn, fixedKeys, valueField) {
   return fixedKeys.map((key) => ({ label: labelFn(key), value: Math.round((bucketTotals.get(key) || 0) * 100) / 100 }));
 }
 
-// "รายชั่วโมง 24 กราฟ..." (2026-07-26) — the hourly chart mode that used to
-// live here (bangkokDateHour/buildHourlyChart) was removed 2026-08-10 per
-// "เปลี่ยนหัวข้อนี้ใหม่ เป็น สรุปรายวัน สรุปรายเดือน สรุปรายปี" — the owner
-// replaced the 3-way รายชั่วโมง/รายวัน/รายเดือน picker with
-// สรุปรายวัน/สรุปรายเดือน/สรุปรายปี (see yearKey/yearLabel/trailingYearKeys
-// above and the /elec-history, /water-history routes below). If an hourly
-// view is ever wanted again, the removed implementation is recoverable from
-// git history around this commit.
+// "แสดงข้อมูลในกราฟใหม่ครับ รายวันจะมีทั้งหมด 24 กราฟ รายชั่วโมง...
+// รายเดือน จะมีทั้งหมด 30-31 กราฟ ตามวันของแต่ละเดือน...รายปีก็หลักการ
+// เดียวกันครับ" (2026-08-10) — เปลี่ยนจากกราฟ "แนวโน้มย้อนหลังแบบเลื่อน"
+// (trailing window เช่น "7 วันล่าสุด") มาเป็นกราฟ "เจาะจงลงไปในช่วงเวลา
+// เดียว" แทน: mode=day → 24 แท่งชั่วโมงของวันที่เลือก, mode=month → 28-31
+// แท่งวันของเดือนที่เลือก, mode=year → 12 แท่งเดือนของปีที่เลือก — พร้อม
+// ปุ่ม ‹ › เลื่อนดูช่วงเวลาก่อนหน้า/ถัดไป (ย้อนหลังได้ไม่จำกัด, ไปข้างหน้า
+// ได้ไม่เกิน "วันนี้/เดือนนี้/ปีนี้") ใช้ aggregate() ตัวเดิมทุกโหมด — ตัว
+// aggregate() เองคำนวณผลต่างจากค่าที่อ่านได้ "ก่อนหน้า" เสมอ (แม้จะอยู่
+// นอกช่วง fixedKeys ที่ขอ) จึงได้ยอดใช้งานที่ถูกต้องตั้งแต่แท่งแรกของ
+// ช่วงนั้นๆ โดยไม่ต้องเขียนตรรกะ baseline แยกต่างหาก
+function hourOfDayKey(d) {
+  // en-CA locale ให้ "YYYY-MM-DD, HH:MM:SS" ตาม timeZone ที่ระบุ — วิธี
+  // เดียวกับ bangkokDateStr ด้านบน แค่ต้องการชั่วโมงด้วย
+  const s = d.toLocaleString('en-CA', { timeZone: 'Asia/Bangkok', hour12: false });
+  const [datePart, timePart] = s.split(', ');
+  return datePart + 'T' + timePart.slice(0, 2);
+}
+const hourOfDayLabel = (key) => key.split('T')[1] + ':00';
+function dayHourKeys(dateStr) {
+  return Array.from({ length: 24 }, (_, h) => dateStr + 'T' + String(h).padStart(2, '0'));
+}
+const dayOfMonthLabel = (key) => String(Number(key.split('-')[2]));
+function monthDayKeys(monthStr) {
+  const [y, m] = monthStr.split('-').map(Number);
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const keys = [];
+  for (let d = 1; d <= daysInMonth; d++) keys.push(monthStr + '-' + String(d).padStart(2, '0'));
+  return keys;
+}
+function yearMonthKeys(yearStr) {
+  return Array.from({ length: 12 }, (_, i) => yearStr + '-' + String(i + 1).padStart(2, '0'));
+}
+function dayPeriodLabel(dateStr) {
+  const [y, m, d] = dateStr.split('-');
+  return Number(d) + ' ' + monthNames[Number(m) - 1] + ' ' + toBE(y);
+}
+const monthPeriodLabel = (monthStr) => monthLabel(monthStr) + ' ' + toBE(monthStr.slice(0, 4));
+const yearPeriodLabel = (yearStr) => String(toBE(yearStr));
+// step±1 ช่วงเวลาไม่ได้ใช้ที่นี่ (ฝั่งหน้าเว็บคำนวณเองตอนกด ‹ › แล้วส่ง
+// period ใหม่มาทาง query string) — เก็บไว้แค่ default (period ไม่ระบุ =
+// "วันนี้/เดือนนี้/ปีนี้" ตามเวลาไทย) และเช็คว่ายังไปต่อ (อนาคต) ได้ไหม
+function buildDrillDownChart(byRoom, mode, period, valueField) {
+  const now = bangkokDateStr(new Date());
+  if (mode === 'day') {
+    const dateStr = period || now;
+    return {
+      period: dateStr,
+      periodLabel: dayPeriodLabel(dateStr),
+      bars: aggregate(byRoom, hourOfDayKey, hourOfDayLabel, dayHourKeys(dateStr), valueField),
+      canGoNext: dateStr < now,
+    };
+  }
+  if (mode === 'year') {
+    const yearStr = period || now.slice(0, 4);
+    return {
+      period: yearStr,
+      periodLabel: yearPeriodLabel(yearStr),
+      bars: aggregate(byRoom, monthKey, monthLabel, yearMonthKeys(yearStr), valueField),
+      canGoNext: yearStr < now.slice(0, 4),
+    };
+  }
+  // month (default)
+  const monthStr = period || now.slice(0, 7);
+  return {
+    period: monthStr,
+    periodLabel: monthPeriodLabel(monthStr),
+    bars: aggregate(byRoom, dayKey, dayOfMonthLabel, monthDayKeys(monthStr), valueField),
+    canGoNext: monthStr < now.slice(0, 7),
+  };
+}
 
 // ElectricityLog was writing a row on EVERY /status call — every 5-minute
 // auto-refresh tick from the frontend, plus every manual "รีเฟรช" click,
@@ -287,18 +311,20 @@ router.get('/status', async (req, res, next) => {
 // elecMonth state was ONLY ever set once, to an empty array, at initial
 // state — nothing anywhere in the whole codebase ever populated it. This
 // is the endpoint that actually was missing: aggregates the raw cumulative
-// kWh log rows into day/month usage buckets (ElectricityLog stores a
-// running cumulative total per room, not a per-tick delta, so usage per
-// bucket = last reading in that bucket minus last reading in the previous
-// bucket, summed across all rooms).
+// kWh log rows into usage buckets (ElectricityLog stores a running
+// cumulative total per room, not a per-tick delta, so usage per bucket =
+// last reading in that bucket minus last reading in the previous bucket,
+// summed across all rooms).
+//
+// "แสดงข้อมูลในกราฟใหม่ครับ" (2026-08-10) redesign — ?mode=day|month|year
+// (default 'month'), ?period=<YYYY-MM-DD|YYYY-MM|YYYY> (omit = วันนี้/
+// เดือนนี้/ปีนี้ ตามเวลาไทย) เลือกช่วงเวลาที่จะเจาะดู ดูรายละเอียดเต็มที่
+// buildDrillDownChart ด้านบน
 router.get('/elec-history', async (req, res, next) => {
   try {
     const byRoom = groupByRoom(await readTab('ElectricityLog'));
-    res.json({
-      day: aggregate(byRoom, dayKey, dayLabel, trailingDayKeys(7), 'energy'),
-      month: aggregate(byRoom, monthKey, monthLabel, trailingMonthKeys(6), 'energy'),
-      year: aggregate(byRoom, yearKey, yearLabel, trailingYearKeys(5), 'energy'),
-    });
+    const mode = ['day', 'month', 'year'].includes(req.query.mode) ? req.query.mode : 'month';
+    res.json(buildDrillDownChart(byRoom, mode, req.query.period || null, 'energy'));
   } catch (err) { next(err); }
 });
 
@@ -307,21 +333,17 @@ router.get('/elec-history', async (req, res, next) => {
 // history above: usageSeries.waterDay/waterMonth were declared in state but
 // NEVER populated anywhere in the whole codebase (no fetch call, no route)
 // — confirmed live by the owner (chart always showed "รวม 0 · เฉลี่ย 0").
-// Reuses the same shared aggregate()/trailingDayKeys()/trailingMonthKeys()
-// helpers as elec-history (7-day / 6-month fixed trailing windows, zero-
-// filled, Bangkok-local) — WaterLog's running-cumulative column is
-// 'cumulativeLiters' (not 'energy'), and its unit is liters while the
-// frontend displays "ม³" (cubic meters), so divide by 1000 after
-// aggregating.
+// Reuses the same shared buildDrillDownChart() as elec-history —
+// WaterLog's running-cumulative column is 'cumulativeLiters' (not
+// 'energy'), and its unit is liters while the frontend displays "ม³"
+// (cubic meters), so divide by 1000 after aggregating.
 router.get('/water-history', async (req, res, next) => {
   try {
     const byRoom = groupByRoom(await readTab('WaterLog'));
-    const toM3 = (buckets) => buckets.map((b) => ({ label: b.label, value: Math.round((b.value / 1000) * 1000) / 1000 }));
-    res.json({
-      day: toM3(aggregate(byRoom, dayKey, dayLabel, trailingDayKeys(7), 'cumulativeLiters')),
-      month: toM3(aggregate(byRoom, monthKey, monthLabel, trailingMonthKeys(6), 'cumulativeLiters')),
-      year: toM3(aggregate(byRoom, yearKey, yearLabel, trailingYearKeys(5), 'cumulativeLiters')),
-    });
+    const mode = ['day', 'month', 'year'].includes(req.query.mode) ? req.query.mode : 'month';
+    const result = buildDrillDownChart(byRoom, mode, req.query.period || null, 'cumulativeLiters');
+    result.bars = result.bars.map((b) => ({ label: b.label, value: Math.round((b.value / 1000) * 1000) / 1000 }));
+    res.json(result);
   } catch (err) { next(err); }
 });
 
