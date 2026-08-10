@@ -353,7 +353,18 @@ router.get('/status', async (req, res, next) => {
 // ของ /status) — เรียกจาก server/routes/scheduler.js's runSchedulerOnce()
 // ต่อตึก (อยู่ใน runWithSheetId context อยู่แล้ว จึง readTab/appendRow เข้า
 // ชีตของตึกนั้นถูกต้องอัตโนมัติเหมือนทุกจุดอื่นในไฟล์นี้)
-async function pollAndLogUsageForScheduler(sheetId, tuyaCreds, preloadedRooms) {
+// "การยืนยันสถานะขอใช้ไฟชั่วคราวต้องถามเจ้าของว่า...คุณจัดการใช่ไหม...ถ้า
+// ระบบไฟระบบแจ้งเป็น off จากแพลตฟอร์ม แล้วคุณไม่ยืนยัน สถานะก็ยังต้องขึ้น
+// ตัดไฟไปแล้ว เพราะไม่อย่างนั้นระบบเราตรวจสอบความถูกต้องไม่ได้" (2026-08-10)
+// — เจ้าของปฏิเสธแนวทาง auto-reconcile ล้วนๆ (เชื่อ reading.switchOn จาก
+// อุปกรณ์ตรงๆ แล้วอัปเดตสถานะเองทันที) โดยให้เหตุผลว่า "ขอใช้ไฟชั่วคราว"
+// เป็นสถานะที่สื่อถึง "การตัดสินใจของเจ้าของ" ไม่ใช่แค่สภาพอุปกรณ์เฉยๆ —
+// อุปกรณ์อาจโชว์ "on" ได้จากหลายสาเหตุที่ไม่ใช่เจ้าของตั้งใจอนุญาต (ไฟกระตุก,
+// ข้อมูล cache ของ Tuya ผิดพลาด ฯลฯ) เลยต้องให้เจ้าของ "ยืนยัน" ก่อนเปลี่ยน
+// สถานะจริงเสมอ ไม่เปลี่ยนอัตโนมัติแม้จะตรวจพบไม่ตรงกันก็ตาม — ถ้าเจ้าของ
+// ไม่ตอบ/ปฏิเสธ สถานะยังคงเป็น "ตัดไฟแล้ว" เหมือนเดิม (ค่า default ที่
+// ปลอดภัยกว่า)
+async function pollAndLogUsageForScheduler(sheetId, tuyaCreds, preloadedRooms, notifyOpts) {
   if (!tuyaCreds || !isConfigured(tuyaCreds)) return;
   // preloadedRooms (optional) — scheduler.js's runSchedulerOnce() already
   // reads Rooms once via its own batched readTabs() call; passing it in
@@ -375,6 +386,13 @@ async function pollAndLogUsageForScheduler(sheetId, tuyaCreds, preloadedRooms) {
         id: Date.now() + '-' + r.id, timestamp: new Date().toISOString(), room: r.id,
         voltage: reading.voltage, current: reading.current, power: reading.power, energy: reading.energy,
       });
+      // Reconciliation check — ระบบเราเชื่อว่าห้องนี้ "ตัดไฟอยู่" (elecCutoffAt
+      // เป็นค่าล่าสุด ยังไม่มี elecRestoredAt ใหม่กว่ามาหักล้าง) แต่อุปกรณ์
+      // จริงรายงานว่า "เปิดอยู่" — ไม่ตัดสินใจเปลี่ยนเอง แค่ถามเจ้าของ
+      if (notifyOpts && reading.switchOn === true && r.elecCutoffAt) {
+        const currentlyBelievedOff = !r.elecRestoredAt || r.elecRestoredAt < r.elecCutoffAt;
+        if (currentlyBelievedOff) await notifyOpts.onElecMismatch(r.id).catch(() => {});
+      }
     } catch (err) {
       console.error('[tuya] scheduled elec poll failed for room', r.id, ':', err.message);
     }

@@ -144,16 +144,6 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
   // settingsRows ที่อ่านมาแล้วเข้าไปแทน (ไม่ readTab('Settings') ซ้ำอีก)
   const sharedCreds = await readIntegrationCredentials(settingsRows);
 
-  // "ตอนนี้เรายิงกันแอปหลับอยู่แล้ว เพิ่มให้มีการบันทึกร่วมด้วยเลยได้ไหม
-  // ครับ" (2026-08-10) — fire-and-forget โดยเจตนา (ไม่ await) เพราะเป็น
-  // งานเสริม ไม่ใช่แจ้งเตือนที่ต้องรอผลก่อนทำงานส่วนอื่นต่อ — Tuya API อาจ
-  // ช้า/ล้มเหลวได้ ไม่ควรทำให้ทั้งรอบ scheduler ของตึกนี้ช้าตามหรือพังไปด้วย
-  // ส่ง batch.Rooms ที่อ่านมาแล้วเข้าไปแทนให้ฟังก์ชันอ่านเองซ้ำ (ประหยัด
-  // Sheets API call เหมือนจุดอื่นๆ ในฟังก์ชันนี้)
-  pollAndLogUsageForScheduler(sheetId, sharedCreds.tuya, batch.Rooms).catch((err) => {
-    console.error('[scheduler] pollAndLogUsageForScheduler failed for', sheetId, ':', err.message);
-  });
-
   // แท็บอื่นๆ ที่ต้องใช้ทั่วทั้งฟังก์ชัน — coerce ครั้งเดียว ใช้ซ้ำได้ทุกจุด
   // (ดูการวิเคราะห์ใน CLAUDE.md — การใช้ snapshot เดียวกันทั้งรอบปลอดภัย
   // สำหรับทุก filter ที่ใช้จริงในฟังก์ชันนี้ แม้บาง section จะ updateRow
@@ -180,6 +170,37 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
     _notifiedTodaySet.add(key); // กันแจ้งซ้ำภายในรอบเดียวกันด้วย ไม่ใช่แค่ข้ามรอบ
     _pendingNotifyRows.push({ id: 'NL' + Date.now() + Math.random().toString(36).slice(2, 6), key, date: _todayForNotifyLog });
   };
+
+  // "การยืนยันสถานะขอใช้ไฟชั่วคราวต้องถามเจ้าของว่า...ถ้าคุณไม่ยืนยัน
+  // สถานะก็ยังต้องขึ้นตัดไฟไปแล้ว" (2026-08-10) — เจ้าของปฏิเสธ auto-
+  // reconcile ล้วนๆ (เชื่อ live device reading ตรงๆ) ขอให้ถามยืนยันก่อน
+  // เสมอ (ดู comment เต็มบน pollAndLogUsageForScheduler ใน routes/tuya.js)
+  // — ตอนนี้เรียก pollAndLogUsageForScheduler() ครั้งเดียวหลัง markNotified
+  // Today พร้อมใช้แล้ว (เดิมเรียกก่อนหน้านี้ ตอนที่ closure ยังไม่พร้อม) และ
+  // เขียน NotifyLog ทันทีแยกต่างหาก (ไม่รอ batch _pendingNotifyRows ตอนจบ
+  // ฟังก์ชัน) เพราะ pollAndLogUsageForScheduler เป็น fire-and-forget (ไม่
+  // await) อาจจบทำงานหลังจากฟังก์ชันหลักคืนค่าไปแล้ว ถ้ารอ batch เดียวกัน
+  // dedup key นี้อาจหายไปเงียบๆ ไม่ถูกเขียนจริงเลย
+  const onElecMismatch = async (roomId) => {
+    const key = `${sheetId}:elecMismatch:${roomId}`;
+    if (wasNotifiedToday(key)) return;
+    const adminLineId = settings.propertyProfile && settings.propertyProfile.adminLineUserId;
+    if (!adminLineId || !lineConfigured(sharedCreds.line)) return;
+    _notifiedTodaySet.add(key);
+    await appendRows('NotifyLog', [{ id: 'NL' + Date.now() + Math.random().toString(36).slice(2, 6), key, date: _todayForNotifyLog }]).catch(() => {});
+    await pushButtonMessage(
+      adminLineId,
+      `⚡ ระบบตรวจพบว่าไฟห้อง ${roomId} กลับมาติดแล้ว ทั้งที่ระบบบันทึกไว้ว่าตัดไฟไปก่อนหน้านี้ — คุณเป็นคนเปิดไฟกลับคืนเองใช่ไหมครับ?`,
+      [
+        { label: '✅ ใช่ ผมเปิดเอง', data: `owner:elec_restore_confirm:${roomId}`, displayText: `ใช่ ผมเปิดไฟห้อง ${roomId} เอง` },
+        { label: '❌ ไม่ใช่/ไม่ทราบ', data: `owner:elec_restore_deny:${roomId}`, displayText: `ไม่ใช่/ไม่ทราบ — ห้อง ${roomId}` },
+      ],
+      sharedCreds.line,
+    );
+  };
+  pollAndLogUsageForScheduler(sheetId, sharedCreds.tuya, batch.Rooms, { onElecMismatch }).catch((err) => {
+    console.error('[scheduler] pollAndLogUsageForScheduler failed for', sheetId, ':', err.message);
+  });
 
   // Overdue-bill detection runs unconditionally — deliberately NOT gated
   // behind claudeAutomationEnabled below, since transitioning a bill to

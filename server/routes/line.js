@@ -1167,6 +1167,30 @@ async function handleOwnerRichMenuPostback(event, lineCreds) {
     return;
   }
 
+  // "การยืนยันสถานะขอใช้ไฟชั่วคราวต้องถามเจ้าของว่า...คุณจัดการใช่ไหม ถ้า
+  // ใช่ สถานะตัดไฟแล้ว จะเปลี่ยนมาเป็น ขอใช้ไฟชั่วคราว" (2026-08-10) — คู่
+  // กับข้อความที่ server/routes/scheduler.js's onElecMismatch ส่งมา (ตรวจ
+  // พบว่าอุปกรณ์จริงรายงาน "เปิดอยู่" ทั้งที่ระบบจำว่า "ตัดไฟแล้ว") — กด
+  // "ใช่" ถึงจะบันทึก elecRestoredAt เปลี่ยนสถานะจริง กด "ไม่ใช่/ไม่ทราบ"
+  // หรือไม่ตอบเลย สถานะยังคงเป็น "ตัดไฟแล้ว" เหมือนเดิม (ค่า default ที่
+  // ปลอดภัยกว่าตามที่เจ้าของยืนยันไว้ชัดเจน — ไม่เปลี่ยนสถานะเองอัตโนมัติ)
+  if (data.startsWith('owner:elec_restore_confirm:')) {
+    const roomId = data.slice('owner:elec_restore_confirm:'.length);
+    try {
+      await updateRow('Rooms', roomId, { elecRestoredAt: new Date().toISOString() });
+      await reply(`รับทราบครับ อัปเดตสถานะห้อง ${roomId} เป็น "ขอใช้ไฟชั่วคราว" แล้วครับ`);
+    } catch (err) {
+      console.error('[line] elec_restore_confirm failed', err.message);
+      await reply(`อัปเดตสถานะห้อง ${roomId} ไม่สำเร็จครับ (${err.message})`);
+    }
+    return;
+  }
+  if (data.startsWith('owner:elec_restore_deny:')) {
+    const roomId = data.slice('owner:elec_restore_deny:'.length);
+    await reply(`รับทราบครับ สถานะห้อง ${roomId} ยังคงเป็น "ตัดไฟแล้ว" เหมือนเดิมครับ`);
+    return;
+  }
+
   const monthPrefix = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7); // YYYY-MM
 
   switch (data) {
