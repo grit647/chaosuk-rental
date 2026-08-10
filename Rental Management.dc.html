@@ -10756,18 +10756,23 @@ class Component extends DCLogic {
       const partial = i.status === 'partial';
       // "2 ห้องที่เงื่อนไขเกินกำหนดต้องขึ้นสถานะ รอตัดไฟ หรือ ยกเลิกสัญญา
       // ตามเงื่อนไขจากการตั้งค่า...ถ้ามีการยืนยันการตัดไฟ น้ำ ให้แสดงตรงนี้
-      // ด้วย" (2026-08-10) — สะท้อนทุกร์เดียวกับที่ server/routes/
-      // scheduler.js ใช้ตัดสินใจส่งข้อความแจ้งเตือนรายวัน (todayDom เทียบ
-      // กับ cutoffFinalDay/cutoffCancelWarningDay, ต้องครบกำหนดจริงแล้ว
-      // ด้วย — i.due < วันนี้) ป้ายบนเว็บกับข้อความ LINE ที่ส่งจริงจึงตรงกัน
-      // เสมอ gate ด้วย cfShowCutoffStatusTiers (platformVersion >= 7)
-      // เหมือนกับ DAILY_CUTOFF_REMINDER_VERSION ฝั่ง scheduler.js
+      // ด้วย" (2026-08-10, ปรับ threshold ตามที่คุณต้นทดสอบจริงแล้วพบว่ายัง
+      // ไม่ขึ้น) — เดิมใช้ cutoffFinalDay (วันที่ 15) เป็นจุดเริ่มโชว์ "รอตัด
+      // ไฟ" แต่ทั้งข้อความแจ้งเตือนวันที่ 7 (cutoffReminderDay) เองและปุ่ม
+      // "ยืนยันตัดไฟ" ที่ส่งให้เจ้าของ (ดู scheduler.js's pushButtonMessage
+      // — เงื่อนไข "kind === 'reminder' || kind === 'final'" ทั้งคู่) ก็พูด
+      // เรื่อง "พิจารณาตัดไฟ" ตั้งแต่วันที่ 7 อยู่แล้ว ไม่ใช่แค่วันที่ 15 —
+      // เปลี่ยนจุดเริ่ม "รอตัดไฟ" มาเป็น cutoffReminderDay (7) แทน ให้ตรงกับ
+      // ตอนที่ปุ่มตัดไฟจริงเริ่มส่งไปหาเจ้าของแล้ว (cutoffFinalDay ยังคงมีผล
+      // แค่กับข้อความ/ทุกร์ฝั่ง scheduler.js เท่านั้น ไม่ใช้แยกป้ายบนเว็บอีก
+      // ต่อไป — เหลือแค่ 2 ป้ายสถานะ: รอตัดไฟ (7+) กับ ยกเลิกสัญญา (20+))
+      // gate ด้วย cfShowCutoffStatusTiers (platformVersion >= 7)
       const showCutoffTiers = this.cfShowCutoffStatusTiers();
       const todayStrForTier = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
       const todayDomForTier = Number(todayStrForTier.slice(8, 10));
       const dueHasPassedForTier = !!(i.due && i.due < todayStrForTier);
       const pastCancelDay = showCutoffTiers && dueHasPassedForTier && todayDomForTier >= (Number(s.cutoffCancelWarningDay) || 25);
-      const pastFinalDay = showCutoffTiers && dueHasPassedForTier && todayDomForTier >= (Number(s.cutoffFinalDay) || 15);
+      const pastReminderDay = showCutoffTiers && dueHasPassedForTier && todayDomForTier >= (Number(s.cutoffReminderDay) || 7);
       const elecCutoffAt = billRoom && billRoom.elecCutoffAt;
       // "ยอดที่ต้องชำระ" should show what's actually still owed whenever ANY
       // money is already applied against this bill — not just when status is
@@ -10815,22 +10820,22 @@ class Component extends DCLogic {
         statusLabel: hasSlipPending ? 'รอตรวจสอบสลิป'
           : elecCutoffAt ? '🔌 ตัดไฟแล้ว'
           : pastCancelDay ? 'ยกเลิกสัญญา'
-          : pastFinalDay ? 'รอตัดไฟ'
+          : pastReminderDay ? 'รอตัดไฟ'
           : (overdue ? 'เกินกำหนด' : (partial ? 'ชำระบางส่วน' : 'รอการชำระ')),
         statusBg: hasSlipPending ? '#FBE7DC'
           : elecCutoffAt ? '#DCE3ED'
           : pastCancelDay ? '#E8C4BC'
-          : pastFinalDay ? '#F2D9D4'
+          : pastReminderDay ? '#F2D9D4'
           : (overdue ? '#F5E1DC' : (partial ? '#FBE7DC' : '#F0E7CF')),
         statusColor: hasSlipPending ? '#B85B27'
           : elecCutoffAt ? '#2C4A6E'
           : pastCancelDay ? '#8B2E20'
-          : pastFinalDay ? '#A6392C'
+          : pastReminderDay ? '#A6392C'
           : (overdue ? '#B24336' : (partial ? '#B85B27' : '#8A6D1F')),
         statusDot: hasSlipPending ? '#B85B27'
           : elecCutoffAt ? '#2C4A6E'
           : pastCancelDay ? '#8B2E20'
-          : pastFinalDay ? '#A6392C'
+          : pastReminderDay ? '#A6392C'
           : (overdue ? '#B24336' : (partial ? '#B85B27' : '#C1872E')),
         // The status badge is purely informational when a slip is pending —
         // per explicit user request, that state is no longer clickable at
