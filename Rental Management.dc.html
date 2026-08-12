@@ -7307,23 +7307,25 @@ class Component extends DCLogic {
         // Same waterPrev/elecPrev baseline reset as submitInvoice — device
         // mode uses the live Tuya reading, manual mode uses whatever
         // current-reading number was entered for this room's row.
-        // "หน่วยมิเตอร์ น้ำไฟ การโอนยอด...จำนวนเต็มครับ ไม่มีจุดทศนิยม"
-        // (2026-07-30) — ปัดเป็นจำนวนเต็มก่อนโอนยอด เหมือนกับ submitInvoice
+        // "ถ้าให้แสดงเป็นทศนิยม 2 ตำแหน่ง ทุกห้องครับ" (2026-08-12) — เดิม
+        // ปัดเป็นจำนวนเต็มก่อนโอนยอด (2026-07-30) ตอนนี้เก็บทศนิยม 2 ตำแหน่ง
+        // แทน (Math.round(x*100)/100) ให้บิลรอบถัดไปหักลบจากเลขที่แม่นยำ
+        // จริง ไม่ใช่เลขปัดที่คลาดเคลื่อนไปแล้วตั้งแต่ต้น
         const prevPatch = {};
         if (room.tuyaElecDeviceId) {
           const live = s.tuyaLiveReadings[roomId];
-          if (live && live.energy != null) prevPatch.elecPrev = Math.round(live.energy);
+          if (live && live.energy != null) prevPatch.elecPrev = Math.round(live.energy * 100) / 100;
         } else if (draft.elecMode === 'manual' && draft.elecUnits) {
-          prevPatch.elecPrev = Math.round(Number(draft.elecUnits) || 0);
+          prevPatch.elecPrev = Math.round((Number(draft.elecUnits) || 0) * 100) / 100;
         }
         if (room.tuyaWaterDeviceId) {
           // Same liters→หน่วย (÷1000) conversion as deviceCharge() above —
           // the baseline stored in waterPrev must stay in the same unit
           // deviceCharge() expects to subtract it from next cycle.
           const live = s.tuyaLiveReadings[roomId];
-          if (live && live.usage != null) prevPatch.waterPrev = Math.round(live.usage / 1000);
+          if (live && live.usage != null) prevPatch.waterPrev = Math.round((live.usage / 1000) * 100) / 100;
         } else if (draft.waterMode === 'manual' && draft.waterUnits) {
-          prevPatch.waterPrev = Math.round(Number(draft.waterUnits) || 0);
+          prevPatch.waterPrev = Math.round((Number(draft.waterUnits) || 0) * 100) / 100;
         }
         if (Object.keys(prevPatch).length) roomPrevUpdates[roomId] = prevPatch;
       } catch (err) {
@@ -8206,14 +8208,17 @@ class Component extends DCLogic {
       // Real Tuya cumulative kWh reading replaces the manual meter entry when a device is linked.
       const live = this.state.tuyaLiveReadings[roomId];
       if (live && live.energy != null) {
-        // "หน่วยมิเตอร์ น้ำไฟ การโอนยอด...จำนวนเต็มครับ ไม่มีจุดทศนิยม"
-        // (2026-07-30) — เดิมปัดแค่ 2 ตำแหน่งทศนิยม (units.toFixed(2)) ทำให้
-        // ตัวเลขหน่วยมิเตอร์ (และค่าที่โอนไปเป็น elecPrev ของบิลรอบถัดไป)
-        // ติดจุดทศนิยมค้างตลอด (เช่น 31.18 หน่วย) — ปัดเป็นจำนวนเต็มตั้งแต่
-        // ตรงนี้เลย แล้วคำนวณค่าไฟ (charge) จากหน่วยที่ปัดแล้ว กันตัวเลขไม่
-        // ตรงกันระหว่าง "หน่วย × เรท" กับยอดเงินที่แสดงจริง
+        // "ถ้าให้แสดงเป็นทศนิยม 2 ตำแหน่ง ทุกห้องครับ" (2026-08-12) —
+        // ย้อนกลับจากการปัดจำนวนเต็ม (2026-07-30) กลับมาเป็นทศนิยม 2
+        // ตำแหน่งแทน — สาเหตุ: ตอนที่ไล่แก้บั๊กมิเตอร์น้ำห้อง 4 (ดู
+        // _waterRolloverUnits's comment) เจอว่าการปัดจำนวนเต็มทำให้ห้องที่
+        // ใช้น้ำน้อยๆ ในรอบนั้น (เช่น 0.91 หน่วยจริง) ปัดเหลือ "0" หรือ "1"
+        // คลาดเคลื่อนมากเมื่อเทียบเป็นสัดส่วน (ต่างจากไฟที่ตัวเลขมักใหญ่กว่า
+        // ปัดจำนวนเต็มมีผลน้อยกว่า) — คำนวณค่าใช้จ่ายจากหน่วยทศนิยมตรงๆ
+        // (ไม่ปัดหน่วยเป็นจำนวนเต็มก่อนคูณเรทอีกต่อไป) แล้วปัดแค่ยอดเงิน
+        // สุดท้ายเป็นจำนวนเต็มบาท (เหมือนเดิม)
         const rawUnits = Math.max(0, live.energy - Number(room.elecPrev || 0));
-        const units = Math.round(rawUnits);
+        const units = Math.round(rawUnits * 100) / 100;
         const { charge, minApplied } = this._applyMinCharge(roomId, 'elec', Math.round(units * this.roomRate(roomId, 'elec')));
         return { units, charge, minApplied };
       }
@@ -8229,26 +8234,27 @@ class Component extends DCLogic {
     if (kind === 'water' && room.tuyaWaterDeviceId) {
       const live = this.state.tuyaLiveReadings[roomId];
       if (live && live.usage != null) {
-        // "หน่วยมิเตอร์ น้ำไฟ การโอนยอด...จำนวนเต็มครับ ไม่มีจุดทศนิยม"
-        // (2026-07-30) — เหตุผลเดียวกับฝั่งไฟด้านบน ปัดหน่วยน้ำเป็นจำนวนเต็ม
-        // ก่อนคำนวณค่าน้ำ กันตัวเลขทศนิยมค้างในบิล/ตอนโอนยอดไปรอบถัดไป
+        // "ถ้าให้แสดงเป็นทศนิยม 2 ตำแหน่ง ทุกห้องครับ" (2026-08-12) —
+        // เหตุผลเดียวกับฝั่งไฟด้านบน (ดู comment เต็มตรงนั้น) — สำคัญกว่า
+        // สำหรับน้ำด้วยซ้ำ เพราะห้องที่ใช้น้ำน้อยในรอบสั้นๆ อาจมีหน่วยจริง
+        // ต่ำกว่า 1 หน่วยได้ปกติ (เช่น 0.91) ปัดจำนวนเต็มจะคลาดเคลื่อนสูง
         const { units: rawUnits, rolledOver } = this._waterRolloverUnits(live.usage, room);
-        const units = Math.round(rawUnits);
+        const units = Math.round(rawUnits * 100) / 100;
         const { charge, minApplied } = this._applyMinCharge(roomId, 'water', Math.round(units * this.roomRate(roomId, 'water')));
         return { units, charge, minApplied, rolledOver };
       }
     }
     const dev = this.state.tuyaDevices[roomId];
     if (!dev) return null;
-    // "หน่วยมิเตอร์ น้ำไฟ...จำนวนเต็มครับ" (2026-07-30) — ปัดจำนวนเต็ม
-    // เหมือนกับ 2 branch ด้านบน (เผื่อ path นี้ยังถูกเรียกใช้อยู่จริง)
+    // "ถ้าให้แสดงเป็นทศนิยม 2 ตำแหน่ง ทุกห้องครับ" (2026-08-12) — ทศนิยม
+    // 2 ตำแหน่ง เหมือน 2 branch ด้านบน (เผื่อ path นี้ยังถูกเรียกใช้อยู่จริง)
     if (kind === 'water') {
-      const units = Math.round(Math.max(0, Number(dev.waterReading) - Number(room.waterPrev || 0)));
-      const { charge, minApplied } = this._applyMinCharge(roomId, 'water', units * this.roomRate(roomId, 'water'));
+      const units = Math.round(Math.max(0, Number(dev.waterReading) - Number(room.waterPrev || 0)) * 100) / 100;
+      const { charge, minApplied } = this._applyMinCharge(roomId, 'water', Math.round(units * this.roomRate(roomId, 'water')));
       return { units, charge, minApplied };
     }
-    const units = Math.round(Math.max(0, Number(dev.elecReading) - Number(room.elecPrev || 0)));
-    const { charge, minApplied } = this._applyMinCharge(roomId, 'elec', units * this.roomRate(roomId, 'elec'));
+    const units = Math.round(Math.max(0, Number(dev.elecReading) - Number(room.elecPrev || 0)) * 100) / 100;
+    const { charge, minApplied } = this._applyMinCharge(roomId, 'elec', Math.round(units * this.roomRate(roomId, 'elec')));
     return { units, charge, minApplied };
   }
   onNewInvoiceRoomChange = (e) => {
@@ -8410,25 +8416,25 @@ class Component extends DCLogic {
       // (meterUnitsFromReading already subtracted the OLD prev from it to
       // get the billed units, so the entered reading itself becomes the
       // new prev).
-      // "หน่วยมิเตอร์ น้ำไฟ การโอนยอด...จำนวนเต็มครับ ไม่มีจุดทศนิยม"
-      // (2026-07-30) — เดิมโอนค่า live.energy/live.usage ดิบๆ (มีทศนิยม
-      // ติดมาจาก Tuya จริง เช่น 377.18) ไปเป็น elecPrev/waterPrev ของรอบ
-      // ถัดไปตรงๆ ปัดเป็นจำนวนเต็มก่อนโอนยอด ให้ตรงกับหน่วยที่ปัดแล้วใน
-      // deviceCharge() ด้านบน (กันหน่วยไม่ตรงกันระหว่างบิลนี้กับรอบถัดไป)
+      // "ถ้าให้แสดงเป็นทศนิยม 2 ตำแหน่ง ทุกห้องครับ" (2026-08-12) — เดิม
+      // ปัดเป็นจำนวนเต็มก่อนโอนยอด (2026-07-30) ตอนนี้เก็บทศนิยม 2 ตำแหน่ง
+      // แทน (Math.round(x*100)/100) ให้ตรงกับหน่วยทศนิยมที่ deviceCharge()
+      // ใช้จริงตอนนี้ (ดู comment เต็มตรง deviceCharge()) — เลขที่โอนไปเป็น
+      // elecPrev/waterPrev รอบถัดไปจะแม่นยำ ไม่ปัดทิ้งเศษจนคลาดเคลื่อน
       const prevPatch = {};
       if (s.newInvoice.elecMode === 'device' && room.tuyaElecDeviceId) {
         const live = s.tuyaLiveReadings[room.id];
-        if (live && live.energy != null) prevPatch.elecPrev = Math.round(live.energy);
+        if (live && live.energy != null) prevPatch.elecPrev = Math.round(live.energy * 100) / 100;
       } else if (s.newInvoice.elecMode === 'manual' && s.newInvoice.elecUnits) {
-        prevPatch.elecPrev = Math.round(Number(s.newInvoice.elecUnits) || 0);
+        prevPatch.elecPrev = Math.round((Number(s.newInvoice.elecUnits) || 0) * 100) / 100;
       }
       if (s.newInvoice.waterMode === 'device' && room.tuyaWaterDeviceId) {
         // Same liters→หน่วย (÷1000) conversion as deviceCharge() — keeps the
         // stored baseline in the same unit deviceCharge() subtracts it in.
         const live = s.tuyaLiveReadings[room.id];
-        if (live && live.usage != null) prevPatch.waterPrev = Math.round(live.usage / 1000);
+        if (live && live.usage != null) prevPatch.waterPrev = Math.round((live.usage / 1000) * 100) / 100;
       } else if (s.newInvoice.waterMode === 'manual' && s.newInvoice.waterUnits) {
-        prevPatch.waterPrev = Math.round(Number(s.newInvoice.waterUnits) || 0);
+        prevPatch.waterPrev = Math.round((Number(s.newInvoice.waterUnits) || 0) * 100) / 100;
       }
       if (Object.keys(prevPatch).length) {
         try {
@@ -10550,8 +10556,11 @@ class Component extends DCLogic {
       // ไปจะดูเหมือนคูณเลขผิด (0×15 ไม่เท่ากับ 80 จริงๆ) — เช็ค
       // dw.minApplied ก่อน ถ้าใช่ให้บอกตรงๆ ว่าเป็นค่าขั้นต่ำ ไม่ใช่ผลคูณ
       // (คำเดียวกับที่ _buildReceiptMessage ใช้อยู่แล้วเวลาส่ง LINE)
-      t.waterUsageLabel = dw ? (dw.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${this.fmt(dw.charge)}` : `${dw.units} หน่วย × ${this.roomRate(t.room, 'water')} = ${this.fmt(dw.charge)}`) : 'อุปกรณ์ไม่พร้อม';
-      t.elecUsageLabel = de ? (de.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${this.fmt(de.charge)}` : `${de.units} หน่วย × ${this.roomRate(t.room, 'elec')} = ${this.fmt(de.charge)}`) : 'อุปกรณ์ไม่พร้อม';
+      // "ถ้าให้แสดงเป็นทศนิยม 2 ตำแหน่ง ทุกห้องครับ" (2026-08-12) — .toFixed(2)
+      // ให้แสดงคงที่ 2 ตำแหน่งเสมอ (เช่น "5.00" ไม่ใช่แค่ "5") ไม่ใช่แค่
+      // ปัดค่า units เอง (ซึ่งเป็นตัวเลขล้วนๆ ไม่ padding เลขศูนย์ท้าย)
+      t.waterUsageLabel = dw ? (dw.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${this.fmt(dw.charge)}` : `${dw.units.toFixed(2)} หน่วย × ${this.roomRate(t.room, 'water')} = ${this.fmt(dw.charge)}`) : 'อุปกรณ์ไม่พร้อม';
+      t.elecUsageLabel = de ? (de.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${this.fmt(de.charge)}` : `${de.units.toFixed(2)} หน่วย × ${this.roomRate(t.room, 'elec')} = ${this.fmt(de.charge)}`) : 'อุปกรณ์ไม่พร้อม';
       t.hasUsageData = !!(dw || de);
       // Per explicit user request: battery status for the water flowmeter
       // (battery-powered, BLE-gateway device) shown right on the tenant
@@ -12453,8 +12462,8 @@ class Component extends DCLogic {
           // room has no Tuya device linked for — the toggle is a dead end
           // otherwise (deviceCharge() returns null, "อุปกรณ์ไม่พร้อม").
           hasWaterDevice: !!room.tuyaWaterDeviceId, hasElecDevice: !!room.tuyaElecDeviceId,
-          waterDeviceHint: dw ? dw.units + ' หน่วย × ' + waterRate : 'อุปกรณ์ไม่พร้อม',
-          elecDeviceHint: de ? de.units + ' หน่วย × ' + elecRate : 'อุปกรณ์ไม่พร้อม',
+          waterDeviceHint: dw ? dw.units.toFixed(2) + ' หน่วย × ' + waterRate : 'อุปกรณ์ไม่พร้อม',
+          elecDeviceHint: de ? de.units.toFixed(2) + ' หน่วย × ' + elecRate : 'อุปกรณ์ไม่พร้อม',
           // Same "ครั้งก่อน → ปัจจุบัน = ใช้ X หน่วย" derivation as the
           // single-invoice form's invWaterManualHint/invElecManualHint.
           waterManualHint: `ครั้งก่อน ${room.waterPrev || 0} → ปัจจุบัน ${Number(draft.waterUnits) || 0} = ใช้ ${waterUnitsUsed} หน่วย × ${waterRate}/หน่วย = ${this.fmt(waterUnitsUsed * waterRate)} บาท`,
