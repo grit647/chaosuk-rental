@@ -10396,6 +10396,28 @@ class Component extends DCLogic {
     const roomMeta = (st) => this.roomStatusMeta(st);
     const invMeta = (st) => this.invStatusMeta(st);
     const maintMeta = (st) => this.maintStatusMeta(st);
+    // "ทำไมดึงยอดมาไม่ตรง...อัปเดทส่วนนี้หน่อยครับ ยังไม่เคยอัปเดทเลยข้อมูล
+    // ไม่ตรง" (2026-08-12) — real bug found: room.status (Rooms tab's own
+    // "vacant"/"occupied" column, set only when a lease contract is
+    // created/deleted) NEVER gets set to "overdue" anywhere in this whole
+    // codebase — grepped every production write path, confirmed nothing
+    // ever writes it. So the "ค้างชำระ" filter chip on the Rooms/Tenants
+    // pages (and the room-status badge) could NEVER match a single room,
+    // ever, regardless of real billing status — every room always reads as
+    // "occupied" once a tenant moves in, permanently, even years overdue.
+    // Confirmed live on บ้านเลขที่1873: all 16 rooms' stored status is
+    // literally "occupied", filtering "ไม่ว่าง" correctly showed all 16
+    // (that part was never broken) but "ค้างชำระ" could never show
+    // anything, and the badge on an actually-overdue room (5, 15 — see
+    // today's "รอตัดไฟ" work) never reflected it either.
+    // Fix: compute an EFFECTIVE status per room instead of trusting the
+    // raw stored value for the overdue case — "vacant" stays authoritative
+    // (that IS a real stored fact), but "occupied" gets upgraded to
+    // "overdue" here if the room has a currently-overdue invoice. Doesn't
+    // touch/write the stored room.status column at all — purely a display/
+    // filter-time computation, reusing s.invoices (already loaded).
+    const overdueRoomIds = new Set(s.invoices.filter(i => i.status === 'overdue').map(i => i.room));
+    const effectiveRoomStatus = (r) => r.status === 'vacant' ? 'vacant' : (overdueRoomIds.has(r.id) ? 'overdue' : 'occupied');
     // "แต่ละเพจ ด้านบนให้มีปุ่มกลับมาหน้าแดชบอร์ด" (2026-08-09) — ปุ่มลอย
     // ด้านบนของทุกหน้า (ยกเว้นหน้าแดชบอร์ดเอง ซึ่งไม่จำเป็นต้องมีปุ่มกลับ
     // มาหาตัวเอง) ใช้ goDashboard ตัวเดิมที่ปุ่มเมนูด้านซ้ายใช้อยู่แล้ว
@@ -10408,12 +10430,12 @@ class Component extends DCLogic {
 
     const search = s.roomSearch.trim().toLowerCase();
     const roomsFilteredRaw = s.rooms.filter(r => {
-      if (s.roomFilter !== 'all' && r.status !== s.roomFilter) return false;
+      if (s.roomFilter !== 'all' && effectiveRoomStatus(r) !== s.roomFilter) return false;
       if (search && !(r.id.includes(search) || (r.tenant && r.tenant.toLowerCase().includes(search)))) return false;
       return true;
     });
     const roomsFiltered = roomsFilteredRaw.map(r => {
-      const meta = roomMeta(r.status);
+      const meta = roomMeta(effectiveRoomStatus(r));
       return {
         id: r.id, floor: r.floor,
         statusLabel: meta.label, badgeBg: meta.bg, badgeColor: meta.color,
@@ -10443,7 +10465,7 @@ class Component extends DCLogic {
       id: '', status: 'vacant', tenant: '', phone: '', moveIn: '', contractEnd: '',
       rent: 0, deposit: 0, dueDay: '', wifiUsername: '', wifiPassword: '', tenantIdExpiry: '', leaseDocName: '',
     };
-    const selMeta = roomMeta(selectedRoomRaw.status);
+    const selMeta = roomMeta(effectiveRoomStatus(selectedRoomRaw));
     const selInvoice = s.invoices.find(i => i.room === selectedRoomRaw.id);
     const selectedRoom = {
       id: selectedRoomRaw.id,
@@ -10514,7 +10536,7 @@ class Component extends DCLogic {
 
     const tsearch = s.tenantSearch.trim().toLowerCase();
     const tenantsFiltered = s.rooms.filter(r => r.tenant).filter(r => !tsearch || r.tenant.toLowerCase().includes(tsearch) || r.id.includes(tsearch)).map(r => {
-      return { room: r.id, name: r.tenant, phone: r.phone, rentDisplay: this.fmt(r.rent), contractEnd: r.contractEnd, statusLabel: roomMeta(r.status).label, statusBg: r.status === 'overdue' ? '#B24336' : '#B85B27', onClick: () => this.selectTenantOnly(r.id), onGoToRoom: () => this.selectRoomAndGo(r.id),
+      return { room: r.id, name: r.tenant, phone: r.phone, rentDisplay: this.fmt(r.rent), contractEnd: r.contractEnd, statusLabel: roomMeta(effectiveRoomStatus(r)).label, statusBg: effectiveRoomStatus(r) === 'overdue' ? '#B24336' : '#B85B27', onClick: () => this.selectTenantOnly(r.id), onGoToRoom: () => this.selectRoomAndGo(r.id),
         token: s.tenantTokens[r.id] || '', hasToken: !!s.tenantTokens[r.id],
         tokenLabel: s.tenantTokens[r.id] || 'Generate Token',
         tokenBg: s.tenantTokens[r.id] ? '#E4EFE7' : '#C1622D',
