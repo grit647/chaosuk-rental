@@ -2074,11 +2074,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       </div>
                     </div>
                     <div style="text-align:right">
-                      <div style="font-size:13px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace">{{ w.reading }}</div>
-                      <div style="font-size:10px;color:#A89A88">{{ w.unit }}</div>
                       <sc-if value="{{ w.monthlyLabel }}" hint-placeholder-val="{{ true }}">
-                        <div style="font-size:10px;color:#2C6E8F;margin-top:2px">{{ w.monthlyLabel }}</div>
+                        <div style="font-size:13px;font-weight:700;color:#2C6E8F;font-family:'IBM Plex Mono',monospace">{{ w.monthlyLabel }}</div>
                       </sc-if>
+                      <div style="font-size:10px;color:#A89A88;margin-top:2px">{{ w.reading }} {{ w.unit }} (ผลรวมแบบ Tuya)</div>
                     </div>
                   </div>
                 </sc-for>
@@ -12800,10 +12799,16 @@ class Component extends DCLogic {
       // "หน่วย" scale manual entry uses). The usage-delta math itself
       // (d.units × rate = charge) is UNCHANGED and still correct — it just
       // belongs in the hint line below, not this box.
+      // "พี่ใหญ่เปลี่ยนแค่นี้พอครับ ส่วนนี้ให้ไปดึงค่า '2.98 หน่วย/เดือนนี้'
+      // ดึงจาก deviceCharge() ไปแสดงครับ จบเลยครับ" (2026-08-12) — เดิมดึง
+      // live.usage/1000 (สะสมดิบ) ตรงๆ ไม่รวม SET NEW เลย ทำให้ไม่ตรงกับ
+      // ตัวเลขที่ใช้คำนวณบิลจริงเบื้องหลัง (deviceCharge, รวม SET NEW แล้ว)
+      // — เปลี่ยนให้ดึงจาก deviceCharge().units ตัวเดียวกับที่ใช้ออกบิลจริง
+      // และตัวเดียวกับที่โชว์ใน "สถานะอุปกรณ์น้ำ" (X หน่วย/เดือนนี้) เลย
+      // ไม่ต้องคำนวณแยกอีกจุด
       invWaterDeviceDisplay: (() => {
-        const r = s.rooms.find(x => x.id === s.newInvoice.roomId);
-        const live = (r && r.tuyaWaterDeviceId) ? s.tuyaLiveReadings[s.newInvoice.roomId] : null;
-        return (live && live.usage != null) ? (live.usage / 1000).toFixed(2) : '0';
+        const dc = this.deviceCharge(s.newInvoice.roomId, 'water');
+        return dc ? dc.units.toFixed(2) : '0';
       })(),
       invElecDeviceDisplay: (() => {
         const r = s.rooms.find(x => x.id === s.newInvoice.roomId);
