@@ -981,6 +981,18 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="font-size:12px;color:#7C6E5F;margin-top:6px">{{ c.count }} รายการ</div>
                 </div>
               </sc-for>
+              <!-- "เพิ่มอีก 1 การ์ด ชำระเงินล่วงหน้า...เพิ่มปุ่มลิงค์ดูข้อมูล
+                   มาหน้านี้ครับ" (2026-08-12) — แยกออกจาก sc-for ของ
+                   billingChips เพราะการ์ดนี้ไม่ได้กรองตาราง "ใบแจ้งหนี้ที่
+                   รอชำระ" ด้านล่าง (ไม่มี invoice status ให้กรอง — ยอดเงิน
+                   ล่วงหน้าอยู่ที่ห้อง ไม่ผูกกับใบแจ้งหนี้ใบไหน) กดแล้วไปหน้า
+                   "อัลบั้มใบเสร็จ" กรองประเภท "ล่วงหน้า" แทน -->
+              <div class="stat-card" onclick="{{ goReceiptsAlbumAdvance }}" style="flex:1;background:#FFFFFF;border-top:3px solid #2C6E8F;border-radius:8px;padding:16px;box-sizing:border-box;cursor:pointer">
+                <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">ชำระเงินล่วงหน้า</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#241812">{{ creditTotalDisplay }}</div>
+                <div style="font-size:12px;color:#7C6E5F;margin-top:6px">{{ creditRoomsCount }} ห้อง</div>
+                <div style="font-size:12px;color:#2C6E8F;margin-top:8px;padding-top:8px;border-top:1px solid #EDE6D8;font-weight:600">ดูข้อมูล →</div>
+              </div>
               <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}">
                 <span onclick="{{ onDemoTipBillingChips }}" style="cursor:pointer;font-size:14px;background:#2C6E8F;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px" title="อธิบาย">❓</span>
               </sc-if>
@@ -5589,6 +5601,10 @@ class Component extends DCLogic {
   goElecReport = () => this._nav({ activeNav: 'elec' });
   goEquipment = () => this._nav({ activeNav: 'equipment' });
   goReceiptsAlbum = () => this._nav({ activeNav: 'receiptsAlbum' });
+  // "เพิ่มปุ่มลิงค์ดูข้อมูลมาหน้านี้ครับ" (2026-08-12) — จากการ์ด "ชำระเงิน
+  // ล่วงหน้า" บนหน้าบิล ไปหน้าอัลบั้มใบเสร็จพร้อมกรองประเภท "ล่วงหน้า" ไว้
+  // ให้เลย (เหมือนคลิกชิป "ล่วงหน้า" เองที่หน้านั้น)
+  goReceiptsAlbumAdvance = () => this._nav({ activeNav: 'receiptsAlbum', receiptsAlbumFilterType: 'advance' });
   onReceiptsAlbumMonthChange = (e) => this.setState({ receiptsAlbumFilterMonth: e.target.value });
   onReceiptsAlbumRoomChange = (e) => this.setState({ receiptsAlbumFilterRoom: e.target.value });
   // toggle เดียวกันกดซ้ำ = ปิดตัวกรอง (คลิกอีกครั้งเพื่อยกเลิก)
@@ -10719,6 +10735,16 @@ class Component extends DCLogic {
     // s.billingFilter อยู่แล้ว).
     const partialList = s.invoices.filter(i => i.status === 'partial');
     const partialPaidSum = partialList.reduce((a, i) => a + (i.amountPaid || 0), 0);
+    // "เพิ่มอีก 1 การ์ด ชำระเงินล่วงหน้า เอายอดที่ชำระล่วงหน้ามาแสดง...
+    // เพิ่มปุ่มลิงค์ดูข้อมูลมาหน้านี้ครับ" (2026-08-12) — ยอดเงินล่วงหน้า
+    // (room.creditBalance — จ่ายมาก่อนมีบิลจริง ไม่ผูกกับใบแจ้งหนี้ใบไหน)
+    // เลยไม่ใช่ตัวกรองของตาราง "ใบแจ้งหนี้ที่รอชำระ" ด้านล่างแบบการ์ดอื่นๆ
+    // ในแถวนี้ (ไม่มี i.status ให้กรอง) การ์ดนี้เลยไม่อยู่ใน billingChips
+    // array/setBillingFilter — กดแล้วพาไปหน้า "อัลบั้มใบเสร็จ" กรองประเภท
+    // "ล่วงหน้า" แทน (ดู goReceiptsAlbumAdvance, markup แยกต่างหากนอก
+    // sc-for ของ billingChips)
+    const creditRooms = s.rooms.filter(r => (r.creditBalance || 0) > 0);
+    const creditTotal = creditRooms.reduce((a, r) => a + (r.creditBalance || 0), 0);
     const billingChips = [
       { key: 'all', label: 'รวมเดือนนี้', count: s.invoices.length, sumDisplay: this.fmt(totalSum), accent: '#241812' },
       { key: 'paid', label: 'ชำระแล้ว', count: paidList.length, sumDisplay: this.fmt(paidSum), accent: '#3B7A52' },
@@ -12239,6 +12265,8 @@ class Component extends DCLogic {
       newsImagePreview: s.newsForm.image ? React.createElement('img', { src: s.newsForm.image, style: { width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid #E3D8C8' } }) : null,
 
       billingChips, invoicesView, pendingBills, pendingBillsCount, noPendingBills: pendingBillsCount === 0,
+      creditTotalDisplay: this.fmt(creditTotal), creditRoomsCount: creditRooms.length,
+      goReceiptsAlbumAdvance: this.goReceiptsAlbumAdvance,
       paidBills, paidBillsCount: paidBills.length, noPaidBills: paidBills.length === 0,
       showPaidBillsSection: s.showPaidBillsSection, togglePaidBillsSection: this.togglePaidBillsSection,
       paidBillsToggleIcon: s.showPaidBillsSection ? '▾' : '▸',
