@@ -445,10 +445,15 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:#241812">{{ kpiVacantFraction }}</div>
                 <div style="font-size:12px;color:#7C6E5F;margin-top:6px">คลิกการ์ดห้องพักด้านล่าง</div>
               </div>
-              <div class="stat-card" style="flex:1;background:#FFFFFF;border-top:3px solid #B24336;border-radius:8px;padding:16px;box-sizing:border-box">
+              <!-- "ส่วนการ์ดค้างชำระ เพิ่มข้อความลิงค์ 'ดูข้อมูล' กดแล้วไป
+                   หน้านี้ครับ" (2026-08-12) — ทั้งการ์ดกดได้ ไปหน้า "บิล &
+                   ใบแจ้งหนี้" เหมือน pattern เดิมของการ์ด "รายจ่ายเดือนนี้"
+                   ข้างๆ กัน (onclick ทั้งการ์ด + cursor:pointer) -->
+              <div class="stat-card" onclick="{{ goBilling }}" style="flex:1;background:#FFFFFF;border-top:3px solid #B24336;border-radius:8px;padding:16px;box-sizing:border-box;cursor:pointer">
                 <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">ค้างชำระ</div>
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:#B24336">{{ kpiOverdueCount }}</div>
                 <div style="font-size:12px;color:#7C6E5F;margin-top:6px">{{ kpiOverdueSum }}</div>
+                <div style="font-size:12px;color:#B24336;margin-top:8px;padding-top:8px;border-top:1px solid #EDE6D8;font-weight:600">ดูข้อมูล →</div>
               </div>
             </div>
 
