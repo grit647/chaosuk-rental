@@ -550,8 +550,14 @@ async function calibrateWaterMeter(roomId, appLiters, tuyaCreds) {
   const roomRows = waterLog.filter((r) => r.room === roomId.toString())
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   const latest = roomRows[0];
-  const beforeLiters = latest ? Number(latest.cumulativeLiters) || 0 : 0;
+  const trackedLiters = latest ? Number(latest.cumulativeLiters) || 0 : 0;
   const watermark = latest ? latest.lastProcessedEventTimeMs : 0;
+  // "ต้องแสดงผลรวมครับ เดี๋ยวเจ้าของสับสน ค่าที่เอามาแสดงก่อนยืนยันไม่ตรง"
+  // (2026-08-12) — "ก่อน" ที่โชว์ให้ยืนยัน/ในผลลัพธ์ ต้องตรงกับ "ค่ารวม"
+  // (เริ่มต้น + สะสม + SET NEW) ที่โชว์อยู่บนหน้า Set อุปกรณ์อยู่แล้ว ไม่ใช่
+  // แค่ "สะสม" ดิบๆ (ไม่งั้นเจ้าของเห็น 2 ตัวเลขไม่ตรงกันสำหรับห้องเดียวกัน
+  // — งงว่าอันไหนคือ "ค่าก่อนคาลิเบรต" ที่แท้จริง)
+  const beforeLiters = (Number(room.waterPrev) || 0) * 1000 + trackedLiters + (Number(room.waterSetNewValue) || 0);
   await appendRow('WaterLog', {
     id: Date.now() + '-' + roomId + '-calibration',
     timestamp: new Date().toISOString(),
@@ -560,6 +566,14 @@ async function calibrateWaterMeter(roomId, appLiters, tuyaCreds) {
     lastProcessedEventTimeMs: watermark,
     flowRate: 0,
     batteryPercent: 100,
+  });
+  // "กรณียืนยันแล้วให้เป็นการบันทึกส่วนนี้ไปในตัวเลยนะครับ" (2026-08-12) —
+  // หลังคาลิเบรตจริง "สะสม" กลายเป็นค่าที่ตรงกับ Tuya แล้วด้วยตัวเอง (ไม่
+  // ต้องพึ่ง SET NEW บวกเพิ่มอีกต่อไป) — ถ้าไม่เคลียร์ waterSetNewValue
+  // ทิ้ง ค่าเก่าที่ยังค้างอยู่จะไปบวกซ้ำเข้ากับ "สะสม" ใหม่ที่ถูกต้องแล้ว
+  // ทำให้ "ค่ารวม" ที่หน้าเว็บแสดงพังทันทีหลังคาลิเบรตสำเร็จ (สูงเกินจริง)
+  await updateRow('Rooms', roomId, { waterSetNewValue: '' }).catch((err) => {
+    console.error('[tuya] calibrateWaterMeter: clearing waterSetNewValue failed', roomId, err.message);
   });
   const accuracyPercent = parsedLiters > 0 ? Math.round((beforeLiters / parsedLiters) * 1000) / 10 : null;
   return { before: beforeLiters, after: parsedLiters, accuracyPercent };

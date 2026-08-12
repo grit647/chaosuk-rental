@@ -7003,7 +7003,12 @@ class Component extends DCLogic {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'คาลิเบรตไม่สำเร็จ');
-      this.setState({ waterCalibrateResult: data, waterCalibrateInput: '' });
+      // "กรณียืนยันแล้วให้เป็นการบันทึกส่วนนี้ไปในตัวเลยนะครับ" (2026-08-12)
+      // — server ล้าง waterSetNewValue ของห้องนี้ทิ้งไปแล้ว (ดู
+      // calibrateWaterMeter's comment เต็มใน server/routes/tuya.js) —
+      // เคลียร์ช่อง SET NEW ในฟอร์มฝั่งนี้ให้ตรงกันทันที ไม่ต้องรอโหลด
+      // หน้าใหม่ถึงจะเห็นว่าเคลียร์แล้ว
+      this.setState(s => ({ waterCalibrateResult: data, waterCalibrateInput: '', tuyaForm: { ...s.tuyaForm, waterSetNewValue: '' } }));
       this.showAdminToast('คาลิเบรตห้อง ' + id + ' เป็น ' + data.after + ' ลิตรแล้ว');
       this.refreshTuyaLive();
     } catch (err) { this.showAdminToast(err.message || 'คาลิเบรตไม่สำเร็จ'); }

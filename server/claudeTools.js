@@ -515,20 +515,21 @@ async function describeWriteTool(name, input) {
       return `บันทึกเลขมิเตอร์ห้อง ${input.roomId}: ${parts.join(', ') || '(ไม่มีค่าที่จะบันทึก)'}`;
     }
     case 'calibrate_water_meters': {
-      // "ถ้าพิมพ์คำสั่งคาลิเบรตหลายห้องพร้อมกัน...เห็น popup ยืนยันเดียว
-      // ครอบทุกห้อง...โชว์ก่อนค่อยยืนยัน" (2026-08-12) — สรุป "ก่อน →
-      // หลัง" ของทุกห้องในคำสั่งเดียว ให้เจ้าของเห็นครบก่อนกดยืนยันจริง
-      // (อ่านอย่างเดียว ไม่เขียนอะไรตรงนี้ — executeWriteTool ค่อยเขียนจริง
-      // หลังยืนยัน) — ใช้ตรรกะ "before" เดียวกับ calibrateWaterMeter's own
-      // lookup (server/routes/tuya.js) แต่ไม่เรียกฟังก์ชันนั้นตรงๆ เพราะจะ
-      // เขียนจริงทันที (มี safety check เรื่องน้ำกำลังไหลด้วย เช็คตอน
-      // ยืนยันจริงพอ ไม่ต้องเช็คซ้ำสองรอบตอนแค่แสดงตัวอย่าง)
+      // "ต้องแสดงผลรวมครับ เดี๋ยวเจ้าของสับสน ค่าที่เอามาแสดงก่อนยืนยันไม่
+      // ตรง" (2026-08-12) — เดิม "ก่อน" ที่โชว์ในนี้คือ "สะสม" ดิบๆ อย่าง
+      // เดียว ไม่ตรงกับ "ค่ารวม" (เริ่มต้น+สะสม+SET NEW) ที่หน้า Set
+      // อุปกรณ์แสดงไว้ ทำให้เจ้าของเห็นเลข "ก่อน" 2 ค่าที่ไม่เท่ากันสำหรับ
+      // ห้องเดียวกัน — ใช้สูตร "ค่ารวม" เดียวกันทุกจุดแล้ว (ตรงกับที่
+      // calibrateWaterMeter ใน server/routes/tuya.js ใช้จริงตอนเขียนด้วย)
+      // ยังคงอ่านอย่างเดียว ไม่เขียนอะไรตรงนี้ (executeWriteTool ค่อยเขียน
+      // จริงหลังยืนยัน มี safety check เรื่องน้ำกำลังไหลด้วยตรงนั้น)
       const waterLog = await readTab('WaterLog');
       const lines = (input.calibrations || []).map((c) => {
         const room = rooms.find((r) => r.id === c.roomId);
         if (!room || !room.tuyaWaterDeviceId) return `ห้อง ${c.roomId}: ยังไม่ได้เชื่อมต่ออุปกรณ์น้ำ — จะข้ามห้องนี้`;
         const roomRows = waterLog.filter((r) => r.room === c.roomId.toString()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        const before = roomRows[0] ? Number(roomRows[0].cumulativeLiters) || 0 : 0;
+        const trackedLiters = roomRows[0] ? Number(roomRows[0].cumulativeLiters) || 0 : 0;
+        const before = (Number(room.waterPrev) || 0) * 1000 + trackedLiters + (Number(room.waterSetNewValue) || 0);
         const appLiters = Number(c.appLiters) || 0;
         const accuracy = appLiters > 0 ? Math.round((before / appLiters) * 1000) / 10 : null;
         return `ห้อง ${c.roomId}: ${before.toLocaleString()} → ${appLiters.toLocaleString()} ลิตร${accuracy != null ? ` (ของเดิมแม่นยำ ${accuracy}%)` : ''}`;
