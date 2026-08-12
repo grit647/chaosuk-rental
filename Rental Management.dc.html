@@ -1971,6 +1971,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                            (2026-08-12) -->
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#2C6E8F">{{ equipSelWaterCombinedTotal }}</div><div style="font-size:10px;color:#A89A88">ลิตร (L) รวม (สะสม + SET NEW)</div></div>
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:{{ equipSelBatteryColor }}">🔋 {{ equipSelLiveBattery }}</div><div style="font-size:10px;color:#A89A88">แบตเตอรี่ (%)</div></div>
+                      <!-- "ห้องไหนที่คาลิเบรต ให้แสดงค่า SET NEW ไว้ท้าย
+                           ข้อมูลน้ำแบบเรียลไทม์...จะเป็นค่าที่กรอกเอง หรือ
+                           มาจาก AI เราจะได้เห็นค่านี้ด้วยครับ ว่าถูกบวก
+                           ส่วนต่างไว้เท่าไร" (2026-08-12) — เดิม SET NEW
+                           เห็นได้แค่ในช่องกรอกด้านบน (เลื่อนขึ้นไปดูเอง)
+                           กับแฝงอยู่ในสูตร "ค่ารวม" เท่านั้น ไม่มีจุดไหน
+                           โชว์ตัวเลขนี้ตรงๆ อีก — เพิ่มเป็นค่าที่ 4 ต่อท้าย
+                           แถวเดียวกัน ให้เห็นชัดว่าตอนนี้ห้องนี้ถูกบวกส่วน
+                           ต่างไว้เท่าไร ไม่ว่าจะพิมพ์เองหรือ AI คาลิเบรต
+                           ให้ (คาลิเบรตแล้วค่านี้จะถูกล้างกลับเป็น 0 เสมอ
+                           — ดู calibrateWaterMeter ใน server/routes/
+                           tuya.js) -->
+                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#9C6B1F">{{ equipSelWaterSetNewDisplay }}</div><div style="font-size:10px;color:#A89A88">ลิตร (L) SET NEW</div></div>
                     </div>
                   </div>
                   <!-- "คาลิเบรตมิเตอร์น้ำ" (2026-07-24 ตามคำขอคุณต้น "ใส่ค่า
@@ -13199,6 +13212,14 @@ class Component extends DCLogic {
       equipSelWaterCombinedTotal: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].usage != null)
         ? (s.tuyaLiveReadings[s.equipSelectedRoom].usage + (Number(s.tuyaForm.waterSetNewValue) || 0)).toFixed(1)
         : '—',
+      // "แสดงค่า SET NEW ไว้ท้ายข้อมูลน้ำแบบเรียลไทม์...จะเป็นค่าที่กรอกเอง
+      // หรือมาจาก AI เราจะได้เห็นค่านี้ด้วย" (2026-08-12) — โชว์ตรงๆ ไม่ผ่าน
+      // สูตรอะไร อ่านจาก tuyaForm.waterSetNewValue เดียวกับที่ช่องกรอก
+      // ด้านบนใช้ (อัปเดตตามกันเสมอ ไม่ว่าจะพิมพ์เองหรือ AI คาลิเบรตแล้ว
+      // เคลียร์ให้เป็น 0) — ว่างเปล่า/ไม่มีค่า = แสดง "0" ไม่ใช่ "—" เพราะ
+      // ค่าว่างที่นี่มีความหมายจริง (ไม่มีส่วนต่างต้องชดเชย) ต่างจาก "—"
+      // ที่ใช้ตอนยังไม่มีอุปกรณ์เชื่อมต่อ/ยังไม่มีข้อมูลสด
+      equipSelWaterSetNewDisplay: (Number(s.tuyaForm.waterSetNewValue) || 0).toFixed(1),
       // "ตอนนี้ไม่รู้เลยว่าคาลิเบรตแล้วหรือยัง ไม่มีส่วนที่ดูข้อมูล" (2026-
       // 08-12) — โชว์แบบถาวรว่าห้องนี้เคยคาลิเบรตล่าสุดเมื่อไหร่ ด้วยค่า
       // Total Use เท่าไหร่ (มาจาก GET /api/tuya/status's lastCalibration,
