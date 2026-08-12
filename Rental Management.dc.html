@@ -1966,7 +1966,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveWaterUsage }}</div><div style="font-size:10px;color:#A89A88">ลิตร (L) สะสม</div></div>
                       <!-- "ค่ารวมมาจากผลรวมทั้งหมด กับ ค่า SET NEW"
                            (2026-08-12) -->
-                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#2C6E8F">{{ equipSelWaterCombinedTotal }}</div><div style="font-size:10px;color:#A89A88">ลิตร (L) รวม (สะสม + SET NEW)</div></div>
+                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#2C6E8F">{{ equipSelWaterCombinedTotal }}</div><div style="font-size:10px;color:#A89A88">ลิตร (L) รวม (เริ่มต้น + สะสม + SET NEW)</div></div>
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:{{ equipSelBatteryColor }}">🔋 {{ equipSelLiveBattery }}</div><div style="font-size:10px;color:#A89A88">แบตเตอรี่ (%)</div></div>
                     </div>
                   </div>
@@ -13142,13 +13142,16 @@ class Component extends DCLogic {
       // real /api/tuya/status merged response the same way the elec V/A/W
       // readout above already is (equipSelLiveVoltage etc.).
       equipSelLiveWaterUsage: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].usage != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].usage.toFixed(0) : '—',
-      // "เพิ่มส่วนที่แสดงค่ารวมของมิเตอร์แต่ละตัวเข้าไปด้วยครับ ค่ารวมมาจาก
-      // ผลรวมทั้งหมด กับ ค่า SET NEW" (2026-08-12) — ยอดที่ระบบติดตามเอง
-      // (usage) + offset ที่เจ้าของกรอกไว้ (waterSetNewValue) ให้ได้ยอดรวม
-      // ที่ควรจะตรงกับ Total Use ของ Tuya — ไม่กระทบยอดที่ระบบติดตามเองเลย
-      // (แค่บวกตอนแสดงผลจุดนี้จุดเดียว)
+      // "ค่าเริ่มต้น+ค่าใช้น้ำเดือนปัจจุบัน+setnew จะใกล้เคียงกับค่ารวมของ
+      // Tuya มากสุด เพราะอุปกรณ์แต่ละตัวไม่ได้เริ่มที่ 0 บิลที่ออกหลังสุด
+      // มันคือค่าเริ่มต้นที่ตั้งไว้แต่แรกครับ" (2026-08-12 follow-up) —
+      // เดิมสูตรนี้ไม่มี "ค่าเริ่มต้น" (waterPrev) เลย พี่ชี้ให้เห็นว่าต้อง
+      // รวมด้วย เพราะ waterPrev คือเลขมิเตอร์ตอนบิลล่าสุด (จุดเริ่มต้นจริง
+      // ของรอบนี้ ไม่ใช่ 0) — สูตรที่ถูกต้อง: ค่าเริ่มต้น (waterPrev, หน่วย
+      // → คูณ 1000 เป็นลิตร) + ยอดสะสมที่ระบบติดตามเอง (usage) + ค่า SET
+      // NEW ที่เจ้าของกรอก = ค่ารวมที่ควรใกล้เคียง Total Use ของ Tuya
       equipSelWaterCombinedTotal: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].usage != null)
-        ? (s.tuyaLiveReadings[s.equipSelectedRoom].usage + (Number(s.tuyaForm.waterSetNewValue) || 0)).toFixed(1)
+        ? ((Number(equipSelRoom.waterPrev) || 0) * 1000 + s.tuyaLiveReadings[s.equipSelectedRoom].usage + (Number(s.tuyaForm.waterSetNewValue) || 0)).toFixed(1)
         : '—',
       equipSelLiveFlowRate: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].flowRate != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].flowRate.toFixed(1) : '—',
       equipSelLiveBattery: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent.toFixed(0) + '%' : '—',
