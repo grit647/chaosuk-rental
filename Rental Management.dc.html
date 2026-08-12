@@ -1981,6 +1981,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <sc-if value="{{ cfShowWaterCalibrate }}" hint-placeholder-val="{{ false }}">
                     <div style="margin-top:12px;padding:10px;border-radius:6px;background:#FBF6EC;border:1px solid #EEDFC0">
                       <div style="font-size:11px;font-weight:700;color:#7C6E5F;margin-bottom:6px">🎯 คาลิเบรตมิเตอร์น้ำ (ใส่ค่า "Total Use" จากแอป Tuya)</div>
+                      <div style="font-size:11px;color:#9C6B1F;margin-bottom:8px">🕒 {{ equipSelLastCalibrationLabel }}</div>
                       <div style="display:flex;gap:8px">
                         <input type="number" value="{{ waterCalibrateInput }}" onchange="{{ onWaterCalibrateInput }}" placeholder="เช่น 1162.3" style="flex:1;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                         <div onclick="{{ calibrateWaterDevice }}" style="padding:9px 14px;border-radius:6px;background:{{ waterCalibrateBtnBg }};color:#fff;font-size:12.5px;font-weight:700;cursor:{{ waterCalibrateBtnCursor }};white-space:nowrap">คาลิเบรต</div>
@@ -13176,6 +13177,16 @@ class Component extends DCLogic {
       equipSelWaterCombinedTotal: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].usage != null)
         ? ((Number(equipSelRoom.waterPrev) || 0) * 1000 + s.tuyaLiveReadings[s.equipSelectedRoom].usage + (Number(s.tuyaForm.waterSetNewValue) || 0)).toFixed(1)
         : '—',
+      // "ตอนนี้ไม่รู้เลยว่าคาลิเบรตแล้วหรือยัง ไม่มีส่วนที่ดูข้อมูล" (2026-
+      // 08-12) — โชว์แบบถาวรว่าห้องนี้เคยคาลิเบรตล่าสุดเมื่อไหร่ ด้วยค่า
+      // Total Use เท่าไหร่ (มาจาก GET /api/tuya/status's lastCalibration,
+      // หาแถว WaterLog ล่าสุดที่ id ลงท้าย "-calibration" ของห้องนี้) — ไม่
+      // ใช่แค่ waterCalibrateResult (ซึ่งเป็น state ชั่วคราวในเซสชันเดียว
+      // หายไปทันทีที่รีเฟรชหน้า/สลับห้อง) ต่างกันตรงนี้: อันนี้ค้างอยู่เสมอ
+      // ไม่ว่าจะเพิ่งคาลิเบรตในเซสชันนี้หรือคาลิเบรตไปนานแล้วเมื่อไหร่ก็ตาม
+      equipSelLastCalibrationLabel: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].lastCalibration)
+        ? ('คาลิเบรตล่าสุดเมื่อ ' + new Date(s.tuyaLiveReadings[s.equipSelectedRoom].lastCalibration.timestamp).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' น. ด้วยค่า Total Use ' + s.tuyaLiveReadings[s.equipSelectedRoom].lastCalibration.liters.toLocaleString() + ' ลิตร')
+        : 'ห้องนี้ยังไม่เคยคาลิเบรตเลย',
       equipSelLiveFlowRate: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].flowRate != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].flowRate.toFixed(1) : '—',
       equipSelLiveBattery: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent.toFixed(0) + '%' : '—',
       equipSelBatteryColor: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent != null && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent <= 20) ? '#B24336' : '#241812',

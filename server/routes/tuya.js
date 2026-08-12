@@ -253,9 +253,24 @@ router.get('/status', async (req, res, next) => {
         const waterLog = await readTab('WaterLog');
         waterLinked.forEach((r) => {
           const roomRows = waterLog.filter((row) => row.room === r.id.toString());
-          const latest = roomRows.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+          const sorted = roomRows.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+          const latest = sorted[0];
           if (latest && resultMap[r.id]) {
             resultMap[r.id].usage = Number(latest.cumulativeLiters) || 0;
+          }
+          // "ตอนนี้ไม่รู้เลยว่าคาลิเบรตแล้วหรือยัง ไม่มีส่วนที่ดูข้อมูล"
+          // (2026-08-12) — calibrateWaterMeter() เขียนแถวคาลิเบรตด้วย id
+          // ที่ลงท้าย "-calibration" เสมอ (ดู server/routes/tuya.js) — หา
+          // แถวคาลิเบรตล่าสุดของห้องนี้มาแนบไปด้วย ให้หน้า Set อุปกรณ์โชว์
+          // "คาลิเบรตล่าสุดเมื่อไหร่ ด้วยค่าอะไร" แบบถาวร ไม่ใช่แค่จำได้
+          // ชั่วคราวในเซสชันที่เพิ่งกดคาลิเบรตไป (เดิมพอรีเฟรช/สลับห้อง/
+          // เปลี่ยนอุปกรณ์แล้วกลับมาก็จำไม่ได้เลยว่าเคยคาลิเบรตหรือยัง)
+          const lastCalRow = sorted.find((row) => String(row.id).endsWith('-calibration'));
+          if (lastCalRow && resultMap[r.id]) {
+            resultMap[r.id].lastCalibration = {
+              liters: Number(lastCalRow.cumulativeLiters) || 0,
+              timestamp: lastCalRow.timestamp,
+            };
           }
         });
       } catch (err) {
