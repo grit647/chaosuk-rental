@@ -11615,7 +11615,11 @@ class Component extends DCLogic {
         deviceColor: (isReal || dev) ? '#241812' : '#B0A08C',
         online: isReal ? !!(live && live.waterOnline) : (dev ? dev.waterOnline : false),
         onlineDot: isReal ? ((live && live.waterOnline) ? '#3B7A52' : '#B24336') : ((dev && dev.waterOnline) ? '#3B7A52' : '#B0A08C'),
-        usage, windowLabel: isReal ? 'สะสมตั้งแต่บิลล่าสุด' : (hrs + ' ชม.'), costDisplay: this.fmt(cost),
+        // "ส่วนนี้แสดงทศนิยม 2 ตำแหน่งให้หน่อยครับ" (2026-08-12) — usage
+        // เป็นตัวเลขดิบ (0 แสดงเป็น "0" เฉยๆ ไม่ใช่ "0.00") ให้คงที่ 2
+        // ตำแหน่งทศนิยมเสมอ ตรงกับที่ deviceCharge() ปัดไว้แล้วตั้งแต่ต้น
+        // (แก้ทั้งหน้าน้ำและไฟให้เหมือนกัน กันเจอปัญหาเดียวกันซ้ำอีกฝั่ง)
+        usage: usage.toFixed(2), windowLabel: isReal ? 'สะสมตั้งแต่บิลล่าสุด' : (hrs + ' ชม.'), costDisplay: this.fmt(cost),
         batteryLabel: battery != null ? '🔋 ' + battery.toFixed(0) + '%' : '—',
         batteryColor: battery != null && battery <= 20 ? '#B24336' : '#241812',
         // "ส่วนนี้เรายังใช้อยู่ไหม...ถ้าไม่ใช่ ซ่อนไปเลย" (2026-07-26) —
@@ -11658,7 +11662,11 @@ class Component extends DCLogic {
         online: isReal ? (live ? live.online : false) : (dev ? dev.elecOnline : false),
         onlineDot: isReal ? ((live && live.online) ? '#3B7A52' : '#B0A08C') : ((dev && dev.elecOnline) ? '#3B7A52' : '#B0A08C'),
         liveLabel: (live && live.voltage != null) ? (live.voltage.toFixed(1) + 'V / ' + live.current.toFixed(2) + 'A') : '',
-        usage, windowLabel: isReal ? 'สะสมตั้งแต่บิลล่าสุด' : (hrs + ' ชม.'), costDisplay: this.fmt(cost),
+        // "ส่วนนี้แสดงทศนิยม 2 ตำแหน่งให้หน่อยครับ" (2026-08-12) — usage
+        // เป็นตัวเลขดิบ (0 แสดงเป็น "0" เฉยๆ ไม่ใช่ "0.00") ให้คงที่ 2
+        // ตำแหน่งทศนิยมเสมอ ตรงกับที่ deviceCharge() ปัดไว้แล้วตั้งแต่ต้น
+        // (แก้ทั้งหน้าน้ำและไฟให้เหมือนกัน กันเจอปัญหาเดียวกันซ้ำอีกฝั่ง)
+        usage: usage.toFixed(2), windowLabel: isReal ? 'สะสมตั้งแต่บิลล่าสุด' : (hrs + ' ชม.'), costDisplay: this.fmt(cost),
         windowLabelOnly: isReal,
         windowChips: isReal ? [] : buildWindowChips(hrs, (h) => this.setElecWindow(r.id, h)),
       };
