@@ -13165,7 +13165,15 @@ class Component extends DCLogic {
       // Was sourced from the mock `tuyaDevices` map — now sourced from the
       // real /api/tuya/status merged response the same way the elec V/A/W
       // readout above already is (equipSelLiveVoltage etc.).
-      equipSelLiveWaterUsage: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].usage != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].usage.toFixed(0) : '—',
+      //
+      // "ลิตร (L) สะสม คุณว่าเท่ากันแล้วทำไม่ ส่วนนี้ แสดง 5,370.4" (2026-
+      // 08-12) — ค่าจริงเท่ากันทุกจุดเสมอ (5370.4) แต่จุดนี้จุดเดียวปัดเศษ
+      // ด้วย toFixed(0) (ตัดทศนิยมทิ้งหมด → โชว์ "5370") ในขณะที่ค่ารวม
+      // (equipSelWaterCombinedTotal) กับรายการ "สถานะอุปกรณ์" ปัดด้วย
+      // toFixed(1) (โชว์ "5,370.4") — ทำให้ห้องเดียวกัน ค่าเดียวกัน ดู
+      // เหมือนไม่ตรงกันเพราะการปัดเศษต่างจุดต่างมาตรฐาน แก้ให้ใช้ toFixed(1)
+      // เหมือนกันทุกจุดที่แสดงค่านี้
+      equipSelLiveWaterUsage: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].usage != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].usage.toFixed(1) : '—',
       // "มั่วไปหมดแล้ว" (2026-08-12) — พบว่าสูตรเดิม (waterPrev + สะสม +
       // SET NEW) ผิดหลักการ หลังปุ่ม "คาลิเบรตมิเตอร์น้ำ" ใช้งานได้จริง:
       // การคาลิเบรตเขียนค่า Total Use ของ Tuya ลงเป็น "สะสม" (usage)
