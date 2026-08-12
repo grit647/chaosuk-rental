@@ -440,10 +440,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:12px;margin-top:6px;font-weight:500;color:{{ kpiNetColor }}">{{ kpiNetHint }}</div>
                 <div style="font-size:11px;color:#7C6E5F;margin-top:8px;padding-top:8px;border-top:1px solid #EDE6D8">กำไรสุทธิทั้งหมด <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:{{ kpiNetAllTimeColor }}">{{ kpiNetAllTimeDisplay }}</span></div>
               </div>
-              <div class="stat-card" style="flex:1;background:#FFFFFF;border-top:3px solid #D9A15B;border-radius:8px;padding:16px;box-sizing:border-box">
+              <!-- "เพิ่มดูข้อมูลการ์ด กดแล้วขึ้น popup สวยๆ ขึ้นมาสรุปเลย
+                   ว่าห้องไหนสถานะอะไร ว่างกับไม่ว่าง" (2026-08-12) -->
+              <div class="stat-card" onclick="{{ openRoomStatusSummary }}" style="flex:1;background:#FFFFFF;border-top:3px solid #D9A15B;border-radius:8px;padding:16px;box-sizing:border-box;cursor:pointer">
                 <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">ห้องว่าง</div>
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:#241812">{{ kpiVacantFraction }}</div>
-                <div style="font-size:12px;color:#7C6E5F;margin-top:6px">คลิกการ์ดห้องพักด้านล่าง</div>
+                <div style="font-size:12px;color:#D9A15B;margin-top:8px;padding-top:8px;border-top:1px solid #EDE6D8;font-weight:600">ดูข้อมูล →</div>
               </div>
               <!-- "ส่วนการ์ดค้างชำระ เพิ่มข้อความลิงค์ 'ดูข้อมูล' กดแล้วไป
                    หน้านี้ครับ" (2026-08-12) — ทั้งการ์ดกดได้ ไปหน้า "บิล &
@@ -4557,6 +4559,43 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <!-- "เพิ่มดูข้อมูลการ์ด กดแล้วขึ้น popup สวยๆ ขึ้นมาสรุปเลย ว่า
+             ห้องไหนสถานะอะไร ว่างกับไม่ว่าง" (2026-08-12) — จากการ์ด
+             "ห้องว่าง" บนแดชบอร์ด -->
+        <sc-if value="{{ showRoomStatusSummary }}" hint-placeholder-val="{{ false }}">
+          <div onclick="{{ closeRoomStatusSummary }}" style="position:fixed;inset:0;background:rgba(36,24,18,0.5);z-index:290;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">
+            <div onclick="{{ stop }}" style="background:#fff;border-radius:14px;padding:0;width:420px;max-width:100%;max-height:80vh;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,0.3);display:flex;flex-direction:column;overflow:hidden">
+              <div style="padding:20px 24px 16px;border-bottom:1px solid #F0E9DC;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+                <div>
+                  <div style="font-size:16px;font-weight:700;color:#241812">สรุปสถานะห้องพัก</div>
+                  <div style="font-size:12px;color:#7C6E5F;margin-top:2px">ทั้งหมด {{ roomsTotalCount }} ห้อง</div>
+                </div>
+                <span onclick="{{ closeRoomStatusSummary }}" style="cursor:pointer;font-size:20px;color:#A89A88;line-height:1">✕</span>
+              </div>
+              <div style="padding:16px 24px 24px;overflow-y:auto">
+                <sc-for list="{{ roomStatusGroups }}" as="g" hint-placeholder-count="3">
+                  <div style="margin-bottom:18px">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                      <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:5px;background:{{ g.bg }};color:{{ g.color }}">{{ g.label }}</span>
+                      <span style="font-size:12px;color:#7C6E5F">{{ g.count }} ห้อง</span>
+                    </div>
+                    <sc-if value="{{ g.hasRooms }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex;flex-wrap:wrap;gap:6px">
+                        <sc-for list="{{ g.rooms }}" as="r" hint-placeholder-count="3">
+                          <span style="font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:6px;background:#F7F2E9;color:#241812" title="{{ r.tenant }}">{{ r.id }}</span>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ g.isEmpty }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:11.5px;color:#A89A88">— ไม่มีห้องในสถานะนี้ —</div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
       </div>
       </div>
     </div>
@@ -4796,6 +4835,9 @@ class Component extends DCLogic {
     dueReminderMsg: 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ',
     // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก" (2026-07-26)
     firstInvoiceMsg: '',
+    // "เพิ่มดูข้อมูลการ์ด กดแล้วขึ้น popup สวยๆ ขึ้นมาสรุปเลย ว่าห้องไหน
+    // สถานะอะไร ว่างกับไม่ว่าง" (2026-08-12) — การ์ด "ห้องว่าง" บนแดชบอร์ด
+    showRoomStatusSummary: false,
     tuyaConn: { accessId: '', accessSecret: '', region: 'ศูนย์ข้อมูลไทย (Central)', connected: false },
     tuyaEnvConnected: false,
     showTuyaPowerConfirm: false,
@@ -5594,6 +5636,10 @@ class Component extends DCLogic {
   toggleMobileNav = () => this.setState(s => ({ mobileNavOpen: !s.mobileNavOpen }));
   closeMobileNav = () => this.setState({ mobileNavOpen: false });
   goDashboard = () => this._nav({ activeNav: 'dashboard' });
+  // "เพิ่มดูข้อมูลการ์ด กดแล้วขึ้น popup สวยๆ ขึ้นมาสรุปเลย ว่าห้องไหน
+  // สถานะอะไร ว่างกับไม่ว่าง" (2026-08-12) — การ์ด "ห้องว่าง" บนแดชบอร์ด
+  openRoomStatusSummary = () => this.setState({ showRoomStatusSummary: true });
+  closeRoomStatusSummary = () => this.setState({ showRoomStatusSummary: false });
   goRooms = () => this._nav({ activeNav: 'rooms' });
   goTenants = () => this._nav({ activeNav: 'tenants' });
   goBilling = () => this._nav({ activeNav: 'billing' });
@@ -10420,6 +10466,21 @@ class Component extends DCLogic {
     // filter-time computation, reusing s.invoices (already loaded).
     const overdueRoomIds = new Set(s.invoices.filter(i => i.status === 'overdue').map(i => i.room));
     const effectiveRoomStatus = (r) => r.status === 'vacant' ? 'vacant' : (overdueRoomIds.has(r.id) ? 'overdue' : 'occupied');
+    // "เพิ่มดูข้อมูลการ์ด กดแล้วขึ้น popup สวยๆ ขึ้นมาสรุปเลย ว่าห้องไหน
+    // สถานะอะไร ว่างกับไม่ว่าง" (2026-08-12) — จัดกลุ่มห้องทั้งหมดตามสถานะ
+    // (ว่าง/ไม่ว่าง/ค้างชำระ — ใช้ effectiveRoomStatus ตัวเดียวกับที่แก้
+    // บั๊กหน้าห้องพัก/ผู้เช่าไปก่อนหน้านี้ ให้ตัวเลขตรงกันทุกจุด) ให้
+    // popup ที่เปิดจากการ์ด "ห้องว่าง" บนแดชบอร์ด
+    const roomStatusGroups = ['vacant', 'occupied', 'overdue'].map(key => {
+      const meta = roomMeta(key);
+      const rooms = [...s.rooms].filter(r => effectiveRoomStatus(r) === key)
+        .sort((a, b) => a.id.localeCompare(b.id, 'en', { numeric: true }));
+      return {
+        key, label: meta.label, color: meta.color, bg: meta.bg, count: rooms.length,
+        hasRooms: rooms.length > 0, isEmpty: rooms.length === 0,
+        rooms: rooms.map(r => ({ id: r.id, tenant: r.tenant || '' })),
+      };
+    });
     // "แต่ละเพจ ด้านบนให้มีปุ่มกลับมาหน้าแดชบอร์ด" (2026-08-09) — ปุ่มลอย
     // ด้านบนของทุกหน้า (ยกเว้นหน้าแดชบอร์ดเอง ซึ่งไม่จำเป็นต้องมีปุ่มกลับ
     // มาหาตัวเอง) ใช้ goDashboard ตัวเดิมที่ปุ่มเมนูด้านซ้ายใช้อยู่แล้ว
@@ -12188,6 +12249,8 @@ class Component extends DCLogic {
       kpiNetAllTimeDisplay: (dashAllTimeRevenue - expenseAllTimeTotal >= 0 ? '+' : '−') + this.fmt(Math.abs(dashAllTimeRevenue - expenseAllTimeTotal)),
       kpiNetAllTimeColor: dashAllTimeRevenue - expenseAllTimeTotal >= 0 ? '#3B7A52' : '#B24336',
       kpiVacantFraction: s.rooms.filter(r => r.status === 'vacant').length + ' / ' + s.rooms.length,
+      showRoomStatusSummary: s.showRoomStatusSummary, openRoomStatusSummary: this.openRoomStatusSummary,
+      closeRoomStatusSummary: this.closeRoomStatusSummary, roomStatusGroups, roomsTotalCount: s.rooms.length,
       kpiOverdueCount: overdueList.length + ' ห้อง',
       kpiOverdueSum: 'รวม ' + this.fmt(overdueSum),
       // "การใช้งาน LINE OA" Dashboard donut-chart card.
