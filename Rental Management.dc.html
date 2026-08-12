@@ -1947,8 +1947,18 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                        เท่านั้น ไม่แตะยอดสะสมที่ระบบติดตามเอง (usage) เลย
                        คนละกลไกกับปุ่ม "คาลิเบรต" ด้านล่างที่เขียนทับยอด
                        สะสมตรงๆ -->
+                  <!-- "ส่วนนี้ไม่ได้ใช้แล้วครับ ซ่อนไปเลย เพราะเรามีระบบ
+                       คำนวณแทนและบันทึกให้อยู่แล้ว" (2026-08-12) — ปุ่ม
+                       "คาลิเบรต" ด้านล่างเขียนทับยอดสะสมให้ตรงกับ Tuya
+                       โดยตรงทุกครั้งอยู่แล้ว ไม่ต้องพึ่ง SET NEW ชดเชย
+                       ส่วนต่างอีกต่อไป (ยืนยันแล้วว่าทุกห้องคาลิเบรตครบ
+                       SET NEW ว่างหมดพอดีตอนซ่อน) — ซ่อนแค่ UI เท่านั้น
+                       ไม่ลบ field/logic เดิม เผื่อจำเป็นต้องเปิดกลับมาดู
+                       ภายหลัง -->
+                  <sc-if value="{{ false }}" hint-placeholder-val="{{ false }}">
                   <div style="font-size:11.5px;color:#7C6E5F;margin-top:10px;margin-bottom:5px">ค่า SET NEW (ค่าที่บวกเพิ่มให้ค่ารวมตรงกับ Tuya) · ลิตร</div>
                   <input type="number" value="{{ tuyaForm.waterSetNewValue }}" onchange="{{ onTuyaWaterSetNewValue }}" placeholder="เช่น 2990" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  </sc-if>
                   <div style="margin-top:10px;padding:10px;border-radius:6px;background:#F0F6FA;border:1px solid #DCE9F0">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
                       <span style="font-size:11px;font-weight:700;color:#7C6E5F">ข้อมูลน้ำแบบเรียลไทม์</span>
