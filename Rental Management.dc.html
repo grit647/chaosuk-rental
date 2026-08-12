@@ -789,6 +789,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 </div>
               </div>
 
+              <sc-if value="{{ hasVisibleSelectedRoom }}" hint-placeholder-val="{{ true }}">
               <div style="width:100%;max-width:480px;background:#FFFFFF;border-radius:8px;padding:18px;box-sizing:border-box">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
                   <span style="font-size:16px;font-weight:700;color:#241812">ห้อง {{ selectedRoom.id }}</span>
@@ -831,6 +832,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                 </div>
               </div>
+              </sc-if>
             </div>
           </div>
           </sc-if>
@@ -10465,6 +10467,15 @@ class Component extends DCLogic {
       id: '', status: 'vacant', tenant: '', phone: '', moveIn: '', contractEnd: '',
       rent: 0, deposit: 0, dueDay: '', wifiUsername: '', wifiPassword: '', tenantIdExpiry: '', leaseDocName: '',
     };
+    // "การ์ด ห้อง 1 ด้านล่างมันมาอยู่อย่างไร ทุกที่เลยครับ ลบออกให้หน่อย"
+    // (2026-08-12) — แผงรายละเอียดห้อง (ด้านล่างรายการห้องพัก) เดิมโชว์
+    // ห้องที่เลือกไว้ล่าสุดเสมอ (selectedRoomId, ปกติคือห้องแรกที่ยังไม่เคย
+    // กดเลือกอะไรเลย) โดยไม่สนใจว่าห้องนั้นจะอยู่ในผลกรองปัจจุบันไหม — พอ
+    // กรอง "ว่าง"/"ค้างชำระ" แล้วห้องที่เลือกไว้ (เช่น ห้อง 1 "ไม่ว่าง") ไม่
+    // ตรงกับตัวกรอง แผงยังโผล่มาอยู่ดี ดูเหมือนขัดกับหัวข้อ "แสดง 0/2 จาก
+    // 16 ห้อง" ด้านบน — ซ่อนแผงนี้ไปเลยถ้าห้องที่เลือกไว้ไม่อยู่ในผลกรอง
+    // ปัจจุบัน (ดู hasVisibleSelectedRoom, ครอบ markup ทั้งก้อนด้วย sc-if)
+    const hasVisibleSelectedRoom = roomsFilteredRaw.some(r => r.id === selectedRoomRaw.id);
     const selMeta = roomMeta(effectiveRoomStatus(selectedRoomRaw));
     const selInvoice = s.invoices.find(i => i.room === selectedRoomRaw.id);
     const selectedRoom = {
@@ -12245,7 +12256,7 @@ class Component extends DCLogic {
 
       roomSearch: s.roomSearch, onRoomSearchChange: this.onRoomSearchChange,
       roomFilterChips, roomsCountLabel: 'แสดง ' + roomsFiltered.length + ' จาก ' + s.rooms.length + ' ห้อง',
-      roomsFiltered, selectedRoom, openRoomEdit: this.openRoomEdit, openContractModal: this.openContractModal,
+      roomsFiltered, selectedRoom, hasVisibleSelectedRoom, openRoomEdit: this.openRoomEdit, openContractModal: this.openContractModal,
       roomsPageItems, prevRoomPage: this.prevRoomPage, nextRoomPage: this.nextRoomPage,
       prevRoomCount, nextRoomCount, hasPrevRoomPage, hasNextRoomPage, noPrevRoomPage: !hasPrevRoomPage,
       onRoomTouchStart: this.onRoomTouchStart, onRoomTouchEnd: this.onRoomTouchEnd,
