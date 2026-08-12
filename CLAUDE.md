@@ -412,6 +412,183 @@ ad-hoc scripts every time ("แบบนี้ง่ายกว่า ครั
   against the app — use the new button next time the owner checks each
   one's real value in the Tuya app.
 
+### Water meter calibration — AI tool added, then a full day (2026-08-12) spent chasing why calibrations kept silently "reverting" — root cause was a 1,000-row read cap, not a race condition
+
+**Status:** Fixed and verified working (room 3 of บ้านเลขที่1873 tested
+end-to-end, สะสม/ค่ารวม now match Tuya's real Total Use exactly).
+Rooms 1, 2, and likely others in this building still need a fresh
+calibration (their tracked totals are stuck showing usage LOWER than
+last bill's baseline — impossible for a real cumulative meter, a clear
+sign they're still affected by the root-cause bug below and just
+haven't been recalibrated since the fix landed).
+
+**1. New AI tool: `calibrate_water_meters`** (`server/claudeTools.js`) —
+lets the Claude/Gemini command box calibrate one or many rooms' water
+meters in a single command (e.g. "คาลิเบรตน้ำห้อง 1 เป็น 1162.3, ห้อง 2
+เป็น 980"), with one shared confirm popup showing before→after per
+room. Shares the exact same `calibrateWaterMeter()` function
+(`server/routes/tuya.js`) the "🎯 คาลิเบรตมิเตอร์น้ำ" web button already
+used — not a separate reimplementation, so both paths always match.
+Added to `buildCommandSystemPrompt`'s "call immediately, don't ask for
+text confirmation" tool list (`server/routes/claude.js`) since the
+popup itself is the confirmation step.
+
+**2. AI image-reading rules tightened** (per real live testing) — a
+Tuya app screenshot shows several different numbers together (Single
+Use, Daily Use, Flow Rate, Total Use); the AI now has explicit
+instructions to use **only "Total Use"** for calibration, never
+Single/Daily Use, and to **never guess which room** a device belongs to
+just from its name (e.g. a device named "Flowmeter 3" is NOT
+necessarily ห้อง 3 — confirmed by a real incident where the AI guessed
+"ห้อง 101" from a screenshot that was actually Flowmeter 3's screen).
+If the user asks to calibrate without providing a real Tuya number at
+all (no screenshot, no typed value), the AI must ask for it — never
+compute/estimate a substitute value on its own. The general image-
+reading instruction (`server/routes/claude.js`) was also updated to
+always describe what's actually visible in an attached image as part
+of the normal response, not just extract one number silently.
+
+**3. THE REAL BUG — `readTab()`/`updateRow()` silently capped at 1,000
+rows (`server/sheets.js`).** Discovered after a full day of the owner
+reporting a calibrated room's numbers appearing to "revert" to old
+values within minutes, on and off, no matter what got fixed. First
+suspected and partially-fixed a real (but secondary) race condition —
+a slow hourly water-usage poll (`getWaterUsageDeltaLiters` calls
+Tuya's Report Logs API, can take several seconds) could read "latest
+WaterLog row" right before a calibration landed, then write its own
+stale-based result several seconds later, becoming the new "latest"
+and visually undoing the calibration. Added a re-check-before-write
+guard in both places this pattern exists (`GET /api/tuya/status`'s own
+poll block, and `pollAndLogUsageForScheduler` in the same file) — real
+fix, but didn't fully explain the symptom.
+
+**The actual root cause, found via direct Sheet inspection:**
+`WaterLog` (hourly-throttled appends × every water-linked room, shared
+across the whole building) had quietly grown to **1,130 total rows**
+in บ้านเลขที่1873's spreadsheet — but `readTab()`, `readTabs()`, and
+`findRowNumber()` (used by `updateRow()`) all hardcoded their read
+range at `A1:${MAX_COL}1000` — **row 1000, no further.** The 129 most
+recent rows — literally everything appended since that morning,
+including every single calibration attempted that day — were
+**completely invisible to the whole app.** Any "find latest row" logic
+anywhere (calibration's own before/after comparison, the live usage
+merge, delta-since-last-poll math) kept computing off month-old stale
+data as if it were current. This is the exact same bug class already
+documented elsewhere in this file for `MAX_COL` (adding a 27th Rooms
+column went silently unread past hardcoded column Z) — same lesson,
+this time for rows. Any tab that grows via frequent appends
+(`ElectricityLog`, `NotifyLog`, `PaymentLog`, etc.) was equally at
+risk, not just `WaterLog` — it just hadn't been the first to cross
+1,000 rows. `updateRow()` would have silently failed to find any row
+past position 1000 in ANY growing tab too (`findRowNumber` had the
+identical cap) — a much wider-reaching risk than water calibration
+alone.
+
+**Fixed:** introduced `MAX_ROW = 100000` (same philosophy as the
+existing `MAX_COL = 'ZZ'` comment: "comfortably beyond anything this
+app is likely to ever need") and applied it consistently across every
+range in `sheets.js` (`readTab`, `readTabs`, `findRowNumber`,
+`updateRow`'s existing-row lookup, `clearTab`, and 2 call sites that
+already had their own one-off `100000` fix for other tabs — now
+deduplicated to the shared constant). **This fix is in the shared
+`server/sheets.js`, so it silently protects every tab in every
+building, not just `WaterLog` in บ้านเลขที่1873** — worth remembering
+if a similarly "impossible" data-staleness bug ever gets reported
+again on some other growing tab; check row count past 1000 first
+before chasing a race condition.
+
+**4. Conceptual formula bug found immediately after the row-cap fix:
+"ค่ารวม" (combined total) wrongly added `waterPrev` on top of an
+already-calibrated total.** Once calibration correctly wrote Tuya's
+real Total Use directly into "สะสม" (`cumulativeLiters`), the
+pre-existing "ค่ารวม = เริ่มต้น (waterPrev×1000) + สะสม + SET NEW"
+formula started **overshooting** Tuya's real number by exactly
+`waterPrev×1000` (owner caught this live: สะสม matched Tuya at 5,370
+exactly, but ค่ารวม showed 7,775.2 — 2,405 too high, matching room 3's
+own `waterPrev` of 2.4048×1000 to the decimal). Root cause: that
+formula was designed BEFORE the calibrate button worked correctly,
+back when "สะสม" was an uncalibrated, drifting number that genuinely
+needed `waterPrev` added back to approximate Tuya's scale. Now that
+calibration sets "สะสม" directly to Tuya's true absolute total,
+`waterPrev` is a completely unrelated concept (the meter reading at
+last bill, used ONLY for `usage_this_cycle = สะสม − waterPrev` at
+invoice time) and adding it into "ค่ารวม" double-counts. **Fixed** in
+all 3 places the formula existed (frontend
+`equipSelWaterCombinedTotal`, `calibrateWaterMeter`'s own
+`beforeLiters`, `claudeTools.js`'s confirm-preview) — dropped the
+`waterPrev` term, so ค่ารวม is now just **สะสม + SET NEW**. Label
+updated from "(เริ่มต้น + สะสม + SET NEW)" to "(สะสม + SET NEW)".
+
+**5. "SET NEW" auto-clears after a successful calibration** (both the
+AI tool and the web button share `calibrateWaterMeter()`, so this
+applies to either path) — since the freshly-calibrated "สะสม" already
+equals Tuya's real total on its own, a leftover SET NEW value would
+double-count against the newly-correct baseline. The room's
+`waterSetNewValue` column gets reset to blank as part of the same
+calibration write.
+
+**6. Live-data staleness fixes (2 separate timing bugs, both about
+`tuyaLiveReadings` not refreshing when it should):**
+   - AI-driven calibrations (via the command box) previously only
+     called `loadFromServer()` after success (refreshes rooms/
+     invoices/etc.) but never `refreshTuyaLive()` (a separate call
+     that refreshes live Tuya readings) — so a successful AI
+     calibration looked like a no-op on the Set อุปกรณ์ page until a
+     manual refresh or page reload. Now calls both.
+   - The web button's own `calibrateWaterDevice()` called
+     `refreshTuyaLive()` as fire-and-forget (not awaited) right before
+     showing the "สำเร็จ" toast — but that endpoint has to query every
+     water+elec device in the building live before responding, which
+     can take several seconds, so the toast landed well before the
+     numbers actually refreshed. Now awaits it first, so the toast and
+     the fresh numbers always land together.
+
+**7. New persistent "last calibrated when / with what value" display**
+— the only calibration feedback that existed before
+(`waterCalibrateResult`'s "ก่อน → หลัง" box) was session-local state,
+gone the moment the page reloaded or the owner switched rooms and
+back — no way to tell at a glance whether/when a room had ever been
+calibrated. `GET /api/tuya/status` now also finds each water-linked
+room's latest `WaterLog` row whose `id` ends in `-calibration`
+(`calibrateWaterMeter`'s own row-id convention) and attaches it as
+`lastCalibration: { liters, timestamp }`. The Set อุปกรณ์ calibrate box
+now shows a permanent "🕒 คาลิเบรตล่าสุดเมื่อ [date] ด้วยค่า Total Use
+[X] ลิตร" line (or "ห้องนี้ยังไม่เคยคาลิเบรตเลย" if none exists),
+sourced from real Sheet data — survives reloads and room switches.
+
+**8. "SET NEW" now shown as its own value too** — previously only
+visible in the input field itself or implicitly folded into "ค่ารวม",
+now shown as a 4th figure in the real-time water readout row (สะสม /
+ค่ารวม / แบตเตอรี่ / SET NEW) so the owner can see at a glance how much
+compensation is currently applied, whether typed manually or set by
+the AI tool.
+
+**9. Display-only rounding/formatting consistency fixes found while
+verifying all of the above:**
+   - "ลิตร (L) สะสม" used `toFixed(0)` (rounded off the decimal, e.g.
+     showed "5370") while "ค่ารวม" and the "สถานะอุปกรณ์" device list
+     both used `toFixed(1)` (showed "5,370.4") for the exact same
+     underlying value — looked like a real data mismatch, was purely a
+     display inconsistency. Standardized on `toFixed(1)` everywhere.
+   - "หน่วยที่ใช้" on both การใช้น้ำประปา and การใช้ไฟฟ้า's usage tables
+     showed a bare "0" for zero-usage rooms instead of "0.00",
+     inconsistent with rooms showing real usage (which already had 2
+     decimals from `deviceCharge()`'s own rounding). Applied
+     `.toFixed(2)` to both `waterReportView` and `elecReportView`'s
+     `usage` field.
+
+**Key terminology distinction reinforced through this whole
+investigation (ties back to the permanent "เลขมิเตอร์ vs หน่วย" rule
+below):** "สะสม"/"ค่ารวม" (raw cumulative meter reading, calibration's
+job to keep this accurate) and "หน่วยที่ใช้" (calculated usage THIS
+BILLING CYCLE = สะสม − waterPrev) are two genuinely different numbers
+by design and will NEVER be equal to each other (they differ by
+exactly `waterPrev`) — comparing them directly is not a meaningful
+sanity check, a point the owner had to correct a sloppy explanation of
+mid-session. Calibration fixes the SOURCE reading's accuracy; the
+billing/usage figure is a separate calculation that consumes that
+now-accurate source, one layer downstream.
+
 ### "คุยกับ Claude AI ผ่าน LINE" — text works, voice needs OPENAI_API_KEY (pending)
 
 **Status:** Built and deployed (commit `355da75`, session redesigned
