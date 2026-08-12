@@ -440,9 +440,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:12px;margin-top:6px;font-weight:500;color:{{ kpiNetColor }}">{{ kpiNetHint }}</div>
                 <div style="font-size:11px;color:#7C6E5F;margin-top:8px;padding-top:8px;border-top:1px solid #EDE6D8">กำไรสุทธิทั้งหมด <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:{{ kpiNetAllTimeColor }}">{{ kpiNetAllTimeDisplay }}</span></div>
               </div>
-              <!-- "เพิ่มดูข้อมูลการ์ด กดแล้วขึ้น popup สวยๆ ขึ้นมาสรุปเลย
-                   ว่าห้องไหนสถานะอะไร ว่างกับไม่ว่าง" (2026-08-12) -->
-              <div class="stat-card" onclick="{{ openRoomStatusSummary }}" style="flex:1;background:#FFFFFF;border-top:3px solid #D9A15B;border-radius:8px;padding:16px;box-sizing:border-box;cursor:pointer">
+              <!-- "ดูข้อมูลห้องว่างเปลี่ยนให้เป็นลิงค์ มาหน้าห้องพักให้หน่อย
+                   ครับ" (2026-08-12 follow-up) — เปลี่ยนจาก popup สรุป
+                   สถานะ (openRoomStatusSummary, ยังเก็บโค้ดไว้เผื่อใช้จุด
+                   อื่นในอนาคต) เป็นลิงก์ตรงไปหน้า "ห้องพัก" แทน เหมือน
+                   การ์ด "ค้างชำระ"/"รายจ่ายเดือนนี้" ข้างๆ กัน -->
+              <div class="stat-card" onclick="{{ goRooms }}" style="flex:1;background:#FFFFFF;border-top:3px solid #D9A15B;border-radius:8px;padding:16px;box-sizing:border-box;cursor:pointer">
                 <div style="font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#7C6E5F;margin-bottom:8px">ห้องว่าง</div>
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:#241812">{{ kpiVacantFraction }}</div>
                 <div style="font-size:12px;color:#D9A15B;margin-top:8px;padding-top:8px;border-top:1px solid #EDE6D8;font-weight:600">ดูข้อมูล →</div>
