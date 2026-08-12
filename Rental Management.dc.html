@@ -8183,41 +8183,21 @@ class Component extends DCLogic {
     if (minRate > 0 && rawCharge < minRate) return { charge: minRate, minApplied: true };
     return { charge: rawCharge, minApplied: false };
   }
-  // Per explicit user request/discussion: some battery-powered water
-  // flowmeters wrap their cumulative liter counter back to 0 after a fixed
-  // max (owner's own device: believed to be ~10,000L, not 100% certain —
-  // hence the field is OPTIONAL, not a hard assumption baked into the
-  // code). Without this, a rollover would make (currentLiters - baseline)
-  // go negative, and the existing Math.max(0, ...) safety floor would
-  // silently report ZERO usage for that whole billing period — the owner
-  // loses that revenue with no visible sign anything went wrong.
-  //
-  // currentLiters: raw live.usage from the device (always liters).
-  // room.waterPrev: the stored baseline, in "หน่วย" (÷1000 of liters) —
-  // same unit the rest of the app's water billing has always used.
-  //
-  // Normal case: usage = current - baseline (both compared in liters).
-  // Rollover case (current < baseline, so the counter must have wrapped):
-  //   - If the owner filled in tuyaWaterMaxLiters: usage = (max - baseline)
-  //     + current — i.e. "the rest of the old cycle up to the max" plus
-  //     "however far the new cycle has gotten since it reset to 0". This
-  //     is the accurate answer IF the configured max is correct.
-  //   - If not filled in: fall back to usage = current (assume the meter
-  //     JUST reset and everything read so far this cycle is new usage).
-  //     Under-counts whatever happened between the true rollover point and
-  //     now, but that's a much smaller, safer error than reporting 0.
-  // Math.max(0, ...) stays as the final safety net either way, in case of
-  // any other weird edge case (e.g. a bad/negative max value typed in).
+  // "การคำนวณการใช้น้ำไฟ เราเอาข้อมูลของบิลเก่ามาคำนวณการใช้น้ำไฟในรอบ
+  // ปัจจุบันอยู่แล้ว ซึ่งไม่เกี่ยวกับการตั้งค่าหรือคาลิเบรตมิเตอร์"
+  // (2026-08-12) — เจ้าของยืนยันชัดเจนว่าการคำนวณต้องเป็น "เลขมิเตอร์รอบนี้
+  // ลบเลขมิเตอร์บิลก่อนหน้า" ตรงไปตรงมาเท่านั้น เหมือนมิเตอร์น้ำ/ไฟแบบกรอก
+  // มือทุกประการ ไม่เกี่ยวกับ "เลขมิเตอร์สูงสุด" (tuyaWaterMaxLiters) หรือ
+  // การคาลิเบรตเลย — เอาตรรกะ "rollover" (เดา ว่ามิเตอร์รีเซ็ตกลับ 0 แล้ว
+  // เอา tuyaWaterMaxLiters มาคิดแทน) ที่เคยสร้างไว้ก่อนหน้านี้ออกทั้งหมด
+  // (พิสูจน์แล้วว่าเป็นสาเหตุบั๊กจริง — ห้อง 4 เจอ 99 หน่วย ทั้งที่ควรเป็น
+  // ~0.91 หน่วย เพราะยอดสะสมอุปกรณ์เคยถูกคาลิเบรตให้ต่ำกว่าเลขมิเตอร์เดิม
+  // ที่บันทึกไว้ ระบบเข้าใจผิดว่ามิเตอร์รีเซ็ต) — เหลือแค่ current - baseline
+  // ธรรมดา (Math.max(0, ...) กันติดลบ) เหมือนฝั่งไฟฟ้า (deviceCharge's elec
+  // branch) ที่ไม่เคยมีตรรกะ rollover แบบนี้อยู่แล้วตั้งแต่แรก
   _waterRolloverUnits(currentLiters, room) {
     const baselineLiters = Number(room.waterPrev || 0) * 1000;
-    if (currentLiters >= baselineLiters) {
-      return { units: Math.max(0, (currentLiters - baselineLiters) / 1000), rolledOver: false };
-    }
-    const maxLiters = Number(room.tuyaWaterMaxLiters || 0);
-    const deltaLiters = maxLiters > 0
-      ? (maxLiters - baselineLiters) + currentLiters
-      : currentLiters;
-    return { units: Math.max(0, deltaLiters / 1000), rolledOver: true };
+    return { units: Math.max(0, (currentLiters - baselineLiters) / 1000), rolledOver: false };
   }
   deviceCharge(roomId, kind) {
     const room = this.state.rooms.find(r => r.id === roomId);
@@ -8310,16 +8290,11 @@ class Component extends DCLogic {
       // against the previous room's rate or baseline.
       if (next.waterMode === 'manual' && next.waterUnits) { const u = this.meterUnitsFromReading(v, 'water', next.waterUnits); next.water = String(this._applyMinCharge(v, 'water', Math.round(u * this.roomRate(v, 'water'))).charge); }
       if (next.elecMode === 'manual' && next.elecUnits) { const u = this.meterUnitsFromReading(v, 'elec', next.elecUnits); next.elec = String(this._applyMinCharge(v, 'elec', Math.round(u * this.roomRate(v, 'elec'))).charge); }
-      // Per explicit user request: warn right at the moment of opening this
-      // room's invoice — before money changes hands — if the water meter's
-      // reading is LOWER than the last-billed baseline (rollover detected).
-      // The charge above is still computed either way (see
-      // _waterRolloverUnits), this is just a heads-up so the owner can
-      // sanity-check the amount before sending, especially if they never
-      // filled in the meter's max-liters value (less accurate fallback).
-      if (waterDeviceCharge && waterDeviceCharge.rolledOver) {
-        this.showAdminToast(`⚠️ ห้อง ${v}: มิเตอร์น้ำรีเซ็ตไปแล้ว ระบบคำนวณยอดให้อัตโนมัติ แนะนำตรวจสอบยอดก่อนส่งบิล`);
-      }
+      // "ไม่เกี่ยวกับการตั้งค่าหรือคาลิเบรตมิเตอร์" (2026-08-12) — ตรรกะ
+      // "rollover" (มิเตอร์รีเซ็ตกลับ 0) ถูกเอาออกจาก _waterRolloverUnits
+      // แล้ว (ดู comment เต็มตรงนั้น) rolledOver จะเป็น false เสมอ เตือน
+      // แบบนี้เลยไม่มีทางขึ้นได้อีกต่อไป — เอา check นี้ออกไปด้วยกันโค้ด
+      // ตายค้าง
       return { newInvoice: next };
     });
   };
