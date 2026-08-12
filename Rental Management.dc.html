@@ -12820,10 +12820,14 @@ class Component extends DCLogic {
         const dc = this.deviceCharge(s.newInvoice.roomId, 'water');
         return dc ? dc.units.toFixed(2) : '0';
       })(),
+      // "ตอนนี้แสดง 1281.46 ในช่อง ผิดแล้วครับ" (2026-08-12) — เหตุผลเดียว
+      // กับ invWaterDeviceDisplay ที่แก้ไปก่อนหน้านี้ในเซสชันเดียวกัน: เดิม
+      // โชว์ live.energy (สะสมดิบ) ตรงๆ ไม่ตรงกับหน่วยที่ใช้คิดบิลจริง
+      // (56 หน่วย × 8 = 448 บาท) — เปลี่ยนให้ดึงจาก deviceCharge().units
+      // เหมือนกัน
       invElecDeviceDisplay: (() => {
-        const r = s.rooms.find(x => x.id === s.newInvoice.roomId);
-        const live = (r && r.tuyaElecDeviceId) ? s.tuyaLiveReadings[s.newInvoice.roomId] : null;
-        return (live && live.energy != null) ? String(live.energy) : '0';
+        const dc = this.deviceCharge(s.newInvoice.roomId, 'elec');
+        return dc ? dc.units.toFixed(2) : '0';
       })(),
       // "กรณีน้ำต้องขึ้นว่า อัตราค่าบริการขั้นต่ำ...ลูกค้างง หาว่าคูณผิด"
       // (2026-08-01) — เช็ค d.minApplied เหมือนกับ waterUsageLabel/
