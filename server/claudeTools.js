@@ -17,6 +17,7 @@ const path = require('path');
 const { readTab, appendRow, updateRow, deleteRow } = require('./sheets');
 const { coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coercePaymentLog, coerceUnmatchedSlips, readSettings, readIntegrationCredentials } = require('./coerce');
 const { pushMessage, isConfigured: lineConfigured } = require('./line');
+const { notifyAdmin } = require('./adminNotify');
 const { generateInvoicePdf } = require('./pdf');
 // "มาดูส่วนนี้การคาลิเบรตค่าน้ำจะเพิ่มการทำงานของ AI ให้สามารถกรอกค่าน้ำ
 // และค่าคาลิเบรตค่าน้ำแทนได้" (2026-08-12) — ใช้ฟังก์ชันเดียวกับปุ่ม
@@ -778,6 +779,21 @@ async function executeWriteTool(name, input) {
         } catch (err) {
           results.push(`❌ ห้อง ${c.roomId}: ล้มเหลว — ${err.message}`);
         }
+      }
+      // "ห้องไหนคาลิเบรตไม่ได้ ให้ส่งข้อความไลน์ไปหาเจ้าของ อาจติดสถานะ
+      // ใช้น้ำอยู่ ห้องไหนคาลิเบรตแล้วก็ส่งข้อมูลไปไลน์เจ้าของเหมือนกัน"
+      // (2026-08-12) — ส่งตรงถึง adminLineUserId ทันที ไม่ผ่าน category
+      // gate ของ notifyAdmin (คุณต้นขอให้ส่งเสมอ ไม่ต้องมีสวิตช์เปิด/ปิด
+      // แยกสำหรับเรื่องนี้) — ไม่ทำให้ทั้ง tool call ล้มเหลวถ้าส่งไลน์
+      // ไม่ได้ (เช่น ยังไม่ได้เชื่อมต่อ LINE) แค่ log ไว้เฉยๆ
+      try {
+        const settings = await readSettings();
+        const adminId = settings.propertyProfile && settings.propertyProfile.adminLineUserId;
+        if (adminId && lineConfigured(creds.line)) {
+          await pushMessage(adminId, '🎯 ผลคาลิเบรตมิเตอร์น้ำ (สั่งผ่าน AI):\n' + results.join('\n'), undefined, creds.line);
+        }
+      } catch (err) {
+        console.error('[claudeTools] calibrate_water_meters: notify owner failed', err.message);
       }
       return { ok: true, message: 'คาลิเบรตมิเตอร์น้ำเสร็จแล้ว:\n' + results.join('\n') };
     }
