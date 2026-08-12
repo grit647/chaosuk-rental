@@ -605,10 +605,18 @@ async function calibrateWaterMeter(roomId, appLiters, tuyaCreds) {
   const watermark = latest ? latest.lastProcessedEventTimeMs : 0;
   // "ต้องแสดงผลรวมครับ เดี๋ยวเจ้าของสับสน ค่าที่เอามาแสดงก่อนยืนยันไม่ตรง"
   // (2026-08-12) — "ก่อน" ที่โชว์ให้ยืนยัน/ในผลลัพธ์ ต้องตรงกับ "ค่ารวม"
-  // (เริ่มต้น + สะสม + SET NEW) ที่โชว์อยู่บนหน้า Set อุปกรณ์อยู่แล้ว ไม่ใช่
-  // แค่ "สะสม" ดิบๆ (ไม่งั้นเจ้าของเห็น 2 ตัวเลขไม่ตรงกันสำหรับห้องเดียวกัน
-  // — งงว่าอันไหนคือ "ค่าก่อนคาลิเบรต" ที่แท้จริง)
-  const beforeLiters = (Number(room.waterPrev) || 0) * 1000 + trackedLiters + (Number(room.waterSetNewValue) || 0);
+  // ที่โชว์อยู่บนหน้า Set อุปกรณ์อยู่แล้ว ไม่ใช่แค่ "สะสม" ดิบๆ (ไม่งั้น
+  // เจ้าของเห็น 2 ตัวเลขไม่ตรงกันสำหรับห้องเดียวกัน — งงว่าอันไหนคือ
+  // "ค่าก่อนคาลิเบรต" ที่แท้จริง)
+  //
+  // "มั่วไปหมดแล้ว" (2026-08-12 follow-up) — สูตรเดิมบวก waterPrev*1000
+  // เข้าไปด้วยผิดหลักการ: การคาลิเบรตเขียนค่า Total Use ของ Tuya ลงเป็น
+  // "สะสม" (cumulativeLiters) โดยตรงอยู่แล้ว ไม่ต้องบวก waterPrev (เลข
+  // มิเตอร์ ณ วันออกบิลล่าสุด — ใช้แค่คำนวณหน่วยที่ใช้รอบนี้ตอนออกบิล
+  // คนละเรื่องกับการเทียบค่ากับ Tuya) ซ้ำเข้าไปอีก ไม่งั้น "ก่อน" จะเกิน
+  // ค่าจริงไปเท่ากับ waterPrev พอดี — ตัดออก เหลือแค่สะสม + SET NEW
+  // (ตรงกับ equipSelWaterCombinedTotal ฝั่ง frontend ที่แก้พร้อมกัน)
+  const beforeLiters = trackedLiters + (Number(room.waterSetNewValue) || 0);
   await appendRow('WaterLog', {
     id: Date.now() + '-' + roomId + '-calibration',
     timestamp: new Date().toISOString(),

@@ -517,10 +517,16 @@ async function describeWriteTool(name, input) {
     case 'calibrate_water_meters': {
       // "ต้องแสดงผลรวมครับ เดี๋ยวเจ้าของสับสน ค่าที่เอามาแสดงก่อนยืนยันไม่
       // ตรง" (2026-08-12) — เดิม "ก่อน" ที่โชว์ในนี้คือ "สะสม" ดิบๆ อย่าง
-      // เดียว ไม่ตรงกับ "ค่ารวม" (เริ่มต้น+สะสม+SET NEW) ที่หน้า Set
-      // อุปกรณ์แสดงไว้ ทำให้เจ้าของเห็นเลข "ก่อน" 2 ค่าที่ไม่เท่ากันสำหรับ
-      // ห้องเดียวกัน — ใช้สูตร "ค่ารวม" เดียวกันทุกจุดแล้ว (ตรงกับที่
-      // calibrateWaterMeter ใน server/routes/tuya.js ใช้จริงตอนเขียนด้วย)
+      // เดียว ไม่ตรงกับ "ค่ารวม" ที่หน้า Set อุปกรณ์แสดงไว้ ทำให้เจ้าของ
+      // เห็นเลข "ก่อน" 2 ค่าที่ไม่เท่ากันสำหรับห้องเดียวกัน — ใช้สูตร
+      // "ค่ารวม" เดียวกันทุกจุดแล้ว (ตรงกับที่ calibrateWaterMeter ใน
+      // server/routes/tuya.js ใช้จริงตอนเขียนด้วย)
+      //
+      // "มั่วไปหมดแล้ว" (2026-08-12 follow-up) — สูตรเดิมบวก waterPrev*1000
+      // ผิดหลักการ (ดูคอมเมนต์เต็มใน calibrateWaterMeter) การคาลิเบรตเขียน
+      // ค่า Total Use ของ Tuya ลงเป็น "สะสม" โดยตรงอยู่แล้ว ไม่ต้องบวก
+      // waterPrev (เลขมิเตอร์ ณ วันออกบิลล่าสุด คนละเรื่องกับค่า Tuya) ซ้ำ
+      // เข้าไปอีก — ตัดออก เหลือแค่สะสม + SET NEW
       // ยังคงอ่านอย่างเดียว ไม่เขียนอะไรตรงนี้ (executeWriteTool ค่อยเขียน
       // จริงหลังยืนยัน มี safety check เรื่องน้ำกำลังไหลด้วยตรงนั้น)
       const waterLog = await readTab('WaterLog');
@@ -529,7 +535,7 @@ async function describeWriteTool(name, input) {
         if (!room || !room.tuyaWaterDeviceId) return `ห้อง ${c.roomId}: ยังไม่ได้เชื่อมต่ออุปกรณ์น้ำ — จะข้ามห้องนี้`;
         const roomRows = waterLog.filter((r) => r.room === c.roomId.toString()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         const trackedLiters = roomRows[0] ? Number(roomRows[0].cumulativeLiters) || 0 : 0;
-        const before = (Number(room.waterPrev) || 0) * 1000 + trackedLiters + (Number(room.waterSetNewValue) || 0);
+        const before = trackedLiters + (Number(room.waterSetNewValue) || 0);
         const appLiters = Number(c.appLiters) || 0;
         const accuracy = appLiters > 0 ? Math.round((before / appLiters) * 1000) / 10 : null;
         return `ห้อง ${c.roomId}: ${before.toLocaleString()} → ${appLiters.toLocaleString()} ลิตร${accuracy != null ? ` (ของเดิมแม่นยำ ${accuracy}%)` : ''}`;

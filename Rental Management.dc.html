@@ -1969,7 +1969,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveWaterUsage }}</div><div style="font-size:10px;color:#A89A88">ลิตร (L) สะสม</div></div>
                       <!-- "ค่ารวมมาจากผลรวมทั้งหมด กับ ค่า SET NEW"
                            (2026-08-12) -->
-                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#2C6E8F">{{ equipSelWaterCombinedTotal }}</div><div style="font-size:10px;color:#A89A88">ลิตร (L) รวม (เริ่มต้น + สะสม + SET NEW)</div></div>
+                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#2C6E8F">{{ equipSelWaterCombinedTotal }}</div><div style="font-size:10px;color:#A89A88">ลิตร (L) รวม (สะสม + SET NEW)</div></div>
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:{{ equipSelBatteryColor }}">🔋 {{ equipSelLiveBattery }}</div><div style="font-size:10px;color:#A89A88">แบตเตอรี่ (%)</div></div>
                     </div>
                   </div>
@@ -13166,16 +13166,22 @@ class Component extends DCLogic {
       // real /api/tuya/status merged response the same way the elec V/A/W
       // readout above already is (equipSelLiveVoltage etc.).
       equipSelLiveWaterUsage: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].usage != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].usage.toFixed(0) : '—',
-      // "ค่าเริ่มต้น+ค่าใช้น้ำเดือนปัจจุบัน+setnew จะใกล้เคียงกับค่ารวมของ
-      // Tuya มากสุด เพราะอุปกรณ์แต่ละตัวไม่ได้เริ่มที่ 0 บิลที่ออกหลังสุด
-      // มันคือค่าเริ่มต้นที่ตั้งไว้แต่แรกครับ" (2026-08-12 follow-up) —
-      // เดิมสูตรนี้ไม่มี "ค่าเริ่มต้น" (waterPrev) เลย พี่ชี้ให้เห็นว่าต้อง
-      // รวมด้วย เพราะ waterPrev คือเลขมิเตอร์ตอนบิลล่าสุด (จุดเริ่มต้นจริง
-      // ของรอบนี้ ไม่ใช่ 0) — สูตรที่ถูกต้อง: ค่าเริ่มต้น (waterPrev, หน่วย
-      // → คูณ 1000 เป็นลิตร) + ยอดสะสมที่ระบบติดตามเอง (usage) + ค่า SET
-      // NEW ที่เจ้าของกรอก = ค่ารวมที่ควรใกล้เคียง Total Use ของ Tuya
+      // "มั่วไปหมดแล้ว" (2026-08-12) — พบว่าสูตรเดิม (waterPrev + สะสม +
+      // SET NEW) ผิดหลักการ หลังปุ่ม "คาลิเบรตมิเตอร์น้ำ" ใช้งานได้จริง:
+      // การคาลิเบรตเขียนค่า Total Use ของ Tuya ลงเป็น "สะสม" (usage)
+      // โดยตรงอยู่แล้ว (ดู calibrateWaterMeter, server/routes/tuya.js) —
+      // เพราะงั้นทันทีที่คาลิเบรตเสร็จ "สะสม" เท่ากับ Total Use ของ Tuya
+      // อยู่แล้วในตัว ไม่ต้องบวก waterPrev เพิ่มอีก (บวกซ้ำจะเกินค่าจริง
+      // ไปเท่ากับ waterPrev พอดี — ตามที่พี่เจอ: สะสม 5,370 ตรงกับ Tuya
+      // เป๊ะ แต่ค่ารวมกลับเป็น 7,775.2 เกินไป 2,405 ซึ่งตรงกับ waterPrev
+      // ของห้องนี้ที่ 2.4048 หน่วย × 1000 พอดี) — waterPrev คือคนละเรื่อง
+      // กันเลย มันคือเลขมิเตอร์ ณ วันออกบิลล่าสุด ใช้แค่คำนวณหน่วยที่ใช้
+      // รอบนี้ตอนออกบิล (สะสม − waterPrev) ไม่เกี่ยวกับการเทียบค่ากับ Tuya
+      // เลย สูตรที่ถูกต้อง: สะสม (usage) + ค่า SET NEW เท่านั้น (SET NEW
+      // มีไว้ปรับละเอียดเผื่อยังไม่ได้กดคาลิเบรตเต็มรูปแบบ หรือค่าคลาด
+      // เคลื่อนไปเล็กน้อยตั้งแต่คาลิเบรตครั้งล่าสุด)
       equipSelWaterCombinedTotal: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].usage != null)
-        ? ((Number(equipSelRoom.waterPrev) || 0) * 1000 + s.tuyaLiveReadings[s.equipSelectedRoom].usage + (Number(s.tuyaForm.waterSetNewValue) || 0)).toFixed(1)
+        ? (s.tuyaLiveReadings[s.equipSelectedRoom].usage + (Number(s.tuyaForm.waterSetNewValue) || 0)).toFixed(1)
         : '—',
       // "ตอนนี้ไม่รู้เลยว่าคาลิเบรตแล้วหรือยัง ไม่มีส่วนที่ดูข้อมูล" (2026-
       // 08-12) — โชว์แบบถาวรว่าห้องนี้เคยคาลิเบรตล่าสุดเมื่อไหร่ ด้วยค่า
