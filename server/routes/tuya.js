@@ -316,11 +316,34 @@ router.get('/status', async (req, res, next) => {
           const latest = roomRows.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
           const prevCumulative = latest ? Number(latest.cumulativeLiters) || 0 : 0;
           const sinceEventTimeMs = latest ? Number(latest.lastProcessedEventTimeMs) || 0 : 0;
+          // getWaterUsageDeltaLiters calls Tuya's Report Logs API, which can
+          // take several seconds — a real production incident (2026-08-12,
+          // room 3 of บ้านเลขที่1873) showed this being long enough for a
+          // calibration (from the AI command box, another request entirely)
+          // to land WHILE this was still in flight: this poll had already
+          // read "latest" (a pre-calibration row) before the calibration
+          // wrote its own newer row, so by the time this appendRow finally
+          // ran (minutes later), it silently became the new "latest" with a
+          // total computed from stale pre-calibration data — visually
+          // reverting the calibration with no error anywhere.
           const { deltaLiters, lastProcessedEventTimeMs } = await getWaterUsageDeltaLiters(r.tuyaWaterDeviceId, sinceEventTimeMs, creds.tuya);
           // No new confirmed-complete sessions since last poll — nothing
           // worth writing a row for (avoids a Sheet full of identical
           // zero-delta rows every hour when the room is simply unoccupied).
           if (deltaLiters <= 0 && lastProcessedEventTimeMs === sinceEventTimeMs) return;
+          // Re-check "latest" right before writing — if someone else (a
+          // calibration, or another poll) already wrote a newer row while
+          // the Tuya API call above was in flight, our prevCumulative base
+          // is stale. Skip this write entirely rather than risk reverting
+          // a newer value — the next hourly poll will pick up correctly
+          // from whatever the real latest row is by then.
+          const freshWaterLog = await readTab('WaterLog');
+          const freshRoomRows = freshWaterLog.filter((row) => row.room === r.id.toString());
+          const freshLatest = freshRoomRows.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+          if ((freshLatest ? freshLatest.id : null) !== (latest ? latest.id : null)) {
+            console.error('[tuya] WaterLog append skipped for room', r.id, '— a newer row appeared mid-poll (likely a calibration), avoiding stale overwrite');
+            return;
+          }
           const currentReading = resultMap[r.id] || {};
           await appendRow('WaterLog', {
             id: Date.now() + '-' + r.id,
@@ -412,8 +435,21 @@ async function pollAndLogUsageForScheduler(sheetId, tuyaCreds, preloadedRooms, n
       const latest = roomRows.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
       const prevCumulative = latest ? Number(latest.cumulativeLiters) || 0 : 0;
       const sinceEventTimeMs = latest ? Number(latest.lastProcessedEventTimeMs) || 0 : 0;
+      // getWaterUsageDeltaLiters calls Tuya's Report Logs API (can take
+      // several seconds) — same race window documented in GET /status
+      // below: if a calibration lands on this room while this is in
+      // flight, our prevCumulative base goes stale. Re-check "latest"
+      // right before writing and skip if something newer already exists
+      // (see the matching comment on GET /status's own water-poll block).
       const { deltaLiters, lastProcessedEventTimeMs } = await getWaterUsageDeltaLiters(r.tuyaWaterDeviceId, sinceEventTimeMs, tuyaCreds);
       if (deltaLiters <= 0 && lastProcessedEventTimeMs === sinceEventTimeMs) return;
+      const freshWaterLog = await readTab('WaterLog');
+      const freshRoomRows = freshWaterLog.filter((row) => row.room === r.id.toString());
+      const freshLatest = freshRoomRows.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+      if ((freshLatest ? freshLatest.id : null) !== (latest ? latest.id : null)) {
+        console.error('[tuya] scheduled water poll skipped for room', r.id, '— a newer row appeared mid-poll (likely a calibration), avoiding stale overwrite');
+        return;
+      }
       const waterReading = await getWaterReading(r.tuyaWaterDeviceId, tuyaCreds).catch(() => ({}));
       await appendRow('WaterLog', {
         id: Date.now() + '-' + r.id, timestamp: new Date().toISOString(), room: r.id,
