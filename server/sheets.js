@@ -57,6 +57,23 @@ function objectToRow(header, obj) {
 // app is likely to ever need on one tab.
 const MAX_COL = 'ZZ';
 
+// SAME bug class, but for ROWS this time — found 2026-08-12 while
+// investigating "ปรับแล้วก็ไม่ยอมอัปเดท" (water calibration silently
+// reverting itself). Every range below also hardcoded row 1000 as the cap
+// — WaterLog (appended hourly PER water-linked room, so it grows fast on a
+// building with many rooms) had quietly grown to 1,130 total rows across
+// all rooms in บ้านเลขที่1873. readTab('WaterLog') was silently truncating
+// to just the first 1000 rows — the 129 MOST RECENT rows (everything from
+// that morning onward, including every single water calibration attempted
+// that day) were completely invisible to the whole app. Any "find latest
+// row" logic anywhere (calibration, the live usage display, delta-from-
+// last-poll math) kept computing off month-old data as if it were current,
+// and any updateRow() targeting a row beyond position 1000 in ANY growing
+// tab would have silently failed to find it too (findRowNumber below has
+// the exact same range cap). Raised generously — 1000x more headroom than
+// what just broke, so this shouldn't need revisiting for a very long time.
+const MAX_ROW = 100000;
+
 async function getHeader(sheets, tab) {
   const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A1:${MAX_COL}1` });
   return (res.data.values || [[]])[0] || [];
@@ -64,7 +81,7 @@ async function getHeader(sheets, tab) {
 
 async function readTab(tab) {
   const sheets = await client();
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A1:${MAX_COL}1000` });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A1:${MAX_COL}${MAX_ROW}` });
   return rowsToObjects(res.data.values || []);
 }
 
@@ -84,7 +101,7 @@ async function readTabs(tabs) {
   const sheets = await client();
   const res = await sheets.spreadsheets.values.batchGet({
     spreadsheetId: SHEET_ID(),
-    ranges: tabs.map((tab) => `${tab}!A1:${MAX_COL}1000`),
+    ranges: tabs.map((tab) => `${tab}!A1:${MAX_COL}${MAX_ROW}`),
   });
   const result = {};
   (res.data.valueRanges || []).forEach((vr, i) => {
@@ -129,7 +146,7 @@ async function appendRows(tab, objs) {
 
 async function findRowNumber(sheets, tab, header, matchCol, matchValue) {
   const colIdx = header.indexOf(matchCol);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A2:${MAX_COL}1000` });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${tab}!A2:${MAX_COL}${MAX_ROW}` });
   const rows = res.data.values || [];
   const idx = rows.findIndex((r) => String(r[colIdx]) === String(matchValue));
   return idx === -1 ? -1 : idx + 2; // +1 for 1-based, +1 for header row
@@ -186,7 +203,7 @@ async function clearTab(tab) {
   const sheets = await client();
   await sheets.spreadsheets.values.clear({
     spreadsheetId: SHEET_ID(),
-    range: `${tab}!A2:${MAX_COL}100000`,
+    range: `${tab}!A2:${MAX_COL}${MAX_ROW}`,
   });
 }
 
@@ -236,7 +253,7 @@ async function getCellUsage() {
 async function pruneOldRows(tab, dateField, cutoffDate) {
   const sheets = await client();
   const header = await getHeader(sheets, tab);
-  const range = `${tab}!A2:${MAX_COL}100000`;
+  const range = `${tab}!A2:${MAX_COL}${MAX_ROW}00`;
   const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range });
   const rows = res.data.values || [];
   if (rows.length === 0) return { removedCount: 0, keptCount: 0 };
