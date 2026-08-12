@@ -2041,6 +2041,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <div style="text-align:right">
                       <div style="font-size:13px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace">{{ e.reading }}</div>
                       <div style="font-size:10px;color:#A89A88">{{ e.unit }}</div>
+                      <sc-if value="{{ e.monthlyLabel }}" hint-placeholder-val="{{ true }}">
+                        <div style="font-size:10px;color:#C1622D;margin-top:2px">{{ e.monthlyLabel }}</div>
+                      </sc-if>
                     </div>
                     <sc-if value="{{ e.hasPowerControl }}" hint-placeholder-val="{{ true }}">
                       <div onclick="{{ e.onToggle }}" style="font-size:10.5px;font-weight:600;padding:5px 9px;border-radius:5px;color:#fff;cursor:pointer;background:{{ e.powerBg }};min-width:52px;text-align:center">{{ e.powerLabel }}</div>
@@ -2073,6 +2076,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <div style="text-align:right">
                       <div style="font-size:13px;font-weight:700;color:#241812;font-family:'IBM Plex Mono',monospace">{{ w.reading }}</div>
                       <div style="font-size:10px;color:#A89A88">{{ w.unit }}</div>
+                      <sc-if value="{{ w.monthlyLabel }}" hint-placeholder-val="{{ true }}">
+                        <div style="font-size:10px;color:#2C6E8F;margin-top:2px">{{ w.monthlyLabel }}</div>
+                      </sc-if>
                     </div>
                   </div>
                 </sc-for>
@@ -8358,11 +8364,21 @@ class Component extends DCLogic {
     if (kind === 'water' && room.tuyaWaterDeviceId) {
       const live = this.state.tuyaLiveReadings[roomId];
       if (live && live.usage != null) {
+        // "ต้องเอาค่า sum ของเราไปคิดก่อนครับ เพราะยังไม่ได้เอา sum ของ
+        // ทูย่าไปคาลิเบท ส่วนค่าต่างกัน set new ต้องเท่ากับค่าเริ่มต้นของ
+        // สัญญาไปก่อนครับ" (2026-08-12) — ห้องที่ยังไม่คาลิเบรต สะสมดิบ
+        // (live.usage) ยังไม่รวมค่าชดเชยที่ Tuya เริ่มนับจาก 0 (ไม่ใช่จาก
+        // ค่าเริ่มต้นสัญญา) — ใช้ "ค่ารวม" (สะสม + SET NEW) แทนสะสมดิบเสมอ
+        // เป็นค่าตั้งต้นคำนวณหน่วยที่ใช้ (ตรงกับ equipSelWaterCombinedTotal
+        // ที่หน้า Set อุปกรณ์แสดงอยู่แล้ว) — ห้องที่คาลิเบรตแล้ว SET NEW
+        // ถูกล้างเป็น '' อัตโนมัติ (ดู calibrateWaterMeter) เลยลดเหลือแค่
+        // สะสมเฉยๆ พอดี ไม่กระทบห้องที่คาลิเบรตแล้วเลย
+        const currentLiters = live.usage + (Number(room.waterSetNewValue) || 0);
         // "ถ้าให้แสดงเป็นทศนิยม 2 ตำแหน่ง ทุกห้องครับ" (2026-08-12) —
         // เหตุผลเดียวกับฝั่งไฟด้านบน (ดู comment เต็มตรงนั้น) — สำคัญกว่า
         // สำหรับน้ำด้วยซ้ำ เพราะห้องที่ใช้น้ำน้อยในรอบสั้นๆ อาจมีหน่วยจริง
         // ต่ำกว่า 1 หน่วยได้ปกติ (เช่น 0.91) ปัดจำนวนเต็มจะคลาดเคลื่อนสูง
-        const { units: rawUnits, rolledOver } = this._waterRolloverUnits(live.usage, room);
+        const { units: rawUnits, rolledOver } = this._waterRolloverUnits(currentLiters, room);
         const units = Math.round(rawUnits * 100) / 100;
         const { charge, minApplied } = this._applyMinCharge(roomId, 'water', Math.round(units * this.roomRate(roomId, 'water')));
         return { units, charge, minApplied, rolledOver };
@@ -11768,10 +11784,16 @@ class Component extends DCLogic {
         const realDevice = s.tuyaDeviceList.find(dv => dv.id === r.tuyaElecDeviceId);
         const online = live ? live.online : false;
         const powerOn = live && live.switchOn != null ? live.switchOn : null;
+        // "ส่วนนี้ก็ต้องเอาการใช้รายเดือนไปแสดง" (2026-08-12) — เดิมโชว์แค่
+        // เลขมิเตอร์สะสมดิบ (live.energy) เฉยๆ เพิ่มหน่วยที่ใช้เดือนนี้
+        // (นับจากบิลก่อนหน้า) ต่อท้ายให้เห็นทั้งคู่ในแถวเดียว — ใช้
+        // deviceCharge() ตัวเดียวกับที่ออกบิลจริง ไม่ต้องคำนวณซ้ำเอง
+        const dc = this.deviceCharge(r.id, 'elec');
         return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: true,
           name: realDevice ? realDevice.name : r.tuyaElecDeviceId,
           onlineLabel: online ? 'ออนไลน์' : 'ออฟไลน์', onlineDot: online ? '#3B7A52' : '#B24336',
           reading: (live && live.energy != null) ? live.energy.toFixed(2) : '—', unit: 'kWh',
+          monthlyLabel: dc ? `${dc.units.toFixed(2)} หน่วย/เดือนนี้` : '',
           hasPowerControl: powerOn != null,
           powerOn, powerLabel: powerOn ? 'จ่ายไฟ' : 'ตัดไฟ',
           powerBg: powerOn ? '#3B7A52' : '#B24336', onToggle: () => this.toggleTuyaPower(r.id, powerOn),
@@ -11788,25 +11810,29 @@ class Component extends DCLogic {
         const live = s.tuyaLiveReadings[r.id];
         const online = live ? live.waterOnline : false;
         const battery = live && live.batteryPercent != null ? live.batteryPercent : null;
+        // "ส่วนนี้ก็ต้องเอาการใช้รายเดือนไปแสดง" (2026-08-12) — เหตุผล
+        // เดียวกับฝั่งไฟด้านบน (ดู comment เต็มตรงนั้น)
+        const dc = this.deviceCharge(r.id, 'water');
         return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: true,
           name: r.tuyaWaterDeviceId,
           onlineLabel: online ? 'ออนไลน์' : 'ออฟไลน์', onlineDot: online ? '#3B7A52' : '#B24336',
           reading: (live && live.usage != null) ? live.usage.toLocaleString('en-US') : '—', unit: 'ลิตร',
+          monthlyLabel: dc ? `${dc.units.toFixed(2)} หน่วย/เดือนนี้` : '',
           hasPowerControl: false,
           batteryLabel: battery != null ? '🔋 ' + battery.toFixed(0) + '%' : '' };
       }
       const d = s.tuyaDevices[r.id];
-      if (!d) return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: false, name: 'ยังไม่ตั้งค่า', onlineLabel: '—', onlineDot: '#C9B79E', reading: '—', unit: '', hasPowerControl: false, batteryLabel: '' };
+      if (!d) return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: false, name: 'ยังไม่ตั้งค่า', onlineLabel: '—', onlineDot: '#C9B79E', reading: '—', unit: '', monthlyLabel: '', hasPowerControl: false, batteryLabel: '' };
       if (kind === 'elec') {
         return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: true, name: d.elecName,
           onlineLabel: d.elecOnline ? 'ออนไลน์' : 'ออฟไลน์', onlineDot: d.elecOnline ? '#3B7A52' : '#B24336',
-          reading: Number(d.elecReading).toLocaleString('en-US'), unit: 'kWh',
+          reading: Number(d.elecReading).toLocaleString('en-US'), unit: 'kWh', monthlyLabel: '',
           hasPowerControl: false, powerOn: d.elecPower, powerLabel: d.elecPower ? 'จ่ายไฟ' : 'ตัดไฟ',
           powerBg: d.elecPower ? '#3B7A52' : '#B24336', onToggle: () => {}, batteryLabel: '' };
       }
       return { room: r.id, tenant: r.tenant || '(ว่าง)', configured: true, name: d.waterName,
         onlineLabel: d.waterOnline ? 'ออนไลน์' : 'ออฟไลน์', onlineDot: d.waterOnline ? '#3B7A52' : '#B24336',
-        reading: Number(d.waterReading).toLocaleString('en-US'), unit: 'ม³', hasPowerControl: false, batteryLabel: '' };
+        reading: Number(d.waterReading).toLocaleString('en-US'), unit: 'ม³', monthlyLabel: '', hasPowerControl: false, batteryLabel: '' };
     };
     const elecDeviceRows = occupiedRooms.map(r => buildDeviceRow(r, 'elec'));
     const waterDeviceRows = occupiedRooms.map(r => buildDeviceRow(r, 'water'));
