@@ -6895,6 +6895,14 @@ class Component extends DCLogic {
       // saying "ยืนยัน".
       this.speakClaudeText((data.message || 'บันทึกเรียบร้อยแล้ว') + ' ครับ');
       this.loadFromServer(); // most write actions touch rooms/invoices/expenses/maintenance — refresh so the rest of the UI reflects it
+      // "ไม่มีการเปลี่ยนแปลง" (2026-08-12) — คาลิเบรตน้ำผ่าน AI สำเร็จแล้ว
+      // (ตาม data.message) แต่หน้า Set อุปกรณ์ยังโชว์ "สะสม"/"ค่ารวม" เก่า
+      // ค้างอยู่ เพราะเลขพวกนี้มาจาก tuyaLiveReadings (ดึงจาก /api/tuya/
+      // status แยกต่างหาก ไม่ได้อยู่ใน /api/bootstrap ที่ loadFromServer
+      // ข้างบนโหลด) — ไม่รีเฟรชด้วยจะค้างจนกว่าจะกดปุ่ม "รีเฟรช" เองหรือ
+      // โหลดหน้าใหม่ ทำให้ดูเหมือนคาลิเบรต "ไม่มีการเปลี่ยนแปลง" ทั้งที่จริง
+      // บันทึกสำเร็จแล้ว (แค่ยังไม่ได้ไปดึงค่าล่าสุดมาแสดง)
+      this.refreshTuyaLive();
     } catch (err) {
       this.showAdminToast(err.message || 'ทำรายการไม่สำเร็จ');
       this.speakClaudeText('ขอโทษครับ ทำรายการไม่สำเร็จ ' + (err.message || ''));
