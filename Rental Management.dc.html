@@ -7017,8 +7017,15 @@ class Component extends DCLogic {
       // เคลียร์ช่อง SET NEW ในฟอร์มฝั่งนี้ให้ตรงกันทันที ไม่ต้องรอโหลด
       // หน้าใหม่ถึงจะเห็นว่าเคลียร์แล้ว
       this.setState(s => ({ waterCalibrateResult: data, waterCalibrateInput: '', tuyaForm: { ...s.tuyaForm, waterSetNewValue: '' } }));
+      // "ปรับแล้วก็ไม่ยอมอัปเดท" (2026-08-12) — เดิมเรียก refreshTuyaLive()
+      // แบบ fire-and-forget (ไม่ await) แล้วขึ้น toast "คาลิเบรตสำเร็จ"
+      // ทันที — GET /api/tuya/status ต้องดึงข้อมูลสดจากอุปกรณ์ไฟ+น้ำทุกห้อง
+      // ในตึกพร้อมกัน อาจใช้เวลาหลายวินาที เจ้าของเห็น toast "สำเร็จ" ก่อน
+      // ตัวเลข "สะสม/ค่ารวม" ในกล่องข้อมูลเรียลไทม์จะรีเฟรชจริง ดูเหมือน
+      // ค้างค่าเก่าทั้งที่จริงกำลังโหลดอยู่ — await ให้เสร็จก่อนแสดง toast
+      // แทน ผู้ใช้จะเห็นตัวเลขใหม่พร้อมกับ toast เป๊ะ ไม่มีช่วงคาบเกี่ยว
+      await this.refreshTuyaLive();
       this.showAdminToast('คาลิเบรตห้อง ' + id + ' เป็น ' + data.after + ' ลิตรแล้ว');
-      this.refreshTuyaLive();
     } catch (err) { this.showAdminToast(err.message || 'คาลิเบรตไม่สำเร็จ'); }
   });
   // "การกดตัดไฟจากส่วนนี้ต้องมีการกรอกรหัส pin เพื่อยืนยันก่อนทุกครั้ง
