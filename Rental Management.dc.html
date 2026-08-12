@@ -1938,6 +1938,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <input value="{{ tuyaForm.waterDeviceId }}" onchange="{{ onTuyaWaterDeviceId }}" placeholder="เช่น eb22f277jcxrhzmf" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   <div style="font-size:11.5px;color:#7C6E5F;margin-top:10px;margin-bottom:5px">ค่าสูงสุดก่อนมิเตอร์รีเซ็ต (ลิตร) · เว้นว่างได้ถ้าไม่ทราบ</div>
                   <input type="number" value="{{ tuyaForm.waterMaxLiters }}" onchange="{{ onTuyaWaterMaxLiters }}" placeholder="เช่น 10000 (ถ้าไม่ทราบ ปล่อยว่างไว้ได้)" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                  <!-- "เพิ่มอีก 1 ช่องครับ เป็น 'ค่า SET NEW' มันคือค่าที่
+                       ต้องเอาไปบวก ที่ทำให้ค่ารวมตรงกับ Tuya" (2026-08-12)
+                       — offset ที่บวกเข้าไปตอนแสดง "ค่ารวมของมิเตอร์"
+                       เท่านั้น ไม่แตะยอดสะสมที่ระบบติดตามเอง (usage) เลย
+                       คนละกลไกกับปุ่ม "คาลิเบรต" ด้านล่างที่เขียนทับยอด
+                       สะสมตรงๆ -->
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-top:10px;margin-bottom:5px">ค่า SET NEW (ค่าที่บวกเพิ่มให้ค่ารวมตรงกับ Tuya) · ลิตร</div>
+                  <input type="number" value="{{ tuyaForm.waterSetNewValue }}" onchange="{{ onTuyaWaterSetNewValue }}" placeholder="เช่น 2990" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                   <div style="margin-top:10px;padding:10px;border-radius:6px;background:#F0F6FA;border:1px solid #DCE9F0">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
                       <span style="font-size:11px;font-weight:700;color:#7C6E5F">ข้อมูลน้ำแบบเรียลไทม์</span>
@@ -1956,6 +1964,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                          ใช้ที่อื่นในอนาคต แค่ไม่โชว์ตรงนี้แล้ว) -->
                     <div style="display:flex;gap:14px;flex-wrap:wrap">
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#241812">{{ equipSelLiveWaterUsage }}</div><div style="font-size:10px;color:#A89A88">ลิตร (L) สะสม</div></div>
+                      <!-- "ค่ารวมมาจากผลรวมทั้งหมด กับ ค่า SET NEW"
+                           (2026-08-12) -->
+                      <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#2C6E8F">{{ equipSelWaterCombinedTotal }}</div><div style="font-size:10px;color:#A89A88">ลิตร (L) รวม (สะสม + SET NEW)</div></div>
                       <div><div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:{{ equipSelBatteryColor }}">🔋 {{ equipSelLiveBattery }}</div><div style="font-size:10px;color:#A89A88">แบตเตอรี่ (%)</div></div>
                     </div>
                   </div>
@@ -1977,7 +1988,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <div style="font-size:11px;color:#B24336;margin-top:8px">🚰 ห้องนี้กำลังใช้น้ำอยู่ตอนนี้ — รอให้หยุดใช้น้ำก่อนแล้วค่อยคาลิเบรต เพื่อไม่ให้ค่าที่บันทึกคลาดเคลื่อน</div>
                       </sc-if>
                       <sc-if value="{{ hasWaterCalibrateResult }}" hint-placeholder-val="{{ false }}">
-                        <div style="font-size:11px;color:#7C6E5F;margin-top:8px">ก่อนคาลิเบรต: {{ waterCalibrateBeforeLabel }} ลิตร → หลัง: {{ waterCalibrateAfterLabel }} ลิตร<br>ความแม่นยำก่อนคาลิเบรต: <strong>{{ waterCalibrateAccuracyLabel }}</strong></div>
+                        <div style="font-size:11px;color:#7C6E5F;margin-top:8px">ก่อนคาลิเบรต: {{ waterCalibrateBeforeLabel }} ลิตร → หลัง: {{ waterCalibrateAfterLabel }} ลิตร<br>ความคลาดเคลื่อน: <strong>{{ waterCalibrateDiffLabel }} ลิตร</strong> (ความแม่นยำก่อนคาลิเบรต: <strong>{{ waterCalibrateAccuracyLabel }}</strong>)</div>
                       </sc-if>
                     </div>
                   </sc-if>
@@ -5087,7 +5098,12 @@ class Component extends DCLogic {
     waterChartCanGoNext: false, elecChartCanGoNext: false,
     chartBarPopup: null,
     equipSelectedRoom: '101',
-    tuyaForm: { elecName: '', elecDeviceId: '', waterDeviceId: '', waterMaxLiters: '' },
+    // "เพิ่มอีก 1 ช่องครับ เป็น 'ค่า SET NEW' มันคือค่าที่ต้องเอาไปบวก ที่
+    // ทำให้ค่ารวมตรงกับ Tuya" (2026-08-12) — คนละกลไกกับปุ่ม "คาลิเบรต"
+    // เดิม (ซึ่งเขียนทับยอดสะสมที่ระบบติดตามอยู่ตรงๆ) — ค่านี้เป็น offset
+    // แก้ไขที่บวกเพิ่มเข้าไปตอนแสดงผล "ค่ารวมของมิเตอร์" เท่านั้น ไม่แตะ
+    // ยอดสะสมที่ระบบติดตามเองเลย (ดู equipSelWaterCombinedTotal)
+    tuyaForm: { elecName: '', elecDeviceId: '', waterDeviceId: '', waterMaxLiters: '', waterSetNewValue: '' },
     waterCalibrateInput: '',
     waterCalibrateResult: null,
     equipDeviceTab: 'elec',
@@ -6887,7 +6903,7 @@ class Component extends DCLogic {
   selectEquipRoom = (id) => {
     const d = this.state.tuyaDevices[id] || {};
     const room = this.state.rooms.find(r => r.id === id) || {};
-    this.setState({ equipSelectedRoom: id, tuyaForm: { elecName: d.elecName || '', elecDeviceId: room.tuyaElecDeviceId || '', waterDeviceId: room.tuyaWaterDeviceId || '', waterMaxLiters: room.tuyaWaterMaxLiters || '' }, waterCalibrateInput: '', waterCalibrateResult: null });
+    this.setState({ equipSelectedRoom: id, tuyaForm: { elecName: d.elecName || '', elecDeviceId: room.tuyaElecDeviceId || '', waterDeviceId: room.tuyaWaterDeviceId || '', waterMaxLiters: room.tuyaWaterMaxLiters || '', waterSetNewValue: room.waterSetNewValue || '' }, waterCalibrateInput: '', waterCalibrateResult: null });
   };
   onEquipRoomSelectChange = (e) => this.selectEquipRoom(e.target.value);
   setEquipTab = (tab) => this.setState({ equipDeviceTab: tab });
@@ -6900,6 +6916,8 @@ class Component extends DCLogic {
   // accurate usage across a rollover instead of losing that period's usage
   // entirely (see deviceCharge()'s water branch for the actual math).
   onTuyaWaterMaxLiters = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, waterMaxLiters: e.target.value } }));
+  // "เพิ่มอีก 1 ช่องครับ เป็น 'ค่า SET NEW'" (2026-08-12)
+  onTuyaWaterSetNewValue = (e) => this.setState(s => ({ tuyaForm: { ...s.tuyaForm, waterSetNewValue: e.target.value } }));
   // Split from the old single saveTuyaDevice — เดิมกดปุ่มเดียวบันทึกทั้งน้ำ+ไฟพร้อมกัน
   // ทั้งที่จริงๆ เป็นข้อมูลคนละก้อน (ไฟ = tuyaElecDeviceId บันทึกลง Sheet จริง, น้ำ =
   // ยังเป็น mock ในเครื่องเท่านั้น) แยกปุ่ม/handler ตามชนิดอุปกรณ์ให้ชัดเจน
@@ -6940,7 +6958,7 @@ class Component extends DCLogic {
     try {
       const res = await fetch('/api/rooms/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tuyaWaterDeviceId: f.waterDeviceId, tuyaWaterMaxLiters: f.waterMaxLiters }),
+        body: JSON.stringify({ tuyaWaterDeviceId: f.waterDeviceId, tuyaWaterMaxLiters: f.waterMaxLiters, waterSetNewValue: f.waterSetNewValue }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
       const updatedRoom = await res.json();
@@ -11693,6 +11711,12 @@ class Component extends DCLogic {
     const waterCalibrateBeforeLabel = wcr ? wcr.before.toFixed(1) : '';
     const waterCalibrateAfterLabel = wcr ? wcr.after.toFixed(1) : '';
     const waterCalibrateAccuracyLabel = (wcr && wcr.accuracyPercent != null) ? (wcr.accuracyPercent + '%') : 'คำนวณไม่ได้';
+    // "การคาลิเบรต คือการปรับค่า อัปเดตค่าล่าสุดให้ตรง โดยบอกความคลาดเคลื่อน
+    // ระหว่างเรากับ Tuya ด้วย" (2026-08-12) — เดิมโชว์แค่ % ความแม่นยำ ยังไม่
+    // มีตัวเลขคลาดเคลื่อนตรงๆ (หน่วยลิตร) — เพิ่มบรรทัดนี้ให้เห็นชัดว่าต่าง
+    // กันกี่ลิตรจริงๆ ไม่ต้องมาคำนวณเอง (after - before เสมอ เพราะ after
+    // คือค่าจาก Tuya ที่แม่นยำกว่า/มากกว่า before ของเราซึ่งนับตกไปตลอด)
+    const waterCalibrateDiffLabel = wcr ? (wcr.after - wcr.before).toFixed(1) : '';
     const buildDeviceRow = (r, kind) => {
       if (kind === 'elec' && r.tuyaElecDeviceId) {
         const live = s.tuyaLiveReadings[r.id];
@@ -13097,6 +13121,7 @@ class Component extends DCLogic {
       equipSelTenant: equipSelRoom.tenant || '(ห้องว่าง)',
       equipSelConfigured: !!equipSelDevice,
       tuyaForm: s.tuyaForm, onTuyaElecDeviceId: this.onTuyaElecDeviceId, onTuyaWaterDeviceId: this.onTuyaWaterDeviceId, onTuyaWaterMaxLiters: this.onTuyaWaterMaxLiters,
+      onTuyaWaterSetNewValue: this.onTuyaWaterSetNewValue,
       onEquipRoomSelectChange: this.onEquipRoomSelectChange,
       setEquipTabElec: () => this.setEquipTab('elec'), setEquipTabWater: () => this.setEquipTab('water'),
       equipTabIsElec: s.equipDeviceTab === 'elec', equipTabIsWater: s.equipDeviceTab === 'water',
@@ -13117,6 +13142,14 @@ class Component extends DCLogic {
       // real /api/tuya/status merged response the same way the elec V/A/W
       // readout above already is (equipSelLiveVoltage etc.).
       equipSelLiveWaterUsage: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].usage != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].usage.toFixed(0) : '—',
+      // "เพิ่มส่วนที่แสดงค่ารวมของมิเตอร์แต่ละตัวเข้าไปด้วยครับ ค่ารวมมาจาก
+      // ผลรวมทั้งหมด กับ ค่า SET NEW" (2026-08-12) — ยอดที่ระบบติดตามเอง
+      // (usage) + offset ที่เจ้าของกรอกไว้ (waterSetNewValue) ให้ได้ยอดรวม
+      // ที่ควรจะตรงกับ Total Use ของ Tuya — ไม่กระทบยอดที่ระบบติดตามเองเลย
+      // (แค่บวกตอนแสดงผลจุดนี้จุดเดียว)
+      equipSelWaterCombinedTotal: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].usage != null)
+        ? (s.tuyaLiveReadings[s.equipSelectedRoom].usage + (Number(s.tuyaForm.waterSetNewValue) || 0)).toFixed(1)
+        : '—',
       equipSelLiveFlowRate: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].flowRate != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].flowRate.toFixed(1) : '—',
       equipSelLiveBattery: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent != null) ? s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent.toFixed(0) + '%' : '—',
       equipSelBatteryColor: (s.tuyaLiveReadings[s.equipSelectedRoom] && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent != null && s.tuyaLiveReadings[s.equipSelectedRoom].batteryPercent <= 20) ? '#B24336' : '#241812',
@@ -13126,7 +13159,7 @@ class Component extends DCLogic {
       waterCalibrateInput: s.waterCalibrateInput, onWaterCalibrateInput: this.onWaterCalibrateInput,
       calibrateWaterDevice: waterCurrentlyFlowing ? null : this.calibrateWaterDevice,
       waterCurrentlyFlowing, waterCalibrateBtnBg: waterCurrentlyFlowing ? '#D8C9B4' : '#C1622D', waterCalibrateBtnCursor: waterCurrentlyFlowing ? 'not-allowed' : 'pointer',
-      hasWaterCalibrateResult, waterCalibrateBeforeLabel, waterCalibrateAfterLabel, waterCalibrateAccuracyLabel,
+      hasWaterCalibrateResult, waterCalibrateBeforeLabel, waterCalibrateAfterLabel, waterCalibrateAccuracyLabel, waterCalibrateDiffLabel,
       // "เช็คให้หน่อยทำไมอุปกรณ์น้ำไม่เชื่อมต่อ" (2026-07-23) — โชว์ข้อความ
       // error ตัวจริงจาก Tuya (routes/tuya.js's GET /status ส่ง waterError
       // มาให้อยู่แล้ว แค่ไม่เคยถูกอ่านมาโชว์เลย)
