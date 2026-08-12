@@ -15,9 +15,14 @@
 const fs = require('fs');
 const path = require('path');
 const { readTab, appendRow, updateRow, deleteRow } = require('./sheets');
-const { coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coercePaymentLog, coerceUnmatchedSlips, readSettings } = require('./coerce');
+const { coerceRooms, coerceInvoices, coerceMaintenance, coerceExpenses, coerceCalendar, coercePaymentLog, coerceUnmatchedSlips, readSettings, readIntegrationCredentials } = require('./coerce');
 const { pushMessage, isConfigured: lineConfigured } = require('./line');
 const { generateInvoicePdf } = require('./pdf');
+// "มาดูส่วนนี้การคาลิเบรตค่าน้ำจะเพิ่มการทำงานของ AI ให้สามารถกรอกค่าน้ำ
+// และค่าคาลิเบรตค่าน้ำแทนได้" (2026-08-12) — ใช้ฟังก์ชันเดียวกับปุ่ม
+// "คาลิเบรต" บนหน้า "Set อุปกรณ์" (server/routes/tuya.js) ไม่เขียน logic
+// คาลิเบรต/safety-check ซ้ำที่นี่
+const { calibrateWaterMeter } = require('./routes/tuya');
 
 const INVOICE_PDF_DIR = path.join(__dirname, 'uploads', 'invoices');
 fs.mkdirSync(INVOICE_PDF_DIR, { recursive: true });
@@ -297,6 +302,34 @@ const TOOLS = [
     },
   },
   {
+    // "มาดูส่วนนี้การคาลิเบรตค่าน้ำจะเพิ่มการทำงานของ AI ให้สามารถกรอกค่า
+    // น้ำ และค่าคาลิเบรตค่าน้ำแทนได้...ข้อมูลที่เข้าไปให้คาลิเบรตอาจมี
+    // มากกว่า 1 ห้องก็ได้" (2026-08-12) — เหมือนปุ่ม "🎯 คาลิเบรตมิเตอร์น้ำ"
+    // บนหน้า "Set อุปกรณ์" ทุกประการ (ใช้ฟังก์ชันร่วมกันจริง ไม่ใช่แค่หน้าตา
+    // คล้ายกัน) แค่ทำได้หลายห้องพร้อมกันในคำสั่งเดียว — array เดียว ยืนยัน
+    // popup เดียวครอบทุกห้อง (ตามที่คุณต้นยืนยันไว้)
+    name: 'calibrate_water_meters',
+    description: 'คาลิเบรตยอดสะสมมิเตอร์น้ำ (Tuya) ของห้องหนึ่งห้องขึ้นไป ให้ตรงกับค่า "Total Use" ที่เจ้าของอ่านจากแอป Tuya บนมือถือเอง (หน่วยลิตร) — ใช้เมื่อผู้ใช้บอกตัวเลขจริงจากแอปมาให้ปรับ เช่น "คาลิเบรตน้ำห้อง 1 เป็น 1162.3, ห้อง 2 เป็น 980" รับได้ทีละหลายห้องในคำสั่งเดียว ต้องยืนยันก่อนทำจริงเสมอ (ระบบจะแสดงยอดก่อน→หลังของทุกห้องให้ดูก่อน) — ใช้ไม่ได้กับห้องที่ยังไม่ได้เชื่อมต่ออุปกรณ์น้ำ Tuya',
+    input_schema: {
+      type: 'object',
+      properties: {
+        calibrations: {
+          type: 'array',
+          description: 'รายการห้องที่จะคาลิเบรต อย่างน้อย 1 ห้อง',
+          items: {
+            type: 'object',
+            properties: {
+              roomId: { type: 'string', description: 'เลขห้อง' },
+              appLiters: { type: 'number', description: 'ค่า Total Use (ลิตร) จากแอป Tuya ที่ผู้ใช้บอกมา' },
+            },
+            required: ['roomId', 'appLiters'],
+          },
+        },
+      },
+      required: ['calibrations'],
+    },
+  },
+  {
     // ข้อยกเว้นถาวรเฉพาะจุด (2026-08-04, คุณต้นยืนยันชัดเจนแยกต่างหากจาก
     // "No code/server/credential access" — ดู CLAUDE.md's permanent rule
     // note เต็ม) — ส่งข้อความได้ทางเดียวเท่านั้น (write-only, ไม่มีทาง
@@ -480,6 +513,27 @@ async function describeWriteTool(name, input) {
       if (input.water != null) parts.push('น้ำ = ' + input.water);
       if (input.elec != null) parts.push('ไฟ = ' + input.elec);
       return `บันทึกเลขมิเตอร์ห้อง ${input.roomId}: ${parts.join(', ') || '(ไม่มีค่าที่จะบันทึก)'}`;
+    }
+    case 'calibrate_water_meters': {
+      // "ถ้าพิมพ์คำสั่งคาลิเบรตหลายห้องพร้อมกัน...เห็น popup ยืนยันเดียว
+      // ครอบทุกห้อง...โชว์ก่อนค่อยยืนยัน" (2026-08-12) — สรุป "ก่อน →
+      // หลัง" ของทุกห้องในคำสั่งเดียว ให้เจ้าของเห็นครบก่อนกดยืนยันจริง
+      // (อ่านอย่างเดียว ไม่เขียนอะไรตรงนี้ — executeWriteTool ค่อยเขียนจริง
+      // หลังยืนยัน) — ใช้ตรรกะ "before" เดียวกับ calibrateWaterMeter's own
+      // lookup (server/routes/tuya.js) แต่ไม่เรียกฟังก์ชันนั้นตรงๆ เพราะจะ
+      // เขียนจริงทันที (มี safety check เรื่องน้ำกำลังไหลด้วย เช็คตอน
+      // ยืนยันจริงพอ ไม่ต้องเช็คซ้ำสองรอบตอนแค่แสดงตัวอย่าง)
+      const waterLog = await readTab('WaterLog');
+      const lines = (input.calibrations || []).map((c) => {
+        const room = rooms.find((r) => r.id === c.roomId);
+        if (!room || !room.tuyaWaterDeviceId) return `ห้อง ${c.roomId}: ยังไม่ได้เชื่อมต่ออุปกรณ์น้ำ — จะข้ามห้องนี้`;
+        const roomRows = waterLog.filter((r) => r.room === c.roomId.toString()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        const before = roomRows[0] ? Number(roomRows[0].cumulativeLiters) || 0 : 0;
+        const appLiters = Number(c.appLiters) || 0;
+        const accuracy = appLiters > 0 ? Math.round((before / appLiters) * 1000) / 10 : null;
+        return `ห้อง ${c.roomId}: ${before.toLocaleString()} → ${appLiters.toLocaleString()} ลิตร${accuracy != null ? ` (ของเดิมแม่นยำ ${accuracy}%)` : ''}`;
+      });
+      return `คาลิเบรตมิเตอร์น้ำ ${(input.calibrations || []).length} ห้อง:\n` + lines.join('\n');
     }
     case 'add_calendar_event': {
       const dateStr = `${input.year}-${String(input.month).padStart(2, '0')}-${String(input.day).padStart(2, '0')}`;
@@ -700,6 +754,25 @@ async function executeWriteTool(name, input) {
       if (!Object.keys(patch).length) return { ok: true, message: 'ไม่มีค่าที่ต้องบันทึก' };
       await updateRow('Rooms', input.roomId, patch);
       return { ok: true, message: `บันทึกเลขมิเตอร์ห้อง ${input.roomId} แล้ว` };
+    }
+    case 'calibrate_water_meters': {
+      // "มาดูส่วนนี้การคาลิเบรตค่าน้ำจะเพิ่มการทำงานของ AI ให้สามารถกรอก
+      // ค่าน้ำ และค่าคาลิเบรตค่าน้ำแทนได้" (2026-08-12) — เขียนจริงทีละห้อง
+      // ผ่าน calibrateWaterMeter ตัวเดียวกับปุ่มบนหน้าเว็บ (รวม safety
+      // check "ห้ามคาลิเบรตขณะกำลังใช้น้ำอยู่" ด้วย) — ห้องไหนพังไม่ทำให้
+      // ทั้งชุดล้มเหลว (เช่น อาจมีห้องหนึ่งกำลังใช้น้ำอยู่พอดี) แจ้งผลรวม
+      // แยกทีละห้องกลับไปให้เจ้าของเห็นครบ
+      const creds = await readIntegrationCredentials();
+      const results = [];
+      for (const c of input.calibrations || []) {
+        try {
+          const r = await calibrateWaterMeter(c.roomId, c.appLiters, creds.tuya);
+          results.push(`✅ ห้อง ${c.roomId}: ${r.before.toLocaleString()} → ${r.after.toLocaleString()} ลิตร (ของเดิมแม่นยำ ${r.accuracyPercent}%)`);
+        } catch (err) {
+          results.push(`❌ ห้อง ${c.roomId}: ล้มเหลว — ${err.message}`);
+        }
+      }
+      return { ok: true, message: 'คาลิเบรตมิเตอร์น้ำเสร็จแล้ว:\n' + results.join('\n') };
     }
     case 'add_calendar_event': {
       const y = Number(input.year), m = Number(input.month), d = Number(input.day);

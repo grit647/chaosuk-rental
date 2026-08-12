@@ -506,57 +506,78 @@ router.post('/switch', async (req, res, next) => {
 // WaterLog เหมือน manual calibration ที่ทำไปก่อนหน้า (คงค่า watermark เดิม
 // ไว้ ไม่ให้รอบโพลถัดไปนับ event ซ้ำ/ข้าม) และคืนค่าความแม่นยำก่อนคาลิเบรต
 // (ค่าเว็บเดิม / ค่าแอปที่พิมพ์เข้ามา) ให้ frontend แสดงผลด้วย
+// "มาดูส่วนนี้การคาลิเบรตค่าน้ำจะเพิ่มการทำงานของ AI ให้สามารถกรอกค่าน้ำ
+// และค่าคาลิเบรตค่าน้ำแทนได้...ข้อมูลที่เข้าไปให้คาลิเบรตอาจมีมากกว่า 1
+// ห้องก็ได้" (2026-08-12) — เดิม logic นี้อยู่ในตัว route handler ตรงๆ
+// ดึงออกมาเป็นฟังก์ชันแยก (คงตรรกะ/ข้อความ error เดิมทุกจุด รวมถึง
+// safety check "ห้ามคาลิเบรตขณะกำลังใช้น้ำอยู่") ให้ทั้ง route นี้ (หน้าเว็บ)
+// และเครื่องมือใหม่ในกล่องคำสั่ง Claude (server/claudeTools.js's
+// calibrate_water_meters) เรียกใช้ร่วมกันได้ ไม่ต้อง copy โค้ดซ้ำ — export
+// ผ่าน router.calibrateWaterMeter เหมือน pattern เดียวกับ
+// pollAndLogUsageForScheduler ด้านบนในไฟล์นี้
+async function calibrateWaterMeter(roomId, appLiters, tuyaCreds) {
+  const parsedLiters = Number(appLiters);
+  if (!roomId || !Number.isFinite(parsedLiters) || parsedLiters < 0) {
+    throw new Error('ต้องระบุห้องและค่าลิตรจากแอป (ตัวเลขที่ถูกต้อง)');
+  }
+  const rooms = await readTab('Rooms');
+  const room = rooms.find((r) => r.id === roomId);
+  if (!room || !room.tuyaWaterDeviceId) {
+    throw new Error(`ห้อง ${roomId} ยังไม่ได้เชื่อมต่ออุปกรณ์น้ำ`);
+  }
+  // "ปุ่มคาริเบท ถ้าห้องยังใช้น้ำอยู่ ขึ้นไม่สามารถคาริเบทได้...ต้องเป็น
+  // ช่วงที่ไม่ใช้น้ำถึงจะตั้งค่าคาลิเบรตได้" (2026-07-26) — calibrating
+  // while water is actively flowing would capture the app's Total Use
+  // mid-session (before that session's own usage has even finished
+  // accumulating), guaranteeing a fresh mismatch the moment the tap turns
+  // off. Reuses the same live isFlowing signal (getWaterFlowActivity,
+  // 15-second pulse window) the dashboard already shows — blocked
+  // server-side (not just a disabled button) so a stale/cached frontend
+  // state can't slip a mid-session calibration through.
+  try {
+    const liveReading = await getWaterReading(room.tuyaWaterDeviceId, tuyaCreds);
+    if (liveReading.isFlowing) {
+      throw new Error(`ห้อง ${roomId} กำลังใช้น้ำอยู่ตอนนี้ครับ — รอให้หยุดใช้น้ำก่อนแล้วค่อยคาลิเบรต (เพื่อไม่ให้ค่าที่บันทึกคลาดเคลื่อนจากรอบที่ยังใช้อยู่)`);
+    }
+  } catch (err) {
+    if (err.message.includes('กำลังใช้น้ำอยู่')) throw err;
+    // เช็คสถานะไหลไม่ได้ (network hiccup ฯลฯ) — ไม่บล็อกการคาลิเบรต แค่
+    // แจ้ง log ไว้ (isFlowing null ก็ไม่ error ใน getWaterReading อยู่แล้ว
+    // แต่กันไว้เผื่อ getWaterReading เองล้มเหลวทั้งฟังก์ชัน)
+    console.error('[tuya] calibrate-water: live flow check failed, allowing calibration anyway', err.message);
+  }
+  const waterLog = await readTab('WaterLog');
+  const roomRows = waterLog.filter((r) => r.room === roomId.toString())
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  const latest = roomRows[0];
+  const beforeLiters = latest ? Number(latest.cumulativeLiters) || 0 : 0;
+  const watermark = latest ? latest.lastProcessedEventTimeMs : 0;
+  await appendRow('WaterLog', {
+    id: Date.now() + '-' + roomId + '-calibration',
+    timestamp: new Date().toISOString(),
+    room: roomId,
+    cumulativeLiters: parsedLiters,
+    lastProcessedEventTimeMs: watermark,
+    flowRate: 0,
+    batteryPercent: 100,
+  });
+  const accuracyPercent = parsedLiters > 0 ? Math.round((beforeLiters / parsedLiters) * 1000) / 10 : null;
+  return { before: beforeLiters, after: parsedLiters, accuracyPercent };
+}
+router.calibrateWaterMeter = calibrateWaterMeter;
+
 router.post('/calibrate-water', async (req, res, next) => {
   try {
     const { roomId, appLiters } = req.body;
-    const parsedLiters = Number(appLiters);
-    if (!roomId || !Number.isFinite(parsedLiters) || parsedLiters < 0) {
-      return res.status(400).json({ error: 'ต้องระบุห้องและค่าลิตรจากแอป (ตัวเลขที่ถูกต้อง)' });
-    }
-    const rooms = await readTab('Rooms');
-    const room = rooms.find((r) => r.id === roomId);
-    if (!room || !room.tuyaWaterDeviceId) {
-      return res.status(400).json({ error: `ห้อง ${roomId} ยังไม่ได้เชื่อมต่ออุปกรณ์น้ำ` });
-    }
-    // "ปุ่มคาริเบท ถ้าห้องยังใช้น้ำอยู่ ขึ้นไม่สามารถคาริเบทได้...ต้องเป็น
-    // ช่วงที่ไม่ใช้น้ำถึงจะตั้งค่าคาลิเบรตได้" (2026-07-26) — calibrating
-    // while water is actively flowing would capture the app's Total Use
-    // mid-session (before that session's own usage has even finished
-    // accumulating), guaranteeing a fresh mismatch the moment the tap turns
-    // off. Reuses the same live isFlowing signal (getWaterFlowActivity,
-    // 15-second pulse window) the dashboard already shows — blocked
-    // server-side (not just a disabled button) so a stale/cached frontend
-    // state can't slip a mid-session calibration through.
     const creds = await readIntegrationCredentials();
-    try {
-      const liveReading = await getWaterReading(room.tuyaWaterDeviceId, creds.tuya);
-      if (liveReading.isFlowing) {
-        return res.status(400).json({ error: `ห้อง ${roomId} กำลังใช้น้ำอยู่ตอนนี้ครับ — รอให้หยุดใช้น้ำก่อนแล้วค่อยคาลิเบรต (เพื่อไม่ให้ค่าที่บันทึกคลาดเคลื่อนจากรอบที่ยังใช้อยู่)` });
-      }
-    } catch (err) {
-      // เช็คสถานะไหลไม่ได้ (network hiccup ฯลฯ) — ไม่บล็อกการคาลิเบรต แค่
-      // แจ้ง log ไว้ (isFlowing null ก็ไม่ error ใน getWaterReading อยู่แล้ว
-      // แต่กันไว้เผื่อ getWaterReading เองล้มเหลวทั้งฟังก์ชัน)
-      console.error('[tuya] calibrate-water: live flow check failed, allowing calibration anyway', err.message);
+    const result = await calibrateWaterMeter(roomId, appLiters, creds.tuya);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    if (err.message.includes('ต้องระบุ') || err.message.includes('ยังไม่ได้เชื่อมต่อ') || err.message.includes('กำลังใช้น้ำอยู่')) {
+      return res.status(400).json({ error: err.message });
     }
-    const waterLog = await readTab('WaterLog');
-    const roomRows = waterLog.filter((r) => r.room === roomId.toString())
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    const latest = roomRows[0];
-    const beforeLiters = latest ? Number(latest.cumulativeLiters) || 0 : 0;
-    const watermark = latest ? latest.lastProcessedEventTimeMs : 0;
-    await appendRow('WaterLog', {
-      id: Date.now() + '-' + roomId + '-calibration',
-      timestamp: new Date().toISOString(),
-      room: roomId,
-      cumulativeLiters: parsedLiters,
-      lastProcessedEventTimeMs: watermark,
-      flowRate: 0,
-      batteryPercent: 100,
-    });
-    const accuracyPercent = parsedLiters > 0 ? Math.round((beforeLiters / parsedLiters) * 1000) / 10 : null;
-    res.json({ ok: true, before: beforeLiters, after: parsedLiters, accuracyPercent });
-  } catch (err) { next(err); }
+    next(err);
+  }
 });
 
 module.exports = router;
