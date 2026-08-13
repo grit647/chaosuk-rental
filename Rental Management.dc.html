@@ -500,6 +500,32 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     </div>
                   </div>
                 </sc-if>
+                <!-- "เอาข้อมูลจำนวนแถวที่ใช้ไปแสดงไว้...ตั้งไว้เท่าไหร่
+                     ใช้จริงไปเท่าไหร่ ระบุเป็น % ก็ได้" (2026-08-13) —
+                     follow-up to the WaterLog 1,000-row read-cap bug (ดู
+                     "Water meter calibration" note): แสดงจำนวนแถวที่ใช้ไป
+                     ต่อตาราง เทียบกับเพดานอ่านจริง (100,000 แถว) จะได้เห็น
+                     ล่วงหน้าถ้าตารางไหนเริ่มใกล้เต็ม ไม่ต้องรอเจอบั๊กแบบ
+                     WaterLog อีกรอบ -->
+                <sc-if value="{{ sheetRowUsageLoaded }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top:10px;padding-top:10px;border-top:1px solid #F0E9DC">
+                    <div style="font-size:11px;color:#7C6E5F;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+                      <span>แถวที่ใช้ต่อตาราง (เพดาน 100,000 แถว/ตาราง)</span>
+                      <sc-if value="{{ sheetRowUsageHasMore }}" hint-placeholder-val="{{ false }}">
+                        <span onclick="{{ toggleSheetRowUsageExpanded }}" style="cursor:pointer;color:#2C6E8F;font-weight:600;flex-shrink:0">{{ sheetRowUsageToggleLabel }}</span>
+                      </sc-if>
+                    </div>
+                    <sc-for list="{{ sheetRowUsageRows }}" as="r" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+                        <div style="flex:1;font-size:11px;color:#241812;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.tab }}</div>
+                        <div style="width:60px;height:6px;border-radius:3px;background:#EDE4D6;overflow:hidden;flex-shrink:0">
+                          <div style="height:100%;background:{{ r.color }};width:{{ r.barWidth }}"></div>
+                        </div>
+                        <div style="font-size:10px;color:#7C6E5F;flex-shrink:0;font-family:'IBM Plex Mono',monospace;white-space:nowrap">{{ r.display }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
               </div>
               <div class="split-col" style="flex:1;padding:12px 16px;border-radius:7px;background:#FFFFFF;border:1px solid #F0E9DC;box-sizing:border-box">
                 <div style="display:flex;align-items:center;justify-content:space-between">
@@ -5068,8 +5094,13 @@ class Component extends DCLogic {
     // "ใช้ไปกี่%...สูงสุด 10ล้านเซลล์" (2026-07-26) — Dashboard's Google
     // Sheet card usage gauge, loaded once from GET /api/settings/sheet-usage
     // (see loadSheetUsage), same lazy-load-on-mount pattern as lineUsage.
-    sheetUsage: { usedCells: 0, totalCells: 10000000, percent: 0, loaded: false },
+    sheetUsage: { usedCells: 0, totalCells: 10000000, percent: 0, loaded: false, rowUsage: [] },
     sheetEnvConnected: false,
+    // "เอาข้อมูลจำนวนแถวที่ใช้ไปแสดงไว้...ตั้งไว้เท่าไหร่ ใช้จริงไปเท่าไหร่
+    // ระบุเป็น %" (2026-08-13) — collapse/expand for the per-tab row-usage
+    // breakdown list below the cell-usage donut (see sheetUsage.rowUsage /
+    // getCellUsage in sheets.js). Only top 3 shown by default.
+    sheetRowUsageExpanded: false,
     // "เพิ่มอีก 1 ช่องทาง คือ หมายเลขบัญชี ชื่อบัญชี ธนาคาร...ส่งข้อมูลไป
     // พร้อมใบเสร็จ" (2026-07-26) — bankName/bankAccountNumber/
     // bankAccountName เป็นช่องทางโอนเงินสำรอง คู่กับ paymentQrUrl
@@ -10225,8 +10256,11 @@ class Component extends DCLogic {
       const res = await fetch('/api/settings/sheet-usage');
       if (!res.ok) return;
       const data = await res.json();
-      this.setState({ sheetUsage: { usedCells: data.usedCells || 0, totalCells: data.totalCells || 10000000, percent: data.percent || 0, loaded: true } });
+      this.setState({ sheetUsage: { usedCells: data.usedCells || 0, totalCells: data.totalCells || 10000000, percent: data.percent || 0, loaded: true, rowUsage: data.rowUsage || [] } });
     } catch (err) { console.error(err); }
+  };
+  toggleSheetRowUsageExpanded = () => {
+    this.setState({ sheetRowUsageExpanded: !this.state.sheetRowUsageExpanded });
   };
   // This now gates whether scheduled LINE sends (from the command box or
   // calendar reminders) are actually allowed to fire — persisted server-side
@@ -10896,6 +10930,25 @@ class Component extends DCLogic {
     const sheetUsageCircumference = 2 * Math.PI * sheetUsageR;
     const sheetUsageColor = sheetUsagePercent >= 90 ? '#B24336' : sheetUsagePercent >= 70 ? '#C1872E' : '#3B7A52';
     const sheetUsageDashArray = ((sheetUsagePercent / 100) * sheetUsageCircumference).toFixed(1) + ' ' + sheetUsageCircumference.toFixed(1);
+
+    // "เอาข้อมูลจำนวนแถวที่ใช้ไปแสดงไว้...ตั้งไว้เท่าไหร่ ใช้จริงไปเท่าไหร่
+    // ระบุเป็น %" (2026-08-13) — per-tab breakdown vs. sheets.js's MAX_ROW
+    // read-cap (100,000), sourced from the same GET /api/settings/sheet-usage
+    // call the cell-usage donut above already makes (rowUsage field, added
+    // to getCellUsage() — zero extra API cost). Sorted worst-first by the
+    // backend already; only top 3 shown unless expanded.
+    const sheetRowUsageAll = (s.sheetUsage.rowUsage || []).map((r) => {
+      const pct = Math.max(0, Math.min(100, r.percent || 0));
+      return {
+        tab: r.tab,
+        display: Math.round(r.rows || 0).toLocaleString('th-TH') + ' / ' + Math.round(r.maxRows || 0).toLocaleString('th-TH') + ' (' + pct.toFixed(1) + '%)',
+        barWidth: pct.toFixed(1) + '%',
+        color: pct >= 70 ? '#B24336' : pct >= 40 ? '#C1872E' : '#3B7A52',
+      };
+    });
+    const sheetRowUsageHasMore = sheetRowUsageAll.length > 3;
+    const sheetRowUsageRows = s.sheetRowUsageExpanded ? sheetRowUsageAll : sheetRowUsageAll.slice(0, 3);
+    const sheetRowUsageToggleLabel = s.sheetRowUsageExpanded ? 'ย่อ ▲' : ('ดูทั้งหมด (' + sheetRowUsageAll.length + ') ▼');
 
     // "1500 ห้องหายไป ต้องเอามาแสดงเป็นยอดชำระบางส่วนรวมไว้ด้วยครับ"
     // (2026-08-02) — เดิม "ชำระแล้ว" การ์ดนับเฉพาะบิล status==='paid'
@@ -12381,6 +12434,10 @@ class Component extends DCLogic {
       sheetUsageR, sheetUsageColor, sheetUsageDashArray,
       sheetUsagePercentDisplay: sheetUsagePercent.toFixed(1) + '%',
       sheetUsedCellsDisplay: Math.round(s.sheetUsage.usedCells || 0).toLocaleString('th-TH'),
+      // Per-tab row-usage breakdown (see sheetRowUsage* consts above).
+      sheetRowUsageLoaded: s.sheetUsage.loaded && sheetRowUsageAll.length > 0,
+      sheetRowUsageRows, sheetRowUsageHasMore, sheetRowUsageToggleLabel,
+      toggleSheetRowUsageExpanded: this.toggleSheetRowUsageExpanded,
       toggleAutoRefresh: this.toggleAutoRefresh,
       autoRefreshEnabled: s.autoRefreshEnabled, autoRefreshCountdown: s.autoRefreshCountdown,
       autoRefreshBg: s.autoRefreshEnabled ? '#C1622D' : '#E3D8C8',

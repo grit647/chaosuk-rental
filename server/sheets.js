@@ -222,7 +222,7 @@ async function getCellUsage() {
   const sheets = await client();
   const resp = await sheets.spreadsheets.get({
     spreadsheetId: SHEET_ID(),
-    fields: 'sheets.properties.gridProperties',
+    fields: 'sheets.properties.title,sheets.properties.gridProperties',
   });
   const list = resp.data.sheets || [];
   const usedCells = list.reduce((sum, sh) => {
@@ -231,7 +231,29 @@ async function getCellUsage() {
     return sum + (gp.rowCount || 0) * (gp.columnCount || 0);
   }, 0);
   const totalCells = 10000000;
-  return { usedCells, totalCells, percent: Math.min(100, (usedCells / totalCells) * 100) };
+  // "เอาข้อมูลจำนวนแถวที่ใช้ไปแสดงไว้...ตั้งไว้เท่าไหร่ ใช้จริงไปเท่าไหร่
+  // ระบุเป็น %" (2026-08-13) — direct follow-up to the WaterLog 1,000-row
+  // read-cap incident documented in the "Water meter calibration" note
+  // above (readTab/readTabs/findRowNumber were silently blind past row
+  // 1000 for months before anyone noticed). MAX_ROW=100000 is now the read
+  // cap everywhere, but nothing surfaced how close any tab actually is to
+  // THAT cap either — this closes that gap so it's visible going forward
+  // instead of waiting for another silent "data reverted" bug report.
+  // gridProperties.rowCount is the sheet's own allocated grid size (Google
+  // auto-expands it as rows get appended via appendRow/appendRows), a
+  // reliable proxy for "how many rows this tab has grown to" without an
+  // extra values.get read per tab — reuses the exact same spreadsheets.get
+  // call above (just adds sheets.properties.title to the fields mask), so
+  // this costs zero additional Google API requests.
+  const rowUsage = list
+    .map((sh) => {
+      const props = sh.properties || {};
+      const gp = props.gridProperties || {};
+      const rows = gp.rowCount || 0;
+      return { tab: props.title || '(ไม่มีชื่อ)', rows, maxRows: MAX_ROW, percent: Math.min(100, (rows / MAX_ROW) * 100) };
+    })
+    .sort((a, b) => b.percent - a.percent);
+  return { usedCells, totalCells, percent: Math.min(100, (usedCells / totalCells) * 100), rowUsage };
 }
 
 // "เก็บข้อมูลไว้สูงสุด 5 ปีเลยครับ" (2026-07-26) — retention cleanup for
