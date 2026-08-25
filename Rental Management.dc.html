@@ -11706,11 +11706,13 @@ class Component extends DCLogic {
         deviceColor: (isReal || dev) ? '#241812' : '#B0A08C',
         online: isReal ? !!(live && live.waterOnline) : (dev ? dev.waterOnline : false),
         onlineDot: isReal ? ((live && live.waterOnline) ? '#3B7A52' : '#B24336') : ((dev && dev.waterOnline) ? '#3B7A52' : '#B0A08C'),
-        // "ส่วนนี้แสดงทศนิยม 2 ตำแหน่งให้หน่อยครับ" (2026-08-12) — usage
-        // เป็นตัวเลขดิบ (0 แสดงเป็น "0" เฉยๆ ไม่ใช่ "0.00") ให้คงที่ 2
-        // ตำแหน่งทศนิยมเสมอ ตรงกับที่ deviceCharge() ปัดไว้แล้วตั้งแต่ต้น
-        // (แก้ทั้งหน้าน้ำและไฟให้เหมือนกัน กันเจอปัญหาเดียวกันซ้ำอีกฝั่ง)
-        usage: usage.toFixed(2), windowLabel: isReal ? 'สะสมตั้งแต่บิลล่าสุด' : (hrs + ' ชม.'), costDisplay: this.fmt(cost),
+        // "ปรับส่วนนี้ให้แสดงเป็นเลขจำนวนเต็มครับ ไม่มีจุดทศนิยม" (2026-08-13)
+        // — ย้อนกลับจากทศนิยม 2 ตำแหน่ง (2026-08-12) มาเป็นจำนวนเต็มแทน ตาม
+        // คำขอใหม่ นี่เป็นการปัด "แสดงผล" เท่านั้น — deviceCharge() เบื้องหลัง
+        // ยังคงคำนวณ/เก็บหน่วยเป็นทศนิยม 2 ตำแหน่งเหมือนเดิมทุกประการ (จำเป็น
+        // สำหรับความแม่นยำของยอดเงินจริง โดยเฉพาะห้องที่ใช้น้ำน้อยกว่า 1
+        // หน่วย) — แค่ตัวเลขที่โชว์ในตารางนี้ปัดเป็นจำนวนเต็มเพื่อความสะอาดตา
+        usage: String(Math.round(usage)), windowLabel: isReal ? 'สะสมตั้งแต่บิลล่าสุด' : (hrs + ' ชม.'), costDisplay: this.fmt(cost),
         batteryLabel: battery != null ? '🔋 ' + battery.toFixed(0) + '%' : '—',
         batteryColor: battery != null && battery <= 20 ? '#B24336' : '#241812',
         // "ส่วนนี้เรายังใช้อยู่ไหม...ถ้าไม่ใช่ ซ่อนไปเลย" (2026-07-26) —
@@ -11753,11 +11755,10 @@ class Component extends DCLogic {
         online: isReal ? (live ? live.online : false) : (dev ? dev.elecOnline : false),
         onlineDot: isReal ? ((live && live.online) ? '#3B7A52' : '#B0A08C') : ((dev && dev.elecOnline) ? '#3B7A52' : '#B0A08C'),
         liveLabel: (live && live.voltage != null) ? (live.voltage.toFixed(1) + 'V / ' + live.current.toFixed(2) + 'A') : '',
-        // "ส่วนนี้แสดงทศนิยม 2 ตำแหน่งให้หน่อยครับ" (2026-08-12) — usage
-        // เป็นตัวเลขดิบ (0 แสดงเป็น "0" เฉยๆ ไม่ใช่ "0.00") ให้คงที่ 2
-        // ตำแหน่งทศนิยมเสมอ ตรงกับที่ deviceCharge() ปัดไว้แล้วตั้งแต่ต้น
-        // (แก้ทั้งหน้าน้ำและไฟให้เหมือนกัน กันเจอปัญหาเดียวกันซ้ำอีกฝั่ง)
-        usage: usage.toFixed(2), windowLabel: isReal ? 'สะสมตั้งแต่บิลล่าสุด' : (hrs + ' ชม.'), costDisplay: this.fmt(cost),
+        // "ปรับส่วนนี้ให้แสดงเป็นเลขจำนวนเต็มครับ ไม่มีจุดทศนิยม" (2026-08-13)
+        // — เหตุผลเดียวกับฝั่งน้ำด้านบน (ดู comment เต็มตรงนั้น) — ปัดแค่
+        // "แสดงผล" เท่านั้น การคำนวณเงินจริงเบื้องหลังยังทศนิยม 2 ตำแหน่งเหมือนเดิม
+        usage: String(Math.round(usage)), windowLabel: isReal ? 'สะสมตั้งแต่บิลล่าสุด' : (hrs + ' ชม.'), costDisplay: this.fmt(cost),
         windowLabelOnly: isReal,
         windowChips: isReal ? [] : buildWindowChips(hrs, (h) => this.setElecWindow(r.id, h)),
       };
@@ -12873,9 +12874,13 @@ class Component extends DCLogic {
       // — เปลี่ยนให้ดึงจาก deviceCharge().units ตัวเดียวกับที่ใช้ออกบิลจริง
       // และตัวเดียวกับที่โชว์ใน "สถานะอุปกรณ์น้ำ" (X หน่วย/เดือนนี้) เลย
       // ไม่ต้องคำนวณแยกอีกจุด
+      // "ปรับส่วนนี้ให้แสดงเป็นเลขจำนวนเต็มครับ ไม่มีจุดทศนิยม รวมถึงส่วนที่
+      // แสดงการออกบิลด้วยครับ" (2026-08-13) — ปัด "แสดงผล" เป็นจำนวนเต็ม
+      // เท่านั้น (Math.round) ไม่กระทบ deviceCharge()'s internal ทศนิยม 2
+      // ตำแหน่ง ที่ยังใช้คำนวณเงินจริง (d.charge) เหมือนเดิมทุกประการ
       invWaterDeviceDisplay: (() => {
         const dc = this.deviceCharge(s.newInvoice.roomId, 'water');
-        return dc ? dc.units.toFixed(2) : '0';
+        return dc ? String(Math.round(dc.units)) : '0';
       })(),
       // "ตอนนี้แสดง 1281.46 ในช่อง ผิดแล้วครับ" (2026-08-12) — เหตุผลเดียว
       // กับ invWaterDeviceDisplay ที่แก้ไปก่อนหน้านี้ในเซสชันเดียวกัน: เดิม
@@ -12884,22 +12889,33 @@ class Component extends DCLogic {
       // เหมือนกัน
       invElecDeviceDisplay: (() => {
         const dc = this.deviceCharge(s.newInvoice.roomId, 'elec');
-        return dc ? dc.units.toFixed(2) : '0';
+        return dc ? String(Math.round(dc.units)) : '0';
       })(),
       // "กรณีน้ำต้องขึ้นว่า อัตราค่าบริการขั้นต่ำ...ลูกค้างง หาว่าคูณผิด"
       // (2026-08-01) — เช็ค d.minApplied เหมือนกับ waterUsageLabel/
       // elecUsageLabel ข้างบน (ในหน้าผู้เช่า) กันข้อความ "0 หน่วย × 15 =
       // 80" ที่ดูเหมือนคูณเลขผิดตอนออกบิลจริงด้วย
-      invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? (d.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${d.charge} บาท` : `${d.units} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'water')} = ${d.charge} บาท`) : 'อุปกรณ์ไม่พร้อม'; })(),
-      invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? (d.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${d.charge} บาท` : `${d.units} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'elec')} = ${d.charge} บาท`) : 'อุปกรณ์ไม่พร้อม'; })(),
+      //
+      // "ปรับส่วนนี้ให้แสดงเป็นเลขจำนวนเต็มครับ ไม่มีจุดทศนิยม" (2026-08-13)
+      // — ปัด d.units เป็นจำนวนเต็มก่อนโชว์ในประโยคนี้ด้วย (เหตุผลเดียวกับ
+      // ด้านบน) แต่ d.charge (ยอดเงินจริง) ยังคำนวณจากหน่วยทศนิยมแม่นยำ
+      // เหมือนเดิม — ใช้ "≈" แทน "=" เพื่อไม่ให้ดูเหมือนตัวเลขคูณกันผิด
+      // (105 หน่วย × 8 ไม่เท่ากับ 842 พอดีเป๊ะ เพราะหน่วยจริงถูกปัดจาก
+      // 105.31 ก่อนแสดง — ยอดเงิน 842 ยังถูกต้องเสมอ ไม่ใช่คูณเลขผิด)
+      invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? (d.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${d.charge} บาท` : `${Math.round(d.units)} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'water')} ≈ ${d.charge} บาท`) : 'อุปกรณ์ไม่พร้อม'; })(),
+      invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? (d.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${d.charge} บาท` : `${Math.round(d.units)} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'elec')} ≈ ${d.charge} บาท`) : 'อุปกรณ์ไม่พร้อม'; })(),
       // Per explicit user request: a simple always-visible reference line
       // (not a popup/history modal, which they found overlapped awkwardly)
       // showing the water/elec reading from this room's LAST bill —
       // room.waterPrev/elecPrev, the exact baseline every usage calc on
       // this page subtracts from — so the owner can eyeball-check a new
       // reading against it before submitting.
-      invWaterLastReading: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return r ? (r.waterPrev || 0) : '—'; })(),
-      invElecLastReading: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return r ? (r.elecPrev || 0) : '—'; })(),
+      // "ปรับส่วนนี้ให้แสดงเป็นเลขจำนวนเต็มครับ ไม่มีจุดทศนิยม รวมถึงส่วนที่
+      // แสดงการออกบิลด้วยครับ" (2026-08-13) — ปัดแสดงผลเป็นจำนวนเต็ม (ค่า
+      // waterPrev/elecPrev จริงที่เก็บไว้ในสัญญายังเป็นทศนิยมเหมือนเดิม
+      // ไม่กระทบการคำนวณ usage_this_cycle ใดๆ)
+      invWaterLastReading: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return r ? Math.round(r.waterPrev || 0) : '—'; })(),
+      invElecLastReading: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return r ? Math.round(r.elecPrev || 0) : '—'; })(),
       onNewInvoiceWaterUnitsChange: this.onNewInvoiceWaterUnitsChange, onNewInvoiceElecUnitsChange: this.onNewInvoiceElecUnitsChange,
       // Per explicit user request: a meter reading lower than the last
       // bill's reading is physically impossible for a real accumulating
