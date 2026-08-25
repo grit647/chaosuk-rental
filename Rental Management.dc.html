@@ -8420,17 +8420,15 @@ class Component extends DCLogic {
       // Real Tuya cumulative kWh reading replaces the manual meter entry when a device is linked.
       const live = this.state.tuyaLiveReadings[roomId];
       if (live && live.energy != null) {
-        // "ถ้าให้แสดงเป็นทศนิยม 2 ตำแหน่ง ทุกห้องครับ" (2026-08-12) —
-        // ย้อนกลับจากการปัดจำนวนเต็ม (2026-07-30) กลับมาเป็นทศนิยม 2
-        // ตำแหน่งแทน — สาเหตุ: ตอนที่ไล่แก้บั๊กมิเตอร์น้ำห้อง 4 (ดู
-        // _waterRolloverUnits's comment) เจอว่าการปัดจำนวนเต็มทำให้ห้องที่
-        // ใช้น้ำน้อยๆ ในรอบนั้น (เช่น 0.91 หน่วยจริง) ปัดเหลือ "0" หรือ "1"
-        // คลาดเคลื่อนมากเมื่อเทียบเป็นสัดส่วน (ต่างจากไฟที่ตัวเลขมักใหญ่กว่า
-        // ปัดจำนวนเต็มมีผลน้อยกว่า) — คำนวณค่าใช้จ่ายจากหน่วยทศนิยมตรงๆ
-        // (ไม่ปัดหน่วยเป็นจำนวนเต็มก่อนคูณเรทอีกต่อไป) แล้วปัดแค่ยอดเงิน
-        // สุดท้ายเป็นจำนวนเต็มบาท (เหมือนเดิม)
+        // "การคำนวณส่วนนี้เอาตัวเลขเต็มไปคำนวณครับ ไม่ต้องเอาทศนิยมไปคิดเลย
+        // ครับ 105×8=840 บาทเลยครับ" (2026-08-13) — ย้อนกลับจากทศนิยม 2
+        // ตำแหน่ง (2026-08-12, ดู comment เดิมที่แทนที่ตรงนี้) กลับมาปัด
+        // หน่วยเป็นจำนวนเต็มก่อนคูณเรทอีกครั้ง ตามคำขอใหม่ (ยืนยันแล้วว่า
+        // ให้ใช้ทั้งไฟฟ้าและน้ำ) — เดิมกลัวห้องใช้น้ำน้อยกว่า 1 หน่วยคลาด
+        // เคลื่อนสัดส่วนสูง แต่คุณต้นเลือกความง่าย/คาดเดาได้ของสูตร (105×8
+        // ต้องได้ 840 พอดีเป๊ะเสมอ) มากกว่าความละเอียดของหน่วยเศษ
         const rawUnits = Math.max(0, live.energy - Number(room.elecPrev || 0));
-        const units = Math.round(rawUnits * 100) / 100;
+        const units = Math.round(rawUnits);
         const { charge, minApplied } = this._applyMinCharge(roomId, 'elec', Math.round(units * this.roomRate(roomId, 'elec')));
         return { units, charge, minApplied };
       }
@@ -8456,26 +8454,27 @@ class Component extends DCLogic {
         // ถูกล้างเป็น '' อัตโนมัติ (ดู calibrateWaterMeter) เลยลดเหลือแค่
         // สะสมเฉยๆ พอดี ไม่กระทบห้องที่คาลิเบรตแล้วเลย
         const currentLiters = live.usage + (Number(room.waterSetNewValue) || 0);
-        // "ถ้าให้แสดงเป็นทศนิยม 2 ตำแหน่ง ทุกห้องครับ" (2026-08-12) —
-        // เหตุผลเดียวกับฝั่งไฟด้านบน (ดู comment เต็มตรงนั้น) — สำคัญกว่า
-        // สำหรับน้ำด้วยซ้ำ เพราะห้องที่ใช้น้ำน้อยในรอบสั้นๆ อาจมีหน่วยจริง
-        // ต่ำกว่า 1 หน่วยได้ปกติ (เช่น 0.91) ปัดจำนวนเต็มจะคลาดเคลื่อนสูง
+        // "การคำนวณส่วนนี้เอาตัวเลขเต็มไปคำนวณครับ ไม่ต้องเอาทศนิยมไปคิดเลย
+        // ครับ" (2026-08-13) — เหตุผลเดียวกับฝั่งไฟด้านบน (ดู comment เต็ม
+        // ตรงนั้น) ยืนยันแล้วว่าให้ปัดจำนวนเต็มทั้งน้ำด้วย แม้ห้องใช้น้ำน้อย
+        // กว่า 1 หน่วยจะปัดเหลือ 0 หน่วยก็ตาม (trade-off ที่คุณต้นรับทราบแล้ว)
         const { units: rawUnits, rolledOver } = this._waterRolloverUnits(currentLiters, room);
-        const units = Math.round(rawUnits * 100) / 100;
+        const units = Math.round(rawUnits);
         const { charge, minApplied } = this._applyMinCharge(roomId, 'water', Math.round(units * this.roomRate(roomId, 'water')));
         return { units, charge, minApplied, rolledOver };
       }
     }
     const dev = this.state.tuyaDevices[roomId];
     if (!dev) return null;
-    // "ถ้าให้แสดงเป็นทศนิยม 2 ตำแหน่ง ทุกห้องครับ" (2026-08-12) — ทศนิยม
-    // 2 ตำแหน่ง เหมือน 2 branch ด้านบน (เผื่อ path นี้ยังถูกเรียกใช้อยู่จริง)
+    // "การคำนวณส่วนนี้เอาตัวเลขเต็มไปคำนวณครับ ไม่ต้องเอาทศนิยมไปคิดเลยครับ"
+    // (2026-08-13) — ปัดจำนวนเต็มเหมือน 2 branch ด้านบน (เผื่อ path นี้ยัง
+    // ถูกเรียกใช้อยู่จริง)
     if (kind === 'water') {
-      const units = Math.round(Math.max(0, Number(dev.waterReading) - Number(room.waterPrev || 0)) * 100) / 100;
+      const units = Math.round(Math.max(0, Number(dev.waterReading) - Number(room.waterPrev || 0)));
       const { charge, minApplied } = this._applyMinCharge(roomId, 'water', Math.round(units * this.roomRate(roomId, 'water')));
       return { units, charge, minApplied };
     }
-    const units = Math.round(Math.max(0, Number(dev.elecReading) - Number(room.elecPrev || 0)) * 100) / 100;
+    const units = Math.round(Math.max(0, Number(dev.elecReading) - Number(room.elecPrev || 0)));
     const { charge, minApplied } = this._applyMinCharge(roomId, 'elec', Math.round(units * this.roomRate(roomId, 'elec')));
     return { units, charge, minApplied };
   }
@@ -12995,8 +12994,12 @@ class Component extends DCLogic {
       // เหมือนเดิม — ใช้ "≈" แทน "=" เพื่อไม่ให้ดูเหมือนตัวเลขคูณกันผิด
       // (105 หน่วย × 8 ไม่เท่ากับ 842 พอดีเป๊ะ เพราะหน่วยจริงถูกปัดจาก
       // 105.31 ก่อนแสดง — ยอดเงิน 842 ยังถูกต้องเสมอ ไม่ใช่คูณเลขผิด)
-      invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? (d.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${d.charge} บาท` : `${Math.round(d.units)} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'water')} ≈ ${d.charge} บาท`) : 'อุปกรณ์ไม่พร้อม'; })(),
-      invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? (d.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${d.charge} บาท` : `${Math.round(d.units)} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'elec')} ≈ ${d.charge} บาท`) : 'อุปกรณ์ไม่พร้อม'; })(),
+      // "105×8=840 บาทเลยครับ" (2026-08-13) — deviceCharge() เองปัด d.units
+      // เป็นจำนวนเต็มก่อนคูณเรทแล้วตั้งแต่ต้นตอนนี้ (ไม่ใช่แค่ปัดตอนแสดงผล
+      // เหมือนก่อนหน้า) การคูณในประโยคนี้จึงตรงกับ d.charge จริงเป๊ะเสมอแล้ว
+      // — เปลี่ยนกลับจาก "≈" เป็น "=" ตามเดิม
+      invWaterUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'water'); return d ? (d.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${d.charge} บาท` : `${d.units} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'water')} = ${d.charge} บาท`) : 'อุปกรณ์ไม่พร้อม'; })(),
+      invElecUnitsHint: (() => { const d = this.deviceCharge(s.newInvoice.roomId, 'elec'); return d ? (d.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${d.charge} บาท` : `${d.units} หน่วย × ${this.roomRate(s.newInvoice.roomId, 'elec')} = ${d.charge} บาท`) : 'อุปกรณ์ไม่พร้อม'; })(),
       // Per explicit user request: a simple always-visible reference line
       // (not a popup/history modal, which they found overlapped awkwardly)
       // showing the water/elec reading from this room's LAST bill —
