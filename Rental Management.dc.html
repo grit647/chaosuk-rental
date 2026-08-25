@@ -3807,6 +3807,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                             <div onclick="{{ q.onConfirmPartial }}" style="padding:9px;border-radius:6px;border:1.5px solid #C1872E;color:#B85B27;font-size:12px;font-weight:700;cursor:pointer;text-align:center">◐ ชำระบางส่วน (คงเหลือ {{ q.partialRemainingDisplay }})</div>
                             <div onclick="{{ q.onConfirmAsCredit }}" style="padding:9px;border-radius:6px;border:1.5px solid #7C6E5F;color:#7C6E5F;font-size:12px;font-weight:700;cursor:pointer;text-align:center">💰 บันทึกเป็นเงินล่วงหน้าแทน</div>
                           </sc-if>
+                          <!-- "ตัดไฟ กับ ขอใช้ไฟชั่วคราว...ต้องเป็นยอดเต็ม
+                               ที่ค้างชำระเท่านั้น ถ้ายอดไม่ตรงกับยอดที่ค้าง
+                               จะไม่สามารถทำรายการได้" (2026-08-13) — ห้อง
+                               ที่กำลังตัดไฟ/ขอใช้ไฟชั่วคราวอยู่ และสลิปยัง
+                               ไม่ครบยอด ไม่มีปุ่มให้กดเลย -->
+                          <sc-if value="{{ q.cutoffPaymentBlocked }}" hint-placeholder-val="{{ false }}">
+                            <div style="padding:9px 10px;border-radius:6px;background:#FBE7E4;color:#B24336;font-size:11px;font-weight:600;text-align:center">🔌 ห้องนี้อยู่ระหว่างตัดไฟ/ขอใช้ไฟชั่วคราว — รับได้เฉพาะยอดเต็มจำนวนเท่านั้น กรุณาแก้ไขยอดสลิปหรือรอสลิปเพิ่มให้ครบยอดก่อนยืนยัน</div>
+                          </sc-if>
                         </div>
                       </sc-if>
                       <sc-if value="{{ q.amountsUnknown }}" hint-placeholder-val="{{ false }}">
@@ -8086,6 +8094,20 @@ class Component extends DCLogic {
     const cashAmount = Number(this.state.payConfirmCashAmount) || 0;
     if (!inv) return;
     if (cashAmount <= 0) { this.showAdminToast('กรุณากรอกจำนวนเงินสดที่รับมากกว่า 0'); return; }
+    // "ตัดไฟ กับ ขอใช้ไฟชั่วคราว...ต้องเป็นยอดเต็มที่ค้างชำระเท่านั้น ถ้า
+    // ยอดไม่ตรงกับยอดที่ค้าง จะไม่สามารถทำรายการได้" (2026-08-13) — เหตุผล
+    // เดียวกับ resolveSlip's เต็มจำนวน/บางส่วน/เงินล่วงหน้า — รับเงินสด
+    // บางส่วนก็ยังเข้าข่ายเดียวกัน (ไม่ใช่แค่สลิปโอนเงิน) ระหว่างห้องนี้
+    // กำลัง "🔌 ตัดไฟแล้ว"/"⚡ ขอใช้ไฟชั่วคราว" อยู่ — gate ด้วย
+    // cfEnforceCutoffFullPayment() (v8) เหมือนกัน
+    if (this.cfEnforceCutoffFullPayment() && this.isRoomCutoffActive(inv.room)) {
+      const totalCheck = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
+      const remainingCheck = Math.max(0, totalCheck - (inv.amountPaid || 0));
+      if (cashAmount + 0.5 < remainingCheck) {
+        this.showAdminToast('ห้องนี้อยู่ระหว่างตัดไฟ/ขอใช้ไฟชั่วคราว — รับได้เฉพาะยอดเต็มจำนวนเท่านั้น (' + this.fmt(remainingCheck) + ')');
+        return;
+      }
+    }
     this.setState({ slipActionLoading: true });
     try {
       const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
@@ -8213,6 +8235,26 @@ class Component extends DCLogic {
   // จะได้สอดคล้องกันเสมอสำหรับตึกเดียวกัน
   cfShowCutoffStatusTiers() {
     return !!(this.state.authSession && this.state.authSession.platformVersion >= 7);
+  }
+  // "ตัดไฟ กับ ขอใช้ไฟชั่วคราว...ต้องเป็นยอดเต็มที่ค้างชำระเท่านั้น ถ้ายอด
+  // ไม่ตรงกับยอดที่ค้าง จะไม่สามารถทำรายการได้" (2026-08-13) — staged-
+  // rollout gate, see platformVersion.js's v8 note. คู่กับ
+  // server/routes/scheduler.js's POST_CUTOFF_REMINDER_VERSION (ค่าเดียวกัน
+  // = 8) ที่คุมข้อความเตือนผู้เช่าวันละครั้งฝั่งเซิร์ฟเวอร์
+  cfEnforceCutoffFullPayment() {
+    return !!(this.state.authSession && this.state.authSession.platformVersion >= 8);
+  }
+  // ห้องนี้อยู่ระหว่าง "🔌 ตัดไฟแล้ว" หรือ "⚡ ขอใช้ไฟชั่วคราว" อยู่หรือไม่ —
+  // นิยามเดียวกับที่ใช้โชว์ 2 ป้ายนี้ทุกประการ (elecCutoffAt ถูกตั้งค่าไว้)
+  // ปลอดภัยที่จะเช็คแค่ elecCutoffAt เฉยๆ ตรงนี้ (ไม่ต้องเทียบกับ
+  // elecRestoredAt ด้วย) เพราะฟังก์ชันนี้ถูกเรียกใช้เฉพาะกับบิลที่ยังไม่
+  // paid เท่านั้น (ห้องหนึ่งมีบิลค้างได้แค่ 1 ใบเสมอ และ elecCutoffAt/
+  // elecRestoredAt ถูกล้างกลับว่างทุกครั้งที่ออกบิลใหม่ — ดู
+  // server/routes/invoices.js's POST /) จึงมั่นใจได้ว่า elecCutoffAt ที่
+  // เจอ ณ ตอนนี้เป็นของรอบบิลปัจจุบันเสมอ ไม่ใช่ข้อมูลค้างจากรอบก่อน
+  isRoomCutoffActive(roomId) {
+    const room = this.state.rooms.find(r => r.id === roomId);
+    return !!(room && room.elecCutoffAt);
   }
   // Per explicit user request: minimum monthly charge (ค่าดูแลมิเตอร์) —
   // always per-room, no property-wide fallback (unlike roomRate above; "no
@@ -8738,6 +8780,23 @@ class Component extends DCLogic {
   // (opened from a Bills-table badge) and the "ยืนยันทั้งหมด" bulk queue below.
   confirmSlipPaidFor = async (id) => {
     try {
+      // "ตัดไฟ กับ ขอใช้ไฟชั่วคราว...ต้องเป็นยอดเต็มที่ค้างชำระเท่านั้น ถ้า
+      // ยอดไม่ตรงกับยอดที่ค้าง จะไม่สามารถทำรายการได้" (2026-08-13) — เดิม
+      // path นี้ (ทั้งปุ่มเดี่ยวและ "ยืนยันทั้งหมด" bulk) ไม่เคยเช็คยอดเลย
+      // (markInvoicePaid บังคับ amountPaid = total เสมอ ไม่สนใจ slipsTotal
+      // จริง) — เพิ่มเช็คนี้กันห้องที่กำลังตัดไฟ/ขอใช้ไฟชั่วคราวอยู่ถูก
+      // ปิดยอดเต็มทั้งที่สลิปที่ส่งมาจริงยังไม่ครบ (ข้าม ไม่ mark paid ถ้า
+      // เข้าเงื่อนไขนี้ — ผู้ใช้ต้องไปแก้ไขยอด/รอสลิปเพิ่มก่อน)
+      const inv = this.state.invoices.find(i => i.id === id);
+      if (inv && this.cfEnforceCutoffFullPayment() && this.isRoomCutoffActive(inv.room)) {
+        const totalCheck = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
+        const remainingCheck = Math.max(0, totalCheck - (inv.amountPaid || 0));
+        const combinedCheck = inv.slipsTotal || 0;
+        if (combinedCheck + 0.5 < remainingCheck) {
+          this.showAdminToast(`ห้อง ${inv.room} อยู่ระหว่างตัดไฟ/ขอใช้ไฟชั่วคราว — ยอดสลิปยังไม่ครบ ข้ามรายการนี้ไป`);
+          return;
+        }
+      }
       await this.markInvoicePaid(id);
       // Clear slipsJson too, not just the flag — otherwise a future slip
       // that happens to amount-match this same (now paid) invoice id again
@@ -8801,6 +8860,27 @@ class Component extends DCLogic {
   resolveSlip = (id, mode, newDue) => this._guard('resolveSlip:' + id, async () => {
     const inv = this.state.invoices.find(i => i.id === id);
     if (!inv) return;
+    // "ตัดไฟ กับ ขอใช้ไฟชั่วคราว...ต้องเป็นยอดเต็มที่ค้างชำระเท่านั้น ถ้า
+    // ยอดไม่ตรงกับยอดที่ค้าง จะไม่สามารถทำรายการได้" (2026-08-13) — defense
+    // in depth: billSlipQueueItems (renderVals) already hides the
+    // บางส่วน/เงินล่วงหน้า buttons for a cutoff-active room, but this
+    // function is where money actually gets written, so the same rule is
+    // enforced here too (not just via a hidden button) in case it's ever
+    // reached another way. Gated behind cfEnforceCutoffFullPayment() (v8) —
+    // a building that hasn't opted in keeps the old always-allowed behavior.
+    if (this.cfEnforceCutoffFullPayment() && this.isRoomCutoffActive(inv.room)) {
+      if (mode !== 'full') {
+        this.showAdminToast('ห้องนี้อยู่ระหว่างตัดไฟ/ขอใช้ไฟชั่วคราว — รับได้เฉพาะยอดเต็มจำนวนเท่านั้น');
+        return;
+      }
+      const totalCheck = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
+      const remainingCheck = Math.max(0, totalCheck - (inv.amountPaid || 0));
+      const combinedCheck = inv.slipsTotal || 0;
+      if (combinedCheck + 0.5 < remainingCheck) {
+        this.showAdminToast('ห้องนี้อยู่ระหว่างตัดไฟ/ขอใช้ไฟชั่วคราว — ยอดสลิปยังไม่ครบยอดที่ค้างชำระ ไม่สามารถยืนยันได้');
+        return;
+      }
+    }
     this.setState({ slipActionLoading: true });
     try {
       const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
@@ -11321,6 +11401,16 @@ class Component extends DCLogic {
       // updates and the buttons appear using the exact same calc.
       const cardsList = buildSlipCards(i);
       const amountsKnown = cardsList.every(c => !c.needsAmount);
+      // "ตัดไฟ กับ ขอใช้ไฟชั่วคราว...ให้ยังสามารถส่งสลิปมาได้ในระบบ แต่จะ
+      // ต้องเป็นยอดเต็มที่ค้างชำระเท่านั้น ถ้ายอดไม่ตรงกับยอดที่ค้าง จะไม่
+      // สามารถทำรายการได้" (2026-08-13) — ห้องที่กำลัง "🔌 ตัดไฟแล้ว"/"⚡
+      // ขอใช้ไฟชั่วคราว" อยู่ ซ่อนปุ่ม "ชำระบางส่วน"/"บันทึกเป็นเงินล่วงหน้า
+      // แทน" ทิ้งไปเลย (เหลือแค่ทางเลือกยอดเต็ม/เกิน ซึ่งยังปิดยอดได้จริง
+      // ครบ) — ยอดที่ยังไม่ครบ (isUnderpaid) จะไม่มีปุ่มให้กดเลย แสดง
+      // ข้อความอธิบายแทน (cutoffPaymentBlocked ด้านล่าง) resolveSlip() เอง
+      // ก็เช็คซ้ำอีกชั้น (defense in depth) ไม่ได้พึ่งแค่การซ่อนปุ่มนี้ฝั่ง
+      // เดียว — gate ด้วย cfEnforceCutoffFullPayment() (platformVersion >= 8)
+      const cutoffActiveForBtn = this.cfEnforceCutoffFullPayment() && this.isRoomCutoffActive(i.room);
       return {
         id: i.id, room: i.room, tenant: i.tenant,
         cardTitle: `ห้อง ${i.room} · ${i.tenant}`,
@@ -11336,9 +11426,12 @@ class Component extends DCLogic {
         // Exact match and overpayment both resolve to a single sensible
         // action (full-payment), so the full button only shows for those
         // two states now — not for underpayment, where it doesn't reflect
-        // what actually arrived. Partial/credit only show when underpaid.
+        // what actually arrived. Partial/credit only show when underpaid,
+        // AND only when the room isn't under an active cutoff/temp-power
+        // restriction (see comment above).
         showFullButton: amountMatches || isOverpaid,
-        showAllButtons: isUnderpaid,
+        showAllButtons: isUnderpaid && !cutoffActiveForBtn,
+        cutoffPaymentBlocked: isUnderpaid && cutoffActiveForBtn,
         overpayAmountDisplay: this.fmt(overpayAmount),
         confirmFullLabel: isOverpaid
           ? `✓ ชำระเต็มจำนวน (${this.fmt(remainingBefore)}) + เก็บส่วนเกิน ${this.fmt(overpayAmount)} เป็นเงินล่วงหน้า`

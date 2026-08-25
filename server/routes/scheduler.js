@@ -106,6 +106,16 @@ const RECEIPT_CONFIRM_VERSION = 6;
 // หรือแบบเดิม (===, แค่ 3 วันคงที่/เดือน) ไม่ใช่ทั้ง cutoffWarning feature
 const DAILY_CUTOFF_REMINDER_VERSION = 7;
 
+// "2 สถานะนี้ (ตัดไฟ/ขอใช้ไฟชั่วคราว) ยังไม่มีเงื่อนไขการส่งข้อความ...ให้มี
+// การส่งข้อความแจ้งไปยังผู้เช่า วันละ 1 ครั้ง จนกว่าจะไปเจอเงื่อนไขใหม่"
+// (2026-08-13) — เหมือน RECEIPT_CONFIRM_VERSION/DAILY_CUTOFF_REMINDER_VERSION
+// ข้างบนเป๊ะ (ค่าคงที่ ไม่อ้างอิง CURRENT_PLATFORM_VERSION แบบ live) — คุม
+// เฉพาะ block เตือนต่อเนื่องหลังตัดไฟ/ขอใช้ไฟชั่วคราวจริงแล้วด้านล่าง (คนละ
+// เรื่องกับ cutoffWarning ด้านบน ซึ่งเป็นการเตือน "ก่อน" ตัดไฟ) และคู่กับ
+// Rental Management.dc.html's cfEnforceCutoffFullPayment() (ค่าเดียวกัน = 8)
+// ที่คุมการบังคับให้ต้องชำระยอดเต็มเท่านั้นระหว่างสถานะนี้ฝั่งหน้าเว็บ
+const POST_CUTOFF_REMINDER_VERSION = 8;
+
 // testRoomId (2026-08-04) — เจ้าของขอไว้หลังเจอบั๊กแจ้งซ้ำ 2 รอบติดกัน:
 // "สร้างระบบรันห้องเดียวไว้ที่ห้อง 5" — ห้องที่เจ้าของคอยรีเช็คข้อความ OA
 // เป็นประจำอยู่แล้ว ใช้เป็นห้องทดสอบทุกครั้งที่แก้ scheduler.js ต่อไปในอนาคต
@@ -441,6 +451,53 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
     console.error('[scheduler] cutoff warning check failed', err.message);
   }
 
+  // "เช็ค 2 สถานะที่เราพึ่งทำ คือ ตัดไฟ กับ ขอใช้ไฟชั่วคราว...2 สถานะนี้ยัง
+  // ไม่มีเงื่อนไขการส่งข้อความ สร้างด้วยครับ ให้มีการส่งข้อความแจ้งไปยัง
+  // ผู้เช่า วันละ 1 ครั้ง จนกว่าจะไปเจอเงื่อนไขใหม่" (2026-08-13) — คนละ
+  // เรื่องกับ cutoffWarning ด้านบน (ซึ่งเตือน "ก่อน" ตัดไฟจริง ตามวันที่ตั้ง
+  // ไว้ reminderDay/finalDay) — บล็อกนี้เตือน "หลัง" ตัดไฟ/ขอใช้ไฟชั่วคราว
+  // เกิดขึ้นจริงแล้ว (room.elecCutoffAt ถูกตั้งค่าจริง จาก "Set อุปกรณ์"
+  // หรือปุ่ม "ยืนยันตัดไฟ" ที่ส่งให้เจ้าของ) — ต่อเนื่องไปทุกวันจนกว่าบิลนั้น
+  // จะถูกปิด (paid) ซึ่งเมื่อออกบิลใหม่รอบถัดไป elecCutoffAt/elecRestoredAt
+  // จะถูกล้างกลับว่างเอง (ดู server/routes/invoices.js's POST /) — เงื่อนไข
+  // "unpaid" ที่กรองไว้ด้านล่างจึงเป็นตัวหยุดลูปนี้ให้เองอัตโนมัติแล้ว ไม่
+  // ต้องเช็คแยก ส่งหาผู้เช่าเท่านั้น (ไม่ส่งเจ้าของ — เจ้าของเป็นคนสั่ง
+  // ตัดไฟ/อนุญาตใช้ไฟชั่วคราวเองอยู่แล้ว รู้สถานะนี้อยู่แล้ว) เปรียบเทียบ 2
+  // timestamp (elecCutoffAt/elecRestoredAt) วิธีเดียวกับ Rental Management.
+  // dc.html's elecCurrentlyOff/elecTempPowerGrant เป๊ะ — ให้ป้ายบนเว็บกับ
+  // ข้อความที่ส่งจริงตรงกันเสมอ
+  let postCutoffChecked = 0, postCutoffNotified = 0;
+  try {
+    if (platformVersion >= POST_CUTOFF_REMINDER_VERSION) {
+      const invoices = invoicesAll;
+      const rooms = roomsAll;
+      const unpaidWithCutoff = invoices.filter((i) => {
+        if (i.status === 'paid') return false;
+        const room = rooms.find((r) => r.id === i.room);
+        return !!(room && room.elecCutoffAt);
+      });
+      postCutoffChecked = unpaidWithCutoff.length;
+      const postCutoffCreds = sharedCreds;
+      for (const inv of unpaidWithCutoff) {
+        const room = rooms.find((r) => r.id === inv.room);
+        if (!room || !room.lineUserId) continue;
+        const total = inv.rent + inv.water + inv.elec + (inv.trash || 0) + (inv.internet || 0);
+        const remaining = inv.remainingDue != null ? inv.remainingDue : Math.max(0, total - (inv.amountPaid || 0));
+        const elecCurrentlyOff = !room.elecRestoredAt || room.elecRestoredAt < room.elecCutoffAt;
+        const key = `${sheetId}:postCutoff:${room.id}:${inv.id}`;
+        if (wasNotifiedToday(key)) continue;
+        const msg = elecCurrentlyOff
+          ? `🔌 ไฟห้องของท่านถูกงดจ่ายชั่วคราวเนื่องจากค้างชำระ ${remaining.toLocaleString()} บาท ครับ — กรุณาชำระยอดเต็มจำนวนแล้วแจ้งเจ้าของเพื่อเปิดไฟให้ครับ (ระบบรับได้เฉพาะยอดเต็มจำนวนเท่านั้นระหว่างสถานะนี้)`
+          : `⚡ ท่านได้รับการเปิดไฟให้ใช้ชั่วคราวแล้ว แต่ยังค้างชำระ ${remaining.toLocaleString()} บาท ครับ — กรุณาชำระยอดเต็มจำนวนโดยเร็ว มิฉะนั้นอาจถูกงดจ่ายไฟอีกครั้ง (ระบบรับได้เฉพาะยอดเต็มจำนวนเท่านั้นระหว่างสถานะนี้)`;
+        pushMessage(room.lineUserId, msg, undefined, postCutoffCreds.line).catch((err) => console.error('[scheduler] post-cutoff reminder push failed', err.message));
+        markNotifiedToday(key);
+        postCutoffNotified++;
+      }
+    }
+  } catch (err) {
+    console.error('[scheduler] post-cutoff reminder check failed', err.message);
+  }
+
   // "เจอ 'เตือนก่อนครบกำหนด 3 วัน' ในหน้าตั้งค่าอยู่แล้ว แต่...ไม่เคยส่ง
   // ข้อความจริงเลย...ทำให้ทำงานจริง" (2026-07-26) — daily reminders for
   // the last dueReminderDays days before EACH invoice's own due date
@@ -659,6 +716,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
       overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew },
       receiptConfirmation: { retried: receiptRetried, escalatedToOwner: receiptEscalated },
       cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified },
+      postCutoffReminders: { checked: postCutoffChecked, notified: postCutoffNotified },
       dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified },
       leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
       logPrune: logPruneResult, ownerRichMenu: ownerRichMenuResult,
@@ -724,6 +782,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
     overdueBills: { checked: overdueChecked, newlyOverdue: overdueNew },
     receiptConfirmation: { retried: receiptRetried, escalatedToOwner: receiptEscalated },
     cutoffWarnings: { checked: cutoffChecked, notified: cutoffNotified },
+    postCutoffReminders: { checked: postCutoffChecked, notified: postCutoffNotified },
     dueReminder: { checked: dueReminderChecked, notified: dueReminderNotified },
     leaseExpiring: { checked: leaseExpiringChecked, notified: leaseExpiringNotified },
     logPrune: logPruneResult,

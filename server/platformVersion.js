@@ -126,6 +126,24 @@
 // Gated behind `authSession.platformVersion >= 7` (render var
 // cfShowCutoffStatusTiers) — purely cosmetic/informational, but still a new
 // customer-facing element per the permanent staged-rollout rule.
-const CURRENT_PLATFORM_VERSION = 7;
+// v8 (2026-08-13): "เช็ค 2 สถานะที่เราพึ่งทำ คือ ตัดไฟ กับ ขอใช้ไฟชั่วคราว
+// ให้ยังสามารถส่งสลิปมาได้ในระบบ แต่จะต้องเป็นยอดเต็มที่ค้างชำระเท่านั้น
+// ถ้ายอดไม่ตรงกับยอดที่ค้าง จะไม่สามารถทำรายการได้...2 สถานะนี้ยังไม่มี
+// เงื่อนไขการส่งข้อความ สร้างด้วยครับ ให้มีการส่งข้อความแจ้งไปยังผู้เช่า
+// วันละ 1 ครั้ง จนกว่าจะไปเจอเงื่อนไขใหม่" — 2 changes, both BLOCKING/new
+// automated behavior for a room already in "🔌 ตัดไฟแล้ว"/"⚡ ขอใช้ไฟ
+// ชั่วคราว" status (same "no surprise changes" reasoning as v5/v6/v7):
+// (1) the "สลิปรอตรวจสอบ" queue's "ชำระบางส่วน"/"บันทึกเป็นเงินล่วงหน้า
+// แทน" buttons now HIDE for these rooms (only exact-full-amount or
+// overpay-with-auto-credit settlement allowed — resolveSlip() itself also
+// refuses server-independent of the UI, defense in depth). Gated behind
+// `authSession.platformVersion >= 8` (render var
+// cfEnforceCutoffFullPayment). (2) server/routes/scheduler.js now sends the
+// TENANT a daily reminder (once/day, NotifyLog-deduped like every other
+// daily notice here) for as long as their room stays in either status —
+// gated by a fixed local constant POST_CUTOFF_REMINDER_VERSION = 8 (same
+// "don't drift with future version bumps" reasoning as
+// DAILY_CUTOFF_REMINDER_VERSION/RECEIPT_CONFIRM_VERSION above).
+const CURRENT_PLATFORM_VERSION = 8;
 
 module.exports = { CURRENT_PLATFORM_VERSION };
