@@ -144,6 +144,38 @@
 // gated by a fixed local constant POST_CUTOFF_REMINDER_VERSION = 8 (same
 // "don't drift with future version bumps" reasoning as
 // DAILY_CUTOFF_REMINDER_VERSION/RECEIPT_CONFIRM_VERSION above).
-const CURRENT_PLATFORM_VERSION = 8;
+// v9 (2026-08-13): "จริงๆ ต้องกรอกหน่วยที่เอาไปคูณกับค่าบริการเลย เช่น
+// เดือนนี้ห้อง 1 ใช้น้ำ 5 หน่วย คูณด้วยอัตราค่าน้ำ...ซึ่งจะไม่เกี่ยวกับตัว
+// มิเตอร์ Tuya ของเรา เจ้าของจะเป็นคนคิดตัวเลขหน่วยเองครับ" — genuinely
+// BLOCKING change (same "no surprise changes" reasoning as v5): "กรอกเอง"
+// (manual) water/elec billing used to mean "type the CURRENT METER
+// READING, the system subtracts last bill's reading for you" — now means
+// "type the UNITS USED directly, no subtraction at all". Typing the exact
+// same number under the old vs new meaning produces a wildly different
+// bill amount (a real meter-reading number is usually far larger than a
+// small units-used number), so this cannot go live for an existing
+// building without an explicit opt-in. Gated behind
+// `authSession.platformVersion >= 9` (render var cfManualUnitsDirect) —
+// controls: (1) meterUnitsFromReading()'s own math (direct value vs
+// current−prev subtraction), (2) the manual-entry placeholder text
+// ("หน่วยที่ใช้เดือนนี้" vs "เลขมิเตอร์ปัจจุบัน"), (3) whether the
+// "เลขมิเตอร์บิลหลังสุด"/"เลขน้อยกว่าบิลก่อนหน้า" meter-reading-comparison
+// UI shows, vs the new "ค่าอุปกรณ์อ้างอิงล่าสุด" (device-only) reference
+// line, and (4) submitInvoice/submitBulkInvoice's baseline (waterPrev/
+// elecPrev) update logic — now always uses the DEVICE's own live reading
+// whenever a room has one linked, regardless of which mode billed THIS
+// cycle (previously only updated it when mode==='device', so billing
+// manually for one cycle then switching back to "อุปกรณ์" would silently
+// double-count everything accumulated during the manually-billed cycle —
+// a real bug found and fixed in the same change, per explicit request to
+// keep a device's own reading as a running reference even while billed
+// manually, "เป็นการเริ่มนับ 1 ใหม่" the next time device mode is used).
+// Also fixed a separate, always-applicable latent bug found along the way
+// (NOT gated — a pure bugfix, not a new behavior): the water baseline
+// formula never added waterSetNewValue (calibration compensation) before
+// storing, unlike deviceCharge()'s own real formula — silently threw an
+// uncalibrated room's next device-mode bill off by waterSetNewValue/1000
+// units every time a new baseline got saved.
+const CURRENT_PLATFORM_VERSION = 9;
 
 module.exports = { CURRENT_PLATFORM_VERSION };

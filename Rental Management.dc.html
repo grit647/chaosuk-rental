@@ -3912,7 +3912,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                             <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">📟 {{ b.waterDeviceHint }}</div>
                           </sc-if>
                           <sc-if value="{{ b.isWaterManual }}" hint-placeholder-val="{{ false }}">
-                            <input value="{{ b.waterUnits }}" onchange="{{ b.onWaterUnitsChange }}" placeholder="เลขมิเตอร์ปัจจุบัน" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                            <input value="{{ b.waterUnits }}" onchange="{{ b.onWaterUnitsChange }}" placeholder="{{ b.unitsPlaceholder }}" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                             <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">{{ b.waterManualHint }}</div>
                           </sc-if>
                         </div>
@@ -3931,7 +3931,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                             <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">📟 {{ b.elecDeviceHint }}</div>
                           </sc-if>
                           <sc-if value="{{ b.isElecManual }}" hint-placeholder-val="{{ false }}">
-                            <input value="{{ b.elecUnits }}" onchange="{{ b.onElecUnitsChange }}" placeholder="เลขมิเตอร์ปัจจุบัน" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                            <input value="{{ b.elecUnits }}" onchange="{{ b.onElecUnitsChange }}" placeholder="{{ b.unitsPlaceholder }}" style="width:100%;padding:7px;border-radius:5px;border:1px solid #E3D8C8;font-size:12px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                             <div style="font-size:9.5px;color:#A89A88;margin-top:3px;font-family:'IBM Plex Mono',monospace">{{ b.elecManualHint }}</div>
                           </sc-if>
                         </div>
@@ -4094,11 +4094,24 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">📟 {{ invWaterUnitsHint }}</div>
                     </sc-if>
                     <sc-if value="{{ invWaterIsManual }}" hint-placeholder-val="{{ false }}">
-                      <input value="{{ newInvoice.waterUnits }}" onchange="{{ onNewInvoiceWaterUnitsChange }}" placeholder="เลขมิเตอร์ปัจจุบัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                      <input value="{{ newInvoice.waterUnits }}" onchange="{{ onNewInvoiceWaterUnitsChange }}" placeholder="{{ manualUnitsPlaceholder }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                     </sc-if>
-                    <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">เลขมิเตอร์บิลหลังสุด: {{ invWaterLastReading }}</div>
-                    <sc-if value="{{ invWaterReadingTooLow }}" hint-placeholder-val="{{ false }}">
-                      <div style="font-size:10.5px;color:#B24336;font-weight:600;margin-top:4px">⚠️ ตรวจสอบใหม่ — เลขน้อยกว่าบิลก่อนหน้า</div>
+                    <!-- "จริงๆ ต้องกรอกหน่วยที่เอาไปคูณกับค่าบริการเลย...
+                         ไม่เกี่ยวกับตัวมิเตอร์ Tuya ของเรา" (2026-08-13,
+                         gated ด้วย manualUnitsDirectMode — ดู
+                         platformVersion.js's v9 note) — ตึกที่ยังไม่กด
+                         "🆕 อัปเดต" ถึง v9 ยังเห็นแบบเดิมทุกประการ
+                         (เลขมิเตอร์บิลหลังสุด + คำเตือนเลขน้อยกว่าเดิม) -->
+                    <sc-if value="{{ manualUnitsDirectMode }}" hint-placeholder-val="{{ false }}">
+                      <sc-if value="{{ invWaterHasDevice }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">ค่าอุปกรณ์อ้างอิงล่าสุด: {{ invWaterLastReading }}</div>
+                      </sc-if>
+                    </sc-if>
+                    <sc-if value="{{ manualUnitsLegacyMode }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">เลขมิเตอร์บิลหลังสุด: {{ invWaterLastReading }}</div>
+                      <sc-if value="{{ invWaterReadingTooLow }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:10.5px;color:#B24336;font-weight:600;margin-top:4px">⚠️ ตรวจสอบใหม่ — เลขน้อยกว่าบิลก่อนหน้า</div>
+                      </sc-if>
                     </sc-if>
                   </div>
                   <div style="flex:1">
@@ -4116,11 +4129,18 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <div style="font-size:10px;color:#A89A88;margin-top:4px;font-family:'IBM Plex Mono',monospace">📟 {{ invElecUnitsHint }}</div>
                     </sc-if>
                     <sc-if value="{{ invElecIsManual }}" hint-placeholder-val="{{ false }}">
-                      <input value="{{ newInvoice.elecUnits }}" onchange="{{ onNewInvoiceElecUnitsChange }}" placeholder="เลขมิเตอร์ปัจจุบัน" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
+                      <input value="{{ newInvoice.elecUnits }}" onchange="{{ onNewInvoiceElecUnitsChange }}" placeholder="{{ manualUnitsPlaceholder }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace">
                     </sc-if>
-                    <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">เลขมิเตอร์บิลหลังสุด: {{ invElecLastReading }}</div>
-                    <sc-if value="{{ invElecReadingTooLow }}" hint-placeholder-val="{{ false }}">
-                      <div style="font-size:10.5px;color:#B24336;font-weight:600;margin-top:4px">⚠️ ตรวจสอบใหม่ — เลขน้อยกว่าบิลก่อนหน้า</div>
+                    <sc-if value="{{ manualUnitsDirectMode }}" hint-placeholder-val="{{ false }}">
+                      <sc-if value="{{ invElecHasDevice }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">ค่าอุปกรณ์อ้างอิงล่าสุด: {{ invElecLastReading }}</div>
+                      </sc-if>
+                    </sc-if>
+                    <sc-if value="{{ manualUnitsLegacyMode }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10px;color:#9C8B78;margin-top:4px;font-family:'IBM Plex Mono',monospace">เลขมิเตอร์บิลหลังสุด: {{ invElecLastReading }}</div>
+                      <sc-if value="{{ invElecReadingTooLow }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:10.5px;color:#B24336;font-weight:600;margin-top:4px">⚠️ ตรวจสอบใหม่ — เลขน้อยกว่าบิลก่อนหน้า</div>
+                      </sc-if>
                     </sc-if>
                   </div>
                 </div>
@@ -7482,27 +7502,50 @@ class Component extends DCLogic {
             }).then(url => this._lineSend(roomId, url ? '' : creditDeductFallback, url || undefined)).catch(err => console.error(err));
           }
         }
-        // Same waterPrev/elecPrev baseline reset as submitInvoice — device
-        // mode uses the live Tuya reading, manual mode uses whatever
-        // current-reading number was entered for this room's row.
-        // "ถ้าให้แสดงเป็นทศนิยม 2 ตำแหน่ง ทุกห้องครับ" (2026-08-12) — เดิม
-        // ปัดเป็นจำนวนเต็มก่อนโอนยอด (2026-07-30) ตอนนี้เก็บทศนิยม 2 ตำแหน่ง
-        // แทน (Math.round(x*100)/100) ให้บิลรอบถัดไปหักลบจากเลขที่แม่นยำ
-        // จริง ไม่ใช่เลขปัดที่คลาดเคลื่อนไปแล้วตั้งแต่ต้น
+        // "ในกรณีที่ใช้การกรอกเอง ในการออกบิล ให้บันทึกข้อมูลส่วนนี้ของ
+        // อุปกรณ์ไว้ด้วย คือค่าของอุปกรณ์ ณ วันที่ออกบิล เพื่อเก็บไว้เป็น
+        // ตัวเลขอ้างอิงในการออกบิลครั้งต่อไป ถ้ามีการกลับมาใช้ส่วนนี้ออกบิล
+        // และเป็นการเริ่มนับ 1 ใหม่" (2026-08-13) — ตอนนี้ "กรอกเอง" คือพิมพ์
+        // หน่วยที่ใช้ตรงๆ (ดู meterUnitsFromReading) ไม่ใช่เลขมิเตอร์อีก
+        // ต่อไป เลยเอาค่าที่พิมพ์ (draft.elecUnits/waterUnits) มาเก็บเป็น
+        // waterPrev/elecPrev ไม่ได้แล้ว (คนละสเกลกับเลขสะสมจริงของอุปกรณ์)
+        // — ถ้าห้องนี้มีอุปกรณ์ Tuya เชื่อมไว้จริง ไม่ว่าบิลรอบนี้จะออกด้วย
+        // โหมดไหนก็ตาม ให้บันทึกค่าอุปกรณ์ปัจจุบัน ณ วันออกบิลนี้ไว้เป็น
+        // baseline เสมอ — เพื่อว่าถ้ากลับไปใช้โหมด "อุปกรณ์" ออกบิลรอบถัดไป
+        // จะนับหน่วยที่ใช้เริ่มจากวันนี้ใหม่ ไม่ใช่นับย้อนไปทับช่วงที่เพิ่ง
+        // ออกบิลแบบกรอกเองไปแล้ว (ก่อนหน้านี้จะเก็บเฉพาะตอนโหมด='device'
+        // เท่านั้น ทำให้พอสลับไปกรอกเองแล้วสลับกลับมา หน่วยจะถูกนับซ้อนทับ
+        // ช่วงที่กรอกเองไปแล้วด้วย) — ห้องที่ไม่มีอุปกรณ์เลย ไม่มีอะไรต้อง
+        // เก็บอ้างอิงอีกต่อไป (หน่วยที่พิมพ์เป็นอิสระต่อรอบ ไม่ต้องมี
+        // baseline สำหรับรอบถัดไป)
         const prevPatch = {};
-        if (room.tuyaElecDeviceId) {
+        const manualUnitsDirect = this.cfManualUnitsDirect();
+        if ((manualUnitsDirect && room.tuyaElecDeviceId) || (!manualUnitsDirect && draft.elecMode === 'device' && room.tuyaElecDeviceId)) {
           const live = s.tuyaLiveReadings[roomId];
           if (live && live.energy != null) prevPatch.elecPrev = Math.round(live.energy * 100) / 100;
-        } else if (draft.elecMode === 'manual' && draft.elecUnits) {
+        } else if (!manualUnitsDirect && draft.elecMode === 'manual' && draft.elecUnits) {
+          // Pre-v9 behavior for buildings that haven't opted in — see the
+          // legacy branch's own comment in submitInvoice for why this only
+          // applies below v9 (draft.elecUnits meant a meter reading then).
           prevPatch.elecPrev = Math.round((Number(draft.elecUnits) || 0) * 100) / 100;
         }
-        if (room.tuyaWaterDeviceId) {
+        if ((manualUnitsDirect && room.tuyaWaterDeviceId) || (!manualUnitsDirect && draft.waterMode === 'device' && room.tuyaWaterDeviceId)) {
           // Same liters→หน่วย (÷1000) conversion as deviceCharge() above —
           // the baseline stored in waterPrev must stay in the same unit
-          // deviceCharge() expects to subtract it from next cycle.
+          // deviceCharge() expects to subtract it from next cycle. Includes
+          // waterSetNewValue too (SET NEW compensation), matching
+          // deviceCharge()'s own currentLiters formula exactly — this was
+          // missing before (a real, separate latent divergence bug, NOT
+          // gated behind v9 — a pure bugfix applies to every building),
+          // which would have thrown the next device-mode bill off by
+          // exactly waterSetNewValue/1000 units for any room not yet
+          // calibrated.
           const live = s.tuyaLiveReadings[roomId];
-          if (live && live.usage != null) prevPatch.waterPrev = Math.round((live.usage / 1000) * 100) / 100;
-        } else if (draft.waterMode === 'manual' && draft.waterUnits) {
+          if (live && live.usage != null) {
+            const currentLiters = live.usage + (Number(room.waterSetNewValue) || 0);
+            prevPatch.waterPrev = Math.round((currentLiters / 1000) * 100) / 100;
+          }
+        } else if (!manualUnitsDirect && draft.waterMode === 'manual' && draft.waterUnits) {
           prevPatch.waterPrev = Math.round((Number(draft.waterUnits) || 0) * 100) / 100;
         }
         if (Object.keys(prevPatch).length) roomPrevUpdates[roomId] = prevPatch;
@@ -8244,6 +8287,13 @@ class Component extends DCLogic {
   cfEnforceCutoffFullPayment() {
     return !!(this.state.authSession && this.state.authSession.platformVersion >= 8);
   }
+  // "จริงๆ ต้องกรอกหน่วยที่เอาไปคูณกับค่าบริการเลย...เจ้าของจะเป็นคนคิด
+  // ตัวเลขหน่วยเองครับ" (2026-08-13) — staged-rollout gate, see
+  // platformVersion.js's v9 note for the full reasoning (blocking change —
+  // same number typed means something totally different before/after).
+  cfManualUnitsDirect() {
+    return !!(this.state.authSession && this.state.authSession.platformVersion >= 9);
+  }
   // ห้องนี้อยู่ระหว่าง "🔌 ตัดไฟแล้ว" หรือ "⚡ ขอใช้ไฟชั่วคราว" อยู่หรือไม่ —
   // นิยามเดียวกับที่ใช้โชว์ 2 ป้ายนี้ทุกประการ (elecCutoffAt ถูกตั้งค่าไว้)
   // ปลอดภัยที่จะเช็คแค่ elecCutoffAt เฉยๆ ตรงนี้ (ไม่ต้องเทียบกับ
@@ -8264,15 +8314,23 @@ class Component extends DCLogic {
     const room = this.state.rooms.find(r => r.id === roomId);
     return (room && (kind === 'water' ? room.waterMinRate : room.elecMinRate)) || 0;
   }
-  // Per explicit user request: "กรอกเอง" (manual) water/elec entry now
-  // takes the CURRENT meter reading (หน่วยปัจจุบัน), not units used
-  // directly — usage = current reading − the reading from this room's last
-  // bill (room.waterPrev/elecPrev, the same baseline field the Tuya
-  // device-mode path already uses and resets after every bill; see
-  // deviceCharge and the elecPrev-reset code in submitInvoice/
-  // submitBulkInvoice). Clamped at 0 so a lower/equal reading (typo, meter
-  // reset, etc.) never produces a negative bill.
+  // "จริงๆ ต้องกรอกหน่วยที่เอาไปคูณกับค่าบริการเลย...ไม่เกี่ยวกับตัวมิเตอร์
+  // Tuya ของเรา เจ้าของจะเป็นคนคิดตัวเลขหน่วยเองครับ" (2026-08-13) —
+  // เปลี่ยนจาก "กรอกเลขมิเตอร์ปัจจุบัน แล้วระบบลบกับเลขมิเตอร์บิลก่อนหน้า
+  // เอง" (เหมือนเครื่องมิเตอร์จริง) กลับมาเป็น "พิมพ์หน่วยที่ใช้ตรงๆ" ตาม
+  // คำขอใหม่ — ไม่ต้องมีเลขมิเตอร์ตั้งต้น ไม่ลบกับ room.waterPrev/elecPrev
+  // อีกต่อไป (เจ้าของเป็นคนนับหน่วยที่ใช้เองอยู่แล้ว ไม่ได้อิงจากอุปกรณ์
+  // Tuya เลยสำหรับโหมดนี้) ชื่อฟังก์ชันเดิมไว้ (ไม่เปลี่ยนชื่อ กันต้องแก้
+  // ทุกจุดที่เรียกใช้ — ยังมีอีกหลายจุด) แค่เปลี่ยน "ความหมาย" ของค่าที่คืน
+  // กลับ Math.max(0,...) ยังกันค่าติดลบ (พิมพ์ผิดเป็นลบ) เหมือนเดิม
   meterUnitsFromReading(roomId, kind, currentReading) {
+    if (this.cfManualUnitsDirect()) {
+      return Math.max(0, Number(currentReading) || 0);
+    }
+    // Pre-v9 behavior, kept exactly as-is for any building that hasn't
+    // opted in yet: "กรอกเอง" means "current meter reading", subtract this
+    // room's own last-billed reading (room.waterPrev/elecPrev) to get the
+    // units used this cycle.
     const room = this.state.rooms.find(r => r.id === roomId);
     const prev = (room && (kind === 'water' ? room.waterPrev : room.elecPrev)) || 0;
     return Math.max(0, (Number(currentReading) || 0) - prev);
@@ -8628,33 +8686,45 @@ class Component extends DCLogic {
       });
       if (!res.ok) throw new Error((await res.json()).error || 'สร้างใบแจ้งหนี้ไม่สำเร็จ');
       const newInv = await res.json();
-      // Reset the water/elec baseline (waterPrev/elecPrev) to whatever
-      // reading this bill was actually billed against, so next cycle's
-      // usage calc (both อุปกรณ์ device mode AND กรอกเอง manual mode) starts
-      // fresh from here instead of double-counting the same units again.
-      // Device mode: use the live cumulative Tuya reading. Manual mode: use
-      // the current-reading number the owner just typed in
-      // (meterUnitsFromReading already subtracted the OLD prev from it to
-      // get the billed units, so the entered reading itself becomes the
-      // new prev).
-      // "ถ้าให้แสดงเป็นทศนิยม 2 ตำแหน่ง ทุกห้องครับ" (2026-08-12) — เดิม
-      // ปัดเป็นจำนวนเต็มก่อนโอนยอด (2026-07-30) ตอนนี้เก็บทศนิยม 2 ตำแหน่ง
-      // แทน (Math.round(x*100)/100) ให้ตรงกับหน่วยทศนิยมที่ deviceCharge()
-      // ใช้จริงตอนนี้ (ดู comment เต็มตรง deviceCharge()) — เลขที่โอนไปเป็น
-      // elecPrev/waterPrev รอบถัดไปจะแม่นยำ ไม่ปัดทิ้งเศษจนคลาดเคลื่อน
+      // "ในกรณีที่ใช้การกรอกเอง ในการออกบิล ให้บันทึกข้อมูลส่วนนี้ของ
+      // อุปกรณ์ไว้ด้วย คือค่าของอุปกรณ์ ณ วันที่ออกบิล เพื่อเก็บไว้เป็น
+      // ตัวเลขอ้างอิงในการออกบิลครั้งต่อไป ถ้ามีการกลับมาใช้ส่วนนี้ออกบิล
+      // และเป็นการเริ่มนับ 1 ใหม่" (2026-08-13) — เหมือน submitBulkInvoice
+      // ทุกประการ (ดู comment เต็มตรงนั้น) — เดิม path นี้ (ฟอร์มออกบิลเดี่ยว)
+      // เช็ค mode ก่อนว่าใช้ 'device' หรือ 'manual' แล้วค่อยเลือกว่าจะเก็บ
+      // เลขอุปกรณ์จริงหรือเลขที่พิมพ์เอง — บั๊กจริงที่พบวันนี้: ถ้าห้องนี้มี
+      // อุปกรณ์เชื่อมไว้จริงแต่บิลรอบนี้เลือกโหมด "กรอกเอง" (เช่นอุปกรณ์
+      // ออฟไลน์ชั่วคราว) จะไปเก็บเลขที่พิมพ์เอง (ตอนนี้คือ "หน่วยที่ใช้"
+      // ไม่ใช่เลขมิเตอร์แล้ว) ทับ elecPrev/waterPrev แทน ทำให้รอบถัดไปถ้า
+      // สลับกลับไปโหมด "อุปกรณ์" คำนวณผิดสนิท (คนละสเกลกันเลย) — แก้ให้
+      // ตรวจสอบแค่ "ห้องนี้มีอุปกรณ์เชื่อมไว้ไหม" อย่างเดียว ไม่สนโหมดที่
+      // เลือกออกบิลรอบนี้เลย — มีอุปกรณ์ = เก็บเลขอุปกรณ์เสมอ (เป็นการ
+      // "เริ่มนับ 1 ใหม่" ให้บิลอุปกรณ์รอบถัดไป), ไม่มีอุปกรณ์ = ไม่ต้อง
+      // เก็บอะไรอีกต่อไป (หน่วยที่พิมพ์เป็นอิสระต่อรอบ)
       const prevPatch = {};
-      if (s.newInvoice.elecMode === 'device' && room.tuyaElecDeviceId) {
+      const manualUnitsDirect = this.cfManualUnitsDirect();
+      if ((manualUnitsDirect && room.tuyaElecDeviceId) || (!manualUnitsDirect && s.newInvoice.elecMode === 'device' && room.tuyaElecDeviceId)) {
         const live = s.tuyaLiveReadings[room.id];
         if (live && live.energy != null) prevPatch.elecPrev = Math.round(live.energy * 100) / 100;
-      } else if (s.newInvoice.elecMode === 'manual' && s.newInvoice.elecUnits) {
+      } else if (!manualUnitsDirect && s.newInvoice.elecMode === 'manual' && s.newInvoice.elecUnits) {
+        // Pre-v9 behavior for buildings that haven't opted in yet —
+        // s.newInvoice.elecUnits meant a meter reading then, so the entered
+        // reading itself becomes the new baseline, same as it always did.
         prevPatch.elecPrev = Math.round((Number(s.newInvoice.elecUnits) || 0) * 100) / 100;
       }
-      if (s.newInvoice.waterMode === 'device' && room.tuyaWaterDeviceId) {
+      if ((manualUnitsDirect && room.tuyaWaterDeviceId) || (!manualUnitsDirect && s.newInvoice.waterMode === 'device' && room.tuyaWaterDeviceId)) {
         // Same liters→หน่วย (÷1000) conversion as deviceCharge() — keeps the
         // stored baseline in the same unit deviceCharge() subtracts it in.
+        // รวม waterSetNewValue ด้วย (บั๊กแฝงที่เจอระหว่างทาง — เดิมไม่เคย
+        // บวกตรงนี้ ทำให้ห้องที่ยังไม่คาลิเบรตคลาดเคลื่อนไปเท่ากับ
+        // waterSetNewValue/1000 หน่วยทุกครั้งที่บันทึก baseline ใหม่ — จุดนี้
+        // ไม่ gate ด้วย v9 เพราะเป็น bugfix ล้วนๆ ใช้ได้กับทุกตึก)
         const live = s.tuyaLiveReadings[room.id];
-        if (live && live.usage != null) prevPatch.waterPrev = Math.round((live.usage / 1000) * 100) / 100;
-      } else if (s.newInvoice.waterMode === 'manual' && s.newInvoice.waterUnits) {
+        if (live && live.usage != null) {
+          const currentLiters = live.usage + (Number(room.waterSetNewValue) || 0);
+          prevPatch.waterPrev = Math.round((currentLiters / 1000) * 100) / 100;
+        }
+      } else if (!manualUnitsDirect && s.newInvoice.waterMode === 'manual' && s.newInvoice.waterUnits) {
         prevPatch.waterPrev = Math.round((Number(s.newInvoice.waterUnits) || 0) * 100) / 100;
       }
       if (Object.keys(prevPatch).length) {
@@ -12845,12 +12915,25 @@ class Component extends DCLogic {
           // room has no Tuya device linked for — the toggle is a dead end
           // otherwise (deviceCharge() returns null, "อุปกรณ์ไม่พร้อม").
           hasWaterDevice: !!room.tuyaWaterDeviceId, hasElecDevice: !!room.tuyaElecDeviceId,
-          waterDeviceHint: dw ? dw.units.toFixed(2) + ' หน่วย × ' + waterRate : 'อุปกรณ์ไม่พร้อม',
-          elecDeviceHint: de ? de.units.toFixed(2) + ' หน่วย × ' + elecRate : 'อุปกรณ์ไม่พร้อม',
-          // Same "ครั้งก่อน → ปัจจุบัน = ใช้ X หน่วย" derivation as the
-          // single-invoice form's invWaterManualHint/invElecManualHint.
-          waterManualHint: `ครั้งก่อน ${room.waterPrev || 0} → ปัจจุบัน ${Number(draft.waterUnits) || 0} = ใช้ ${waterUnitsUsed} หน่วย × ${waterRate}/หน่วย = ${this.fmt(waterUnitsUsed * waterRate)} บาท`,
-          elecManualHint: `ครั้งก่อน ${room.elecPrev || 0} → ปัจจุบัน ${Number(draft.elecUnits) || 0} = ใช้ ${elecUnitsUsed} หน่วย × ${elecRate}/หน่วย = ${this.fmt(elecUnitsUsed * elecRate)} บาท`,
+          // "105×8=840 บาทเลยครับ" (2026-08-13) — deviceCharge().units ปัด
+          // เป็นจำนวนเต็มก่อนคูณเรทแล้วตั้งแต่ต้นตอนนี้ (ดู deviceCharge's
+          // comment) เอา .toFixed(2) ออก กันย้อนกลับไปโชว์ทศนิยมปลอมๆ
+          waterDeviceHint: dw ? dw.units + ' หน่วย × ' + waterRate : 'อุปกรณ์ไม่พร้อม',
+          elecDeviceHint: de ? de.units + ' หน่วย × ' + elecRate : 'อุปกรณ์ไม่พร้อม',
+          // "จริงๆ ต้องกรอกหน่วยที่เอาไปคูณกับค่าบริการเลย...ไม่เกี่ยวกับตัว
+          // มิเตอร์ Tuya ของเรา" (2026-08-13, gated ด้วย v9 —
+          // cfManualUnitsDirect()) — เอากรอบ "ครั้งก่อน → ปัจจุบัน" (สื่อว่า
+          // เป็นเลขมิเตอร์ต้องลบกัน) ออก เหลือแค่สรุปหน่วยที่พิมพ์ตรงๆ ×
+          // เรท = บาท — ตึกที่ยังไม่กด "🆕 อัปเดต" ยังเห็นข้อความแบบเดิม
+          // (เลขมิเตอร์ก่อน→หลัง) เพราะ waterUnits/elecUnits ที่พิมพ์ยังคง
+          // หมายถึงเลขมิเตอร์อยู่สำหรับตึกนั้น
+          waterManualHint: this.cfManualUnitsDirect()
+            ? `ใช้ ${waterUnitsUsed} หน่วย × ${waterRate}/หน่วย = ${this.fmt(waterUnitsUsed * waterRate)} บาท`
+            : `ครั้งก่อน ${room.waterPrev || 0} → ปัจจุบัน ${Number(draft.waterUnits) || 0} = ใช้ ${waterUnitsUsed} หน่วย × ${waterRate}/หน่วย = ${this.fmt(waterUnitsUsed * waterRate)} บาท`,
+          elecManualHint: this.cfManualUnitsDirect()
+            ? `ใช้ ${elecUnitsUsed} หน่วย × ${elecRate}/หน่วย = ${this.fmt(elecUnitsUsed * elecRate)} บาท`
+            : `ครั้งก่อน ${room.elecPrev || 0} → ปัจจุบัน ${Number(draft.elecUnits) || 0} = ใช้ ${elecUnitsUsed} หน่วย × ${elecRate}/หน่วย = ${this.fmt(elecUnitsUsed * elecRate)} บาท`,
+          unitsPlaceholder: this.cfManualUnitsDirect() ? 'หน่วยที่ใช้เดือนนี้' : 'เลขมิเตอร์ปัจจุบัน',
           waterDeviceBg: isWaterDevice ? '#C1622D' : '#EDE4D6', waterDeviceColor: isWaterDevice ? '#fff' : '#7C6E5F',
           waterManualBg: isWaterManual ? '#C1622D' : '#EDE4D6', waterManualColor: isWaterManual ? '#fff' : '#7C6E5F',
           elecDeviceBg: isElecDevice ? '#C1622D' : '#EDE4D6', elecDeviceColor: isElecDevice ? '#fff' : '#7C6E5F',
@@ -13013,20 +13096,22 @@ class Component extends DCLogic {
       invWaterLastReading: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return r ? Math.round(r.waterPrev || 0) : '—'; })(),
       invElecLastReading: (() => { const r = s.rooms.find(x => x.id === s.newInvoice.roomId); return r ? Math.round(r.elecPrev || 0) : '—'; })(),
       onNewInvoiceWaterUnitsChange: this.onNewInvoiceWaterUnitsChange, onNewInvoiceElecUnitsChange: this.onNewInvoiceElecUnitsChange,
-      // Per explicit user request: a meter reading lower than the last
-      // bill's reading is physically impossible for a real accumulating
-      // meter (typo, wrong meter, misread digit, etc.) — flag it instead of
-      // silently accepting it (meterUnitsFromReading already clamps the
-      // resulting units-used at 0, so this only affects a visible warning,
-      // not the actual math). Only checked in "กรอกเอง" (manual) mode —
-      // device-mode readings come straight from hardware.
+      // "จริงๆ ต้องกรอกหน่วยที่เอาไปคูณกับค่าบริการเลย...ไม่เกี่ยวกับตัว
+      // มิเตอร์ Tuya ของเรา" (2026-08-13) — staged-rollout gate (v9, ดู
+      // platformVersion.js's note + cfManualUnitsDirect()). ตึกที่ยังไม่กด
+      // "🆕 อัปเดต" (manualUnitsLegacyMode) ยังเห็นพฤติกรรมเดิมทุกประการ:
+      // ป้าย "เลขมิเตอร์ปัจจุบัน", บรรทัด "เลขมิเตอร์บิลหลังสุด", และคำเตือน
+      // "เลขน้อยกว่าบิลก่อนหน้า" (มีความหมายเฉพาะตอนอิงเลขมิเตอร์เท่านั้น)
+      manualUnitsDirectMode: this.cfManualUnitsDirect(),
+      manualUnitsLegacyMode: !this.cfManualUnitsDirect(),
+      manualUnitsPlaceholder: this.cfManualUnitsDirect() ? 'หน่วยที่ใช้เดือนนี้' : 'เลขมิเตอร์ปัจจุบัน',
       invWaterReadingTooLow: (() => {
-        if (s.newInvoice.waterMode !== 'manual' || !s.newInvoice.waterUnits) return false;
+        if (this.cfManualUnitsDirect() || s.newInvoice.waterMode !== 'manual' || !s.newInvoice.waterUnits) return false;
         const room = s.rooms.find(x => x.id === s.newInvoice.roomId);
         return Number(s.newInvoice.waterUnits) < ((room && room.waterPrev) || 0);
       })(),
       invElecReadingTooLow: (() => {
-        if (s.newInvoice.elecMode !== 'manual' || !s.newInvoice.elecUnits) return false;
+        if (this.cfManualUnitsDirect() || s.newInvoice.elecMode !== 'manual' || !s.newInvoice.elecUnits) return false;
         const room = s.rooms.find(x => x.id === s.newInvoice.roomId);
         return Number(s.newInvoice.elecUnits) < ((room && room.elecPrev) || 0);
       })(),
