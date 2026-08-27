@@ -129,27 +129,25 @@ async function computeTenantUsage(room) {
       }
       result.waterLive = { usage: cumulativeLiters, flowRate: live.flowRate, batteryPercent: live.batteryPercent, online: true };
       if (cumulativeLiters != null) {
-        // "แสดงส่วนนี้ตรง แต่ข้อความที่ส่งไปให้ผู้เช่า ไม่ตรงกัน...ต้องแก้
-        // ข้อความที่ส่งใหม่ทุกห้องเลยครับ" (2026-07-31 follow-up) — บั๊กที่
-        // เพิ่งแก้ไปตัดโค้ด "rollover" branch ทิ้งด้วยเข้าใจผิดว่าไม่จำเป็น
-        // แล้ว (คิดว่า WaterLog โตขึ้นเรื่อยๆ อย่างเดียว ไม่มีวันติดลบ) แต่
-        // จริงๆ แล้ว branch นี้ยังจำเป็นเหมือนเดิม — กรณีห้องที่เพิ่งต่อ
-        // อุปกรณ์ Tuya ใหม่ (WaterLog เพิ่งเริ่มนับจากศูนย์) แต่ waterPrev
-        // ยังเป็นเลขมิเตอร์เก่าจากระบบจดมือ/รอบบิลก่อนหน้า (เช่นห้อง 647:
-        // waterPrev=1500 หน่วย แต่ WaterLog สะสมได้แค่ ~1 หน่วย) การลบกัน
-        // ตรงๆ จะติดลบเสมอ ปัดเป็น 0 ตลอด — ใช้สูตรเดียวกับฝั่งเจ้าของเป๊ะๆ
-        // (Rental Management.dc.html's _waterRolloverUnits) แทน: ถ้าลบแล้ว
-        // ติดลบและไม่มี tuyaWaterMaxLiters กำหนดไว้ ให้ถือว่ายอดสะสมทั้งก้อน
-        // (cumulativeLiters) คือหน่วยที่ใช้ไปเลย (เหมือนเริ่มนับใหม่จาก 0)
+        // "ตัวเลขที่เป็นข้อความที่ส่งไลน์ให้ผู้เช่า...ตัวเลขไม่ตรงกับที่
+        // แสดงหน้าเวป...หน้าเวปเราตรง แต่ข้อมูลที่ส่งไลน์ ส่วนของค่าน้ำ
+        // ไม่ตรงครับ" (2026-08-13) — พบว่าฟังก์ชันนี้ (ใช้เฉพาะข้อความ LINE
+        // "การใช้น้ำ/ไฟปัจจุบัน" ของผู้เช่า) ยังเป็นสูตรเก่า ค้างมาตั้งแต่
+        // ก่อน 2026-08-12 ไม่เคยได้อัปเดตตามฝั่งเจ้าของ (Rental Management.
+        // dc.html's deviceCharge/_waterRolloverUnits) เลย 2 จุด:
+        // (1) ไม่ได้บวก waterSetNewValue (ค่าชดเชยสะสม) เข้าไปก่อนคำนวณ
+        //     เหมือนที่ deviceCharge()'s water branch ทำ — ห้องที่ยังไม่
+        //     คาลิเบรตจะได้ตัวเลขต่ำกว่าความจริงมาก (เพราะสะสมดิบยังไม่รวม
+        //     ค่าชดเชย)
+        // (2) ยังมีตรรกะ "rollover" (เดาว่ามิเตอร์รีเซ็ตแล้วใช้
+        //     tuyaWaterMaxLiters แทน) ซึ่งฝั่งเจ้าของถอดทิ้งไปแล้วตั้งแต่
+        //     2026-08-12 (พิสูจน์แล้วว่าเป็นสาเหตุบั๊กจริง ห้อง 4 เจอ 99
+        //     หน่วยทั้งที่ควรเป็น ~0.91 — ดู _waterRolloverUnits's comment
+        //     เต็มใน Rental Management.dc.html) — เอาออกให้ตรงกัน เหลือแค่
+        //     current − baseline ธรรมดา (Math.max(0,...) กันติดลบ)
+        const currentLiters = cumulativeLiters + (Number(room.waterSetNewValue) || 0);
         const baselineLiters = Number(room.waterPrev || 0) * 1000;
-        let rawUnits;
-        if (cumulativeLiters >= baselineLiters) {
-          rawUnits = Math.max(0, (cumulativeLiters - baselineLiters) / 1000);
-        } else {
-          const maxLiters = Number(room.tuyaWaterMaxLiters || 0);
-          const deltaLiters = maxLiters > 0 ? (maxLiters - baselineLiters) + cumulativeLiters : cumulativeLiters;
-          rawUnits = Math.max(0, deltaLiters / 1000);
-        }
+        const rawUnits = Math.max(0, (currentLiters - baselineLiters) / 1000);
         // "หน่วยมิเตอร์ น้ำไฟ...จำนวนเต็มครับ ไม่มีจุดทศนิยม" — ปัดเป็นจำนวน
         // เต็มก่อนคำนวณค่าน้ำ เหมือนกับ deviceCharge()'s water branch ฝั่ง
         // เจ้าของเป๊ะๆ กันตัวเลขไม่ตรงกันระหว่าง 2 ฝั่ง
