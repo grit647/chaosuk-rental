@@ -221,6 +221,40 @@ router.post('/calibrate-quota', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// "การส่งข้อมูลของเราภายใน 1 [เดือน] มันดูได้ไหมครับ ประวัติการส่ง"
+// (2026-08-13, เลือก "สรุปเร็วๆ") — ประวัติการส่งไลน์ล่าสุด (ใหม่สุดก่อน,
+// จำกัด 200 แถวกันหน้าโหลดช้าถ้าสะสมมาก) resolve "to" (LINE user id ดิบที่
+// เก็บไว้ตอนส่ง — ดู server/line.js's logLineSend) เป็นชื่อที่อ่านง่ายตรงนี้
+// ครั้งเดียวตอนเปิดดู แทนที่จะ resolve ทุกครั้งที่ส่ง (ประหยัดกว่า):
+// เทียบกับ Rooms.lineUserId ก่อน (ห้อง X · ชื่อผู้เช่า), ถ้าไม่เจอเทียบกับ
+// adminLineUserId ใน Settings (เจ้าของ), ถ้ายังไม่เจอเทียบกับ Admins tab
+// (ผู้ดูแล: ชื่อ), ไม่เจอเลยโชว่ LINE user id ดิบแบบย่อไว้เผื่ออ้างอิง
+router.get('/send-log', async (req, res, next) => {
+  try {
+    const [logRows, rooms, settingsRows, adminRows] = await Promise.all([
+      readTab('LineSendLog'),
+      readTab('Rooms'),
+      readTab('Settings'),
+      readTab('Admins').catch(() => []),
+    ]);
+    const adminLineId = (settingsRows.find((r) => r.key === 'adminLineUserId') || {}).value || null;
+    const resolveName = (to) => {
+      const room = rooms.find((r) => r.lineUserId === to);
+      if (room) return `ห้อง ${room.id} · ${room.tenant || '-'}`;
+      if (to && adminLineId && to === adminLineId) return 'เจ้าของ';
+      const admin = adminRows.find((a) => a.lineUserId === to);
+      if (admin) return `ผู้ดูแล: ${admin.name || '-'}`;
+      return to ? `ไม่ทราบผู้รับ (${String(to).slice(0, 8)}…)` : 'ไม่ทราบผู้รับ';
+    };
+    const rows = logRows
+      .slice()
+      .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''))
+      .slice(0, 200)
+      .map((r) => ({ id: r.id, timestamp: r.timestamp, to: resolveName(r.to), category: r.category || 'อื่นๆ' }));
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // Given a room and a freshly-read slip, files it against that room: adds to
 // a mid-review invoice / amount-matches a pending invoice / falls back to
 // room-level advance-payment credit if there's no bill open at all. Shared
@@ -523,7 +557,7 @@ router.post('/webhook/:customerSheetId?', async (req, res) => {
                     const credsText = wifiPassword
                       ? `ชื่อผู้ใช้: ${wifiUsername}\nรหัสผ่าน: ${wifiPassword}`
                       : `ชื่อผู้ใช้/รหัสผ่าน: ${wifiUsername}`;
-                    await pushMessage(wifiPending.tenantLineUserId, `ข้อมูล WiFi/Internet ห้อง ${wifiPending.roomId}\n${credsText}`, undefined, lineCreds);
+                    await pushMessage(wifiPending.tenantLineUserId, `ข้อมูล WiFi/Internet ห้อง ${wifiPending.roomId}\n${credsText}`, undefined, lineCreds, 'WiFi');
                   } catch (err) {
                     console.error('[line] wifi credentials push to tenant failed', err.message);
                   }
@@ -996,7 +1030,7 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
             : `ผู้เช่าห้อง ${room.id} (${room.tenant || '-'}) ขอรหัส Wifi ผ่าน LINE ครับ แต่ยังไม่มีข้อมูลบันทึกไว้ — พิมพ์ชื่อผู้ใช้ตามด้วยรหัสผ่าน คั่นด้วยเว้นวรรค (เช่น Room1 z1x1) ตอบกลับมาที่นี่เลยครับ ระบบจะส่งต่อให้ผู้เช่าทันที (ภายใน 10 นาที)`;
           const sheetId = getCurrentSheetId() || process.env.GOOGLE_SHEET_ID;
           for (const t of targets) {
-            await pushMessage(t, notifyText, undefined, lineCreds);
+            await pushMessage(t, notifyText, undefined, lineCreds, 'WiFi');
             if (!hasWifiCode) {
               wifiReplyPending.set(`${sheetId}:${t}`, { roomId: room.id, tenantLineUserId: room.lineUserId, expiresAt: Date.now() + WIFI_REPLY_WINDOW_MS });
             }
@@ -1022,7 +1056,7 @@ async function handleTenantRichMenuPostback(event, lineCreds) {
               stillPending.forEach(([key]) => wifiReplyPending.delete(key));
               if (!tenantLineUserId) return;
               try {
-                await pushMessage(tenantLineUserId, `ขออภัยครับ รอรหัส Wifi ห้อง ${roomId} เกิน 10 นาทีแล้ว ยังไม่ได้รับจากผู้ดูแลครับ ลองกดปุ่ม "ขอรหัส Wifi" ใหม่อีกครั้งได้เลยครับ`, undefined, lineCreds);
+                await pushMessage(tenantLineUserId, `ขออภัยครับ รอรหัส Wifi ห้อง ${roomId} เกิน 10 นาทีแล้ว ยังไม่ได้รับจากผู้ดูแลครับ ลองกดปุ่ม "ขอรหัส Wifi" ใหม่อีกครั้งได้เลยครับ`, undefined, lineCreds, 'WiFi');
               } catch (err) {
                 console.error('[line] wifi-timeout tenant notify failed', err.message);
               }
@@ -1449,7 +1483,7 @@ router.post('/send', async (req, res, next) => {
     if (!room || !room.lineUserId) {
       return res.status(400).json({ error: `ห้อง ${roomId} ยังไม่ได้เชื่อมต่อ LINE` });
     }
-    await pushMessage(room.lineUserId, message, imageUrl, creds.line);
+    await pushMessage(room.lineUserId, message, imageUrl, creds.line, 'ข้อความ/ใบเสร็จ');
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

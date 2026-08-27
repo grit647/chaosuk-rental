@@ -206,6 +206,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
         { label: '❌ ไม่ใช่/ไม่ทราบ', data: `owner:elec_restore_deny:${roomId}`, displayText: `ไม่ใช่/ไม่ทราบ — ห้อง ${roomId}` },
       ],
       sharedCreds.line,
+      'แจ้งเตือนตัดไฟ',
     );
   };
   pollAndLogUsageForScheduler(sheetId, sharedCreds.tuya, batch.Rooms, { onElecMismatch }).catch((err) => {
@@ -419,6 +420,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
                   { label: '⏳ รอภายหลัง', data: `owner:cutoff_postpone_elec:${inv.room}`, displayText: `รอภายหลัง — ห้อง ${inv.room}` },
                 ],
                 cutoffCreds.line,
+                'แจ้งเตือนตัดไฟ',
               ).catch((err) => console.error('[scheduler] cutoff confirm button push failed', err.message));
             }
             markNotifiedToday(key);
@@ -440,7 +442,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
               // เลย (LINE ปฏิเสธเพราะ token ผิดช่องทาง) ต้องส่ง cutoffCreds.line
               // (ดึงไว้แล้วด้านบนในสโคปนี้) เหมือนที่ pushButtonMessage ด้านบน
               // ทำถูกอยู่แล้ว
-              pushMessage(room.lineUserId, tenantMsg, undefined, cutoffCreds.line).catch(() => {});
+              pushMessage(room.lineUserId, tenantMsg, undefined, cutoffCreds.line, 'แจ้งเตือนตัดไฟ').catch(() => {});
               markNotifiedToday(tenantKey);
             }
           }
@@ -489,7 +491,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
         const msg = elecCurrentlyOff
           ? `🔌 ไฟห้องของท่านถูกงดจ่ายชั่วคราวเนื่องจากค้างชำระ ${remaining.toLocaleString()} บาท ครับ — กรุณาชำระยอดเต็มจำนวนแล้วแจ้งเจ้าของเพื่อเปิดไฟให้ครับ (ระบบรับได้เฉพาะยอดเต็มจำนวนเท่านั้นระหว่างสถานะนี้)`
           : `⚡ ท่านได้รับการเปิดไฟให้ใช้ชั่วคราวแล้ว แต่ยังค้างชำระ ${remaining.toLocaleString()} บาท ครับ — กรุณาชำระยอดเต็มจำนวนโดยเร็ว มิฉะนั้นอาจถูกงดจ่ายไฟอีกครั้ง (ระบบรับได้เฉพาะยอดเต็มจำนวนเท่านั้นระหว่างสถานะนี้)`;
-        pushMessage(room.lineUserId, msg, undefined, postCutoffCreds.line).catch((err) => console.error('[scheduler] post-cutoff reminder push failed', err.message));
+        pushMessage(room.lineUserId, msg, undefined, postCutoffCreds.line, 'แจ้งเตือนตัดไฟ (ต่อเนื่อง)').catch((err) => console.error('[scheduler] post-cutoff reminder push failed', err.message));
         markNotifiedToday(key);
         postCutoffNotified++;
       }
@@ -538,7 +540,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
         if (wasNotifiedToday(key)) continue; // วันนี้แจ้งไปแล้ว
         const room = rooms.find((r) => r.id === inv.room);
         if (room && room.lineUserId) {
-          pushMessage(room.lineUserId, msg, undefined, dueReminderCreds.line).catch((err) => console.error('[scheduler] due reminder push failed', err.message));
+          pushMessage(room.lineUserId, msg, undefined, dueReminderCreds.line, 'แจ้งเตือนใกล้ครบกำหนด').catch((err) => console.error('[scheduler] due reminder push failed', err.message));
           dueReminderNotified++;
         }
         markNotifiedToday(key);
@@ -583,7 +585,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
           if (wasNotifiedToday(key)) continue;
           notifyAdmin('leaseExpiring', `📄 ${c.label}ห้อง ${room.id} (${room.tenant}) จะหมดอายุในอีก ${reminderDays} วัน (${c.value})`, leaseExpiringCreds).catch(() => {});
           if (room.lineUserId) {
-            pushMessage(room.lineUserId, `📄 แจ้งเตือนครับ ${c.tenantLabel}จะหมดอายุในอีก ${reminderDays} วัน (${c.value}) รบกวนเตรียมต่ออายุ/อัปเดตให้เรียบร้อยนะครับ`, undefined, leaseExpiringCreds.line).catch(() => {});
+            pushMessage(room.lineUserId, `📄 แจ้งเตือนครับ ${c.tenantLabel}จะหมดอายุในอีก ${reminderDays} วัน (${c.value}) รบกวนเตรียมต่ออายุ/อัปเดตให้เรียบร้อยนะครับ`, undefined, leaseExpiringCreds.line, 'สัญญา/บัตรใกล้หมดอายุ').catch(() => {});
           }
           markNotifiedToday(key);
           leaseExpiringNotified++;
@@ -711,10 +713,10 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
       try {
         if (row.room === 'all') {
           const targets = rooms.filter((r) => r.lineUserId);
-          for (const r of targets) await pushMessage(r.lineUserId, row.message, undefined, scheduledMsgCreds.line);
+          for (const r of targets) await pushMessage(r.lineUserId, row.message, undefined, scheduledMsgCreds.line, 'ใบแจ้งหนี้ (ตั้งเวลา)');
         } else {
           const room = rooms.find((r) => r.id === row.room);
-          if (room && room.lineUserId) await pushMessage(room.lineUserId, row.message, undefined, scheduledMsgCreds.line);
+          if (room && room.lineUserId) await pushMessage(room.lineUserId, row.message, undefined, scheduledMsgCreds.line, 'ใบแจ้งหนี้ (ตั้งเวลา)');
         }
         await updateRow('ScheduledMessages', row.id, { sent: 'TRUE' });
         sentCount++;

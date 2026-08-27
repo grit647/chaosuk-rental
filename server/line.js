@@ -32,6 +32,29 @@ async function incrementLineQuotaCounter() {
   }
 }
 
+// "การส่งข้อมูลของเราภายใน 1 [เดือน] มันดูได้ไหมครับ ประวัติการส่ง"
+// (2026-08-13, เลือก "สรุปเร็วๆ") — บันทึกทุกการส่งจริง (push-type เท่านั้น
+// เหตุผลเดียวกับ incrementLineQuotaCounter ด้านบน) ลงแท็บ LineSendLog ใหม่
+// (id, timestamp, to, category — migrate-add-linesendlog-tab.js) เก็บแค่
+// LINE user id ดิบ ("to") ไม่ resolve เป็นชื่อห้อง/เจ้าของตรงนี้ (ประหยัด
+// ไม่ต้องอ่าน Rooms/Settings เพิ่มทุกครั้งที่ส่ง) — GET /api/line/send-log
+// (routes/line.js) เป็นจุดเดียวที่ resolve ชื่อจริงตอนเปิดดูประวัติแทน
+// best-effort เสมอ (catch เงียบ) เหมือนกัน ไม่ให้การบันทึกประวัติไปบล็อก
+// การส่งข้อความจริงได้
+async function logLineSend(to, category) {
+  try {
+    const { appendRow } = require('./sheets');
+    await appendRow('LineSendLog', {
+      id: 'LSL' + Date.now() + Math.random().toString(36).slice(2, 6),
+      timestamp: new Date().toISOString(),
+      to: to || '',
+      category: category || 'อื่นๆ',
+    });
+  } catch (err) {
+    console.error('[line] logLineSend failed (tab อาจยังไม่มี — รัน migrate-add-linesendlog-tab.js)', err.message);
+  }
+}
+
 // Per explicit user request: LINE credentials can now come from either the
 // shared server/.env values (คุณต้น's current setup, unchanged) OR a
 // per-customer override stored in that customer's own Settings sheet
@@ -118,7 +141,7 @@ async function replyLinkButton(replyToken, bodyText, buttonLabel, url, creds) {
 // ไม่ใช่การตอบกลับข้อความที่เพิ่งได้รับ (ไม่มี replyToken ให้ใช้) —
 // เดิมส่งเป็นข้อความ URL ดิบยาวๆ ปนกับข้อความ ดูรกและไม่เป็นมืออาชีพ
 // เท่าปุ่มจริง
-async function pushLinkButton(to, bodyText, buttonLabel, url, creds) {
+async function pushLinkButton(to, bodyText, buttonLabel, url, creds, category) {
   const message = {
     type: 'template',
     altText: bodyText,
@@ -130,6 +153,7 @@ async function pushLinkButton(to, bodyText, buttonLabel, url, creds) {
   };
   const result = await callLineApi('push', { to, messages: [message] }, creds);
   incrementLineQuotaCounter().catch(() => {});
+  logLineSend(to, category).catch(() => {});
   return result;
 }
 
@@ -151,7 +175,7 @@ async function pushLinkButton(to, bodyText, buttonLabel, url, creds) {
 // buttons template รองรับได้ถึง 4 ปุ่มอยู่แล้ว ไม่ต้องเปลี่ยนโครงสร้าง
 // message) — เช็คจุดเรียกทั้งหมดในโปรเจกต์แล้วมีแค่ scheduler.js's cutoff-
 // warning ที่เดียวที่ใช้ฟังก์ชันนี้ ปลอดภัยที่จะเปลี่ยน signature ตรงๆ
-async function pushButtonMessage(to, bodyText, buttons, creds) {
+async function pushButtonMessage(to, bodyText, buttons, creds, category) {
   const message = {
     type: 'template',
     altText: bodyText,
@@ -163,18 +187,20 @@ async function pushButtonMessage(to, bodyText, buttons, creds) {
   };
   const result = await callLineApi('push', { to, messages: [message] }, creds);
   incrementLineQuotaCounter().catch(() => {});
+  logLineSend(to, category).catch(() => {});
   return result;
 }
 
 // imageUrl (optional): a publicly reachable HTTPS URL — LINE fetches the
 // image from it directly, it cannot take inline/base64 image data.
-async function pushMessage(to, text, imageUrl, creds) {
+async function pushMessage(to, text, imageUrl, creds, category) {
   const messages = [];
   if (text) messages.push({ type: 'text', text });
   if (imageUrl) messages.push({ type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl });
   if (!messages.length) throw new Error('ไม่มีข้อความหรือรูปภาพให้ส่ง');
   const result = await callLineApi('push', { to, messages }, creds);
   incrementLineQuotaCounter().catch(() => {});
+  logLineSend(to, category).catch(() => {});
   return result;
 }
 
@@ -184,7 +210,7 @@ async function pushMessage(to, text, imageUrl, creds) {
 // เพิ่ม buttons-template message ต่อท้ายเสมอ ถามให้ผู้เช่ากดยืนยันว่าได้
 // รับแล้ว — postback data เก็บแค่ invoiceId (routes/line.js's postback
 // handler อ่านคืนแล้วตั้ง receiptDeliveryConfirmed=true ให้)
-async function pushMessageWithConfirmButton(to, text, imageUrl, invoiceId, creds) {
+async function pushMessageWithConfirmButton(to, text, imageUrl, invoiceId, creds, category) {
   const messages = [];
   if (text) messages.push({ type: 'text', text });
   if (imageUrl) messages.push({ type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl });
@@ -199,6 +225,7 @@ async function pushMessageWithConfirmButton(to, text, imageUrl, invoiceId, creds
   });
   const result = await callLineApi('push', { to, messages }, creds);
   incrementLineQuotaCounter().catch(() => {});
+  logLineSend(to, category || 'ใบแจ้งหนี้').catch(() => {});
   return result;
 }
 

@@ -584,6 +584,11 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                          เดือน (server/routes/scheduler.js) -->
                     <div style="font-size:10px;color:#A89A88;margin-top:4px">หลังคาลิเบรตแล้ว ระบบจะนับต่อเองอัตโนมัติทุกครั้งที่ส่งข้อความจริง และรีเซ็ตเป็น 0 ให้เองทุกวันที่ 1 ของเดือน</div>
                   </div>
+                  <!-- "การส่งข้อมูลของเราภายใน 1 [เดือน] มันดูได้ไหมครับ
+                       ประวัติการส่ง" (2026-08-13, เลือก "สรุปเร็วๆ") —
+                       เปิดดูประวัติการส่งไลน์ล่าสุด (วัน-เวลา/ผู้รับ/
+                       ประเภท) ไม่โชว์เนื้อหาข้อความจริง ตามที่เลือกไว้ -->
+                  <div onclick="{{ openSendLog }}" style="margin-top:8px;text-align:center;font-size:11.5px;color:#2C6E8F;font-weight:600;cursor:pointer">🕒 ดูประวัติการส่ง</div>
                 </sc-if>
               </div>
             </div>
@@ -3965,6 +3970,40 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <!-- "การส่งข้อมูลของเราภายใน 1 [เดือน] มันดูได้ไหมครับ ประวัติการ
+             ส่ง" (2026-08-13, เลือก "สรุปเร็วๆ") — ประวัติการส่งไลน์ล่าสุด
+             (วัน-เวลา/ผู้รับ/ประเภท เท่านั้น ไม่โชว์เนื้อหาข้อความจริง)
+             ดึงจาก GET /api/line/send-log (LineSendLog Sheet tab ใหม่) -->
+        <sc-if value="{{ showSendLogModal }}">
+          <div onclick="{{ closeSendLog }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:440px;max-width:92vw;max-height:80vh;overflow-y:auto;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">🕒 ประวัติการส่งไลน์</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">แสดงล่าสุด 200 รายการ — วันที่/เวลา, ผู้รับ, ประเภทข้อความเท่านั้น (ไม่รวมเนื้อหาข้อความ)</div>
+              <sc-if value="{{ sendLogLoading }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:20px;text-align:center;color:#9C8B78;font-size:12.5px">กำลังโหลด...</div>
+              </sc-if>
+              <sc-if value="{{ sendLogEmpty }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:20px;text-align:center;color:#9C8B78;font-size:12.5px">ยังไม่มีประวัติการส่ง</div>
+              </sc-if>
+              <sc-if value="{{ sendLogHasRows }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <div style="display:grid;grid-template-columns:1.3fr 1.4fr 1.1fr;gap:8px;font-size:10.5px;font-weight:600;color:#7C6E5F;padding:6px 0;border-bottom:1px solid #E3D8C8;text-transform:uppercase;letter-spacing:0.02em">
+                    <div>วัน/เวลา</div><div>ผู้รับ</div><div>ประเภท</div>
+                  </div>
+                  <sc-for list="{{ sendLogRows }}" as="l" hint-placeholder-count="8">
+                    <div style="display:grid;grid-template-columns:1.3fr 1.4fr 1.1fr;gap:8px;font-size:11.5px;color:#241812;padding:8px 0;border-bottom:1px solid #F0E9DC;align-items:center">
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#7C6E5F">{{ l.timeDisplay }}</div>
+                      <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ l.to }}</div>
+                      <div style="font-size:10.5px;color:#B85B27;font-weight:600">{{ l.category }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <div onclick="{{ closeSendLog }}" style="margin-top:16px;padding:9px;border-radius:6px;border:1px solid #E3D8C8;color:#9C8B78;font-size:12px;font-weight:600;cursor:pointer;text-align:center">ปิด</div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showSendChoiceModal }}">
           <div onclick="{{ closeSendChoiceModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:360px;max-width:92vw;box-sizing:border-box">
@@ -5140,6 +5179,9 @@ class Component extends DCLogic {
     // { type: 'none' } for those — see server/routes/line.js's /usage).
     lineUsage: { configured: false, used: 0, limit: null, isCalibrated: false, rawUsedFromLine: 0 },
     lineQuotaCalibrateInput: '',
+    // "การส่งข้อมูลของเราภายใน 1 [เดือน] มันดูได้ไหมครับ ประวัติการส่ง"
+    // (2026-08-13) — modal state for GET /api/line/send-log.
+    showSendLogModal: false, sendLogLoading: false, sendLogRows: [],
     geminiUsage: { totalCalls: 0, totalCostUsd: 0, monthCalls: 0, monthCostUsd: 0 },
     // "ใช้ไปกี่%...สูงสุด 10ล้านเซลล์" (2026-07-26) — Dashboard's Google
     // Sheet card usage gauge, loaded once from GET /api/settings/sheet-usage
@@ -10406,6 +10448,17 @@ class Component extends DCLogic {
       this.showAdminToast(err.message || 'คาลิเบรตไม่สำเร็จ');
     }
   });
+  // "การส่งข้อมูลของเราภายใน 1 [เดือน] มันดูได้ไหมครับ ประวัติการส่ง"
+  // (2026-08-13) — เปิด modal + โหลดประวัติจาก GET /api/line/send-log
+  // (จัดรูปแบบวันที่/เวลาให้อ่านง่ายฝั่งนี้ ไม่ใช่ฝั่ง server)
+  openSendLog = () => {
+    this.setState({ showSendLogModal: true, sendLogLoading: true, sendLogRows: [] });
+    fetch('/api/line/send-log')
+      .then((res) => res.ok ? res.json() : [])
+      .then((rows) => this.setState({ sendLogRows: rows || [], sendLogLoading: false }))
+      .catch(() => this.setState({ sendLogLoading: false }));
+  };
+  closeSendLog = () => this.setState({ showSendLogModal: false });
   // "สร้างเครดิต ที่ใช้ไปให้หน่อยครับ" (2026-08-02) — สรุปยอดใช้งาน Gemini
   // สะสม (จำนวนครั้ง + ค่าใช้จ่ายประมาณการ USD) จาก GeminiUsageLog ผ่าน
   // GET /api/claude/gemini-usage — ให้เห็นตัวเลขจริงในการ์ด AI ก่อนจะมี
@@ -12614,6 +12667,20 @@ class Component extends DCLogic {
       lineUsageRawFromLine: (s.lineUsage.rawUsedFromLine || 0).toLocaleString('th-TH'),
       lineQuotaCalibrateInput: s.lineQuotaCalibrateInput, onLineQuotaCalibrateInput: this.onLineQuotaCalibrateInput,
       calibrateLineQuota: this.calibrateLineQuota,
+      // "การส่งข้อมูลของเราภายใน 1 [เดือน] มันดูได้ไหมครับ ประวัติการส่ง"
+      // (2026-08-13) — จัดรูปแบบวันที่/เวลาเป็นภาษาไทยให้อ่านง่ายตรงนี้
+      // (ข้อมูลดิบจาก server เป็น ISO timestamp เฉยๆ)
+      openSendLog: this.openSendLog, closeSendLog: this.closeSendLog,
+      showSendLogModal: s.showSendLogModal, sendLogLoading: s.sendLogLoading,
+      sendLogEmpty: !s.sendLogLoading && s.sendLogRows.length === 0,
+      sendLogHasRows: !s.sendLogLoading && s.sendLogRows.length > 0,
+      sendLogRows: s.sendLogRows.map((r) => {
+        const d = r.timestamp ? new Date(r.timestamp) : null;
+        const timeDisplay = d && !isNaN(d.getTime())
+          ? d.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+          : '-';
+        return { timeDisplay, to: r.to || '-', category: r.category || 'อื่นๆ' };
+      }),
       // Dashboard's Google Sheet card usage gauge (see sheetUsage* consts above).
       sheetUsageLoaded: s.sheetUsage.loaded,
       sheetUsageR, sheetUsageColor, sheetUsageDashArray,
