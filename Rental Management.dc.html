@@ -575,6 +575,14 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <sc-if value="{{ lineUsageIsCalibrated }}" hint-placeholder-val="{{ false }}">
                       <div style="font-size:10.5px;color:#7C6E5F;margin-top:6px">ปรับไว้แล้ว — เลขจริงจาก LINE ตอนนี้คือ {{ lineUsageRawFromLine }}</div>
                     </sc-if>
+                    <!-- "หลังคาลิเบรตให้ตรงแล้ว การใช้ทุกครั้ง ต้องนับต่อให้
+                         ด้วยครับ...การคาลิเบรต คือ การตั้งค่าให้ตรงกับ OA
+                         เพื่อให้การคำนวณใกล้เคียงครับ" (2026-08-13) — หลัง
+                         คาลิเบรตครั้งแรก ระบบจะนับต่อเองอัตโนมัติทุกครั้งที่
+                         ส่งข้อความจริง (ไม่พึ่ง API ที่อัปเดตช้าของ LINE
+                         อีกต่อไป) และรีเซ็ตกลับเป็น 0 ให้เองทุกวันที่ 1 ของ
+                         เดือน (server/routes/scheduler.js) -->
+                    <div style="font-size:10px;color:#A89A88;margin-top:4px">หลังคาลิเบรตแล้ว ระบบจะนับต่อเองอัตโนมัติทุกครั้งที่ส่งข้อความจริง และรีเซ็ตเป็น 0 ให้เองทุกวันที่ 1 ของเดือน</div>
                   </div>
                 </sc-if>
               </div>

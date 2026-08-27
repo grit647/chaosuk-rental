@@ -2,6 +2,36 @@ const crypto = require('crypto');
 
 const LINE_API = 'https://api.line.me/v2/bot/message';
 
+// "หลังคาลิเบตให้ตรงแล้ว การใช้ทุกครั้ง ต้องนับต่อให้ด้วยครับ จะได้รู้
+// จำนวนการใช้จริง การคาลิเบต คือ การตั้งค่าให้ตรงกับ OA เพื่อให้การคำนวณ
+// ใกล้เคียงครับ" (2026-08-13) — LINE's own /quota/consumption API (ดู
+// getMessageQuotaConsumption ด้านล่าง) พิสูจน์แล้วว่าอัปเดตช้ามาก (ไม่
+// เรียลไทม์ อาจค้างเป็นวันๆ) ทำให้ตัวเลขในเว็บเราตามหลังของจริงจาก LINE OA
+// Manager เยอะ — แก้โดยเลิกพึ่ง LINE's API เป็นแหล่งข้อมูลหลักหลังจากที่
+// คาลิเบรตครั้งแรกแล้ว (เจ้าของพิมพ์เลขจริงจาก OA Manager ให้ตรงกัน ณ
+// จุดเริ่ม) แล้วให้แอปนี้เองนับต่อจากจุดนั้นทุกครั้งที่ส่งข้อความจริง
+// (บวก 1 ทุกครั้งที่ callLineApi's push-type call สำเร็จ) แทน — Settings
+// sheet's lineQuotaOverride (เดิมเป็นแค่ค่า override นิ่งๆ ที่เจ้าของพิมพ์
+// เอง) ตอนนี้กลายเป็นตัวนับที่วิ่งต่อเนื่องเองตั้งแต่จุดคาลิเบรตไป — ไม่ทำ
+// อะไรถ้ายังไม่เคยคาลิเบรตเลย (ไม่มีจุดเริ่มให้นับต่อ, GET /api/line/usage
+// ยัง fallback ไปใช้เลขดิบจาก LINE ตามปกติในเคสนั้น) — เฉพาะ push-type
+// เท่านั้น (pushMessage/pushButtonMessage/pushMessageWithConfirmButton/
+// pushLinkButton) ไม่รวม replyMessage/replyLinkButton เพราะข้อความตอบกลับ
+// ผ่าน replyToken ไม่หักโควตารายเดือนของ LINE จริง (นับเฉพาะ push/
+// multicast/broadcast) — best-effort เสมอ (catch เงียบ) ไม่ให้การนับโควตา
+// ไปบล็อกการส่งข้อความจริงได้ไม่ว่ากรณีใด
+async function incrementLineQuotaCounter() {
+  try {
+    const { readTab, updateRow } = require('./sheets');
+    const rows = await readTab('Settings');
+    const row = rows.find((r) => r.key === 'lineQuotaOverride');
+    if (!row || row.value === '' || row.value == null) return; // ยังไม่เคยคาลิเบรต — ไม่มีจุดเริ่มให้นับต่อ
+    await updateRow('Settings', 'lineQuotaOverride', { value: String((Number(row.value) || 0) + 1) }, 'key');
+  } catch (err) {
+    console.error('[line] incrementLineQuotaCounter failed', err.message);
+  }
+}
+
 // Per explicit user request: LINE credentials can now come from either the
 // shared server/.env values (คุณต้น's current setup, unchanged) OR a
 // per-customer override stored in that customer's own Settings sheet
@@ -98,7 +128,9 @@ async function pushLinkButton(to, bodyText, buttonLabel, url, creds) {
       actions: [{ type: 'uri', label: buttonLabel.slice(0, 20), uri: url }],
     },
   };
-  return callLineApi('push', { to, messages: [message] }, creds);
+  const result = await callLineApi('push', { to, messages: [message] }, creds);
+  incrementLineQuotaCounter().catch(() => {});
+  return result;
 }
 
 // "กดปุ่ม ยืนยันที่หน้าไลน์เจ้าของเพื่อให้กดยืนยันเองได้เลย" (2026-07-26) —
@@ -129,7 +161,9 @@ async function pushButtonMessage(to, bodyText, buttons, creds) {
       actions: buttons.map((b) => ({ type: 'postback', label: b.label.slice(0, 20), data: b.data, displayText: (b.displayText || b.label).slice(0, 300) })),
     },
   };
-  return callLineApi('push', { to, messages: [message] }, creds);
+  const result = await callLineApi('push', { to, messages: [message] }, creds);
+  incrementLineQuotaCounter().catch(() => {});
+  return result;
 }
 
 // imageUrl (optional): a publicly reachable HTTPS URL — LINE fetches the
@@ -139,7 +173,9 @@ async function pushMessage(to, text, imageUrl, creds) {
   if (text) messages.push({ type: 'text', text });
   if (imageUrl) messages.push({ type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl });
   if (!messages.length) throw new Error('ไม่มีข้อความหรือรูปภาพให้ส่ง');
-  return callLineApi('push', { to, messages }, creds);
+  const result = await callLineApi('push', { to, messages }, creds);
+  incrementLineQuotaCounter().catch(() => {});
+  return result;
 }
 
 // "ทุกครั้งที่ส่งใบเสร็จไป ให้แนบปุ่มยืนยันฝั่งผู้เช่าไปด้วยครับ เราจะได้
@@ -161,7 +197,9 @@ async function pushMessageWithConfirmButton(to, text, imageUrl, invoiceId, creds
       actions: [{ type: 'postback', label: '✅ ยืนยันได้รับแล้ว', data: `action=confirmReceipt&invoiceId=${invoiceId}`, displayText: 'ยืนยันได้รับใบแจ้งหนี้แล้วครับ' }],
     },
   });
-  return callLineApi('push', { to, messages }, creds);
+  const result = await callLineApi('push', { to, messages }, creds);
+  incrementLineQuotaCounter().catch(() => {});
+  return result;
 }
 
 // Per explicit user request: a Dashboard card showing "how much of this

@@ -624,6 +624,37 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
     console.error('[scheduler] log retention prune failed', err.message);
   }
 
+  // "ส่วนนี้อัปเดตใหม่เป็น 0 ทุกวันที่ 1 ของเดือนได้ไหมครับ นับตามวันของ
+  // OA" (2026-08-13) — LINE's own /quota/consumption API (ที่ GET
+  // /api/line/usage อ่าน) พิสูจน์แล้วว่าอัปเดตช้ามาก ไม่ตรงกับของจริงที่
+  // LINE OA Manager แสดง (ดู server/line.js's incrementLineQuotaCounter
+  // comment เต็ม) — ตอนนี้ Settings sheet's lineQuotaOverride กลายเป็นตัว
+  // นับที่แอปนี้บวกเองทุกครั้งที่ส่งข้อความจริง (ตั้งแต่จุดที่เจ้าของเคย
+  // คาลิเบรตครั้งแรก) แทนที่จะพึ่ง LINE's API เพียงอย่างเดียว — จุดนี้คือ
+  // ส่วนที่ทำให้ตัวนับ "รีเซ็ตเป็น 0 เอง" ทุกวันที่ 1 ของเดือน (ตาม
+  // free-tier ของ LINE OA เอง ซึ่งรีเซ็ตตามเดือนปฏิทิน ไม่ใช่วันครบรอบ
+  // บัญชี) — บังคับตั้งเป็น '0' เสมอไม่ว่าจะเคยคาลิเบรตมาก่อนหรือไม่ (ถ้า
+  // ยังไม่เคยคาลิเบรตเลย การตั้งเป็น 0 ตรงนี้เท่ากับเริ่มระบบนับของแอปเอง
+  // ให้อัตโนมัติ ไม่ต้องรอเจ้าของมาคาลิเบรตมือเองอีกต่อไป) — dedup ผ่าน
+  // NotifyLog เหมือนฟีเจอร์อื่นๆ ในไฟล์นี้ (กันเขียนซ้ำหลายรอบในวันเดียวกัน
+  // ที่ scheduler รันทุก 10-20 นาที)
+  try {
+    const todayStrQuota = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+    if (Number(todayStrQuota.slice(8, 10)) === 1) {
+      const quotaResetKey = `${sheetId}:lineQuotaMonthlyReset:${todayStrQuota.slice(0, 7)}`;
+      if (!wasNotifiedToday(quotaResetKey)) {
+        if (settingsRows.some((r) => r.key === 'lineQuotaOverride')) {
+          await updateRow('Settings', 'lineQuotaOverride', { value: '0' }, 'key');
+        } else {
+          await appendRows('Settings', [{ id: 'lineQuotaOverride', key: 'lineQuotaOverride', value: '0' }]);
+        }
+        markNotifiedToday(quotaResetKey);
+      }
+    }
+  } catch (err) {
+    console.error('[scheduler] monthly LINE quota reset failed', err.message);
+  }
+
   // Per explicit user request: keep the owner Rich Menu's "บิลค้างชำระ"/
   // "สลิปรอตรวจสอบ" badge numbers roughly current — same unconditional
   // treatment as the overdue-bill check right above (basic upkeep, not
