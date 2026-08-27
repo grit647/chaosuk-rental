@@ -4113,6 +4113,17 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                         <div style="font-size:10.5px;color:#B24336;font-weight:600;margin-top:4px">⚠️ ตรวจสอบใหม่ — เลขน้อยกว่าบิลก่อนหน้า</div>
                       </sc-if>
                     </sc-if>
+                    <!-- "เมื่อกรอกค่าแล้ว ให้ขึ้นส่วนที่คำนวณเป็นยอดเงินให้
+                         ด้วยครับ ต่อจากบรรทัด ค่าอุปกรณ์อ้างอิงล่าสุด"
+                         (2026-08-13) — เดิมฟอร์มออกบิลเดี่ยวโหมด "กรอกเอง"
+                         ไม่มีบรรทัดสรุป "X หน่วย × เรท = Y บาท" เหมือนฟอร์ม
+                         ออกบิลรวมที่มีอยู่แล้ว (waterManualHint) — เพิ่มให้
+                         ตรงกัน โชว์เสมอเมื่ออยู่โหมด "กรอกเอง" ไม่ว่าจะกรอก
+                         ค่าแล้วหรือยัง (0 หน่วย × เรท = 0 บาท ถ้ายังไม่กรอก)
+                    -->
+                    <sc-if value="{{ invWaterIsManual }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10.5px;color:#241812;font-weight:600;margin-top:4px;font-family:'IBM Plex Mono',monospace">{{ invWaterManualHint }}</div>
+                    </sc-if>
                   </div>
                   <div style="flex:1">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
@@ -4141,6 +4152,9 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <sc-if value="{{ invElecReadingTooLow }}" hint-placeholder-val="{{ false }}">
                         <div style="font-size:10.5px;color:#B24336;font-weight:600;margin-top:4px">⚠️ ตรวจสอบใหม่ — เลขน้อยกว่าบิลก่อนหน้า</div>
                       </sc-if>
+                    </sc-if>
+                    <sc-if value="{{ invElecIsManual }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10.5px;color:#241812;font-weight:600;margin-top:4px;font-family:'IBM Plex Mono',monospace">{{ invElecManualHint }}</div>
                     </sc-if>
                   </div>
                 </div>
@@ -13114,6 +13128,26 @@ class Component extends DCLogic {
         if (this.cfManualUnitsDirect() || s.newInvoice.elecMode !== 'manual' || !s.newInvoice.elecUnits) return false;
         const room = s.rooms.find(x => x.id === s.newInvoice.roomId);
         return Number(s.newInvoice.elecUnits) < ((room && room.elecPrev) || 0);
+      })(),
+      // "เมื่อกรอกค่าแล้ว ให้ขึ้นส่วนที่คำนวณเป็นยอดเงินให้ด้วยครับ ต่อจาก
+      // บรรทัด ค่าอุปกรณ์อ้างอิงล่าสุด" (2026-08-13) — สรุป "X หน่วย × เรท =
+      // Y บาท" ให้ฟอร์มออกบิลเดี่ยวโหมด "กรอกเอง" เหมือนที่ฟอร์มออกบิลรวม
+      // (bulkInvoiceRows's waterManualHint/elecManualHint) มีอยู่แล้ว —
+      // ข้อความปรับตามโหมด v9 เหมือนกัน (ตรงๆ vs "ครั้งก่อน→ปัจจุบัน" แบบ
+      // เดิมสำหรับตึกที่ยังไม่อัปเดต)
+      invWaterManualHint: (() => {
+        const units = this.meterUnitsFromReading(s.newInvoice.roomId, 'water', s.newInvoice.waterUnits);
+        const rate = this.roomRate(s.newInvoice.roomId, 'water');
+        if (this.cfManualUnitsDirect()) return `ใช้ ${units} หน่วย × ${rate}/หน่วย = ${this.fmt(units * rate)} บาท`;
+        const room = s.rooms.find(x => x.id === s.newInvoice.roomId);
+        return `ครั้งก่อน ${(room && room.waterPrev) || 0} → ปัจจุบัน ${Number(s.newInvoice.waterUnits) || 0} = ใช้ ${units} หน่วย × ${rate}/หน่วย = ${this.fmt(units * rate)} บาท`;
+      })(),
+      invElecManualHint: (() => {
+        const units = this.meterUnitsFromReading(s.newInvoice.roomId, 'elec', s.newInvoice.elecUnits);
+        const rate = this.roomRate(s.newInvoice.roomId, 'elec');
+        if (this.cfManualUnitsDirect()) return `ใช้ ${units} หน่วย × ${rate}/หน่วย = ${this.fmt(units * rate)} บาท`;
+        const room = s.rooms.find(x => x.id === s.newInvoice.roomId);
+        return `ครั้งก่อน ${(room && room.elecPrev) || 0} → ปัจจุบัน ${Number(s.newInvoice.elecUnits) || 0} = ใช้ ${units} หน่วย × ${rate}/หน่วย = ${this.fmt(units * rate)} บาท`;
       })(),
       // "รายการบิล" preview — per explicit user request, show the exact
       // calculation for every line (not just the running total) right in
