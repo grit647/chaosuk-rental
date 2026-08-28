@@ -8095,6 +8095,15 @@ class Component extends DCLogic {
           rent: Number(ei.rent) || 0, water: Number(ei.water) || 0, elec: Number(ei.elec) || 0,
           trash: Number(ei.trash) || 0, internet: Number(ei.internet) || 0, due: ei.due,
           ...(wasSent ? { receiptSent: false } : {}),
+          // "กรณีการแก้บิล ส่วนรูปภาพเราก็ต้องแก้ไขและอัปเดทใหม่ด้วยครับ"
+          // (2026-08-13) — real bug: receiptImageUrl (รูปใบเสร็จที่เคยสร้าง/
+          // ส่งไปแล้ว) ค้างชี้ไปที่รูปเก่า (ยอดเงินเดิม) หลังแก้ไขยอดในบิล
+          // นี้แล้ว — "ส่งข้อมูล (LINE)" (sendReceiptLine) สร้างรูปใหม่ทุก
+          // ครั้งอยู่แล้วเลยไม่กระทบ แต่ "ส่งใบเสร็จล่าสุด" (sendLatestReceipt)
+          // เช็ค receiptImageUrl เดิมก่อนเสมอ ถ้ามีค่าอยู่แล้วจะส่งรูปเก่าซ้ำ
+          // ไม่สร้างใหม่ — ล้างค่านี้ทิ้งทุกครั้งที่แก้บิล บังคับให้ต้องสร้าง
+          // รูปใหม่จากยอดที่แก้ไขล่าสุดเสมอ ไม่ว่าจะกดส่งทางไหนก็ตาม
+          receiptImageUrl: '',
         }),
       });
       if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
