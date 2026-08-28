@@ -2968,6 +2968,22 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ข้อความแจ้งเตือน (ข้อ 4)</div>
               <textarea value="{{ dueReminderMsg }}" onchange="{{ onDueReminderMsg }}" placeholder="พิมพ์ข้อความแจ้งเตือน..." style="width:100%;min-height:56px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:16px"></textarea>
 
+              <!-- "เราลดความถี่ในการส่งหรือยืดเวลาการกดยืนยันได้ไหมครับ"
+                   (2026-08-13) — เดิมตายตัวที่ 24 ชม. (ส่งซ้ำถ้าผู้เช่ายัง
+                   ไม่กด "ยืนยันรับแล้ว" สูงสุด 2 ครั้งก่อนแจ้งเจ้าของ) —
+                   สงสัยว่าเป็นสาเหตุที่โควต้า LINE หมดเร็วตอนต้นเดือน (ผู้เช่า
+                   หลายคนยังไม่คุ้นกับปุ่มนี้ โดนส่งซ้ำครบทุกห้อง) — เปิดให้
+                   ปรับเวลารอได้เอง ลดความถี่การส่งซ้ำได้โดยตรง -->
+              <div style="border-top:1px solid #F0E9DC;margin-bottom:14px"></div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">5) ถ้าผู้เช่ายังไม่กด "ยืนยันรับแล้ว" รอกี่ชั่วโมงก่อนส่งใบแจ้งหนี้ซ้ำ (ส่งซ้ำสูงสุด 2 ครั้ง ก่อนแจ้งเจ้าของให้ติดต่อเอง)</div>
+              <select value="{{ receiptRetryHours }}" onchange="{{ onReceiptRetryHours }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">
+                <option value="24">24 ชั่วโมง (ค่าเดิม)</option>
+                <option value="48">48 ชั่วโมง (2 วัน)</option>
+                <option value="72">72 ชั่วโมง (3 วัน)</option>
+                <option value="120">120 ชั่วโมง (5 วัน)</option>
+              </select>
+              <div style="font-size:10.5px;color:#9C8B78;margin-bottom:16px">ยิ่งตั้งนานขึ้น ยิ่งลดจำนวนข้อความที่เสียโควต้า LINE จากการส่งซ้ำ (แลกกับผู้เช่าที่พลาดจริงๆ ต้องรอนานขึ้นกว่าจะได้รับใบแจ้งหนี้ซ้ำ)</div>
+
               <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ข้อความพิเศษที่แนบไปกับบิลแรกของผู้เช่าใหม่ (ไม่บังคับ)</div>
               <textarea value="{{ firstInvoiceMsg }}" onchange="{{ onFirstInvoiceMsg }}" placeholder="เช่น ยินดีต้อนรับสู่หอพัก...หากมีปัญหาแจ้งได้ตลอดครับ" style="width:100%;min-height:56px;padding:10px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:6px"></textarea>
               <div style="font-size:10.5px;color:#9C8B78;margin-bottom:18px">แนบต่อท้ายข้อความบิลอัตโนมัติ เฉพาะบิลใบแรกของห้องนั้นๆ เท่านั้น (ปล่อยว่างถ้าไม่ต้องการ)</div>
@@ -4997,6 +5013,8 @@ class Component extends DCLogic {
     autoInvoiceRooms: {},
     dueReminderDays: '3',
     dueReminderMsg: 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ',
+    // "เราลดความถี่ในการส่งหรือยืดเวลาการกดยืนยันได้ไหมครับ" (2026-08-13)
+    receiptRetryHours: '24',
     // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก" (2026-07-26)
     firstInvoiceMsg: '',
     // "เพิ่มดูข้อมูลการ์ด กดแล้วขึ้น popup สวยๆ ขึ้นมาสรุปเลย ว่าห้องไหน
@@ -5747,6 +5765,7 @@ class Component extends DCLogic {
         leaseExpiringReminderDays: data.leaseExpiringReminderDays != null ? String(data.leaseExpiringReminderDays) : s.leaseExpiringReminderDays,
         dueReminderDays: data.dueReminderDays != null ? String(data.dueReminderDays) : s.dueReminderDays,
         dueReminderMsg: data.dueReminderMsg != null ? data.dueReminderMsg : s.dueReminderMsg,
+        receiptRetryHours: data.receiptRetryHours != null ? String(data.receiptRetryHours) : s.receiptRetryHours,
         firstInvoiceMsg: data.firstInvoiceMsg != null ? data.firstInvoiceMsg : s.firstInvoiceMsg,
         settings: { ...s.settings, ...data.settings },
         claudeAutomationEnabled: !!data.claudeAutomationEnabled,
@@ -9951,6 +9970,8 @@ class Component extends DCLogic {
   // แล้ว (showCutoffConfigModal/openCutoffConfig/saveCutoffConfig) — ตัด
   // handler แยกทิ้ง เหลือแค่ onChange ของ 3 ช่องที่ยังใช้อยู่ในป็อปอัพเดียว
   onDueReminderDays = (e) => this.setState({ dueReminderDays: e.target.value });
+  // "เราลดความถี่ในการส่งหรือยืดเวลาการกดยืนยันได้ไหมครับ" (2026-08-13)
+  onReceiptRetryHours = (e) => this.setState({ receiptRetryHours: e.target.value });
   onDueReminderMsg = (e) => this.setState({ dueReminderMsg: e.target.value });
   // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก" (2026-07-26)
   onFirstInvoiceMsg = (e) => this.setState({ firstInvoiceMsg: e.target.value });
@@ -10068,6 +10089,9 @@ class Component extends DCLogic {
           dueReminderDays: Number(this.state.dueReminderDays) || 3,
           dueReminderMsg: this.state.dueReminderMsg,
           firstInvoiceMsg: this.state.firstInvoiceMsg,
+          // "เราลดความถี่ในการส่งหรือยืดเวลาการกดยืนยันได้ไหมครับ"
+          // (2026-08-13)
+          receiptRetryHours: Number(this.state.receiptRetryHours) || 24,
         }),
       });
       if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
@@ -13368,6 +13392,8 @@ class Component extends DCLogic {
       openLeaseExpiringConfig: this.openLeaseExpiringConfig, closeLeaseExpiringConfig: this.closeLeaseExpiringConfig,
       onLeaseExpiringReminderDaysChange: this.onLeaseExpiringReminderDaysChange, saveLeaseExpiringConfig: this.saveLeaseExpiringConfig,
       dueReminderDays: s.dueReminderDays, dueReminderMsg: s.dueReminderMsg,
+      // "เราลดความถี่ในการส่งหรือยืดเวลาการกดยืนยันได้ไหมครับ" (2026-08-13)
+      receiptRetryHours: s.receiptRetryHours, onReceiptRetryHours: this.onReceiptRetryHours,
       firstInvoiceMsg: s.firstInvoiceMsg, onFirstInvoiceMsg: this.onFirstInvoiceMsg,
       onDueReminderDays: this.onDueReminderDays, onDueReminderMsg: this.onDueReminderMsg,
       propertyProfile: s.propertyProfile,

@@ -430,6 +430,10 @@ router.put('/', async (req, res, next) => {
       dueReminderDays: b.dueReminderDays,
       dueReminderMsg: b.dueReminderMsg,
       firstInvoiceMsg: b.firstInvoiceMsg,
+      // "เราลดความถี่ในการส่งหรือยืดเวลาการกดยืนยันได้ไหมครับ" (2026-08-13)
+      // — ปรับได้เอง แทนค่าตายตัว 24 ชม. เดิม (ดู server/routes/
+      // scheduler.js's receipt-confirmation retry block)
+      receiptRetryHours: b.receiptRetryHours,
       claudeAutomationEnabled: b.claudeAutomationEnabled,
       // "การ์ดนี้ส่วนบนเพิ่ม (Gemini) ไปอีกตัวครับ มีช่องให้ติ๊กว่าเลือก
       // ใช้ตัวไหน ส่วนการเชื่อมต่อรอเครดิตเต็มพรุ่งนี้ครับ" (2026-08-01) —

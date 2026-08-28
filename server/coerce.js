@@ -287,6 +287,14 @@ async function readSettings(preloadedRows) {
     // remind on 12/13/14, confirmed directly with the owner).
     dueReminderDays: num(map.dueReminderDays, 3),
     dueReminderMsg: map.dueReminderMsg || 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ',
+    // "เราลดความถี่ในการส่งหรือยืดเวลาการกดยืนยันได้ไหมครับ" (2026-08-13) —
+    // เดิม server/routes/scheduler.js's receipt-confirmation retry ตายตัว
+    // ที่ 24 ชม. (ส่งซ้ำถ้าผู้เช่ายังไม่กดยืนยันรับใน 24 ชม. สูงสุด 2 ครั้ง
+    // ก่อนแจ้งเจ้าของ) — พบว่านี่อาจเป็นสาเหตุที่ทำให้โควต้า LINE หมดเร็ว
+    // ตอนต้นเดือน (ผู้เช่าหลายคนยังไม่คุ้นกับปุ่ม "ยืนยันรับแล้ว" โดนส่งซ้ำ
+    // ครบ 2 รอบทุกห้อง) — เปิดให้เจ้าของปรับเวลารอได้เอง (เช่น 48/72 ชม.)
+    // แทนค่าตายตัวเดิม ลดความถี่การส่งซ้ำได้โดยตรง
+    receiptRetryHours: num(map.receiptRetryHours, 24),
     // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก...เป็นข้อความที่
     // เจ้าของกำหนดเองครับ จะเป็นข้อความอะไรก็ได้" (2026-07-26) — free text,
     // appended to the LINE receipt message only when it's a room's very

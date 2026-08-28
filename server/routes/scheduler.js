@@ -259,14 +259,17 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
     // เป็นชั้นป้องกันที่สอง เผื่อมีทางอื่นเซ็ตค่าเหล่านี้เข้ามาในอนาคต
     const invoices = platformVersion >= RECEIPT_CONFIRM_VERSION ? invoicesAll : [];
     const now = Date.now();
-    const HOURS_24 = 24 * 60 * 60 * 1000;
+    // "เราลดความถี่ในการส่งหรือยืดเวลาการกดยืนยันได้ไหมครับ" (2026-08-13) —
+    // เดิมตายตัวที่ 24 ชม. เปลี่ยนเป็นอ่านจาก settings.receiptRetryHours
+    // (ปรับได้เองที่หน้าตั้งค่า, default ยังคง 24 เหมือนเดิมถ้าไม่เคยตั้ง)
+    const RETRY_HOURS_MS = (Number(settings.receiptRetryHours) || 24) * 60 * 60 * 1000;
     const pendingConfirm = invoices.filter((i) => i.receiptSent && !i.receiptDeliveryConfirmed && i.receiptLastSentAt);
     if (pendingConfirm.length) {
       const rooms = roomsAll;
       const receiptCreds = sharedCreds;
       for (const inv of pendingConfirm) {
         const lastSent = new Date(inv.receiptLastSentAt).getTime();
-        if (!lastSent || (now - lastSent) < HOURS_24) continue;
+        if (!lastSent || (now - lastSent) < RETRY_HOURS_MS) continue;
         const room = rooms.find((r) => r.id === inv.room);
         if (!room || !room.lineUserId) continue;
         if (inv.receiptSendCount >= 2) {
