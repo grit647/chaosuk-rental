@@ -18,7 +18,13 @@ router.post('/', async (req, res, next) => {
     if (!room || !message || !sendAt) {
       return res.status(400).json({ error: 'ข้อมูลไม่ครบ (room, message, sendAt)' });
     }
-    const row = { id: Date.now() + '-invoice', room, message, sendAt, sent: 'FALSE', source: 'invoice_receipt' };
+    // "ตั้งเวลาส่งทุกห้องพร้อมกัน" (bulk) เรียก endpoint นี้ต่อห้องแบบ
+    // sequential เร็วมาก — Date.now() (ความละเอียดระดับมิลลิวินาที) เคยมี
+    // ความเสี่ยงชนกันได้ถ้า request 2 ห้องดันได้ timestamp เดียวกันพอดี
+    // (พบระหว่างแก้บั๊กห้องขาดตารางส่ง 2026-08-13 — ไม่ใช่สาเหตุของบั๊กนั้น
+    // จริงๆ แต่เป็นความเสี่ยงแฝงที่เจอระหว่างทาง) เติม room + เลขสุ่มให้ id
+    // ไม่มีทางชนกันข้ามห้องอีกต่อไป แม้ Date.now() จะเท่ากันพอดี
+    const row = { id: Date.now() + '-invoice-' + room + '-' + Math.random().toString(36).slice(2, 6), room, message, sendAt, sent: 'FALSE', source: 'invoice_receipt' };
     await appendRow('ScheduledMessages', row);
     res.json({ ok: true, ...row });
   } catch (err) { next(err); }
