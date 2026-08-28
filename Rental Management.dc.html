@@ -1097,6 +1097,12 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                       <sc-if value="{{ b.hasScheduledSend }}" hint-placeholder-val="{{ false }}">
                         <span style="font-size:10px;font-weight:600;padding:4px 9px;border-radius:5px;background:#E4EEF7;color:#2C6E8F;white-space:nowrap">{{ b.scheduledSendLabel }}</span>
                       </sc-if>
+                      <!-- "กันปัญหาเรื่องของโควต้า ถ้าการส่งไม่สำเร็จ ขึ้น
+                           เตือนไว้ให้หน่อยครับ" (2026-08-13) — ป้ายถาวร
+                           (ไม่ใช่ toast) ค้างจนกว่าจะส่งสำเร็จครั้งถัดไป -->
+                      <sc-if value="{{ b.hasSendFailedWarning }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:10px;font-weight:600;padding:4px 9px;border-radius:5px;background:#FBE7E4;color:#B24336;white-space:nowrap;text-align:right">{{ b.sendFailedLabel }}</span>
+                      </sc-if>
                     </div>
                   </div>
                 </sc-for>
@@ -7838,9 +7844,36 @@ class Component extends DCLogic {
           }
         } catch { /* LINE already sent either way — non-fatal if this save hiccups */ }
       }
+      // "กันปัญหาเรื่องของโควต้า ถ้าการส่งไม่สำเร็จ ขึ้นเตือนไว้ให้หน่อย
+      // ครับ" (2026-08-13) — ส่งสำเร็จแล้ว เคลียร์ป้ายเตือน "ส่งไม่สำเร็จ
+      // ล่าสุด" ทิ้ง (ถ้ามีค้างจากครั้งก่อน) ให้ป้ายหายไปทันที ไม่ต้องรอ
+      // ส่งครั้งถัดไปมาทับ — best-effort เหมือนกับ PATCH receiptSent ด้านบน
+      if (invoice && invoice.lastSendFailedAt) {
+        fetch('/api/invoices/' + encodeURIComponent(invoice.id), {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lastSendFailedAt: '', lastSendFailReason: '' }),
+        }).then(r => r.ok ? r.json() : null).then(updated => {
+          if (updated) this.setState(s => ({ invoices: s.invoices.map(i => i.id === updated.id ? updated : i) }));
+        }).catch(() => {});
+      }
       this.setState(s => ({ receiptsSent: { ...s.receiptsSent, [roomId]: true } }));
       this.showAdminToast('ส่งใบแจ้งหนี้ห้อง ' + roomId + ' ทาง LINE แล้ว รอผู้เช่ายืนยันครับ');
-    } catch (err) { this.showAdminToast(err.message || 'ส่ง LINE ไม่สำเร็จ'); }
+    } catch (err) {
+      this.showAdminToast(err.message || 'ส่ง LINE ไม่สำเร็จ');
+      // "กันปัญหาเรื่องของโควต้า ถ้าการส่งไม่สำเร็จ ขึ้นเตือนไว้ให้หน่อย
+      // ครับ" (2026-08-13) — เดิม toast หายไปเร็ว พลาดสังเกตได้ง่าย (เจอ
+      // จริงกับห้อง 5/11-14 — กด "ส่งทันที" หลายห้องรัวๆ ตอนโควต้าเต็ม แล้ว
+      // ไม่มีร่องรอยเหลือให้ดูย้อนหลังเลยว่าห้องไหนพลาดไปบ้าง) — บันทึกค้าง
+      // ไว้บนตัว invoice เอง ให้ตารางบิลโชว์ป้ายเตือนถาวรจนกว่าจะส่งสำเร็จ
+      if (invoice) {
+        fetch('/api/invoices/' + encodeURIComponent(invoice.id), {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lastSendFailedAt: new Date().toISOString(), lastSendFailReason: String(err.message || 'ส่งไม่สำเร็จ').slice(0, 200) }),
+        }).then(r => r.ok ? r.json() : null).then(updated => {
+          if (updated) this.setState(s => ({ invoices: s.invoices.map(i => i.id === updated.id ? updated : i) }));
+        }).catch(() => {});
+      }
+    }
   });
 
   // "เพิ่ม ส่งใบเสร็จหลังสุดให้หน่อยครับ กันระบบที่ส่งจากออกใบเสร็จส่งอีก
@@ -8508,6 +8541,19 @@ class Component extends DCLogic {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart || '');
     const dateThai = m ? `${m[3]}/${m[2]}/${Number(m[1]) + 543}` : (datePart || '');
     return dateThai + (timePart ? ' ' + timePart + ' น.' : '');
+  }
+  // "กันปัญหาเรื่องของโควต้า ถ้าการส่งไม่สำเร็จ ขึ้นเตือนไว้ให้หน่อยครับ"
+  // (2026-08-13) — lastSendFailedAt is a full ISO timestamp (new Date().
+  // toISOString(), UTC) unlike sendAt above (a naive "YYYY-MM-DDTHH:MM"
+  // Bangkok-local string with no timezone info at all) — needs its own
+  // formatter that actually converts UTC → Bangkok time instead of
+  // _fmtScheduledSendAt's plain string-split (which would show garbled
+  // seconds/milliseconds/Z if reused here).
+  _fmtFailedAt(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' น.';
   }
   // Applies the room's minimum monthly charge (per explicit user request)
   // on top of a raw units×rate calc — returns both the final charge AND
@@ -11398,6 +11444,16 @@ class Component extends DCLogic {
         onOpenHistory: () => this.openBillHistory(i.room),
         hasScheduledSend: !!pendingSchedule,
         scheduledSendLabel: pendingSchedule ? ('🕒 ตั้งเวลาส่ง ' + this._fmtScheduledSendAt(pendingSchedule.sendAt)) : '',
+        // "กันปัญหาเรื่องของโควต้า ถ้าการส่งไม่สำเร็จ ขึ้นเตือนไว้ให้หน่อย
+        // ครับ" (2026-08-13) — ป้ายเตือนถาวร (ไม่ใช่ toast ที่หายเร็ว) ค้าง
+        // อยู่บนแถวห้องนี้จนกว่าจะส่งสำเร็จครั้งถัดไป (sendReceiptLine/
+        // scheduler.js's scheduled-send loop ทั้งคู่เคลียร์ค่านี้เองตอน
+        // สำเร็จ) — โชว์เวลาที่พลาดล่าสุด + เหตุผลสั้นๆ (เช่น error จาก LINE
+        // ตอนโควต้าเต็ม) ให้เจ้าของเห็นชัดว่าห้องไหนต้องกลับมาส่งใหม่
+        hasSendFailedWarning: !!i.lastSendFailedAt,
+        sendFailedLabel: i.lastSendFailedAt
+          ? ('⚠️ ส่งไม่สำเร็จล่าสุด ' + this._fmtFailedAt(i.lastSendFailedAt) + (i.lastSendFailReason ? (' — ' + i.lastSendFailReason) : ''))
+          : '',
       };
     });
     const pendingBillsCount = pendingBills.length;

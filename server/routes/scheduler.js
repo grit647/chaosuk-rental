@@ -730,7 +730,11 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
         if (row.source === 'invoice_receipt' && row.room !== 'all') {
           try {
             const inv = invoicesAll.find((i) => i.room === row.room && i.status !== 'paid');
-            if (inv) await updateRow('Invoices', inv.id, { receiptSent: true });
+            // "กันปัญหาเรื่องของโควต้า ถ้าการส่งไม่สำเร็จ ขึ้นเตือนไว้ให้
+            // หน่อยครับ" (2026-08-13) — เคลียร์ป้ายเตือนค้างจากครั้งก่อน
+            // (ถ้ามี) ตอนส่งสำเร็จรอบนี้ด้วย เหมือนที่ sendReceiptLine ฝั่ง
+            // frontend ทำ
+            if (inv) await updateRow('Invoices', inv.id, { receiptSent: true, lastSendFailedAt: '', lastSendFailReason: '' });
           } catch (err2) {
             console.error('[scheduler] failed to mark invoice receiptSent after scheduled send', row.id, err2.message);
           }
@@ -738,6 +742,20 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
       } catch (err) {
         console.error('[scheduler] failed to send', row.id, err.message, err.stack);
         if (sendErrors.length < 3) sendErrors.push(String(err.message || err));
+        // "กันปัญหาเรื่องของโควต้า ถ้าการส่งไม่สำเร็จ ขึ้นเตือนไว้ให้หน่อย
+        // ครับ" (2026-08-13) — ตั้งเวลาส่งไว้แล้วแต่ถึงเวลาจริงส่งไม่สำเร็จ
+        // (เช่น โควต้า LINE ยังไม่รีเซ็ตทันเวลาที่ตั้งไว้) ก็ควรขึ้นป้าย
+        // เตือนถาวรบนตารางบิลเหมือนกัน ไม่ใช่แค่ log เงียบๆ ที่เจ้าของไม่มี
+        // ทางเห็น — แถวใน ScheduledMessages ยังไม่ถูกมาร์ค sent (ด้านบน
+        // เขียนแค่ตอนสำเร็จ) จึงยังลองส่งซ้ำรอบหน้าให้เองตามปกติด้วย
+        if (row.source === 'invoice_receipt' && row.room !== 'all') {
+          try {
+            const inv = invoicesAll.find((i) => i.room === row.room && i.status !== 'paid');
+            if (inv) await updateRow('Invoices', inv.id, { lastSendFailedAt: new Date().toISOString(), lastSendFailReason: String(err.message || 'ส่งไม่สำเร็จ').slice(0, 200) });
+          } catch (err3) {
+            console.error('[scheduler] failed to mark invoice send-failure', row.id, err3.message);
+          }
+        }
       }
     }
     scheduledMessagesErrors = sendErrors;
