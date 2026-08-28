@@ -7624,19 +7624,33 @@ class Component extends DCLogic {
         console.error('bulk invoice failed for room', roomId, err);
       }
     }
-    // Fire-and-forget the prev resets — non-fatal if one hiccups, same as
-    // submitInvoice's own comment on this exact pattern.
-    Object.entries(roomPrevUpdates).forEach(([roomId, patch]) => {
-      fetch('/api/rooms/' + encodeURIComponent(roomId), {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      }).then(r => r.ok ? r.json() : null).then(updatedRoom => {
-        if (updatedRoom) this.setState(st => ({ rooms: st.rooms.map(r => r.id === roomId ? updatedRoom : r) }));
-      }).catch(() => {});
-    });
+    // "การออกบิลทุกครั้งจะเป็นการออกบิลครั้งเดียวทั้งหมดครับ" (2026-08-13)
+    // — real bug found: ยิงคำขอ PATCH รีเซ็ต elecPrev/waterPrev ของทุกห้อง
+    // พร้อมกันทีเดียวแบบ fire-and-forget (ไม่รอผล, ไม่มี error ไหนหลุดออกมา
+    // เลย) — ยืนยันจากข้อมูลจริงแล้วว่าส่วนใหญ่ล้มเหลวเงียบๆ (น่าจะโดน
+    // Google Sheets API จำกัดโควต้าการเขียนตอนยิงพร้อมกันหลายห้อง) ทิ้งเลข
+    // ตั้งต้นค้างไว้ที่ค่าเก่า — ผลคือบิลรอบถัดไปนับหน่วยที่เพิ่งเก็บเงินไป
+    // แล้วซ้ำอีกรอบ (เก็บเงินผู้เช่าเกินจริง) แก้โดยเปลี่ยนเป็นทำทีละห้อง
+    // ตามลำดับ (sequential, await จริง) กันยิง Sheets API เร็วเกินไปพร้อม
+    // กัน และเก็บรายชื่อห้องที่ล้มเหลวไว้แจ้งเจ้าของจริงๆ แทนที่จะเงียบหาย
+    const prevUpdateFailedRooms = [];
+    const updatedRoomsById = {};
+    for (const [roomId, patch] of Object.entries(roomPrevUpdates)) {
+      try {
+        const rres = await fetch('/api/rooms/' + encodeURIComponent(roomId), {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        });
+        if (!rres.ok) throw new Error('PATCH ไม่สำเร็จ');
+        updatedRoomsById[roomId] = await rres.json();
+      } catch (err) {
+        console.error('bulk invoice: baseline reset failed for room', roomId, err);
+        prevUpdateFailedRooms.push(roomId);
+      }
+    }
     this.setState(st => ({
       invoices: [...newInvoices, ...st.invoices],
-      rooms: st.rooms.map(r => roomCreditUpdates[r.id] != null ? { ...r, creditBalance: roomCreditUpdates[r.id] } : r),
+      rooms: st.rooms.map(r => updatedRoomsById[r.id] ? updatedRoomsById[r.id] : (roomCreditUpdates[r.id] != null ? { ...r, creditBalance: roomCreditUpdates[r.id] } : r)),
       showBulkInvoiceModal: false, bulkInvoiceLoading: false,
       // เปิด popup ถามส่งทันที/ตั้งวันเวลาส่ง ให้ครบทุกห้องที่เพิ่งออกบิล
       // สำเร็จ (ห้องที่ล้มเหลวไม่รวม — ไม่มีบิลจริงให้ส่ง)
@@ -7644,9 +7658,12 @@ class Component extends DCLogic {
       sendChoiceDate: '', sendChoiceTime: '09:00',
     }));
     const skipMsg = skippedNoRate.length ? ` — ข้ามห้อง ${skippedNoRate.join(', ')} เพราะยังไม่กรอกอัตราค่าบริการในสัญญาเช่า` : '';
+    const baselineFailMsg = prevUpdateFailedRooms.length
+      ? ` ⚠️ ห้อง ${prevUpdateFailedRooms.join(', ')} รีเซ็ตเลขมิเตอร์อุปกรณ์ไม่สำเร็จ กรุณาเช็คที่หน้า "Set อุปกรณ์" ก่อนออกบิลรอบถัดไปของห้องเหล่านี้`
+      : '';
     this.showAdminToast((failCount === 0
       ? `สร้างใบแจ้งหนี้สำเร็จ ${successCount} ห้อง`
-      : `สร้างสำเร็จ ${successCount} ห้อง, ไม่สำเร็จ ${failCount} ห้อง`) + skipMsg);
+      : `สร้างสำเร็จ ${successCount} ห้อง, ไม่สำเร็จ ${failCount} ห้อง`) + skipMsg + baselineFailMsg);
   });
   openInvoiceModal = () => this.setState({ showInvoiceModal: true, newInvoice: { roomId: '', water: '0', elec: '0', waterUnits: '', elecUnits: '', due: '', waterMode: 'device', elecMode: 'device', rentOverride: '' } });
   openInvoiceForRoom = (roomId) => {
