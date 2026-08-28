@@ -87,6 +87,16 @@ router.post('/', async (req, res, next) => {
       elecUnits: b.elecUnits != null ? Number(b.elecUnits) : '',
       waterPrevReading: b.waterPrevReading != null ? Number(b.waterPrevReading) : '',
       elecPrevReading: b.elecPrevReading != null ? Number(b.elecPrevReading) : '',
+      // "ถ้าเกิดการลบ ข้อมูลชุดที่เราบันทึกไว้ ถึงจะไม่ใช้ จะต้องถูกลบด้วย
+      // ครับ แล้วกลับไปใช้บิลก่อนหน้าในการคำนวณเหมือนเดิม" (2026-08-28) —
+      // เก็บว่า room.waterPrev/elecPrev "ถูกตั้งเป็น" เท่าไหร่หลังบิลนี้ปิด
+      // (สูตรเดียวกับ prevPatch ฝั่ง frontend) ไว้บนตัว invoice เอง — ให้
+      // DELETE /:id ด้านล่างรู้แน่ชัดว่าจะคืนเลขอุปกรณ์กลับไปถูกจุดได้ไหม
+      // ไม่ว่าบิลนี้จะออกด้วยโหมด "อุปกรณ์" หรือ "กรอกเอง" ก็ตาม (เดิมเช็ค
+      // จาก waterPrevReading+waterUnits เท่านั้น ซึ่งใช้ไม่ได้เมื่อหน่วยที่
+      // ใช้เป็นตัวเลขที่พิมพ์เอง ไม่เกี่ยวกับเลขอุปกรณ์จริง)
+      waterDeviceBaselineAfter: b.waterDeviceBaselineAfter != null ? Number(b.waterDeviceBaselineAfter) : '',
+      elecDeviceBaselineAfter: b.elecDeviceBaselineAfter != null ? Number(b.elecDeviceBaselineAfter) : '',
       waterRate, elecRate,
     };
     await appendRow('Invoices', invoice);
@@ -191,13 +201,26 @@ router.delete('/:id', async (req, res, next) => {
           refunded = invoice.amountPaid;
           roomPatch.creditBalance = (room.creditBalance || 0) + refunded;
         }
-        if (invoice.waterPrevReading != null && invoice.waterUnits != null) {
-          const expectedCurrent = invoice.waterPrevReading + invoice.waterUnits;
-          if (room.waterPrev === expectedCurrent) roomPatch.waterPrev = invoice.waterPrevReading;
+        // "ถ้าเกิดการลบ ข้อมูลชุดที่เราบันทึกไว้ ถึงจะไม่ใช้ จะต้องถูกลบ
+        // ด้วยครับ แล้วกลับไปใช้บิลก่อนหน้าในการคำนวณเหมือนเดิม" (2026-08-28)
+        // — เช็ค 2 ทาง: (1) ทางเดิม (waterPrevReading+waterUnits) ยังใช้ได้
+        // กับบิลโหมด "อุปกรณ์" หรือบิลจากตึกที่ยังไม่อัปเดต v9 เท่าเดิม
+        // ทุกประการ (2) ทางใหม่ (waterDeviceBaselineAfter) ครอบคลุมกรณี
+        // "มีอุปกรณ์เชื่อมไว้ แต่บิลนี้ออกด้วยโหมดกรอกเอง" ที่ทางเดิมใช้
+        // ไม่ได้ (หน่วยที่ใช้เป็นตัวเลขพิมพ์เอง ไม่เกี่ยวกับเลขอุปกรณ์จริง)
+        // — เข้าเงื่อนไขไหนก่อนก็คืนค่าตามนั้น ปลอดภัยเพราะทั้ง 2 ทางชี้ไปที่
+        // เลขเดียวกัน (invoice.waterPrevReading) อยู่แล้วเสมอ
+        if (invoice.waterPrevReading != null) {
+          const expectedCurrent = invoice.waterUnits != null ? invoice.waterPrevReading + invoice.waterUnits : null;
+          const matchesOldCheck = expectedCurrent != null && room.waterPrev === expectedCurrent;
+          const matchesDeviceBaseline = invoice.waterDeviceBaselineAfter != null && Math.abs((room.waterPrev || 0) - invoice.waterDeviceBaselineAfter) < 0.5;
+          if (matchesOldCheck || matchesDeviceBaseline) roomPatch.waterPrev = invoice.waterPrevReading;
         }
-        if (invoice.elecPrevReading != null && invoice.elecUnits != null) {
-          const expectedCurrent = invoice.elecPrevReading + invoice.elecUnits;
-          if (room.elecPrev === expectedCurrent) roomPatch.elecPrev = invoice.elecPrevReading;
+        if (invoice.elecPrevReading != null) {
+          const expectedCurrent = invoice.elecUnits != null ? invoice.elecPrevReading + invoice.elecUnits : null;
+          const matchesOldCheck = expectedCurrent != null && room.elecPrev === expectedCurrent;
+          const matchesDeviceBaseline = invoice.elecDeviceBaselineAfter != null && Math.abs((room.elecPrev || 0) - invoice.elecDeviceBaselineAfter) < 0.5;
+          if (matchesOldCheck || matchesDeviceBaseline) roomPatch.elecPrev = invoice.elecPrevReading;
         }
         if (Object.keys(roomPatch).length) await updateRow('Rooms', invoice.room, roomPatch);
       }

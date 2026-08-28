@@ -7564,6 +7564,10 @@ class Component extends DCLogic {
           body: JSON.stringify({
             room: room.id, tenant: room.tenant, rent: rentForBill, water, elec, trash: this.roomRate(room.id, 'trash'), internet: this.roomRate(room.id, 'internet'), due: dueForBill,
             waterUnits: waterUnitsForBill, elecUnits: elecUnitsForBill, waterPrevReading, elecPrevReading,
+            // "ถ้าเกิดการลบ ข้อมูลชุดที่เราบันทึกไว้ ถึงจะไม่ใช้ จะต้อง
+            // ถูกลบด้วยครับ" (2026-08-28) — ดู _deviceBaselineAfter's comment
+            waterDeviceBaselineAfter: this._deviceBaselineAfter(room.id, 'water'),
+            elecDeviceBaselineAfter: this._deviceBaselineAfter(room.id, 'elec'),
           }),
         });
         if (!res.ok) throw new Error((await res.json()).error || 'สร้างไม่สำเร็จ');
@@ -8436,6 +8440,30 @@ class Component extends DCLogic {
   cfManualUnitsDirect() {
     return !!(this.state.authSession && this.state.authSession.platformVersion >= 9);
   }
+  // "การกรอกเอง...ระบบเราแค่เอาตัวเลขที่กรอกไปคำนวณ...ถูกต้องครับ ส่วนที่ 2
+  // ที่ต้องมีการบันทึกข้อมูลอุปกรณ์...ถ้าเกิดการลบ ข้อมูลชุดที่เราบันทึกไว้
+  // ถึงจะไม่ใช้ จะต้องถูกลบด้วยครับ แล้วกลับไปใช้บิลก่อนหน้าในการคำนวณ
+  // เหมือนเดิม" (2026-08-28) — คำนวณเลขอุปกรณ์ที่ room.waterPrev/elecPrev
+  // "จะถูกตั้งเป็น" หลังบิลนี้ปิด (สูตรเดียวกับ prevPatch ใน submitInvoice/
+  // submitBulkInvoice เป๊ะ) เก็บไว้บนตัว invoice เอง (waterDeviceBaselineAfter/
+  // elecDeviceBaselineAfter — migrate-add-invoice-device-baseline-columns.js)
+  // ไม่ว่าบิลนี้จะออกด้วยโหมด "อุปกรณ์" หรือ "กรอกเอง" ก็ตาม (ขอแค่ห้องนี้มี
+  // อุปกรณ์เชื่อมไว้จริง) — ให้ DELETE /api/invoices/:id ฝั่งเซิร์ฟเวอร์มีทาง
+  // รู้แน่ชัดว่าจะคืนเลขอุปกรณ์กลับไปถูกจุดตอนลบบิลได้ ไม่ว่าบิลนั้นจะออก
+  // ด้วยโหมดไหนก็ตาม (เดิมมีปัญหาเฉพาะกรณี "มีอุปกรณ์ แต่ออกบิลแบบกรอกเอง"
+  // เพราะสูตรเช็คเดิม (เลขก่อนหน้า+หน่วยที่ใช้) ใช้ไม่ได้กับหน่วยที่พิมพ์เอง)
+  _deviceBaselineAfter(roomId, kind) {
+    const room = this.state.rooms.find(r => r.id === roomId);
+    if (!room) return null;
+    const live = this.state.tuyaLiveReadings[roomId];
+    if (kind === 'elec') {
+      if (!room.tuyaElecDeviceId || !live || live.energy == null) return null;
+      return Math.round(live.energy * 100) / 100;
+    }
+    if (!room.tuyaWaterDeviceId || !live || live.usage == null) return null;
+    const currentLiters = live.usage + (Number(room.waterSetNewValue) || 0);
+    return Math.round((currentLiters / 1000) * 100) / 100;
+  }
   // ห้องนี้อยู่ระหว่าง "🔌 ตัดไฟแล้ว" หรือ "⚡ ขอใช้ไฟชั่วคราว" อยู่หรือไม่ —
   // นิยามเดียวกับที่ใช้โชว์ 2 ป้ายนี้ทุกประการ (elecCutoffAt ถูกตั้งค่าไว้)
   // ปลอดภัยที่จะเช็คแค่ elecCutoffAt เฉยๆ ตรงนี้ (ไม่ต้องเทียบกับ
@@ -8837,6 +8865,10 @@ class Component extends DCLogic {
         body: JSON.stringify({
           room: room.id, tenant: room.tenant, rent: rentForBill, water, elec, trash, internet, due: s.newInvoice.due,
           waterUnits: waterUnitsForBill, elecUnits: elecUnitsForBill, waterPrevReading, elecPrevReading,
+          // "ถ้าเกิดการลบ ข้อมูลชุดที่เราบันทึกไว้ ถึงจะไม่ใช้ จะต้องถูกลบ
+          // ด้วยครับ" (2026-08-28) — ดู _deviceBaselineAfter's comment
+          waterDeviceBaselineAfter: this._deviceBaselineAfter(room.id, 'water'),
+          elecDeviceBaselineAfter: this._deviceBaselineAfter(room.id, 'elec'),
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'สร้างใบแจ้งหนี้ไม่สำเร็จ');

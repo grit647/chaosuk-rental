@@ -121,6 +121,10 @@ function coerceInvoices(rows) {
       elecUnits: r.elecUnits === '' || r.elecUnits == null ? null : num(r.elecUnits, null),
       waterPrevReading: r.waterPrevReading === '' || r.waterPrevReading == null ? null : num(r.waterPrevReading, null),
       elecPrevReading: r.elecPrevReading === '' || r.elecPrevReading == null ? null : num(r.elecPrevReading, null),
+      // "ถ้าเกิดการลบ ข้อมูลชุดที่เราบันทึกไว้ ถึงจะไม่ใช้ จะต้องถูกลบด้วย
+      // ครับ" (2026-08-28) — ดู server/routes/invoices.js's DELETE /:id
+      waterDeviceBaselineAfter: r.waterDeviceBaselineAfter === '' || r.waterDeviceBaselineAfter == null ? null : num(r.waterDeviceBaselineAfter, null),
+      elecDeviceBaselineAfter: r.elecDeviceBaselineAfter === '' || r.elecDeviceBaselineAfter == null ? null : num(r.elecDeviceBaselineAfter, null),
       // "ช่วยเอาอัตราค่าบริการ น้ำ ไฟ มาแสดงส่วนนี้ให้ด้วยครับ ผมไม่เห็น
       // ครับ" (2026-08-01, ดูตรงจาก Google Sheet เลย) — เดิม Invoices tab
       // เก็บแค่ยอดเงิน (water/elec เป็นบาท) กับ waterUnits/elecUnits (หน่วย)
