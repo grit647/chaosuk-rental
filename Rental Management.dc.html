@@ -13113,8 +13113,11 @@ class Component extends DCLogic {
           // "105×8=840 บาทเลยครับ" (2026-08-13) — deviceCharge().units ปัด
           // เป็นจำนวนเต็มก่อนคูณเรทแล้วตั้งแต่ต้นตอนนี้ (ดู deviceCharge's
           // comment) เอา .toFixed(2) ออก กันย้อนกลับไปโชว์ทศนิยมปลอมๆ
-          waterDeviceHint: dw ? dw.units + ' หน่วย × ' + waterRate : 'อุปกรณ์ไม่พร้อม',
-          elecDeviceHint: de ? de.units + ' หน่วย × ' + elecRate : 'อุปกรณ์ไม่พร้อม',
+          // "ถ้าค่าใช้น้ำไม่ถึงที่กำหนด จะเป็นการเสียขั้นต่ำ...ให้แสดงส่วนนี้
+          // ด้วยครับ" (2026-08-13) — เช็ค dw.minApplied/de.minApplied เหมือน
+          // ฝั่ง manual ด้านล่าง (deviceCharge() คืนค่านี้มาให้อยู่แล้ว)
+          waterDeviceHint: dw ? (dw.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${dw.charge} บาท` : dw.units + ' หน่วย × ' + waterRate) : 'อุปกรณ์ไม่พร้อม',
+          elecDeviceHint: de ? (de.minApplied ? `อัตราค่าบริการขั้นต่ำ = ${de.charge} บาท` : de.units + ' หน่วย × ' + elecRate) : 'อุปกรณ์ไม่พร้อม',
           // "จริงๆ ต้องกรอกหน่วยที่เอาไปคูณกับค่าบริการเลย...ไม่เกี่ยวกับตัว
           // มิเตอร์ Tuya ของเรา" (2026-08-13, gated ด้วย v9 —
           // cfManualUnitsDirect()) — เอากรอบ "ครั้งก่อน → ปัจจุบัน" (สื่อว่า
@@ -13122,12 +13125,29 @@ class Component extends DCLogic {
           // เรท = บาท — ตึกที่ยังไม่กด "🆕 อัปเดต" ยังเห็นข้อความแบบเดิม
           // (เลขมิเตอร์ก่อน→หลัง) เพราะ waterUnits/elecUnits ที่พิมพ์ยังคง
           // หมายถึงเลขมิเตอร์อยู่สำหรับตึกนั้น
-          waterManualHint: this.cfManualUnitsDirect()
-            ? `ใช้ ${waterUnitsUsed} หน่วย × ${waterRate}/หน่วย = ${this.fmt(waterUnitsUsed * waterRate)} บาท`
-            : `ครั้งก่อน ${room.waterPrev || 0} → ปัจจุบัน ${Number(draft.waterUnits) || 0} = ใช้ ${waterUnitsUsed} หน่วย × ${waterRate}/หน่วย = ${this.fmt(waterUnitsUsed * waterRate)} บาท`,
-          elecManualHint: this.cfManualUnitsDirect()
-            ? `ใช้ ${elecUnitsUsed} หน่วย × ${elecRate}/หน่วย = ${this.fmt(elecUnitsUsed * elecRate)} บาท`
-            : `ครั้งก่อน ${room.elecPrev || 0} → ปัจจุบัน ${Number(draft.elecUnits) || 0} = ใช้ ${elecUnitsUsed} หน่วย × ${elecRate}/หน่วย = ${this.fmt(elecUnitsUsed * elecRate)} บาท`,
+          // "กรณีการกรอกข้อมูลเอง...ถ้าค่าใช้น้ำไม่ถึงที่กำหนด จะเป็นการเสีย
+          // ขั้นต่ำ เวลาคำนวณ ให้แสดงส่วนนี้ด้วยครับ" (2026-08-13) — บั๊ก
+          // จริงที่พบ: hint นี้โชว์แค่ "หน่วย × เรท" ดิบๆ เสมอ ไม่เคยเช็คว่า
+          // ค่าดูแลมิเตอร์ขั้นต่ำ (roomMinRate) เข้ามาครอบหรือเปล่า ทำให้
+          // ตัวเลขในบรรทัดนี้ไม่ตรงกับ draft.water/elec ที่ใช้ออกบิลจริง
+          // (ซึ่งผ่าน _applyMinCharge ถูกต้องอยู่แล้ว) — เหมือนบั๊กเดิมที่
+          // เคยแก้ในฟอร์มออกบิลเดี่ยวไปแล้ว (invWaterUnitsHint) แต่ลืมพา
+          // มาด้วยตอนแก้ฟอร์มออกบิลรวมให้เป็น v9 วันนี้ — เช็ค minApplied
+          // เหมือนกันแล้วโชว์ "อัตราค่าบริการขั้นต่ำ" แทนเมื่อค่าจริงเข้าครอบ
+          waterManualHint: (() => {
+            const { charge, minApplied } = this._applyMinCharge(roomId, 'water', Math.round(waterUnitsUsed * waterRate));
+            if (minApplied) return `อัตราค่าบริการขั้นต่ำ = ${charge} บาท`;
+            return this.cfManualUnitsDirect()
+              ? `ใช้ ${waterUnitsUsed} หน่วย × ${waterRate}/หน่วย = ${this.fmt(charge)} บาท`
+              : `ครั้งก่อน ${room.waterPrev || 0} → ปัจจุบัน ${Number(draft.waterUnits) || 0} = ใช้ ${waterUnitsUsed} หน่วย × ${waterRate}/หน่วย = ${this.fmt(charge)} บาท`;
+          })(),
+          elecManualHint: (() => {
+            const { charge, minApplied } = this._applyMinCharge(roomId, 'elec', Math.round(elecUnitsUsed * elecRate));
+            if (minApplied) return `อัตราค่าบริการขั้นต่ำ = ${charge} บาท`;
+            return this.cfManualUnitsDirect()
+              ? `ใช้ ${elecUnitsUsed} หน่วย × ${elecRate}/หน่วย = ${this.fmt(charge)} บาท`
+              : `ครั้งก่อน ${room.elecPrev || 0} → ปัจจุบัน ${Number(draft.elecUnits) || 0} = ใช้ ${elecUnitsUsed} หน่วย × ${elecRate}/หน่วย = ${this.fmt(charge)} บาท`;
+          })(),
           unitsPlaceholder: this.cfManualUnitsDirect() ? 'หน่วยที่ใช้เดือนนี้' : 'เลขมิเตอร์ปัจจุบัน',
           waterDeviceBg: isWaterDevice ? '#C1622D' : '#EDE4D6', waterDeviceColor: isWaterDevice ? '#fff' : '#7C6E5F',
           waterManualBg: isWaterManual ? '#C1622D' : '#EDE4D6', waterManualColor: isWaterManual ? '#fff' : '#7C6E5F',
