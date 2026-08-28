@@ -46,6 +46,235 @@ logo badge, use this exact same styling.
 
 ## Known issues / follow-ups
 
+### Full session summary (2026-08-28) — billing/quota/reliability pass: a real overcharge bug found+fixed, cutoff full-payment rule, manual-entry redesign, LINE quota self-tracking
+
+**Note on dates:** every code comment written during this session says
+"2026-08-13" — that was a mistaken assumption carried through the whole
+session; `git log` confirms these commits actually landed 2026-08-28.
+Flagging here so a future reader isn't confused cross-referencing code
+comments against git history. Treat "2026-08-13" in code comments from
+this batch of work as meaning "the same day as this MD section."
+
+**Status:** All items below shipped and deployed same-day. The most
+serious one (baseline-reset bug) was diagnosed against the live
+production Sheet, confirmed, and repaired for real data — not just
+theoretical.
+
+**1. Dashboard: per-tab Google Sheet row-usage breakdown.** Follow-up to
+the earlier WaterLog 1,000-row read-cap incident — added a small
+"แถวที่ใช้ต่อตาราง (เพดาน 100,000 แถว/ตาราง)" list to the Dashboard's
+"เชื่อมต่อ Google Sheet" card (reuses the same `spreadsheets.get` call
+the existing 10M-cell donut already makes, zero extra API cost) so a
+tab approaching the row cap is visible before it silently breaks
+something again.
+
+**2. Invoice/report display: whole-number units instead of decimals.**
+Per explicit request ("105×8=840 บาทเลยครับ"), `deviceCharge()` now
+rounds units to a whole number **before** multiplying by rate (both
+elec and water, confirmed to apply to both) — reversing the
+2026-08-12 decision to keep 2-decimal precision. Trade-off accepted:
+water rooms using under 1 unit in a cycle now round down to 0 for that
+cycle. Not gated behind a platform-version flag (owner confirmed this
+change live in the moment, matches the exception already covered
+elsewhere in this file for real-time-confirmed changes). All display
+spots updated to match (single-invoice form, bulk-invoice form, water/
+elec usage report tables, "สถานะอุปกรณ์" lists) — the invoice form's
+"X หน่วย × rate = Y บาท" hint line changed from "=" back to "=" (exact,
+since units are now whole and the multiplication is exact again).
+
+**3. Cutoff/ขอใช้ไฟชั่วคราว: full-payment-only rule + daily tenant
+reminder (v8, gated).** Per explicit request: a room currently showing
+"🔌 ตัดไฟแล้ว" or "⚡ ขอใช้ไฟชั่วคราว" can still receive a payment (slip,
+cash, or bulk slip-queue confirm), but **only if the amount exactly
+settles the full remaining balance** — partial payment or routing to
+advance credit is now blocked for these rooms specifically (UI hides
+the buttons AND `resolveSlip`/`confirmCashPayment`/`confirmSlipPaidFor`
+re-check server-independent, defense in depth). Also added a daily LINE
+reminder to the tenant (NotifyLog-deduped, once/day) for as long as
+their room stays in either status — this had genuinely no automated
+messaging before. Both gated behind `platformVersion >= 8`
+(`cfEnforceCutoffFullPayment()` frontend / `POST_CUTOFF_REMINDER_VERSION
+= 8` in scheduler.js) per the permanent staged-rollout rule, since this
+changes existing payment-acceptance behavior without warning otherwise.
+
+**4. "กรอกเอง" (manual) water/elec billing redefined: type units
+directly, not a meter reading (v9, gated).** Per explicit request/
+confirmation via AskUserQuestion: "กรอกเอง" used to mean "type the
+CURRENT METER READING, the system subtracts last bill's reading for
+you" (`meterUnitsFromReading` did `current − room.waterPrev/elecPrev`).
+Now means "type the units used THIS CYCLE directly" — no subtraction,
+no dependency on any stored meter baseline. This is a genuinely
+BLOCKING change (same number typed means a wildly different bill under
+old vs new meaning), gated behind `platformVersion >= 9`
+(`cfManualUnitsDirect()`) — controls the placeholder text ("หน่วยที่ใช้
+เดือนนี้" vs "เลขมิเตอร์ปัจจุบัน"), whether the old "เลขน้อยกว่าบิลก่อน
+หน้า" warning shows, and `submitInvoice`/`submitBulkInvoice`'s baseline-
+update logic (see #5 below).
+
+**Real bug found in the same pass:** a room WITH a Tuya device linked,
+billed manually for one cycle (e.g. device temporarily offline), never
+had its device baseline (`waterPrev`/`elecPrev`) refreshed from the
+device's own live reading — the old code only updated the baseline when
+`mode === 'device'` was the mode chosen FOR THAT BILL. Billing manually
+once then switching back to "อุปกรณ์" mode later would double-count
+everything accumulated during the manually-billed cycle(s). Fixed: the
+baseline now always tracks the device's own live reading whenever one
+is linked, **regardless of which mode billed the current cycle** — per
+explicit request, "เป็นการเริ่มนับ 1 ใหม่" every time a bill closes.
+
+**Also fixed, NOT gated (pure bugfix, applies to every building
+regardless of version):** the water baseline formula never added
+`waterSetNewValue` (calibration compensation) before storing it, unlike
+`deviceCharge()`'s own real formula — silently threw an uncalibrated
+room's next device-mode bill off by `waterSetNewValue/1000` units every
+time a new baseline got saved.
+
+**5. THE BIG ONE — bulk-invoice baseline reset was silently failing,
+causing a real overcharge risk.** Owner's own words matter here: "การ
+ออกบิลทุกครั้งจะเป็นการออกบิลครั้งเดียวทั้งหมดครับ" (every billing cycle
+for this property is always all-rooms-at-once). Diagnosed against the
+LIVE production Sheet for บ้านเลขที่1873 (`diagnose-baseline-reset.js`)
+after the owner asked to double-check whether device usage actually
+resets after invoicing: `submitBulkInvoice`'s baseline-reset PATCH (the
+same reset described in #4 above) was **fire-and-forget** — dispatched
+one PATCH per room via `Object.entries(...).forEach(...)`, never
+awaited, every failure silently swallowed by an empty `.catch(() => {})`.
+Confirmed **11 of 15 rooms' `elecPrev` and 13 of 15 rooms' `waterPrev`**
+were stuck at their OLD (pre-this-bill) reading — almost certainly
+because dispatching ~9-15 PATCH requests near-simultaneously hit Google
+Sheets API's write-rate quota. **Left uncorrected, the NEXT bill for
+every affected room would have double-counted every unit already billed
+on the currently-pending invoice — a real, direct overcharge to real
+tenants.**
+
+Fixed both the data (`fix-baseline-reset.js`, applied to
+บ้านเลขที่1873 — re-verified with `diagnose-baseline-reset.js` after,
+all rooms now consistent) and the root cause: `submitBulkInvoice` now
+updates each room's baseline **sequentially** (`for...of` with real
+`await`, one room at a time — not all fired at once), and collects any
+failures into a visible toast naming the affected room ids, instead of
+swallowing every failure with zero owner visibility. `submitInvoice`
+(single-room path) was already correctly awaited — only the bulk path
+had this bug.
+
+**6. LINE message quota: stopped relying on LINE's own laggy API,
+self-track instead.** Owner caught LINE OA Manager's own real usage
+already at/past the free 300/month limit while the app's own dashboard
+donut still showed a much lower, stuck number (58/300) — confirmed
+`GET /v2/bot/message/quota/consumption` (the API this app's donut reads)
+updates far too slowly to trust in real time; this was already a known
+issue with a manual "คาลิเบรต" (calibrate) workaround built 2026-08-05.
+Owner's request: "หลังคาลิเบรตให้ตรงแล้ว การใช้ทุกครั้ง ต้องนับต่อให้ด้วย
+ครับ" — `server/line.js`'s push-type send functions (`pushMessage`,
+`pushButtonMessage`, `pushMessageWithConfirmButton`, `pushLinkButton` —
+NOT `replyMessage`/`replyLinkButton`, which don't count against LINE's
+monthly quota) now increment the Settings sheet's `lineQuotaOverride` by
+1 after each confirmed-successful send, once it's been calibrated at
+least once — `GET /api/line/usage` already preferred this override over
+LINE's raw number when set, so this keeps it accurate going forward
+instead of drifting stale again immediately after calibrating. Also
+added a monthly auto-reset in `scheduler.js`: on the 1st of each month
+(Bangkok time, NotifyLog-deduped), `lineQuotaOverride` is forced to '0'
+for every building — matches LINE's free-tier calendar-month reset, and
+doubles as automatic first-time calibration for any building that never
+manually calibrated at all.
+
+**7. New LINE send-history log ("🕒 ดูประวัติการส่ง").** Per explicit
+request (chose "สรุปเร็วๆ" scope over full message-content logging): new
+`LineSendLog` Sheet tab (`migrate-add-linesendlog-tab.js`, run against
+all 3 buildings) — `id, timestamp, to, category`. Every push-type send
+appends one row (`logLineSend()` in `server/line.js`, same 4 functions
+as #6 above). New `GET /api/line/send-log` resolves each row's raw LINE
+user id into a readable label (room/tenant, "เจ้าของ", or "ผู้ดูแล:
+name") only when the log is actually opened, not per-send (avoids an
+extra Sheets read on every message). New link next to the quota-
+calibrate box opens a modal listing the latest 200 sends (date/time,
+recipient, category) — no message content stored, per the chosen scope.
+
+**8. Fixed the exact scenario that motivated #7 — a real "send never
+happened, no trace anywhere" incident.** Owner noticed several rooms'
+Bills-page rows had no "🕒 ตั้งเวลาส่ง" schedule badge at all while
+identical sibling rooms (created in the same bulk batch) did.
+Diagnosed via `diagnose-scheduled-sends.js` against the live Sheet:
+rooms 5, 11, 12, 13, 14 of บ้านเลขที่1873 had **no** ScheduledMessages
+row and **no** `receiptSent` flag — the "ส่งทันที/ตั้งเวลาส่ง" choice
+popup had almost certainly been dismissed without a selection for those
+specific invoice-creation moments, leaving zero record either way.
+Backfilled all 5 to the same `2026-09-01T09:00` schedule the other
+rooms already had (`schedule-missing-invoice-sends.js`, replicating
+`_buildReceiptMessage`'s exact text-building logic server-side). Also
+found and fixed a **duplicate** schedule this created for room 11 (it
+already had one scheduled independently, unnoticed since that room's
+invoice had been recreated between diagnostic checks) —
+`fix-duplicate-room11-schedule.js`.
+
+**Also hardened `server/routes/scheduledMessages.js`'s row id
+generation** — was `Date.now() + '-invoice'`, no room/randomness, a
+real (if narrow) collision risk if 2 rooms' schedule requests landed in
+the same millisecond during a fast sequential bulk-schedule loop. Now
+includes the room id + a random suffix.
+
+**9. New persistent "send failed" warning badge on the Bills page.**
+Per explicit request ("กันปัญหาเรื่องของโควต้า ถ้าการส่งไม่สำเร็จ ขึ้น
+เตือนไว้ให้หน่อยครับ") — directly motivated by #8 above (a failed send
+previously left only a toast that's easy to miss when processing many
+rooms quickly). New Invoices columns `lastSendFailedAt`/
+`lastSendFailReason` (`migrate-add-invoice-send-fail-columns.js`, run
+against all 3 buildings) get set whenever a real send throws — both in
+`sendReceiptLine` (the "ส่งทันที" path) and `scheduler.js`'s scheduled-
+message send loop (a schedule whose time arrived but still failed) —
+and cleared back to `''` the next time a send for that invoice
+succeeds. Bills page shows a persistent red "⚠️ ส่งไม่สำเร็จล่าสุด
+[เวลา] — [เหตุผล]" badge next to the blue "🕒 ตั้งเวลาส่ง" badge until
+resolved.
+
+**10. Editing an invoice now clears its stale cached receipt image.**
+Real bug: `submitEditInvoice` reset `receiptSent` on edit already, but
+never cleared `receiptImageUrl` — so "🧾 ส่งใบเสร็จล่าสุด"
+(`sendLatestReceipt`, which deliberately REUSES the cached image if one
+already exists, unlike "ส่งข้อมูล (LINE)" which always regenerates
+fresh) would resend the OLD image showing pre-edit amounts. Now always
+clears `receiptImageUrl` on save, forcing a fresh image next send
+regardless of which button is used.
+
+**11. Bulk-invoice hint text now reflects the minimum-charge floor.**
+Real bug found right after #4's rewrite: the bulk-invoice form's water/
+elec hint lines (both "กรอกเอง" and "อุปกรณ์" modes) always showed the
+raw "หน่วย × เรท" calculation, never checking whether the room's
+minimum monthly charge (ค่าดูแลมิเตอร์ขั้นต่ำ) actually applied — so the
+hint could show a number that didn't match the real billed amount
+(which already correctly applies `_applyMinCharge`). Same bug class
+already fixed for the single-invoice form months ago; missed when the
+bulk form's hints were rewritten today for #4. Now shows "อัตราค่า
+บริการขั้นต่ำ = X บาท" when it applies, matching the real charge, in
+both modes.
+
+**12. Configurable unconfirmed-receipt retry interval.** Investigating
+a real early-August LINE-quota spike (confirmed via the owner's own
+LINE OA Manager analytics screenshot: quota had already crossed 300 by
+04/08, weeks before an unrelated Render outage the owner initially
+suspected) turned up a plausible contributor: the 24h-then-resend-then-
+escalate mechanism (`server/routes/scheduler.js`, added 2026-08-02) was
+hardcoded at 24 hours — if many tenants weren't yet in the habit of
+tapping "ยืนยันรับแล้ว," every room could get resent up to 2 extra times
+each. New Settings field `receiptRetryHours` (default 24, selectable
+24/48/72/120 in the "เตือนก่อนครบกำหนด" config popup) lets the owner
+trade "how fast a genuinely-missed bill gets resent" against "how much
+quota this mechanism burns." **Root cause of that specific spike was
+NOT conclusively provable** — no send-history existed before this
+session's #7, and NotifyLog only retains 3 days — so this is a
+mitigation for the most plausible cause, not a confirmed fix.
+
+**13. Full system audit performed** (`full-system-audit.js`,
+read-only, all 3 buildings) — schema consistency for every migration
+run this session, billing-baseline consistency (same check as #5),
+cutoff/temp-power status snapshot, ScheduledMessages id-collision scan,
+orphaned-schedule scan. All 3 buildings passed clean after the fixes
+above. Also confirmed (`check-platform-versions.js`): บ้านพักครูโจ and
+บ้านเลขที่1873 are both already on `platformVersion 9` (all of this
+session's gated features are live for both); the main/test account is
+still on v3 (expected — not actively used day-to-day).
+
 ### Water billing formula fixed for uncalibrated rooms + invoice-form display bugs (2026-08-12)
 
 **Status:** Fixed and deployed, verified working live by the owner (ห้อง 1,
