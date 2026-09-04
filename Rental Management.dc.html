@@ -3901,13 +3901,28 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <div style="font-size:15px;font-weight:700;color:#241812">รายละเอียดยอดในบิล</div>
                 <span onclick="{{ closeBillBreakdown }}" style="cursor:pointer;color:#A89A88;font-size:18px">✕</span>
               </div>
-              <div style="font-size:12px;color:#7C6E5F;margin-bottom:14px">{{ billBreakdownTitle }}</div>
+              <div style="font-size:12px;color:#7C6E5F;margin-bottom:2px">{{ billBreakdownTitle }}</div>
+              <div style="font-size:11px;color:#A89A88;margin-bottom:14px">{{ billBreakdownMeta }}</div>
               <div style="display:flex;flex-direction:column;gap:8px;padding:12px;background:#FBF7F0;border-radius:8px;margin-bottom:12px">
                 <sc-for list="{{ billBreakdownItems }}" as="bi" hint-placeholder-count="5">
-                  <div style="display:flex;justify-content:space-between;font-size:12.5px"><span style="color:#7C6E5F">{{ bi.label }}</span><span style="font-family:'IBM Plex Mono',monospace">{{ bi.valueDisplay }}</span></div>
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px">
+                    <span style="color:#7C6E5F">{{ bi.label }}
+                      <sc-if value="{{ bi.hasDetail }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:10.5px;color:#A89A88"> ({{ bi.detail }})</span>
+                      </sc-if>
+                    </span>
+                    <span style="font-family:'IBM Plex Mono',monospace">{{ bi.valueDisplay }}</span>
+                  </div>
                 </sc-for>
                 <div style="border-top:1px solid #E3D8C8;margin-top:2px;padding-top:8px;display:flex;justify-content:space-between;font-size:13.5px;font-weight:700"><span style="color:#241812">รวม</span><span style="font-family:'IBM Plex Mono',monospace;color:#241812">{{ billBreakdownTotalDisplay }}</span></div>
               </div>
+              <sc-if value="{{ hasBillBreakdownMeterLines }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px">
+                  <sc-for list="{{ billBreakdownMeterLines }}" as="ml" hint-placeholder-count="2">
+                    <div style="font-size:11px;color:#7C6E5F">{{ ml.text }}</div>
+                  </sc-for>
+                </div>
+              </sc-if>
               <div onclick="{{ closeBillBreakdown }}" style="padding:9px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:12.5px;font-weight:600;cursor:pointer;text-align:center">ปิด</div>
             </div>
           </div>
@@ -6793,22 +6808,42 @@ class Component extends DCLogic {
   // กลับโชว์ยอดคนละตัวกับที่อยู่บนการ์ด ดูเหมือนข้อมูลขัดแย้งกันเอง — แก้ให้
   // popup รวมยอดหักลบเครดิต/เงินที่จ่ายมาแล้วเข้าไปด้วย (ถ้ามี) ให้ "รวม"
   // ในนี้เท่ากับ "ยอดในบิล" บนการ์ดเป๊ะๆ เสมอ
+  // "ส่วนนี้แสดงรายละเอียดมาให้ครบด้วยครับ จะได้รู้ที่มาที่ไปของยอดครับ"
+  // (2026-09-04) — เพิ่มรายละเอียดต่อรายการให้เหมือนใบเสร็จจริง/ข้อความ
+  // LINE ที่ส่งให้ผู้เช่า (ใช้สูตร/label เดียวกับ _buildReceiptMessage
+  // ด้านบน — "(X หน่วย × อัตรา)" ปกติ, "(ค่าดูแลมิเตอร์ขั้นต่ำ)" ถ้ายอดที่
+  // คิดจริงต่ำกว่าค่าดูแลขั้นต่ำเลยถูกปรับขึ้นแทน) พร้อมเลขบิล/วันครบกำหนด/
+  // หน่วยมิเตอร์ก่อน-หลัง เพื่อให้กดดูครั้งเดียวรู้ที่มาที่ไปครบ ไม่ต้องไป
+  // เปิดหน้าอื่นเทียบ
   openBillBreakdownFor = (invoice) => {
     if (!invoice) return;
+    const rate = (kind) => this.roomRate(invoice.room, kind);
+    const detailFor = (amount, units, kind) => {
+      if (units == null) return '';
+      const rawCharge = Math.round(units * rate(kind));
+      const minApplied = amount > rawCharge;
+      return minApplied ? 'ค่าดูแลมิเตอร์ขั้นต่ำ' : `${units} หน่วย × ${rate(kind)}`;
+    };
     const rawTotal = (invoice.rent || 0) + (invoice.water || 0) + (invoice.elec || 0) + (invoice.trash || 0) + (invoice.internet || 0);
     const amountPaid = invoice.amountPaid || 0;
     const items = [
-      { label: 'ค่าเช่า', value: invoice.rent || 0 },
-      { label: 'ค่าน้ำ', value: invoice.water || 0 },
-      { label: 'ค่าไฟ', value: invoice.elec || 0 },
-      { label: 'ค่าเก็บขยะ', value: invoice.trash || 0 },
-      { label: 'ค่า Internet', value: invoice.internet || 0 },
+      { label: 'ค่าเช่า', value: invoice.rent || 0, detail: '' },
+      { label: 'ค่าน้ำ', value: invoice.water || 0, detail: detailFor(invoice.water || 0, invoice.waterUnits, 'water') },
+      { label: 'ค่าไฟ', value: invoice.elec || 0, detail: detailFor(invoice.elec || 0, invoice.elecUnits, 'elec') },
+      { label: 'ค่าเก็บขยะ', value: invoice.trash || 0, detail: '' },
+      { label: 'ค่า Internet', value: invoice.internet || 0, detail: '' },
     ];
-    if (amountPaid > 0) items.push({ label: 'หักยอดที่จ่ายมาแล้ว/เครดิตล่วงหน้า', value: -amountPaid });
+    if (amountPaid > 0) items.push({ label: 'หักยอดที่จ่ายมาแล้ว/เครดิตล่วงหน้า', value: -amountPaid, detail: '' });
+    const meterLines = [];
+    if (invoice.waterPrevReading != null) meterLines.push(`มิเตอร์น้ำ: ${invoice.waterPrevReading} → ${invoice.waterUnits != null ? invoice.waterPrevReading + invoice.waterUnits : '-'}`);
+    if (invoice.elecPrevReading != null) meterLines.push(`มิเตอร์ไฟ: ${invoice.elecPrevReading} → ${invoice.elecUnits != null ? invoice.elecPrevReading + invoice.elecUnits : '-'}`);
     this.setState({
       billBreakdownPopup: {
         room: invoice.room, tenant: invoice.tenant,
+        invoiceId: invoice.id || '-',
+        dueDisplay: invoice.due ? (this.formatThaiDateLabel(invoice.due) || invoice.due) : '-',
         items,
+        meterLines,
         total: Math.max(0, rawTotal - amountPaid),
       },
     });
@@ -13102,7 +13137,10 @@ class Component extends DCLogic {
       showSlipReview: s.showSlipReview, closeSlipReview: this.closeSlipReview, slipReview, hasSlipReview: !!slipReview,
       showBillBreakdown: !!s.billBreakdownPopup, closeBillBreakdown: this.closeBillBreakdown,
       billBreakdownTitle: s.billBreakdownPopup ? `ห้อง ${s.billBreakdownPopup.room} · ${s.billBreakdownPopup.tenant}` : '',
-      billBreakdownItems: (s.billBreakdownPopup ? s.billBreakdownPopup.items : []).map(it => ({ label: it.label, valueDisplay: this.fmt(it.value) })),
+      billBreakdownMeta: s.billBreakdownPopup ? `บิล ${s.billBreakdownPopup.invoiceId} · ครบกำหนด ${s.billBreakdownPopup.dueDisplay}` : '',
+      billBreakdownItems: (s.billBreakdownPopup ? s.billBreakdownPopup.items : []).map(it => ({ label: it.label, detail: it.detail, hasDetail: !!it.detail, valueDisplay: this.fmt(it.value) })),
+      billBreakdownMeterLines: (s.billBreakdownPopup ? s.billBreakdownPopup.meterLines : []).map(text => ({ text })),
+      hasBillBreakdownMeterLines: !!(s.billBreakdownPopup && s.billBreakdownPopup.meterLines.length),
       billBreakdownTotalDisplay: this.fmt(s.billBreakdownPopup ? s.billBreakdownPopup.total : 0),
       showResolveSlipConfirm: s.showResolveSlipConfirm, closeResolveSlipConfirm: this.closeResolveSlipConfirm, confirmResolveSlip: this.confirmResolveSlip,
       resolveSlipConfirmDueDate: s.resolveSlipConfirmDueDate, onResolveSlipDueDateChange: this.onResolveSlipDueDateChange,
