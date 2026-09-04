@@ -11185,11 +11185,22 @@ class Component extends DCLogic {
     // "ตัวเลขพวกนี้ขอแสดงเป็นของรอบบิลใหม่ครับ ตอนนี้มันรวมรอบบิลก่อนด้วย
     // อยู่ครับ" (2026-08-28) — การ์ดสรุปด้านบนหน้า "บิล & ใบแจ้งหนี้" ป้าย
     // เขียนว่า "รวมเดือนนี้" แต่ข้อมูลจริงดึงจาก s.invoices ทั้งก้อน (ทุก
-    // รอบบิลที่เคยออกมาตั้งแต่ต้น ไม่มีการกรองตามเดือนเลยสักจุด) — เพิ่มการ
-    // กรองด้วยเดือนที่สร้างบิลจริง (ไม่มีฟิลด์ createdAt แยกเก็บไว้ต่างหาก
-    // เลยพาร์สจาก id เอา — INV-<ห้อง>-<epoch ms>, ทุกใบมีรูปแบบนี้เหมือนกัน
-    // หมด สร้างจาก Date.now() ตอน POST /api/invoices) แปลงเป็นเดือน-ปีตาม
-    // เวลาไทยแล้วเทียบกับเดือนปัจจุบัน
+    // รอบบิลที่เคยออกมาตั้งแต่ต้น ไม่มีการกรองเลยสักจุด).
+    //
+    // First fix (2026-09-04) filtered by calendar month parsed from the
+    // invoice id (INV-<ห้อง>-<epoch ms>) — but this was WRONG per the
+    // owner's follow-up ("ผิด มันสลับกัน...ข้อมูลส่วนนี้ให้แสดงแค่บิล
+    // หลังสุด"): a room can end up with more than one invoice landing in
+    // the same calendar month (e.g. a bill created/deleted/recreated, or
+    // billing dates that don't align cleanly to calendar-month
+    // boundaries), so calendar-month filtering could still double-count a
+    // room's stale/superseded invoice alongside its real current one —
+    // confirmed live: 15 rooms but 30 "รวมเดือนนี้" line items, exactly 2x.
+    // "รอบบิลปัจจุบัน" for a room is really just "its own most recent
+    // invoice", not "whatever landed in this calendar month" — so instead
+    // of a date filter, take the single latest invoice PER ROOM (by the
+    // same id-embedded epoch timestamp, no separate createdAt field
+    // exists) regardless of which month it was created in.
     //
     // "ถ้ามีห้องค้างชำระมาจากรอบบิลก่อนหน้า การ์ด รอชำระ/เกินกำหนด ควรทำ
     // อย่างไร" → "ยังนับรวมอยู่" (2026-08-28, ยืนยันผ่าน AskUserQuestion) —
@@ -11199,17 +11210,17 @@ class Component extends DCLogic {
     // เดิมอีก — การ์ด "ชำระบางส่วนรวม"/"รอชำระ"/"เกินกำหนด" (partialList/
     // pendingList/overdueList ด้านล่าง) จึงยังคงอิง s.invoices ทั้งก้อน
     // เหมือนเดิมทุกประการ ไม่ถูกกระทบจากการแก้ครั้งนี้เลย — เฉพาะการ์ด
-    // "รวมเดือนนี้" (นับเฉพาะบิลที่ออกจริงในรอบนี้ ไม่ว่าจะจ่ายแล้วหรือยัง)
-    // และ "ชำระแล้ว" (นับเฉพาะบิลรอบนี้ที่จ่ายแล้ว — ประวัติจ่ายแล้วทั้งหมด
-    // ทุกรอบดูได้จากตาราง "บิลที่ชำระแล้ว" แยกต่างหากอยู่แล้ว) เท่านั้นที่ใช้
-    // invoicesThisCycle ด้านล่างนี้
-    const invoiceCreatedYm = (inv) => {
-      const m = /-(\d{13})$/.exec(inv.id || '');
-      if (!m) return '';
-      return new Date(Number(m[1])).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7);
-    };
-    const currentCycleYm = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7);
-    const invoicesThisCycle = s.invoices.filter(i => invoiceCreatedYm(i) === currentCycleYm);
+    // "รวมเดือนนี้" (นับเฉพาะบิลล่าสุดของแต่ละห้อง ไม่ว่าจะจ่ายแล้วหรือยัง)
+    // และ "ชำระแล้ว" (นับเฉพาะบิลล่าสุดของแต่ละห้องที่จ่ายแล้ว — ประวัติจ่าย
+    // แล้วทั้งหมดทุกรอบดูได้จากตาราง "บิลที่ชำระแล้ว" แยกต่างหากอยู่แล้ว)
+    // เท่านั้นที่ใช้ invoicesThisCycle ด้านล่างนี้
+    const invoiceEpoch = (inv) => Number((/-(\d{13})$/.exec(inv.id || '') || [])[1]) || 0;
+    const latestInvoiceByRoom = {};
+    s.invoices.forEach((inv) => {
+      const prev = latestInvoiceByRoom[inv.room];
+      if (!prev || invoiceEpoch(inv) > invoiceEpoch(prev)) latestInvoiceByRoom[inv.room] = inv;
+    });
+    const invoicesThisCycle = Object.values(latestInvoiceByRoom);
     const amountBilledFor = (i) => i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
     const totalSumThisCycle = invoicesThisCycle.reduce((a, i) => a + amountBilledFor(i), 0);
     const paidListThisCycle = invoicesThisCycle.filter(i => i.status === 'paid');
