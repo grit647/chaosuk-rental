@@ -6782,19 +6782,34 @@ class Component extends DCLogic {
   // 2 จุดที่เรียก (สลิปรอตรวจสอบ queue การ์ด และ "ดูสลิปที่ผู้เช่าส่งมา"
   // modal เดี่ยว) มี invoice object อยู่ในมือแล้วตอน build การ์ดอยู่แล้ว
   // ไม่ต้องหาใหม่.
+  //
+  // "ยอดไม่ตรงกัน" (2026-09-04) — บั๊กจริงที่คุณต้นเจอทันทีที่ลองใช้: popup
+  // เดิมรวมแค่ rent+water+elec+trash+internet (ยอดเต็มของบิล = 1,830) แต่
+  // การ์ด "ยอดในบิล" ที่กดไอคอนมาเปิด popup นี้ใช้ expectedTotalDisplay ซึ่ง
+  // เป็นยอด "คงเหลือหลังหักที่จ่ายมาแล้ว/เครดิตล่วงหน้า" (remainingBefore =
+  // total − amountPaid, ห้อง 5 เคยมีเครดิต 190 หักไปแล้วเหลือ 1,640) —
+  // 2 ตัวเลขนี้ต่างกันโดยตั้งใจ (ดู comment ยาวเรื่อง amountPaid ตรง
+  // billSlipQueueItems ด้านล่าง) แต่ popup ที่ควรจะ "อธิบายที่มาของยอดในบิล"
+  // กลับโชว์ยอดคนละตัวกับที่อยู่บนการ์ด ดูเหมือนข้อมูลขัดแย้งกันเอง — แก้ให้
+  // popup รวมยอดหักลบเครดิต/เงินที่จ่ายมาแล้วเข้าไปด้วย (ถ้ามี) ให้ "รวม"
+  // ในนี้เท่ากับ "ยอดในบิล" บนการ์ดเป๊ะๆ เสมอ
   openBillBreakdownFor = (invoice) => {
     if (!invoice) return;
+    const rawTotal = (invoice.rent || 0) + (invoice.water || 0) + (invoice.elec || 0) + (invoice.trash || 0) + (invoice.internet || 0);
+    const amountPaid = invoice.amountPaid || 0;
+    const items = [
+      { label: 'ค่าเช่า', value: invoice.rent || 0 },
+      { label: 'ค่าน้ำ', value: invoice.water || 0 },
+      { label: 'ค่าไฟ', value: invoice.elec || 0 },
+      { label: 'ค่าเก็บขยะ', value: invoice.trash || 0 },
+      { label: 'ค่า Internet', value: invoice.internet || 0 },
+    ];
+    if (amountPaid > 0) items.push({ label: 'หักยอดที่จ่ายมาแล้ว/เครดิตล่วงหน้า', value: -amountPaid });
     this.setState({
       billBreakdownPopup: {
         room: invoice.room, tenant: invoice.tenant,
-        items: [
-          { label: 'ค่าเช่า', value: invoice.rent || 0 },
-          { label: 'ค่าน้ำ', value: invoice.water || 0 },
-          { label: 'ค่าไฟ', value: invoice.elec || 0 },
-          { label: 'ค่าเก็บขยะ', value: invoice.trash || 0 },
-          { label: 'ค่า Internet', value: invoice.internet || 0 },
-        ],
-        total: (invoice.rent || 0) + (invoice.water || 0) + (invoice.elec || 0) + (invoice.trash || 0) + (invoice.internet || 0),
+        items,
+        total: Math.max(0, rawTotal - amountPaid),
       },
     });
   };
