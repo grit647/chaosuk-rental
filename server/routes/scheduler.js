@@ -523,11 +523,18 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
     // เดียวกับหมวดตัดน้ำ/ไฟด้านบนให้ตรงกับที่ UI สื่อสารไว้
     const nowTimeStrDR = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour12: false }).slice(0, 5); // "HH:MM"
     const checkTimeDR = settings.cutoffCheckTime || '09:00';
-    // วันละ 2 รอบ เหมือนหมวดตัดน้ำ/ไฟด้านบนทุกประการ (ดู comment เต็มที่
-    // นั่น) — activeSlotDR ผูกเข้า key ด้านล่างแทน boolean เดิม
-    const checkTime2DR = addHoursCapped(checkTimeDR, 6, '18:00');
-    const activeSlotDR = checkTime2DR > checkTimeDR && nowTimeStrDR >= checkTime2DR ? 2 : (nowTimeStrDR >= checkTimeDR ? 1 : 0);
-    if (settings.settings && settings.settings.dueReminder && activeSlotDR > 0) {
+    // "ดูข้อมูลมันส่งถี่เกินจริง" (2026-09-04) — เดิมก็อปกลไก "วันละ 2 รอบ"
+    // มาจากหมวดตัดน้ำ/ไฟ (ห่างกัน 6 ชม.) ทั้งที่หน้าตั้งค่าไม่เคยบอกผู้ใช้
+    // เรื่อง 2 รอบ/วันนี้เลย มีแค่ช่อง "เวลาที่จะส่งแจ้งเตือน" ช่องเดียว — ผล
+    // คือถ้าตั้ง "เตือนก่อนครบกำหนด 3 วัน" ผู้เช่า 1 คนได้ข้อความเดิมสูงสุด
+    // 6 ครั้ง (2 รอบ × 3 วัน) ก่อนถึงกำหนด ดูถี่เกินจริง — ยืนยันกับคุณต้น
+    // ผ่าน AskUserQuestion แล้วว่าให้ "วันละ 1 ครั้ง" เหมือนก่อนจะมีการเพิ่ม
+    // 2 รอบ/วัน — กลับไปใช้ timeReached แบบ boolean เดิม (ไม่ผูก slot เข้า
+    // key อีกต่อไป) ตัดกลไก 2 รอบทิ้งเฉพาะหมวดนี้ (หมวดตัดน้ำ/ไฟยังคง 2
+    // รอบ/วันเหมือนเดิมทุกประการ ตามที่คุณต้นเคยขอไว้ชัดเจนสำหรับหมวดนั้น
+    // โดยเฉพาะ — ไม่ได้ถูกแก้ในรอบนี้)
+    const timeReachedDR = nowTimeStrDR >= checkTimeDR;
+    if (settings.settings && settings.settings.dueReminder && timeReachedDR) {
       const todayStr2 = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
       const reminderDays = Number(settings.dueReminderDays) || 3;
       const msg = settings.dueReminderMsg || 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ';
@@ -539,7 +546,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
       for (const inv of unpaid) {
         const daysUntilDue = Math.round((new Date(inv.due + 'T00:00:00Z') - new Date(todayStr2 + 'T00:00:00Z')) / 86400000);
         if (daysUntilDue < 1 || daysUntilDue > reminderDays) continue; // นอกช่วง N วันก่อนครบกำหนด (ไม่รวมวันครบกำหนดเอง)
-        const key = `${sheetId}:dueReminder:${inv.room}:${inv.id}:slot${activeSlotDR}`;
+        const key = `${sheetId}:dueReminder:${inv.room}:${inv.id}`;
         if (wasNotifiedToday(key)) continue; // วันนี้แจ้งไปแล้ว
         const room = rooms.find((r) => r.id === inv.room);
         if (room && room.lineUserId) {
