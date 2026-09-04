@@ -4722,13 +4722,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <div style="font-size:12px;color:#F1EBE0;font-weight:600">สลิปโอนเงิน</div>
                 </sc-if>
                 <img src="{{ imageLightboxUrl }}" style="max-width:100%;max-height:70vh;border-radius:8px;object-fit:contain">
-                <span onclick="{{ onDownloadLightboxImage }}" style="font-size:12px;font-weight:600;color:#F1EBE0;cursor:pointer;background:rgba(255,255,255,0.14);padding:8px 14px;border-radius:7px">⬇️ บันทึกรูป</span>
+                <div style="display:flex;gap:8px">
+                  <span onclick="{{ onDownloadLightboxImage }}" style="font-size:12px;font-weight:600;color:#F1EBE0;cursor:pointer;background:rgba(255,255,255,0.14);padding:8px 14px;border-radius:7px">📤 แชร์/บันทึกรูป</span>
+                  <span onclick="{{ onDirectDownloadLightboxImage }}" style="font-size:12px;font-weight:600;color:#F1EBE0;cursor:pointer;background:rgba(255,255,255,0.14);padding:8px 14px;border-radius:7px">⬇️ ดาวน์โหลด</span>
+                </div>
               </div>
               <sc-if value="{{ hasImageLightboxSecond }}" hint-placeholder-val="{{ false }}">
                 <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
                   <div style="font-size:12px;color:#F1EBE0;font-weight:600">{{ imageLightboxSecondLabel }}</div>
                   <img src="{{ imageLightboxSecondUrl }}" style="max-width:100%;max-height:70vh;border-radius:8px;object-fit:contain">
-                  <span onclick="{{ onDownloadLightboxSecondImage }}" style="font-size:12px;font-weight:600;color:#F1EBE0;cursor:pointer;background:rgba(255,255,255,0.14);padding:8px 14px;border-radius:7px">⬇️ บันทึกรูป</span>
+                  <div style="display:flex;gap:8px">
+                    <span onclick="{{ onDownloadLightboxSecondImage }}" style="font-size:12px;font-weight:600;color:#F1EBE0;cursor:pointer;background:rgba(255,255,255,0.14);padding:8px 14px;border-radius:7px">📤 แชร์/บันทึกรูป</span>
+                    <span onclick="{{ onDirectDownloadLightboxSecondImage }}" style="font-size:12px;font-weight:600;color:#F1EBE0;cursor:pointer;background:rgba(255,255,255,0.14);padding:8px 14px;border-radius:7px">⬇️ ดาวน์โหลด</span>
+                  </div>
                 </div>
               </sc-if>
             </div>
@@ -6002,6 +6008,38 @@ class Component extends DCLogic {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    } catch (err) {
+      console.error(err);
+      this.showMobileToast('ดาวน์โหลดไม่สำเร็จ ลองเปิดรูปแล้วกดค้างเพื่อบันทึกแทนได้ครับ');
+    }
+  };
+  // "ปุ่มที่เรามีเป็น copy หรือบันทึกภาพไว้เพื่อไปแชร์...ยังไม่ได้บันทึกลง
+  // เครื่องครับ" (2026-09-04) — downloadReceiptImage above deliberately
+  // prefers the Web Share sheet first (per the 2026-08-05 fix comment right
+  // above it), but the owner wants an actual direct-to-device save option
+  // too, not just "share/copy to another app". This skips navigator.share
+  // entirely and always goes straight to the blob + <a download> path
+  // (lands in the device's own Downloads folder) — same fallback code
+  // downloadReceiptImage already had, just never reached first on a phone
+  // that supports Web Share. Kept as a SEPARATE button/function rather than
+  // changing downloadReceiptImage itself, since the share-sheet button is
+  // still useful (lets the owner save straight into a gallery app, send via
+  // LINE, etc.) — this just adds the plain-download option alongside it.
+  directDownloadReceiptImage = async (url, filename) => {
+    if (!url) return;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('โหลดรูปไม่สำเร็จ');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename || 'ใบเสร็จ.jpg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+      this.showMobileToast('บันทึกรูปลงเครื่องแล้วครับ (ดูได้ในโฟลเดอร์ Downloads)');
     } catch (err) {
       console.error(err);
       this.showMobileToast('ดาวน์โหลดไม่สำเร็จ ลองเปิดรูปแล้วกดค้างเพื่อบันทึกแทนได้ครับ');
@@ -13984,9 +14022,11 @@ class Component extends DCLogic {
       showImageLightbox: !!s.imageLightboxUrl, imageLightboxUrl: s.imageLightboxUrl || '',
       openImageLightbox: this.openImageLightbox, closeImageLightbox: this.closeImageLightbox,
       onDownloadLightboxImage: () => this.downloadReceiptImage(s.imageLightboxUrl, 'สลิป.jpg'),
+      onDirectDownloadLightboxImage: () => this.directDownloadReceiptImage(s.imageLightboxUrl, 'สลิป.jpg'),
       hasImageLightboxSecond: !!s.imageLightboxSecondUrl, imageLightboxSecondUrl: s.imageLightboxSecondUrl || '',
       imageLightboxSecondLabel: s.imageLightboxSecondLabel || 'ใบเสร็จ',
       onDownloadLightboxSecondImage: () => this.downloadReceiptImage(s.imageLightboxSecondUrl, (s.imageLightboxSecondLabel || 'ใบเสร็จ') + '.jpg'),
+      onDirectDownloadLightboxSecondImage: () => this.directDownloadReceiptImage(s.imageLightboxSecondUrl, (s.imageLightboxSecondLabel || 'ใบเสร็จ') + '.jpg'),
       adminToastShow: s.adminToast.show, adminToastMessage: s.adminToast.message,
       adminToastBg: s.adminToast.type === 'error' ? '#B24336' : '#3B7A52',
       adminToastBorder: s.adminToast.type === 'error' ? '#8F332A' : '#2C5F40',
