@@ -417,7 +417,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">แดชบอร์ด</div>
-                <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">ภาพรวมประจำเดือนกรกฎาคม 2569</div>
+                <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">ภาพรวมประจำเดือน{{ currentMonthThaiLabel }}</div>
               </div>
             </div>
 
@@ -1002,7 +1002,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <div class="page-header-row" style="position:sticky;top:{{ stickyHeaderTop }};z-index:8;background:#F1EBE0;margin:0 -32px 0;padding:{{ pageHeaderPadTop }}px 32px 14px;display:flex;align-items:center;justify-content:space-between">
               <div>
                 <div style="font-size:21px;font-weight:700;color:#241812">บิล &amp; ใบแจ้งหนี้</div>
-                <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรกฎาคม 2569 · คลิกการ์ดสรุปเพื่อกรองรายการ</div>
+                <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">{{ currentMonthThaiLabel }} · คลิกการ์ดสรุปเพื่อกรองรายการ</div>
               </div>
               <div style="display:flex;gap:8px;flex-shrink:0">
                 <sc-if value="{{ slipQueueCount }}" hint-placeholder-val="{{ false }}">
@@ -2151,7 +2151,7 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                     <span onclick="{{ onDemoTipExpenseAdd }}" style="cursor:pointer;font-size:12px;background:#2C6E8F;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="อธิบาย">?</span>
                   </sc-if>
                 </div>
-                <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">กรกฎาคม 2569</div>
+                <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">{{ currentMonthThaiLabel }}</div>
               </div>
               <button onclick="{{ openExpenseModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">+ เพิ่มรายจ่าย</button>
             </div>
@@ -11295,6 +11295,16 @@ class Component extends DCLogic {
     // it doesn't just keep growing forever as more months of history pile up.
     const nowBkk = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
     const currentYm = nowBkk.slice(0, 7);
+    // Dashboard/บิล & ใบแจ้งหนี้/บัญชีรายจ่าย page headers used to hardcode
+    // the literal text "กรกฎาคม 2569" (the month this app happened to be
+    // built in) instead of computing the real current month — found while
+    // confirming the Dashboard's revenue figures with the owner ("ยอดตรง
+    // หรือยังครับ") on 2569-09-04, header still said July. The KPI NUMBERS
+    // themselves were always correctly computed off the real current month
+    // (see dashMonthRevenue/invoicesThisCycle above) — only this label text
+    // was frozen. Built once here, reused by all 3 header spots.
+    const thaiMonthNamesFull = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    const currentMonthThaiLabel = thaiMonthNamesFull[Number(nowBkk.slice(5, 7)) - 1] + ' ' + (Number(nowBkk.slice(0, 4)) + 543);
     const dashMonthRevenue = (s.paymentLog || [])
       .filter(p => (p.date || '').slice(0, 7) === currentYm)
       .reduce((a, p) => a + (p.amount || 0), 0);
@@ -12820,6 +12830,7 @@ class Component extends DCLogic {
       isDashboard: s.activeNav === 'dashboard', isRooms: s.activeNav === 'rooms', isTenants: s.activeNav === 'tenants', isBilling: s.activeNav === 'billing', isMaintenance: s.activeNav === 'maintenance', isSettings: s.activeNav === 'settings',
       isWaterReport: s.activeNav === 'water', isElecReport: s.activeNav === 'elec', isEquipment: s.activeNav === 'equipment', isExpenses: s.activeNav === 'expenses',
       isContracts: s.activeNav === 'contracts', isReceiptsAlbum: s.activeNav === 'receiptsAlbum',
+      currentMonthThaiLabel,
 
       revenueExpenseChart, hasRevenueExpenseData, noRevenueExpenseData: !hasRevenueExpenseData, revenueExpenseRangeLabel,
       kpiPaidSum: this.fmt(dashMonthRevenue),
