@@ -11384,7 +11384,7 @@ class Component extends DCLogic {
       // (เฉพาะบิลที่ออกจริงในรอบนี้) ตามที่ขอ — "ชำระบางส่วนรวม"/"รอชำระ"/
       // "เกินกำหนด" ด้านล่างยังคงอิงทุกรอบเหมือนเดิม (ยืนยันแล้วว่าต้องนับ
       // รวมหนี้ค้างข้ามรอบด้วย ไม่ให้ซ่อนหนี้จริง)
-      { key: 'all', label: 'รวมเดือนนี้', count: invoicesThisCycle.length, sumDisplay: this.fmt(totalSumThisCycle), accent: '#241812' },
+      { key: 'all', label: 'รวมบิลล่าสุด', count: invoicesThisCycle.length, sumDisplay: this.fmt(totalSumThisCycle), accent: '#241812' },
       { key: 'paid', label: 'ชำระแล้ว', count: paidListThisCycle.length, sumDisplay: this.fmt(paidSumThisCycle), accent: '#3B7A52' },
       { key: 'partial', label: 'ชำระบางส่วนรวม', count: partialList.length, sumDisplay: this.fmt(partialPaidSum), accent: '#B85B27' },
       { key: 'pending', label: 'รอชำระ', count: pendingList.length, sumDisplay: this.fmt(pendingSum), accent: '#C1872E' },
