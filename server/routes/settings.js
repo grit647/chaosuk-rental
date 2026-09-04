@@ -434,6 +434,8 @@ router.put('/', async (req, res, next) => {
       // — ปรับได้เอง แทนค่าตายตัว 24 ชม. เดิม (ดู server/routes/
       // scheduler.js's receipt-confirmation retry block)
       receiptRetryHours: b.receiptRetryHours,
+      // "ข้อนี้ทำสวิทย์ เปิดปิดเงื่อนไขนี้ไปก่อนครับ" (2026-09-04)
+      receiptRetryEnabled: b.receiptRetryEnabled,
       claudeAutomationEnabled: b.claudeAutomationEnabled,
       // "การ์ดนี้ส่วนบนเพิ่ม (Gemini) ไปอีกตัวครับ มีช่องให้ติ๊กว่าเลือก
       // ใช้ตัวไหน ส่วนการเชื่อมต่อรอเครดิตเต็มพรุ่งนี้ครับ" (2026-08-01) —

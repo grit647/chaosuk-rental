@@ -244,15 +244,22 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
   }
 
   // "ถ้าผ่านไป 24 ชม. ยังไม่กดยืนยัน ระบบส่งข้อความไปใหม่...ส่งไป 2 ครั้ง
-  // แล้วไม่มีการยืนยัน ให้ส่งข้อความไปหาเจ้าของ" (2026-08-02) — เหมือน
-  // overdue check ข้างบน ทำงานไม่มีเงื่อนไข (basic reliability housekeeping
-  // ไม่ใช่ AI feature ที่ปิดได้) — resend ใช้ receiptImageUrl ที่บันทึกไว้
-  // แล้วจากตอนส่งครั้งแรก (ไม่สร้างใบเสร็จใหม่ กันปัญหาเดิม "ใบเสร็จไม่
-  // ตรงกับของเก่า") ถ้าไม่มีรูป fallback เป็นข้อความสรุปสั้นๆ จากข้อมูลบิล
-  // เอง (server ไม่มีสิทธิ์เข้าถึง _buildReceiptMessage ซึ่งเป็นโค้ดฝั่ง
-  // frontend)
+  // แล้วไม่มีการยืนยัน ให้ส่งข้อความไปหาเจ้าของ" (2026-08-02) — resend ใช้
+  // receiptImageUrl ที่บันทึกไว้แล้วจากตอนส่งครั้งแรก (ไม่สร้างใบเสร็จใหม่
+  // กันปัญหาเดิม "ใบเสร็จไม่ตรงกับของเก่า") ถ้าไม่มีรูป fallback เป็น
+  // ข้อความสรุปสั้นๆ จากข้อมูลบิลเอง (server ไม่มีสิทธิ์เข้าถึง
+  // _buildReceiptMessage ซึ่งเป็นโค้ดฝั่ง frontend)
+  //
+  // "ข้อนี้ทำสวิทย์ เปิดปิดเงื่อนไขนี้ไปก่อนครับ ตั้งเป็นปิดการทำงานไว้ครับ"
+  // (2026-09-04) — เดิมทำงานไม่มีเงื่อนไข (basic reliability housekeeping
+  // ไม่ใช่ AI feature ที่ปิดได้) หลังเจอว่าข้อความ "ส่งซ้ำสูงสุด 2 ครั้ง" ใน
+  // หน้าตั้งค่าไม่ตรงกับที่โค้ดทำจริง (ส่งซ้ำได้แค่ 1 ครั้ง) เจ้าของขอปิด
+  // กลไกนี้ไว้ก่อนระหว่างตัดสินใจ — เพิ่มสวิตช์ receiptRetryEnabled
+  // (default false ทุกตึก ดู comment เต็มใน coerce.js) เปิด/ปิดได้เองที่
+  // หน้าตั้งค่าเดิม (ข้อ 5) ในภายหลัง
   let receiptRetried = 0, receiptEscalated = 0;
   try {
+   if (settings.receiptRetryEnabled) {
     // ตึกที่ยังไม่กด "🆕 อัปเดต" ให้ถึง v6 (ดู platformVersion.js's v6
     // note) ไม่มีทางมีบิลไหนตั้ง receiptSendCount/receiptLastSentAt จริง
     // อยู่แล้ว (ฝั่ง frontend ก็ gate ไว้เหมือนกัน) แต่เช็คซ้ำตรงนี้ไว้
@@ -291,6 +298,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
         } catch (err) { console.error('[scheduler] receipt retry failed', inv.id, err.message); }
       }
     }
+   }
   } catch (err) {
     console.error('[scheduler] receipt confirmation check failed', err.message);
   }

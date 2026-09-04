@@ -2975,7 +2975,21 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                    หลายคนยังไม่คุ้นกับปุ่มนี้ โดนส่งซ้ำครบทุกห้อง) — เปิดให้
                    ปรับเวลารอได้เอง ลดความถี่การส่งซ้ำได้โดยตรง -->
               <div style="border-top:1px solid #F0E9DC;margin-bottom:14px"></div>
-              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">5) ถ้าผู้เช่ายังไม่กด "ยืนยันรับแล้ว" รอกี่ชั่วโมงก่อนส่งใบแจ้งหนี้ซ้ำ (ส่งซ้ำสูงสุด 2 ครั้ง ก่อนแจ้งเจ้าของให้ติดต่อเอง)</div>
+              <!-- "ข้อนี้ทำสวิทย์ เปิดปิดเงื่อนไขนี้ไปก่อนครับ ตั้งเป็นปิด
+                   การทำงานไว้ครับ" (2026-09-04) — ปิดไว้ชั่วคราวหลังพบว่า
+                   ข้อความ "ส่งซ้ำสูงสุด 2 ครั้ง" ด้านล่างไม่ตรงกับที่โค้ด
+                   ทำจริง (ส่งซ้ำได้แค่ 1 ครั้ง) — เพิ่มสวิตช์ปิด/เปิดทั้งกลไก
+                   นี้ (default ปิด) แยกจากช่องปรับชั่วโมงด้านล่าง -->
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div style="font-size:11.5px;color:#7C6E5F">5) ส่งใบแจ้งหนี้ซ้ำอัตโนมัติถ้าผู้เช่ายังไม่กด "ยืนยันรับแล้ว"</div>
+                <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                  <span style="font-size:10.5px;color:#9C8B78">{{ receiptRetryEnabledLabel }}</span>
+                  <div onclick="{{ toggleReceiptRetryEnabled }}" style="width:38px;height:21px;border-radius:11px;position:relative;cursor:pointer;flex-shrink:0;background:{{ receiptRetryEnabledBg }}">
+                    <div style="position:absolute;top:2px;width:17px;height:17px;border-radius:50%;background:#fff;transition:left 0.15s ease;left:{{ receiptRetryEnabledKnobLeft }}"></div>
+                  </div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;color:#9C8B78;margin-bottom:12px">เมื่อเปิดใช้งาน: รอกี่ชั่วโมงก่อนส่งซ้ำ (ส่งซ้ำสูงสุด 2 ครั้ง ก่อนแจ้งเจ้าของให้ติดต่อเอง)</div>
               <select value="{{ receiptRetryHours }}" onchange="{{ onReceiptRetryHours }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">
                 <option value="24">24 ชั่วโมง (ค่าเดิม)</option>
                 <option value="48">48 ชั่วโมง (2 วัน)</option>
@@ -5077,6 +5091,9 @@ class Component extends DCLogic {
     dueReminderMsg: 'แจ้งเตือน: ค่าเช่าห้องของท่านใกล้ถึงกำหนดชำระแล้ว กรุณาชำระภายในวันที่กำหนด ขอบคุณครับ',
     // "เราลดความถี่ในการส่งหรือยืดเวลาการกดยืนยันได้ไหมครับ" (2026-08-13)
     receiptRetryHours: '24',
+    // "ข้อนี้ทำสวิทย์ เปิดปิดเงื่อนไขนี้ไปก่อนครับ ตั้งเป็นปิดการทำงานไว้
+    // ครับ" (2026-09-04) — default false ตรงกับ coerce.js's default
+    receiptRetryEnabled: false,
     // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก" (2026-07-26)
     firstInvoiceMsg: '',
     // "เพิ่มดูข้อมูลการ์ด กดแล้วขึ้น popup สวยๆ ขึ้นมาสรุปเลย ว่าห้องไหน
@@ -5828,6 +5845,7 @@ class Component extends DCLogic {
         dueReminderDays: data.dueReminderDays != null ? String(data.dueReminderDays) : s.dueReminderDays,
         dueReminderMsg: data.dueReminderMsg != null ? data.dueReminderMsg : s.dueReminderMsg,
         receiptRetryHours: data.receiptRetryHours != null ? String(data.receiptRetryHours) : s.receiptRetryHours,
+        receiptRetryEnabled: data.receiptRetryEnabled != null ? !!data.receiptRetryEnabled : s.receiptRetryEnabled,
         firstInvoiceMsg: data.firstInvoiceMsg != null ? data.firstInvoiceMsg : s.firstInvoiceMsg,
         settings: { ...s.settings, ...data.settings },
         claudeAutomationEnabled: !!data.claudeAutomationEnabled,
@@ -10155,6 +10173,7 @@ class Component extends DCLogic {
   onDueReminderDays = (e) => this.setState({ dueReminderDays: e.target.value });
   // "เราลดความถี่ในการส่งหรือยืดเวลาการกดยืนยันได้ไหมครับ" (2026-08-13)
   onReceiptRetryHours = (e) => this.setState({ receiptRetryHours: e.target.value });
+  toggleReceiptRetryEnabled = () => this.setState(s => ({ receiptRetryEnabled: !s.receiptRetryEnabled }));
   onDueReminderMsg = (e) => this.setState({ dueReminderMsg: e.target.value });
   // "ช่องข้อความที่ส่งไปพร้อมบิลใบแจ้งหนี้ครั้งแรก" (2026-07-26)
   onFirstInvoiceMsg = (e) => this.setState({ firstInvoiceMsg: e.target.value });
@@ -10275,6 +10294,7 @@ class Component extends DCLogic {
           // "เราลดความถี่ในการส่งหรือยืดเวลาการกดยืนยันได้ไหมครับ"
           // (2026-08-13)
           receiptRetryHours: Number(this.state.receiptRetryHours) || 24,
+          receiptRetryEnabled: this.state.receiptRetryEnabled,
         }),
       });
       if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
@@ -13670,6 +13690,10 @@ class Component extends DCLogic {
       dueReminderDays: s.dueReminderDays, dueReminderMsg: s.dueReminderMsg,
       // "เราลดความถี่ในการส่งหรือยืดเวลาการกดยืนยันได้ไหมครับ" (2026-08-13)
       receiptRetryHours: s.receiptRetryHours, onReceiptRetryHours: this.onReceiptRetryHours,
+      receiptRetryEnabled: s.receiptRetryEnabled, toggleReceiptRetryEnabled: this.toggleReceiptRetryEnabled,
+      receiptRetryEnabledBg: s.receiptRetryEnabled ? '#3B7A52' : '#D8CBB8',
+      receiptRetryEnabledKnobLeft: s.receiptRetryEnabled ? '22px' : '2px',
+      receiptRetryEnabledLabel: s.receiptRetryEnabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน',
       firstInvoiceMsg: s.firstInvoiceMsg, onFirstInvoiceMsg: this.onFirstInvoiceMsg,
       onDueReminderDays: this.onDueReminderDays, onDueReminderMsg: this.onDueReminderMsg,
       propertyProfile: s.propertyProfile,
