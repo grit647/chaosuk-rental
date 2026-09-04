@@ -11182,6 +11182,38 @@ class Component extends DCLogic {
     const hasNextTenantPage = nextTenantCount > 0;
     const selectedTenant = tenantsFiltered.find(t => t.room === s.selectedTenantRoom) || tenantsFiltered[0] || null;
 
+    // "ตัวเลขพวกนี้ขอแสดงเป็นของรอบบิลใหม่ครับ ตอนนี้มันรวมรอบบิลก่อนด้วย
+    // อยู่ครับ" (2026-08-28) — การ์ดสรุปด้านบนหน้า "บิล & ใบแจ้งหนี้" ป้าย
+    // เขียนว่า "รวมเดือนนี้" แต่ข้อมูลจริงดึงจาก s.invoices ทั้งก้อน (ทุก
+    // รอบบิลที่เคยออกมาตั้งแต่ต้น ไม่มีการกรองตามเดือนเลยสักจุด) — เพิ่มการ
+    // กรองด้วยเดือนที่สร้างบิลจริง (ไม่มีฟิลด์ createdAt แยกเก็บไว้ต่างหาก
+    // เลยพาร์สจาก id เอา — INV-<ห้อง>-<epoch ms>, ทุกใบมีรูปแบบนี้เหมือนกัน
+    // หมด สร้างจาก Date.now() ตอน POST /api/invoices) แปลงเป็นเดือน-ปีตาม
+    // เวลาไทยแล้วเทียบกับเดือนปัจจุบัน
+    //
+    // "ถ้ามีห้องค้างชำระมาจากรอบบิลก่อนหน้า การ์ด รอชำระ/เกินกำหนด ควรทำ
+    // อย่างไร" → "ยังนับรวมอยู่" (2026-08-28, ยืนยันผ่าน AskUserQuestion) —
+    // ห้องหนึ่งมีบิลค้างชำระได้แค่ 1 ใบเสมอ (ระบบกันไม่ให้ออกซ้อน) บิลที่ยัง
+    // ไม่จ่าย (pending/partial/overdue) จึงเป็น "หนี้ที่แท้จริงตอนนี้" เสมอ
+    // ไม่ว่าจะออกมาตั้งแต่รอบไหน — ซ่อนไปจะเท่ากับซ่อนหนี้จริง แย่กว่าบั๊ก
+    // เดิมอีก — การ์ด "ชำระบางส่วนรวม"/"รอชำระ"/"เกินกำหนด" (partialList/
+    // pendingList/overdueList ด้านล่าง) จึงยังคงอิง s.invoices ทั้งก้อน
+    // เหมือนเดิมทุกประการ ไม่ถูกกระทบจากการแก้ครั้งนี้เลย — เฉพาะการ์ด
+    // "รวมเดือนนี้" (นับเฉพาะบิลที่ออกจริงในรอบนี้ ไม่ว่าจะจ่ายแล้วหรือยัง)
+    // และ "ชำระแล้ว" (นับเฉพาะบิลรอบนี้ที่จ่ายแล้ว — ประวัติจ่ายแล้วทั้งหมด
+    // ทุกรอบดูได้จากตาราง "บิลที่ชำระแล้ว" แยกต่างหากอยู่แล้ว) เท่านั้นที่ใช้
+    // invoicesThisCycle ด้านล่างนี้
+    const invoiceCreatedYm = (inv) => {
+      const m = /-(\d{13})$/.exec(inv.id || '');
+      if (!m) return '';
+      return new Date(Number(m[1])).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7);
+    };
+    const currentCycleYm = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7);
+    const invoicesThisCycle = s.invoices.filter(i => invoiceCreatedYm(i) === currentCycleYm);
+    const amountBilledFor = (i) => i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
+    const totalSumThisCycle = invoicesThisCycle.reduce((a, i) => a + amountBilledFor(i), 0);
+    const paidListThisCycle = invoicesThisCycle.filter(i => i.status === 'paid');
+
     const paidList = s.invoices.filter(i => i.status === 'paid');
     // "partial" invoices used to fall into NONE of these three buckets at
     // all — not paid, not pending, not overdue — so they silently vanished
@@ -11228,16 +11260,18 @@ class Component extends DCLogic {
     };
     const amountReceivedFor = (i) => i.rent + i.water + i.elec + (i.trash || 0) + (i.internet || 0);
     const sumOf = (list) => list.reduce((a, i) => a + amountOwedFor(i), 0);
-    const paidSum = paidList.reduce((a, i) => a + amountReceivedFor(i), 0);
+    // การ์ด "ชำระแล้ว" บนหน้าบิล & ใบแจ้งหนี้ ใช้ paidSumThisCycle (เฉพาะ
+    // บิลรอบนี้) — paidList (all-time) ยังใช้อยู่แยกต่างหากกับวิดเจ็ต "การ
+    // ชำระเงินล่าสุด" ของแดชบอร์ดด้านล่าง (ไม่ถูกกระทบจากการแก้ครั้งนี้)
+    const paidSumThisCycle = paidListThisCycle.reduce((a, i) => a + amountReceivedFor(i), 0);
     // pendingList ตอนนี้รวม overdue เข้าไปด้วยแล้ว (ดู comment เต็มด้านบน)
-    // — totalSum เดิม paidSum + pendingSum + overdueSum จะนับยอด overdue
-    // ซ้ำ 2 รอบถ้ายังบวก overdueSum แยกต่างหาก (overdueList ยังคงมีไว้แค่
-    // สำหรับการ์ด "เกินกำหนด" ที่แยกโชว์เฉพาะยอดเลยกำหนดเท่านั้น)
+    // — ทั้ง pendingSum/overdueSum ยังคงอิงทุกรอบ (all-time) เหมือนเดิม
+    // ทุกประการ ตามที่ยืนยันไว้ว่าห้ามซ่อนหนี้ค้างข้ามรอบ
     const pendingSum = sumOf(pendingList), overdueSum = sumOf(overdueList);
-    const totalSum = paidSum + pendingSum;
 
-    // Real accounting bug the owner caught: paidSum above (still used for
-    // the Bills page's "ชำระแล้ว" KPI — a bill-STATUS view, left as-is) only
+    // Real accounting bug the owner caught: paidSumThisCycle above (still
+    // used for the Bills page's "ชำระแล้ว" KPI — a bill-STATUS view, left
+    // as-is) only
     // ever summed invoices with status 'paid', so it silently missed
     // advance-payment credit (never tied to an invoice at all) AND partial
     // payments (invoice stays 'partial', never counted here either) — both
@@ -11325,13 +11359,21 @@ class Component extends DCLogic {
     const creditRooms = s.rooms.filter(r => (r.creditBalance || 0) > 0);
     const creditTotal = creditRooms.reduce((a, r) => a + (r.creditBalance || 0), 0);
     const billingChips = [
-      { key: 'all', label: 'รวมเดือนนี้', count: s.invoices.length, sumDisplay: this.fmt(totalSum), accent: '#241812' },
-      { key: 'paid', label: 'ชำระแล้ว', count: paidList.length, sumDisplay: this.fmt(paidSum), accent: '#3B7A52' },
+      // "รวมเดือนนี้"/"ชำระแล้ว" ใช้ invoicesThisCycle/paidListThisCycle
+      // (เฉพาะบิลที่ออกจริงในรอบนี้) ตามที่ขอ — "ชำระบางส่วนรวม"/"รอชำระ"/
+      // "เกินกำหนด" ด้านล่างยังคงอิงทุกรอบเหมือนเดิม (ยืนยันแล้วว่าต้องนับ
+      // รวมหนี้ค้างข้ามรอบด้วย ไม่ให้ซ่อนหนี้จริง)
+      { key: 'all', label: 'รวมเดือนนี้', count: invoicesThisCycle.length, sumDisplay: this.fmt(totalSumThisCycle), accent: '#241812' },
+      { key: 'paid', label: 'ชำระแล้ว', count: paidListThisCycle.length, sumDisplay: this.fmt(paidSumThisCycle), accent: '#3B7A52' },
       { key: 'partial', label: 'ชำระบางส่วนรวม', count: partialList.length, sumDisplay: this.fmt(partialPaidSum), accent: '#B85B27' },
       { key: 'pending', label: 'รอชำระ', count: pendingList.length, sumDisplay: this.fmt(pendingSum), accent: '#C1872E' },
       { key: 'overdue', label: 'เกินกำหนด', count: overdueList.length, sumDisplay: this.fmt(overdueSum), accent: '#B24336' },
     ].map(c => ({ ...c, ring: s.billingFilter === c.key ? '0 0 0 2px ' + c.accent + ' inset' : 'none', onClick: () => this.setBillingFilter(c.key) }));
 
+    // "ตัวเลขพวกนี้ขอแสดงเป็นของรอบบิลใหม่ครับ" (2026-08-28) — ตารางนี้ถูก
+    // กดเปิดจากการ์ด KPI ชุดที่เพิ่งกรองด้านบน (onClick: setBillingFilter)
+    // เลยต้องใช้ invoicesThisCycle ฐานเดียวกัน ไม่งั้นจำนวนแถวที่เห็นจริง
+    // จะไม่ตรงกับตัวเลขในการ์ดที่กดมา
     let invoicesFiltered = s.invoices;
     if (s.billingFilter !== 'all') invoicesFiltered = s.invoices.filter(i => i.status === s.billingFilter);
     const invoicesView = invoicesFiltered.map(i => {
