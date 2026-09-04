@@ -4696,8 +4696,19 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
              บริบทแอปเลย ปิดแล้วกลับมาหน้าเดิมทันที (ปุ่มดาวน์โหลด "⬇️"
              ที่มี download attribute อยู่แล้วไม่แตะ เพราะนั่นบันทึกไฟล์
              ไม่ใช่การนำทางออกจากแอป). -->
+        <!-- "ด้านบนมันเลื่อนดูสลิปทั้งหมดไม่ได้ มันค้างแค่นั้น" (2026-09-04,
+             พบตอนดูอัลบั้มใบเสร็จบนมือถือ — สลิป+ใบเสร็จ 2 รูปวางต่อกันสูง
+             เกินจอ) — สาเหตุ: backdrop นี้เป็น flex column ที่ตั้ง
+             justify-content:center ไว้ตอนเนื้อหาพอดีจอ แต่พอเนื้อหาสูงเกิน
+             viewport (overflow:auto ต้องเลื่อนดู) เบราว์เซอร์ (โดยเฉพาะ
+             มือถือ) จะคำนวณพื้นที่เลื่อนได้เฉพาะฝั่งใต้จุดกึ่งกลางเท่านั้น
+             ส่วนที่ล้นออกไปทางด้านบนจะเลื่อนขึ้นไปดูไม่ถึงเลย (บั๊ก
+             flexbox+overflow ที่รู้จักกันดี) — แก้โดยเปลี่ยนเป็น
+             justify-content:flex-start (เนื้อหาเริ่มจากบนแล้วเลื่อนลงตามปกติ
+             ครบทุกจุด, padding 20px เดิมยังให้ระยะห่างขอบบน/ล่างเหมือนเดิม
+             เวลาเนื้อหาสั้นกว่าจอ) -->
         <sc-if value="{{ showImageLightbox }}">
-          <div onclick="{{ closeImageLightbox }}" style="position:fixed;inset:0;background:rgba(15,10,7,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:290;padding:20px;box-sizing:border-box;overflow:auto">
+          <div onclick="{{ closeImageLightbox }}" style="position:fixed;inset:0;background:rgba(15,10,7,0.92);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;z-index:290;padding:20px;box-sizing:border-box;overflow:auto">
             <div onclick="{{ closeImageLightbox }}" style="position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.14);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer">✕</div>
             <!-- "เอามาแสดงประกอบกันได้ไหม" (2026-08-05) — ถ้ามีรูปที่ 2
                  (imageLightboxSecondUrl, เช่น ใบเสร็จคู่กับสลิปในอัลบั้ม
