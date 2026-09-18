@@ -4864,13 +4864,24 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <sc-if value="{{ hasImageLightboxSecond }}" hint-placeholder-val="{{ false }}">
                   <div style="font-size:12px;color:#F1EBE0;font-weight:600">สลิปโอนเงิน</div>
                 </sc-if>
-                <!-- "ให้เลื่อนรูปได้ซ้ายขวาโดยการสไลด์หน้าจอครับ"
-                     (2026-09-18) — swipe ทำงานเฉพาะตอนเปิดผ่าน
-                     openImageGallery (hasLightboxGallery true, เช่น
-                     อัลบั้มเอกสารสัญญาเช่า) จุดอื่นที่เปิดรูปเดียว/คู่แบบ
-                     เดิม imageLightboxGallery จะว่างเสมอ ทำให้
-                     onLightboxTouchEnd เช็คแล้วไม่ทำอะไรเลย ไม่กระทบ -->
-                <img src="{{ imageLightboxUrl }}" ontouchstart="{{ onLightboxTouchStart }}" ontouchend="{{ onLightboxTouchEnd }}" style="max-width:100%;max-height:70vh;border-radius:8px;object-fit:contain">
+                <!-- "ให้เลื่อนรูปได้ซ้ายขวาโดยการสไลด์หน้าจอครับ" (2026-09-18)
+                     — "ตอนนี้ยังเลื่อนไม่ได้" ตามที่แจ้งมา: ลองผ่าน
+                     ontouchstart/ontouchend="{{ }}" ก่อน (แบบเดียวกับ
+                     carousel อื่นในไฟล์นี้ เช่น onDashTouchStart) แต่พบว่า
+                     support.js (ไฟล์ runtime ที่ compile จากที่อื่น เขียน
+                     ไว้ชัดว่า "GENERATED...do not edit") แปลงชื่อ event
+                     หลายคำ (touchstart/touchend) ผิด — สูตร fallback ของมัน
+                     ตั้งใจรองรับแค่ event คำเดียว (onclick→onClick) เอา
+                     ตัวอักษรตัวที่ 3 มา uppercase ตัวเดียว ได้ "onTouchstart"
+                     (s เล็ก) ซึ่งไม่ตรงกับชื่อ prop จริงของ React
+                     ("onTouchStart" S ใหญ่) เลยไม่ถูกผูกเป็น listener จริง
+                     เลย (เหตุผลเดียวกันที่ onkeydown/onmousedown/
+                     ondoubleclick ต้องมี EVENT_MAP พิเศษเป็นราย event ไป —
+                     touchstart/touchend ไม่มีอยู่ในนั้น) แก้โดยเลี่ยงไปผูก
+                     native touch listener ตรงกับ document เองใน
+                     componentDidMount แทน (ดู _onDocTouchStart/End) ไม่พึ่ง
+                     การ compile attribute ของ template เลย -->
+                <img src="{{ imageLightboxUrl }}" style="max-width:100%;max-height:70vh;border-radius:8px;object-fit:contain">
                 <sc-if value="{{ hasLightboxGallery }}" hint-placeholder-val="{{ false }}">
                   <div style="font-size:11.5px;color:rgba(241,235,224,0.75);font-weight:600">{{ lightboxGalleryCounter }} · เลื่อนดูรูปอื่นได้</div>
                 </sc-if>
@@ -5601,6 +5612,13 @@ class Component extends DCLogic {
       this.setState({ canInstallApp: true });
     };
     window.addEventListener('beforeinstallprompt', this._onBeforeInstallPrompt);
+    // "ให้เลื่อนรูปได้ซ้ายขวาโดยการสไลด์หน้าจอครับ" (2026-09-18) — ผูก
+    // native touch listener ตรงกับ document (ดู comment เต็มตรง
+    // _onDocTouchStart/End ว่าทำไมต้องเลี่ยง ontouchstart="{{ }}" ผ่าน
+    // template) — { passive: true } เพราะแค่อ่านตำแหน่ง ไม่เคยเรียก
+    // preventDefault ไม่กระทบการ scroll/zoom ปกติของเบราว์เซอร์เลย
+    document.addEventListener('touchstart', this._onDocTouchStart, { passive: true });
+    document.addEventListener('touchend', this._onDocTouchEnd, { passive: true });
     // "ให้เจ้าของยืนยันได้เลย โดยไม่ต้องมาเข้าเว็บหลักครับ" (2026-08-02) —
     // ลิงก์แจ้งเตือนสลิปใหม่ทาง LINE (server/routes/line.js's GET
     // /auto-login, role owner) redirect มาที่ "/?openSlip=<invoiceId>" —
@@ -6012,6 +6030,8 @@ class Component extends DCLogic {
   componentWillUnmount() {
     window.removeEventListener('resize', this._onResize);
     window.removeEventListener('beforeinstallprompt', this._onBeforeInstallPrompt);
+    document.removeEventListener('touchstart', this._onDocTouchStart);
+    document.removeEventListener('touchend', this._onDocTouchEnd);
     clearTimeout(this._adminToastTimer);
     clearTimeout(this._mobileToastTimer);
     clearTimeout(this._payTimer);
@@ -7004,8 +7024,8 @@ class Component extends DCLogic {
   // "ขอถ้าขึ้น popup ภาพใหญ่แล้ว ให้เลื่อนรูปได้ซ้ายขวาโดยการสไลด์หน้าจอ
   // ครับ" (2026-09-18) — เปิดจากอัลบั้มที่มีหลายรูป (images = array ของ
   // URL รูปทั้งหมดในอัลบั้มนั้น, startIndex = ตัวที่ถูกกดเปิด) — เก็บ
-  // ทั้งอัลบั้มไว้ใน state เพื่อให้ swipe ซ้าย/ขวา (onLightboxTouchStart/
-  // End ด้านล่าง) วนดูรูปถัดไป/ก่อนหน้าได้โดยไม่ต้องปิด popup ก่อน
+  // ทั้งอัลบั้มไว้ใน state เพื่อให้ swipe ซ้าย/ขวา (_onDocTouchStart/End
+  // ใน componentDidMount) วนดูรูปถัดไป/ก่อนหน้าได้โดยไม่ต้องปิด popup ก่อน
   openImageGallery = (images, startIndex) => {
     if (!images || !images.length) return;
     const idx = Math.max(0, Math.min(startIndex || 0, images.length - 1));
@@ -7021,9 +7041,19 @@ class Component extends DCLogic {
     const prev = (s.imageLightboxGalleryIndex - 1 + s.imageLightboxGallery.length) % s.imageLightboxGallery.length;
     return { imageLightboxGalleryIndex: prev, imageLightboxUrl: s.imageLightboxGallery[prev] };
   });
+  // "ตอนนี้ยังเลื่อนไม่ได้" (2026-09-18) — ดู comment เต็มตรง <img> ของ
+  // lightbox ใน markup ว่าทำไมเปลี่ยนจาก ontouchstart/ontouchend="{{ }}"
+  // (ผูก event ผ่าน template ไม่ได้จริงสำหรับ event ชื่อหลายคำแบบนี้ ตาม
+  // บั๊กใน support.js) มาผูก native listener ตรงกับ document ใน
+  // componentDidMount แทน — เช็คว่ามีอัลบั้มเปิดอยู่จริงก่อนทำอะไร (ถ้าไม่
+  // มี ก็ไม่ทำอะไรเลย ไม่กระทบการสไลด์อื่นๆ ในแอป เช่น carousel
+  // ห้อง/ผู้เช่า ที่ยังใช้กลไกเดิมของตัวเองอยู่ แยกกันคนละระบบ)
   _lightboxTouchStartX = null;
-  onLightboxTouchStart = (e) => { this._lightboxTouchStartX = e.touches[0].clientX; };
-  onLightboxTouchEnd = (e) => {
+  _onDocTouchStart = (e) => {
+    if (!this.state.imageLightboxGallery.length) return;
+    this._lightboxTouchStartX = e.touches[0].clientX;
+  };
+  _onDocTouchEnd = (e) => {
     if (this._lightboxTouchStartX == null || !this.state.imageLightboxGallery.length) return;
     const dx = e.changedTouches[0].clientX - this._lightboxTouchStartX;
     this._lightboxTouchStartX = null;
@@ -14436,7 +14466,6 @@ class Component extends DCLogic {
 
       showImageLightbox: !!s.imageLightboxUrl, imageLightboxUrl: s.imageLightboxUrl || '',
       openImageLightbox: this.openImageLightbox, closeImageLightbox: this.closeImageLightbox,
-      onLightboxTouchStart: this.onLightboxTouchStart, onLightboxTouchEnd: this.onLightboxTouchEnd,
       hasLightboxGallery: s.imageLightboxGallery.length > 1,
       lightboxGalleryCounter: s.imageLightboxGallery.length > 1 ? `${s.imageLightboxGalleryIndex + 1} / ${s.imageLightboxGallery.length}` : '',
       onDownloadLightboxImage: () => this.downloadReceiptImage(s.imageLightboxUrl, 'สลิป.jpg'),
