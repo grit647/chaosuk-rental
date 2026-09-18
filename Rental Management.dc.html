@@ -4864,7 +4864,16 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 <sc-if value="{{ hasImageLightboxSecond }}" hint-placeholder-val="{{ false }}">
                   <div style="font-size:12px;color:#F1EBE0;font-weight:600">สลิปโอนเงิน</div>
                 </sc-if>
-                <img src="{{ imageLightboxUrl }}" style="max-width:100%;max-height:70vh;border-radius:8px;object-fit:contain">
+                <!-- "ให้เลื่อนรูปได้ซ้ายขวาโดยการสไลด์หน้าจอครับ"
+                     (2026-09-18) — swipe ทำงานเฉพาะตอนเปิดผ่าน
+                     openImageGallery (hasLightboxGallery true, เช่น
+                     อัลบั้มเอกสารสัญญาเช่า) จุดอื่นที่เปิดรูปเดียว/คู่แบบ
+                     เดิม imageLightboxGallery จะว่างเสมอ ทำให้
+                     onLightboxTouchEnd เช็คแล้วไม่ทำอะไรเลย ไม่กระทบ -->
+                <img src="{{ imageLightboxUrl }}" ontouchstart="{{ onLightboxTouchStart }}" ontouchend="{{ onLightboxTouchEnd }}" style="max-width:100%;max-height:70vh;border-radius:8px;object-fit:contain">
+                <sc-if value="{{ hasLightboxGallery }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:11.5px;color:rgba(241,235,224,0.75);font-weight:600">{{ lightboxGalleryCounter }} · เลื่อนดูรูปอื่นได้</div>
+                </sc-if>
                 <div style="display:flex;gap:8px">
                   <span onclick="{{ onDownloadLightboxImage }}" style="font-size:12px;font-weight:600;color:#F1EBE0;cursor:pointer;background:rgba(255,255,255,0.14);padding:8px 14px;border-radius:7px">📤 แชร์/บันทึกรูป</span>
                   <span onclick="{{ onDirectDownloadLightboxImage }}" style="font-size:12px;font-weight:600;color:#F1EBE0;cursor:pointer;background:rgba(255,255,255,0.14);padding:8px 14px;border-radius:7px">⬇️ ดาวน์โหลด</span>
@@ -5024,6 +5033,12 @@ class Component extends DCLogic {
     // view is a manual, explicit choice from there.
     mobileAiMode: (typeof window !== 'undefined' && window.innerWidth < 760),
     imageLightboxUrl: null,
+    // "ขอถ้าขึ้น popup ภาพใหญ่แล้ว ให้เลื่อนรูปได้ซ้ายขวาโดยการสไลด์หน้าจอ
+    // ครับ" (2026-09-18) — ใช้เฉพาะตอนเปิดจากอัลบั้มที่มีหลายรูป (เช่น
+    // เอกสารสัญญาเช่า) ผ่าน openImageGallery — ทุกจุดอื่นที่ยังเรียก
+    // openImageLightbox แบบเดิม (รูปเดียว/สลิป+ใบเสร็จคู่) ไม่ถูกกระทบเลย
+    // เพราะ imageLightboxGallery จะเป็น [] เสมอถ้าไม่ได้เรียกผ่านทางนี้
+    imageLightboxGallery: [], imageLightboxGalleryIndex: 0,
     // "เพิ่มปุ่มโหลดแอปที่ติดตั้งเป็นไอคอนหน้าจอโฮม (PWA)" (2026-09-04) —
     // ดู componentDidMount's beforeinstallprompt listener + installApp
     canInstallApp: false,
@@ -6983,9 +6998,38 @@ class Component extends DCLogic {
     const primary = url || secondUrl;
     if (!primary) return;
     const second = url ? (secondUrl || null) : null;
-    this.setState({ imageLightboxUrl: primary, imageLightboxSecondUrl: second, imageLightboxSecondLabel: second ? (secondLabel || '') : '' });
+    this.setState({ imageLightboxUrl: primary, imageLightboxSecondUrl: second, imageLightboxSecondLabel: second ? (secondLabel || '') : '', imageLightboxGallery: [], imageLightboxGalleryIndex: 0 });
   };
-  closeImageLightbox = () => this.setState({ imageLightboxUrl: null, imageLightboxSecondUrl: null, imageLightboxSecondLabel: '' });
+  closeImageLightbox = () => this.setState({ imageLightboxUrl: null, imageLightboxSecondUrl: null, imageLightboxSecondLabel: '', imageLightboxGallery: [], imageLightboxGalleryIndex: 0 });
+  // "ขอถ้าขึ้น popup ภาพใหญ่แล้ว ให้เลื่อนรูปได้ซ้ายขวาโดยการสไลด์หน้าจอ
+  // ครับ" (2026-09-18) — เปิดจากอัลบั้มที่มีหลายรูป (images = array ของ
+  // URL รูปทั้งหมดในอัลบั้มนั้น, startIndex = ตัวที่ถูกกดเปิด) — เก็บ
+  // ทั้งอัลบั้มไว้ใน state เพื่อให้ swipe ซ้าย/ขวา (onLightboxTouchStart/
+  // End ด้านล่าง) วนดูรูปถัดไป/ก่อนหน้าได้โดยไม่ต้องปิด popup ก่อน
+  openImageGallery = (images, startIndex) => {
+    if (!images || !images.length) return;
+    const idx = Math.max(0, Math.min(startIndex || 0, images.length - 1));
+    this.setState({ imageLightboxUrl: images[idx], imageLightboxSecondUrl: null, imageLightboxSecondLabel: '', imageLightboxGallery: images, imageLightboxGalleryIndex: idx });
+  };
+  nextLightboxImage = () => this.setState(s => {
+    if (!s.imageLightboxGallery.length) return null;
+    const next = (s.imageLightboxGalleryIndex + 1) % s.imageLightboxGallery.length;
+    return { imageLightboxGalleryIndex: next, imageLightboxUrl: s.imageLightboxGallery[next] };
+  });
+  prevLightboxImage = () => this.setState(s => {
+    if (!s.imageLightboxGallery.length) return null;
+    const prev = (s.imageLightboxGalleryIndex - 1 + s.imageLightboxGallery.length) % s.imageLightboxGallery.length;
+    return { imageLightboxGalleryIndex: prev, imageLightboxUrl: s.imageLightboxGallery[prev] };
+  });
+  _lightboxTouchStartX = null;
+  onLightboxTouchStart = (e) => { this._lightboxTouchStartX = e.touches[0].clientX; };
+  onLightboxTouchEnd = (e) => {
+    if (this._lightboxTouchStartX == null || !this.state.imageLightboxGallery.length) return;
+    const dx = e.changedTouches[0].clientX - this._lightboxTouchStartX;
+    this._lightboxTouchStartX = null;
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0) this.nextLightboxImage(); else this.prevLightboxImage();
+  };
   // "ยอดในบิล" breakdown popup — ดู comment เต็มตรง billBreakdownPopup ใน
   // initial state ด้านบน. รับ invoice object ตรงๆ (ไม่ใช่แค่ id) เพราะทั้ง
   // 2 จุดที่เรียก (สลิปรอตรวจสอบ queue การ์ด และ "ดูสลิปที่ผู้เช่าส่งมา"
@@ -14364,23 +14408,37 @@ class Component extends DCLogic {
       cfLeaseDocsEmpty: (s.contractForm.leaseDocs || []).length === 0,
       cfLeaseDocsEditingName: s.cfLeaseDocsEditingName, onCfLeaseDocsEditingNameChange: this.onCfLeaseDocsEditingNameChange,
       cancelEditCfLeaseDocName: this.cancelEditCfLeaseDocName,
-      cfLeaseDocsView: (s.contractForm.leaseDocs || []).map((ld) => ({
-        id: ld.id, name: ld.name, url: ld.url,
-        isImage: !!ld.isImage, isNotImage: !ld.isImage,
-        isEditing: s.cfLeaseDocsEditingId === ld.id, isNotEditing: s.cfLeaseDocsEditingId !== ld.id,
-        onEdit: () => this.startEditCfLeaseDocName(ld.id, ld.name),
-        onSave: this.saveCfLeaseDocName,
-        onDelete: () => this.deleteCfLeaseDoc(ld.id),
-        // "การเข้าดู กดดูรูปภาพ ขึ้น popup หน้าจอครับ" (2026-09-18) — เปิด
-        // ในแอปแทน target="_blank" (เหตุผลเดียวกับทุกจุดอื่นในแอปที่ใช้
-        // openImageLightbox — โหมด PWA standalone ไม่มีแท็บให้สลับกลับ) —
-        // ใช้ได้เฉพาะไฟล์รูปเท่านั้น PDF ยังเปิดแท็บใหม่ปกติ (ไม่มี in-app
-        // PDF viewer ให้ใช้)
-        onView: ld.isImage ? () => this.openImageLightbox(ld.url) : () => window.open(ld.url, '_blank'),
-      })),
+      cfLeaseDocsView: (() => {
+        const docs = s.contractForm.leaseDocs || [];
+        // "ให้เลื่อนรูปได้ซ้ายขวาโดยการสไลด์หน้าจอครับ" (2026-09-18) —
+        // รายการรูป (ข้าม PDF ออก — สไลด์ดูได้เฉพาะรูปภาพ) ให้
+        // openImageGallery ใช้เป็นอัลบั้มสำหรับสไลด์ซ้าย/ขวาในนั้น
+        const imageUrls = docs.filter(d => d.isImage).map(d => d.url);
+        return docs.map((ld) => {
+          const imgIdx = imageUrls.indexOf(ld.url);
+          return {
+            id: ld.id, name: ld.name, url: ld.url,
+            isImage: !!ld.isImage, isNotImage: !ld.isImage,
+            isEditing: s.cfLeaseDocsEditingId === ld.id, isNotEditing: s.cfLeaseDocsEditingId !== ld.id,
+            onEdit: () => this.startEditCfLeaseDocName(ld.id, ld.name),
+            onSave: this.saveCfLeaseDocName,
+            onDelete: () => this.deleteCfLeaseDoc(ld.id),
+            // "การเข้าดู กดดูรูปภาพ ขึ้น popup หน้าจอครับ" (2026-09-18) —
+            // เปิดในแอปแทน target="_blank" (เหตุผลเดียวกับทุกจุดอื่นในแอป
+            // ที่ใช้ openImageLightbox — โหมด PWA standalone ไม่มีแท็บให้
+            // สลับกลับ) ผ่านทาง openImageGallery ให้สไลด์ดูรูปอื่นในอัลบั้ม
+            // ต่อได้เลยโดยไม่ต้องปิด popup ก่อน — ใช้ได้เฉพาะไฟล์รูป PDF
+            // ยังเปิดแท็บใหม่ปกติ (ไม่มี in-app PDF viewer ให้ใช้)
+            onView: ld.isImage ? () => this.openImageGallery(imageUrls, imgIdx) : () => window.open(ld.url, '_blank'),
+          };
+        });
+      })(),
 
       showImageLightbox: !!s.imageLightboxUrl, imageLightboxUrl: s.imageLightboxUrl || '',
       openImageLightbox: this.openImageLightbox, closeImageLightbox: this.closeImageLightbox,
+      onLightboxTouchStart: this.onLightboxTouchStart, onLightboxTouchEnd: this.onLightboxTouchEnd,
+      hasLightboxGallery: s.imageLightboxGallery.length > 1,
+      lightboxGalleryCounter: s.imageLightboxGallery.length > 1 ? `${s.imageLightboxGalleryIndex + 1} / ${s.imageLightboxGallery.length}` : '',
       onDownloadLightboxImage: () => this.downloadReceiptImage(s.imageLightboxUrl, 'สลิป.jpg'),
       onDirectDownloadLightboxImage: () => this.directDownloadReceiptImage(s.imageLightboxUrl, 'สลิป.jpg'),
       hasImageLightboxSecond: !!s.imageLightboxSecondUrl, imageLightboxSecondUrl: s.imageLightboxSecondUrl || '',
