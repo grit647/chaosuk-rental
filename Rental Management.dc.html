@@ -2568,12 +2568,16 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   </div>
                 </div>
                 <div style="margin-top:14px">
-                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เอกสารสัญญาเช่า (PDF / รูป)</div>
-                  <label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px dashed #C9B79E;border-radius:6px;cursor:pointer;background:#FBF7F0">
-                    <span style="font-size:12px;color:#7C6E5F">📄 <sc-if value="{{ cfHasLeaseDoc }}" hint-placeholder-val="{{ false }}"><span style="color:#C1622D;font-weight:600">{{ cf.leaseDocName }}</span></sc-if><sc-if value="{{ cfHasLeaseDoc }}" hint-placeholder-val="{{ true }}"></sc-if></span>
-                    <span style="font-size:12px;color:#7C6E5F">แนบเอกสารสัญญา</span>
-                    <input type="file" accept=".pdf,image/*" onchange="{{ onCfLeaseDoc }}" style="display:none">
-                  </label>
+                  <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">เอกสารสัญญาเช่า (PDF / รูป — เลือกได้หลายไฟล์)</div>
+                  <div style="display:flex;gap:8px">
+                    <label style="flex:1;display:flex;align-items:center;gap:10px;padding:10px;border:1px dashed #C9B79E;border-radius:6px;cursor:pointer;background:#FBF7F0">
+                      <span style="font-size:12px;color:#7C6E5F">📄 แนบเอกสารสัญญา</span>
+                      <input type="file" accept=".pdf,application/pdf,image/*" multiple onchange="{{ onCfLeaseDoc }}" style="display:none">
+                    </label>
+                    <div onclick="{{ openCfLeaseDocs }}" style="display:flex;align-items:center;gap:6px;padding:10px 14px;border-radius:6px;border:1px solid #E3D8C8;color:#7C6E5F;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">
+                      🗂 ดูไฟล์ ({{ cfLeaseDocsCount }})
+                    </div>
+                  </div>
                 </div>
                 <div style="margin-top:14px">
                   <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">QR code LINE OA (ให้ผู้เช่าสแกนเพิ่มเพื่อน)</div>
@@ -3960,6 +3964,48 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
           </div>
         </sc-if>
 
+        <!-- "ให้เพิ่มรูปได้มากกว่า 1 รูป...ขึ้นปุ่มเล็กๆ ข้างๆเพื่อเข้าดู
+             รูปที่บันทึก เป็น popup พร้อมปุ่ม แก้ไข ลบ บันทึก" (2026-09-18)
+             — popup แยกจาก showLeaseDocsModal เดิม (อันนั้นเป็นหน้ารวม
+             เอกสารทุกห้องไว้ดูอย่างเดียว คนละฟีเจอร์กัน) ผูกกับ
+             contractForm.leaseDocs ของห้องที่กำลังกรอกอยู่โดยเฉพาะ -->
+        <sc-if value="{{ showCfLeaseDocsModal }}">
+          <div onclick="{{ closeCfLeaseDocs }}" style="position:fixed;inset:0;background:rgba(36,24,18,0.55);display:flex;align-items:center;justify-content:center;z-index:250;padding:20px;box-sizing:border-box">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:22px;width:380px;max-width:92vw;max-height:80vh;overflow-y:auto;box-sizing:border-box">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+                <div style="font-size:15px;font-weight:700;color:#241812">เอกสารสัญญาเช่าที่บันทึกไว้</div>
+                <span onclick="{{ closeCfLeaseDocs }}" style="cursor:pointer;color:#A89A88;font-size:18px">✕</span>
+              </div>
+              <sc-if value="{{ cfLeaseDocsEmpty }}" hint-placeholder-val="{{ false }}">
+                <div style="text-align:center;color:#A89A88;font-size:12.5px;padding:20px 0">ยังไม่มีไฟล์แนบเลยครับ</div>
+              </sc-if>
+              <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+                <sc-for list="{{ cfLeaseDocsView }}" as="ld" hint-placeholder-count="2">
+                  <div style="border:1px solid #F0E9DC;border-radius:8px;padding:10px;box-sizing:border-box">
+                    <sc-if value="{{ ld.isEditing }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;gap:6px">
+                        <input value="{{ cfLeaseDocsEditingName }}" onchange="{{ onCfLeaseDocsEditingNameChange }}" style="flex:1;padding:7px 8px;border-radius:5px;border:1.5px solid #C1622D;font-size:12.5px;box-sizing:border-box">
+                        <div onclick="{{ ld.onSave }}" style="padding:7px 12px;border-radius:5px;background:#3B7A52;color:#fff;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center">บันทึก</div>
+                        <div onclick="{{ cancelEditCfLeaseDocName }}" style="padding:7px 10px;border-radius:5px;border:1px solid #E3D8C8;color:#7C6E5F;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center">ยกเลิก</div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ ld.isNotEditing }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                        <a href="{{ ld.url }}" target="_blank" rel="noopener" style="flex:1;font-size:12.5px;color:#C1622D;font-weight:600;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 {{ ld.name }}</a>
+                        <div style="display:flex;gap:5px;flex-shrink:0">
+                          <span onclick="{{ ld.onEdit }}" style="font-size:11px;font-weight:600;padding:5px 8px;border-radius:5px;border:1px solid #D8C9B4;color:#7C6E5F;cursor:pointer">✏️ แก้ไข</span>
+                          <span onclick="{{ ld.onDelete }}" style="font-size:11px;font-weight:600;padding:5px 8px;border-radius:5px;border:1px solid #E3B7AC;color:#B24336;cursor:pointer">🗑 ลบ</span>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+              <div onclick="{{ closeCfLeaseDocs }}" style="padding:9px;border-radius:7px;border:1px solid #D8C9B4;color:#7C6E5F;font-size:12.5px;font-weight:600;cursor:pointer;text-align:center">ปิด</div>
+            </div>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ showInvoiceModeModal }}">
           <div onclick="{{ closeInvoiceModeModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200">
             <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-sizing:border-box">
@@ -5031,7 +5077,9 @@ class Component extends DCLogic {
       tenantFirstName: '', tenantLastName: '', phone: '',
       tenantIdImg: '', tenantIdExpiry: '', ownerIdImg: '', ownerIdExpiry: '', lineQrImg: '',
       wifiUsername: '', wifiPassword: '', dueDay: '', startDate: '', endDate: '', leaseDocName: '',
+      leaseDocs: [],
     },
+    showCfLeaseDocsModal: false, cfLeaseDocsEditingId: null, cfLeaseDocsEditingName: '',
     trashRate: 0,
     internetRate: 0,
     ownerName: 'บริษัท เช่าสุข พร็อพเพอร์ตี้ จำกัด',
@@ -6355,6 +6403,7 @@ class Component extends DCLogic {
         startDate: r.moveIn || '',
         endDate: r.contractEnd || '',
         leaseDocName: r.leaseDocName || '',
+        leaseDocs: Array.isArray(r.leaseDocs) ? r.leaseDocs : [],
       },
     });
   };
@@ -6478,11 +6527,72 @@ class Component extends DCLogic {
   }
   onCfTenantId = (e) => this._readImg(e, 'tenantIdImg');
   onCfOwnerId = (e) => this._readImg(e, 'ownerIdImg');
+  // "ให้เพิ่มรูปได้มากกว่า 1 รูป ตอนนี้อัปโหลดได้แค่ภาพเดียวครับ ขึ้นปุ่ม
+  // เล็กๆ ข้างๆเพื่อเข้าดูรูปที่บันทึก เป็น popup พร้อมปุ่ม แก้ไข ลบ
+  // บันทึก" (2026-09-18) — real gap found while building this: the OLD
+  // onCfLeaseDoc never actually uploaded anything at all, just stored the
+  // chosen file's NAME as a string (leaseDocName) — the real PDF/image
+  // was never sent anywhere, so this feature was already broken before
+  // "support multiple" was even asked for. Rebuilt from scratch: uploads
+  // each selected file to Cloudinary via POST /api/uploads/document
+  // (widened to accept application/pdf too, not just images — see that
+  // route's own comment) and APPENDS {id,name,url} entries to
+  // contractForm.leaseDocs (new leaseDocsJson column, see
+  // prototype-auth/migrate-add-leasedocs-column.js) instead of replacing
+  // the old single leaseDocName. input now has `multiple` so a user can
+  // select several files in one picker action; each still uploads
+  // separately (no batch API needed) so one failing file doesn't block
+  // the rest.
   onCfLeaseDoc = (e) => {
-    const f = e.target.files && e.target.files[0];
-    if (!f) return;
-    this._cf('leaseDocName', f.name);
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+    files.forEach((f) => {
+      const isPdf = f.type === 'application/pdf';
+      const isImage = /^image\//.test(f.type);
+      if (!isPdf && !isImage) {
+        this.showAdminToast(`ไฟล์ "${f.name}" ไม่รองรับ (รับเฉพาะ PDF หรือรูปภาพ)`);
+        return;
+      }
+      const uploadRaw = (dataUrl) => {
+        this.showAdminToast(`กำลังอัปโหลด ${f.name}...`);
+        fetch('/api/uploads/document', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl, folder: 'lease-docs' }),
+        }).then(async (res) => {
+          const result = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(result.error || 'อัปโหลดไม่สำเร็จ');
+          const doc = { id: 'ld-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), name: f.name, url: result.url };
+          this.setState(s => ({ contractForm: { ...s.contractForm, leaseDocs: [...(s.contractForm.leaseDocs || []), doc] } }));
+          this.showAdminToast(`อัปโหลด ${f.name} สำเร็จ`);
+        }).catch((err) => {
+          this.showAdminToast(err.message || `อัปโหลด ${f.name} ไม่สำเร็จ กรุณาลองใหม่ครับ`);
+        });
+      };
+      if (isImage) {
+        this._downscaleImage(f, 1400, (data) => { if (data) uploadRaw(data); });
+      } else {
+        const rd = new FileReader();
+        rd.onload = () => uploadRaw(rd.result);
+        rd.onerror = () => this.showAdminToast(`อ่านไฟล์ "${f.name}" ไม่สำเร็จ`);
+        rd.readAsDataURL(f);
+      }
+    });
   };
+  openCfLeaseDocs = () => this.setState({ showCfLeaseDocsModal: true });
+  closeCfLeaseDocs = () => this.setState({ showCfLeaseDocsModal: false, cfLeaseDocsEditingId: null, cfLeaseDocsEditingName: '' });
+  startEditCfLeaseDocName = (docId, currentName) => this.setState({ cfLeaseDocsEditingId: docId, cfLeaseDocsEditingName: currentName });
+  onCfLeaseDocsEditingNameChange = (e) => this.setState({ cfLeaseDocsEditingName: e.target.value });
+  cancelEditCfLeaseDocName = () => this.setState({ cfLeaseDocsEditingId: null, cfLeaseDocsEditingName: '' });
+  saveCfLeaseDocName = () => {
+    const { cfLeaseDocsEditingId, cfLeaseDocsEditingName } = this.state;
+    if (!cfLeaseDocsEditingName || !cfLeaseDocsEditingName.trim()) { this.showAdminToast('กรุณากรอกชื่อไฟล์'); return; }
+    this.setState(s => ({
+      contractForm: { ...s.contractForm, leaseDocs: (s.contractForm.leaseDocs || []).map(d => d.id === cfLeaseDocsEditingId ? { ...d, name: cfLeaseDocsEditingName.trim() } : d) },
+      cfLeaseDocsEditingId: null, cfLeaseDocsEditingName: '',
+    }));
+  };
+  deleteCfLeaseDoc = (docId) => this.setState(s => ({ contractForm: { ...s.contractForm, leaseDocs: (s.contractForm.leaseDocs || []).filter(d => d.id !== docId) } }));
   saveContractForm = async () => {
     const cf = this.state.contractForm;
     const id = this.state.contractFormRoomId;
@@ -6553,6 +6663,7 @@ class Component extends DCLogic {
       wifiPassword: cf.wifiPassword,
       dueDay: cf.dueDay,
       leaseDocName: cf.leaseDocName,
+      leaseDocsJson: JSON.stringify(cf.leaseDocs || []),
       // Per explicit user request: water/elec rate now saves onto THIS room
       // specifically (waterRate/elecRate columns added to the Rooms sheet),
       // not just the property-wide default below — different rooms/
@@ -6653,7 +6764,7 @@ class Component extends DCLogic {
   closeDeleteContract = () => this.setState({ showDeleteContract: false, deleteContractRoom: null });
   confirmDeleteContract = () => this._guard('confirmDeleteContract:' + this.state.deleteContractRoom, async () => {
     const id = this.state.deleteContractRoom;
-    const clearPatch = { status: 'vacant', tenant: '', phone: '', moveIn: '', contractEnd: '', wifiUsername: '', wifiPassword: '', dueDay: '', tenantIdImg: '', tenantIdExpiry: '', leaseDocName: '', lineQrImg: '', ownerIdImg: '', ownerIdExpiry: '' };
+    const clearPatch = { status: 'vacant', tenant: '', phone: '', moveIn: '', contractEnd: '', wifiUsername: '', wifiPassword: '', dueDay: '', tenantIdImg: '', tenantIdExpiry: '', leaseDocName: '', leaseDocsJson: '', lineQrImg: '', ownerIdImg: '', ownerIdExpiry: '' };
     try {
       const res = await fetch('/api/rooms/' + encodeURIComponent(id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -14221,6 +14332,18 @@ class Component extends DCLogic {
       cfTenantIdPreview: s.contractForm.tenantIdImg ? React.createElement('img', { src: s.contractForm.tenantIdImg, style: { width: 56, height: 36, objectFit: 'cover', borderRadius: 4 } }) : null,
       cfOwnerIdPreview: s.contractForm.ownerIdImg ? React.createElement('img', { src: s.contractForm.ownerIdImg, style: { width: 56, height: 36, objectFit: 'cover', borderRadius: 4 } }) : null,
       cfHasLeaseDoc: !!s.contractForm.leaseDocName,
+      cfLeaseDocsCount: (s.contractForm.leaseDocs || []).length,
+      showCfLeaseDocsModal: s.showCfLeaseDocsModal, openCfLeaseDocs: this.openCfLeaseDocs, closeCfLeaseDocs: this.closeCfLeaseDocs,
+      cfLeaseDocsEmpty: (s.contractForm.leaseDocs || []).length === 0,
+      cfLeaseDocsEditingName: s.cfLeaseDocsEditingName, onCfLeaseDocsEditingNameChange: this.onCfLeaseDocsEditingNameChange,
+      cancelEditCfLeaseDocName: this.cancelEditCfLeaseDocName,
+      cfLeaseDocsView: (s.contractForm.leaseDocs || []).map((ld) => ({
+        id: ld.id, name: ld.name, url: ld.url,
+        isEditing: s.cfLeaseDocsEditingId === ld.id, isNotEditing: s.cfLeaseDocsEditingId !== ld.id,
+        onEdit: () => this.startEditCfLeaseDocName(ld.id, ld.name),
+        onSave: this.saveCfLeaseDocName,
+        onDelete: () => this.deleteCfLeaseDoc(ld.id),
+      })),
 
       showImageLightbox: !!s.imageLightboxUrl, imageLightboxUrl: s.imageLightboxUrl || '',
       openImageLightbox: this.openImageLightbox, closeImageLightbox: this.closeImageLightbox,

@@ -87,23 +87,33 @@ router.post('/payment-qr', async (req, res) => {
 // are real documents that need to survive deploys, not ephemeral like slip
 // photos LINE fetches within seconds) but generic (not payment-qr-specific)
 // so any future document/photo field can reuse this same endpoint.
+//
+// "เอกสารสัญญาเช่า (PDF / รูป)" (2026-09-18) — เดิม regex รับได้แค่
+// data:image/... เท่านั้น (ตรงกับทุก caller เดิม — tenantIdImg/ownerIdImg/
+// lineQrImg เป็นรูปเสมอ) แต่ช่องนี้ต้องรับ PDF ได้ด้วยตามป้าย "(PDF/รูป)"
+// — เพิ่ม application/pdf เข้าไปในแพทเทิร์นที่รับ แล้วเลือก resourceType
+// ให้ตรงชนิดไฟล์ (image ยังคงใช้ 'image' เหมือนเดิมทุกจุด ไม่กระทบ caller
+// เดิมเลย — PDF ใช้ 'raw' ซึ่งเป็นชนิดที่ถูกต้องสำหรับไฟล์ไม่ใช่รูปบน
+// Cloudinary)
 router.post('/document', async (req, res, next) => {
   try {
     if (!cloudinaryConfigured()) {
       return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่าระบบเก็บรูปถาวร (Cloudinary) กรุณาติดต่อผู้ดูแลระบบ' });
     }
     const { dataUrl, folder } = req.body;
-    const match = /^data:(image\/\w+);base64,(.+)$/.exec(dataUrl || '');
-    if (!match) return res.status(400).json({ error: 'รูปภาพไม่ถูกต้อง' });
+    const match = /^data:(image\/\w+|application\/pdf);base64,(.+)$/.exec(dataUrl || '');
+    if (!match) return res.status(400).json({ error: 'ไฟล์ไม่ถูกต้อง (รองรับเฉพาะรูปภาพหรือ PDF)' });
+    const mimeType = match[1];
     const buffer = Buffer.from(match[2], 'base64');
+    const resourceType = mimeType === 'application/pdf' ? 'raw' : 'image';
     // จำกัด folder ให้อยู่ใต้ chaosuk-rental/documents/ เสมอ (กันส่ง path
     // แปลกๆ มาเขียนทับที่อื่นใน Cloudinary account เดียวกัน — ไม่ใช่ช่อง
     // โหว่ด้านความปลอดภัยร้ายแรง แค่ป้องกันการใช้งานผิดโดยไม่ตั้งใจ)
     const safeFolder = 'chaosuk-rental/documents/' + (String(folder || 'misc').replace(/[^a-zA-Z0-9_-]/g, '') || 'misc');
-    const url = await uploadToCloudinary(buffer, safeFolder);
+    const url = await uploadToCloudinary(buffer, safeFolder, resourceType);
     res.json({ url });
   } catch (err) {
-    res.status(500).json({ error: err.message || 'อัปโหลดรูปไม่สำเร็จ' });
+    res.status(500).json({ error: err.message || 'อัปโหลดไฟล์ไม่สำเร็จ' });
   }
 });
 

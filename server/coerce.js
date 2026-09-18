@@ -22,8 +22,18 @@ function coerceRooms(rows) {
     if (r.creditSlipsJson) {
       try { creditSlips = JSON.parse(r.creditSlipsJson); if (!Array.isArray(creditSlips)) creditSlips = []; } catch { creditSlips = []; }
     }
+    // "ให้เพิ่มรูปได้มากกว่า 1 รูป" (2026-09-18) — เอกสารสัญญาเช่า (PDF/รูป)
+    // เดิม `leaseDocName` เก็บแค่ "ชื่อไฟล์" เป็น string เดียว ไม่เคยอัปโหลด
+    // ไฟล์จริงขึ้นที่ไหนเลย (ดูโค้ดฝั่ง frontend เดิม onCfLeaseDoc — เก็บ
+    // f.name อย่างเดียว) — เปลี่ยนมาเป็น array จริง (เหมือน creditSlipsJson
+    // ด้านบน) เก็บ {id, name, url} ต่อไฟล์ รองรับหลายไฟล์ต่อห้อง
+    let leaseDocs = [];
+    if (r.leaseDocsJson) {
+      try { leaseDocs = JSON.parse(r.leaseDocsJson); if (!Array.isArray(leaseDocs)) leaseDocs = []; } catch { leaseDocs = []; }
+    }
     return {
       ...r,
+      leaseDocs,
       floor: num(r.floor, 1),
       rent: num(r.rent, 0),
       deposit: num(r.deposit, 0),

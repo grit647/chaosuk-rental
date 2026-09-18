@@ -22,10 +22,16 @@ if (isConfigured()) {
 // Uploads a Buffer (e.g. a slip photo fetched from LINE) and returns a
 // permanent HTTPS URL. folder groups uploads for tidiness in the Cloudinary
 // dashboard (e.g. "chaosuk-rental/slips").
-function uploadBuffer(buffer, folder) {
+//
+// resourceType defaults to 'image' (every existing caller before
+// 2026-09-18 only ever uploaded images) — the lease-contract document
+// upload ("เอกสารสัญญาเช่า (PDF / รูป)") is the first caller that needs
+// 'raw' for a non-image file (a PDF uploaded as resource_type:'image'
+// would fail/serve incorrectly on Cloudinary).
+function uploadBuffer(buffer, folder, resourceType = 'image') {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: 'image' },
+      { folder, resource_type: resourceType },
       (err, result) => {
         if (err) return reject(err);
         resolve(result.secure_url);
