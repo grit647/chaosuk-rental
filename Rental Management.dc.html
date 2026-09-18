@@ -3979,25 +3979,38 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
               <sc-if value="{{ cfLeaseDocsEmpty }}" hint-placeholder-val="{{ false }}">
                 <div style="text-align:center;color:#A89A88;font-size:12.5px;padding:20px 0">ยังไม่มีไฟล์แนบเลยครับ</div>
               </sc-if>
-              <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+              <!-- "เปลี่ยนเป็นการบันทึกแบบอัลบัม เลือกได้หลายรูป...กดดู
+                   รูปภาพ ขึ้น popup หน้าจอครับ" (2026-09-18) — เปลี่ยนจาก
+                   ลิสต์รายชื่อไฟล์ เป็นกริดรูปย่อ (เหมือนอัลบั้มใบเสร็จ),
+                   รูปกดแล้วเปิด openImageLightbox ในแอป (ไม่เปิดแท็บใหม่),
+                   PDF ยังเปิดแท็บใหม่ตามปกติ (ไม่มี in-app PDF viewer) -->
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:14px">
                 <sc-for list="{{ cfLeaseDocsView }}" as="ld" hint-placeholder-count="2">
-                  <div style="border:1px solid #F0E9DC;border-radius:8px;padding:10px;box-sizing:border-box">
-                    <sc-if value="{{ ld.isEditing }}" hint-placeholder-val="{{ false }}">
-                      <div style="display:flex;gap:6px">
-                        <input value="{{ cfLeaseDocsEditingName }}" onchange="{{ onCfLeaseDocsEditingNameChange }}" style="flex:1;padding:7px 8px;border-radius:5px;border:1.5px solid #C1622D;font-size:12.5px;box-sizing:border-box">
-                        <div onclick="{{ ld.onSave }}" style="padding:7px 12px;border-radius:5px;background:#3B7A52;color:#fff;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center">บันทึก</div>
-                        <div onclick="{{ cancelEditCfLeaseDocName }}" style="padding:7px 10px;border-radius:5px;border:1px solid #E3D8C8;color:#7C6E5F;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center">ยกเลิก</div>
-                      </div>
+                  <div style="border:1px solid #F0E9DC;border-radius:8px;overflow:hidden;box-sizing:border-box">
+                    <sc-if value="{{ ld.isImage }}" hint-placeholder-val="{{ true }}">
+                      <img src="{{ ld.url }}" onclick="{{ ld.onView }}" style="width:100%;height:100px;object-fit:cover;cursor:pointer;display:block">
                     </sc-if>
-                    <sc-if value="{{ ld.isNotEditing }}" hint-placeholder-val="{{ true }}">
-                      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-                        <a href="{{ ld.url }}" target="_blank" rel="noopener" style="flex:1;font-size:12.5px;color:#C1622D;font-weight:600;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 {{ ld.name }}</a>
-                        <div style="display:flex;gap:5px;flex-shrink:0">
-                          <span onclick="{{ ld.onEdit }}" style="font-size:11px;font-weight:600;padding:5px 8px;border-radius:5px;border:1px solid #D8C9B4;color:#7C6E5F;cursor:pointer">✏️ แก้ไข</span>
-                          <span onclick="{{ ld.onDelete }}" style="font-size:11px;font-weight:600;padding:5px 8px;border-radius:5px;border:1px solid #E3B7AC;color:#B24336;cursor:pointer">🗑 ลบ</span>
+                    <sc-if value="{{ ld.isNotImage }}" hint-placeholder-val="{{ false }}">
+                      <div onclick="{{ ld.onView }}" style="width:100%;height:100px;background:#FBF6EC;display:flex;align-items:center;justify-content:center;color:#B85B27;font-size:28px;cursor:pointer">📄</div>
+                    </sc-if>
+                    <div style="padding:8px">
+                      <sc-if value="{{ ld.isEditing }}" hint-placeholder-val="{{ false }}">
+                        <div style="display:flex;flex-direction:column;gap:5px">
+                          <input value="{{ cfLeaseDocsEditingName }}" onchange="{{ onCfLeaseDocsEditingNameChange }}" style="width:100%;padding:5px 6px;border-radius:4px;border:1.5px solid #C1622D;font-size:11px;box-sizing:border-box">
+                          <div style="display:flex;gap:4px">
+                            <div onclick="{{ ld.onSave }}" style="flex:1;text-align:center;padding:5px;border-radius:4px;background:#3B7A52;color:#fff;font-size:10.5px;font-weight:600;cursor:pointer">บันทึก</div>
+                            <div onclick="{{ cancelEditCfLeaseDocName }}" style="flex:1;text-align:center;padding:5px;border-radius:4px;border:1px solid #E3D8C8;color:#7C6E5F;font-size:10.5px;font-weight:600;cursor:pointer">ยกเลิก</div>
+                          </div>
                         </div>
-                      </div>
-                    </sc-if>
+                      </sc-if>
+                      <sc-if value="{{ ld.isNotEditing }}" hint-placeholder-val="{{ true }}">
+                        <div style="font-size:10.5px;color:#241812;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px" title="{{ ld.name }}">{{ ld.name }}</div>
+                        <div style="display:flex;gap:4px">
+                          <span onclick="{{ ld.onEdit }}" style="flex:1;text-align:center;font-size:10px;font-weight:600;padding:4px;border-radius:4px;border:1px solid #D8C9B4;color:#7C6E5F;cursor:pointer">✏️</span>
+                          <span onclick="{{ ld.onDelete }}" style="flex:1;text-align:center;font-size:10px;font-weight:600;padding:4px;border-radius:4px;border:1px solid #E3B7AC;color:#B24336;cursor:pointer">🗑</span>
+                        </div>
+                      </sc-if>
+                    </div>
                   </div>
                 </sc-for>
               </div>
@@ -6562,7 +6575,7 @@ class Component extends DCLogic {
         }).then(async (res) => {
           const result = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(result.error || 'อัปโหลดไม่สำเร็จ');
-          const doc = { id: 'ld-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), name: f.name, url: result.url };
+          const doc = { id: 'ld-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), name: f.name, url: result.url, isImage };
           this.setState(s => ({ contractForm: { ...s.contractForm, leaseDocs: [...(s.contractForm.leaseDocs || []), doc] } }));
           this.showAdminToast(`อัปโหลด ${f.name} สำเร็จ`);
         }).catch((err) => {
@@ -14339,10 +14352,17 @@ class Component extends DCLogic {
       cancelEditCfLeaseDocName: this.cancelEditCfLeaseDocName,
       cfLeaseDocsView: (s.contractForm.leaseDocs || []).map((ld) => ({
         id: ld.id, name: ld.name, url: ld.url,
+        isImage: !!ld.isImage, isNotImage: !ld.isImage,
         isEditing: s.cfLeaseDocsEditingId === ld.id, isNotEditing: s.cfLeaseDocsEditingId !== ld.id,
         onEdit: () => this.startEditCfLeaseDocName(ld.id, ld.name),
         onSave: this.saveCfLeaseDocName,
         onDelete: () => this.deleteCfLeaseDoc(ld.id),
+        // "การเข้าดู กดดูรูปภาพ ขึ้น popup หน้าจอครับ" (2026-09-18) — เปิด
+        // ในแอปแทน target="_blank" (เหตุผลเดียวกับทุกจุดอื่นในแอปที่ใช้
+        // openImageLightbox — โหมด PWA standalone ไม่มีแท็บให้สลับกลับ) —
+        // ใช้ได้เฉพาะไฟล์รูปเท่านั้น PDF ยังเปิดแท็บใหม่ปกติ (ไม่มี in-app
+        // PDF viewer ให้ใช้)
+        onView: ld.isImage ? () => this.openImageLightbox(ld.url) : () => window.open(ld.url, '_blank'),
       })),
 
       showImageLightbox: !!s.imageLightboxUrl, imageLightboxUrl: s.imageLightboxUrl || '',
