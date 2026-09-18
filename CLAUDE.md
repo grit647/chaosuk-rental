@@ -46,6 +46,200 @@ logo badge, use this exact same styling.
 
 ## Known issues / follow-ups
 
+### Full session summary (2026-09-04, spilling into 2026-09-18) — Bills-page KPI accuracy, mobile lightbox/download UX, slip-verification breakdown popup, notification-frequency fixes, APK diagnosis → PWA install button instead
+
+**Note on dates:** every inline code comment added during this session says
+"2026-09-04" — `git log` confirms the last 2 items below (the cutoff-warning
+1x/day fix and the PWA install button) actually landed 2026-09-18, i.e. this
+was really 2 separate days of conversation under one continuous thread.
+Flagging here per the same lesson already documented in the 2026-08-28
+section above — don't trust in-code comment dates over `git log` when
+reconstructing a timeline later.
+
+**1. Bills page KPI cards ("รวมเดือนนี้"/"ชำระแล้ว") were double-counting
+rooms — fixed twice, same bug class, 2 different root causes.** Owner
+noticed the card showed 30 line items for only 15 rooms. First attempt
+filtered invoices by "created this calendar month" (parsed from the
+invoice id's embedded epoch timestamp) — seemed reasonable but broke
+immediately once the real calendar month rolled past the billing month
+("บิลที่ออกหลังสุดนะครับ ไม่ใช่เดือนนี้" — card showed 0 once viewed from
+a later month than the bills were created in). **Real fix:** stopped
+filtering by date entirely — instead group `s.invoices` by room and keep
+only the highest-epoch-id invoice per room (`invoicesThisCycle`), i.e.
+"a room's own most recent bill," regardless of which month it was
+created. This is what actually eliminated the 30-vs-15 duplicate-counting
+bug (a room with an old superseded invoice plus its real current one no
+longer double-counts). The 2 unrelated buckets that must NOT be
+month/latest-scoped ("ชำระบางส่วนรวม"/"รอชำระ"/"เกินกำหนด" — real cross-
+cycle debt) were untouched, confirmed via AskUserQuestion in the earlier
+session. Card label also renamed "รวมเดือนนี้" → **"รวมบิลล่าสุด"** per
+explicit request, since "เดือน" language was confusing once the card
+stopped being month-scoped.
+
+**2. Dashboard/Bills/Expenses page headers showed a literal hardcoded
+"กรกฎาคม 2569"** (the month this app happened to be built in) instead of
+the real current month — found while the owner was spot-checking whether
+Dashboard revenue figures were accurate ("ยอดตรงหรือยังครับ"). The KPI
+NUMBERS were always correctly computed off the real month; only this
+label text was frozen. Added a shared `currentMonthThaiLabel` (computed
+from real Bangkok time) and wired it into all 3 header spots. (A 4th
+occurrence — the room detail panel's "บิลล่าสุด · กรกฎาคม 2569" — is a
+different, still-unfixed case: it needs the SELECTED ROOM's own latest
+invoice month, not the global current month; flagged but not touched
+this session.)
+
+**3. Mobile image lightbox (receipts album slip+receipt viewer) was
+unscrollable past its own centered content.** Owner report: "ด้านบนมัน
+เลื่อนดูสริปทั้งหมดไม่ได้ มันค้างแค่นั้น" — a well-known CSS bug: the
+lightbox backdrop is a flex column with `justify-content:center`; once 2
+stacked images (slip + receipt) overflow a phone-height viewport,
+browsers can't compute scrollable space ABOVE the centered point, so the
+overflowing top portion becomes permanently unreachable even with
+`overflow:auto` set. Fixed by switching to `justify-content:flex-start`
+so content starts at the top and scrolls normally.
+
+**4. Added an explicit "⬇️ ดาวน์โหลด" button to the lightbox, separate
+from the existing share button.** The existing "บันทึกรูป" button
+prefers the Web Share sheet on mobile (a deliberate 2026-08-05 decision,
+since raw downloads often land in a Downloads folder gallery apps don't
+scan) — but that meant there was no way to save straight to the device
+without going through a share-target picker. Per explicit follow-up
+("ปุ่มที่เรามีเป็น copy...ยังไม่ได้บันทึกลงเครื่องครับ"), added a second
+button (`directDownloadReceiptImage`) that always does the blob + `<a
+download>` path, skipping `navigator.share` entirely. Relabeled the
+original button "📤 แชร์/บันทึกรูป" to make the distinction clear.
+
+**5. New "👁️ ดูรายละเอียดยอดในบิล" popup on the slip-verification
+screens, with 2 real bugs found and fixed along the way.** Per explicit
+request ("เพิ่ม ไอคอน รูป ตา...กดแล้วให้ขึ้น popup แสดงรายการของยอด")
+during a mismatched-slip investigation — the owner could only see one
+number ("ยอดในบิล 1,830") with no way to see what it's made of. Added an
+eye icon (both the "สลิปรอตรวจสอบ" queue modal and the older single-
+invoice view-only modal) opening a popup with the full itemized
+breakdown. **Bug found immediately after shipping v1** ("ยอดไม่ตรงกัน"):
+the popup summed only rent+water+elec+trash+internet (the raw bill
+total), while the card that opens it shows the amount still owed AFTER
+subtracting `amountPaid` (advance credit, prior partial payment, etc.) —
+a room with a full ฿1,830 bill and ฿190 credit already applied showed
+"1,640" on the card but "1,830" in the popup. Fixed by adding a "หักยอด
+ที่จ่ายมาแล้ว/เครดิตล่วงหน้า" line so the popup's own total always
+matches the card exactly. Then per further request ("แสดงรายละเอียดมาให้
+ครบด้วยครับ") expanded further: each water/elec line now shows its
+"(X หน่วย × อัตรา)" detail (or "(ค่าดูแลมิเตอร์ขั้นต่ำ)" when the minimum-
+charge floor applied — same logic as `_buildReceiptMessage`'s LINE
+receipt text), plus the bill id, due date, and มิเตอร์น้ำ/ไฟ ก่อน→หลัง
+reading pairs. Owner confirmed final numbers reconcile correctly.
+
+**6. Due-date reminder ("แจ้งเตือนใกล้ครบกำหนด") was silently sending
+2x/day, undisclosed anywhere in the settings UI — fixed to 1x/day.**
+Found while investigating "ดูข้อมูลมันส่งถี่เกินจริง" on the new LINE
+send-history log page: `server/routes/scheduler.js`'s due-reminder block
+had copied the cutoff category's explicit "2 ครั้ง/วัน" mechanism
+(09:00 + 6h later, capped 18:00) — but the settings UI only ever showed
+a single "เวลาที่จะส่งแจ้งเตือน" time field, no disclosure of a second
+daily send. Combined with a multi-day reminder window (e.g. "เตือนก่อน
+ครบกำหนด 3 วัน"), a tenant could receive the same bill reminder up to 6
+times before the due date. Confirmed via AskUserQuestion the owner wants
+1x/day — dropped the slot-based dedup key back to a plain once-per-day
+boolean check for this category specifically.
+
+**7. Receipt-confirmation retry mechanism — real off-by-one found
+between its own settings label and actual behavior, mechanism switched
+OFF pending a decision.** While reviewing the same settings popup for
+item 6, found: the label says "ส่งซ้ำสูงสุด 2 ครั้ง" (implying 2
+resends, 3 total sends) but the code's escalation check
+(`receiptSendCount >= 2`) actually only allows 1 real resend (2 total
+sends) before escalating to the owner — `receiptSendCount` starts at 1
+after the very first send, so the very next retry pushes it straight to
+the escalation threshold. Owner asked to leave the exact fix undecided
+for now and just **turn the whole mechanism off** ("ข้อนี้ทำสวิทย์
+เปิดปิดเงื่อนไขนี้ไปก่อนครับ ตั้งเป็นปิดการทำงานไว้ครับ") — added new
+Settings field `receiptRetryEnabled` (coerce.js, defaults to **false**
+for every building, unlike `receiptRetryHours` which already defaulted
+to an active 24h) gating the whole block in scheduler.js, plus a pill
+toggle switch next to item 5 in the cutoff/reminder settings popup
+(same style as the Dashboard's auto-refresh switch). The hours dropdown
+and escalation logic are unchanged code-wise — just dormant until the
+switch is flipped back on.
+
+**8. Cutoff/water-cutoff warning category — reversed back to 1x/day
+(un-does the 2026-08-05 "วันละ 2 ครั้ง" decision), plus deduped a
+redundant owner message.** Two related requests in one message from the
+owner (referring to this category specifically, config `cutoffReminderDay
+= 7` in his building matching "หลังวันที่7" in his phrasing):
+   - **8a.** "ขอให้เหลือแค่1ครั้งตอน9โมง ทั้งฝั่งเจ้าของและลูกบ้านครับ" —
+     dropped the `activeSlot`/`checkTime2` 2x/day mechanism back to a
+     plain `timeReached` boolean (mirrors the same simplification already
+     applied to due-reminder in item 6), key no longer has a `:slotN`
+     suffix. The cutoff category's OWN 2x/day request from 2026-08-05 is
+     now fully superseded/reverted — if a future session finds that old
+     comment confusing against current behavior, this entry is why.
+   - **8b.** "มันจะมีแจ้งทั้ง popup ให้ยืนยันการปิดไฟ กับข้อความว่าค้าง
+     ชำระ ซึ่งผมมองว่าซ้ำซ้อน อยากให้ส่งแต่ popup ยืนยันการตัดไฟครับ" —
+     the owner-side `notifyAdmin()` plain-text message and the
+     `pushButtonMessage` "ยืนยันตัดไฟ/รอภายหลัง" confirm popup were both
+     firing for the same event (reminder/final tier + room with a linked
+     Tuya elec device). Now skips the plain-text message whenever the
+     button popup will be sent instead (`willSendCutoffButton`, computed
+     once from the same condition) — rooms/tiers with no button available
+     (cancelWarning tier, or a room with no Tuya elec device linked)
+     still get the plain-text message as before, so the owner isn't left
+     with zero notification in those cases.
+
+**9. Android APK ("android-app/") diagnosed for a real "upload/download
+doesn't work" customer report — root cause found, NOT fixed; owner chose
+to abandon the APK approach entirely in favor of a PWA instead (see #10).**
+Customer reported image upload (lease-contract ID card photo field) and
+image download (receipt lightbox) both silently do nothing when opened
+via the installed APK specifically (confirmed working fine via regular
+browser/PWA). `android-app/app/src/main/java/com/chaosuk/rentalapp/
+MainActivity.java` is a bare `WebView` wrapper (loads `/login` directly,
+built 2026-07-23, "เปลือกแอป" with zero native business logic) — 2 real,
+well-known WebView gaps:
+   - `WebChromeClient` is the stock/default implementation, never
+     overrides `onShowFileChooser()` — this is a mandatory override for
+     ANY `<input type="file">` to work inside an Android WebView at all;
+     without it, tapping a file-picker field does literally nothing, no
+     dialog opens. 100% explains the upload failure, not a bug in the web
+     app itself.
+   - No `setDownloadListener()`, and more importantly `navigator.share()`
+     (the lightbox's PRIMARY download path per the 2026-08-05 PWA-download
+     fix) is not supported at all by a plain embedded `WebView` (only full
+     Chrome-for-Android supports Web Share) — falls through to the blob +
+     `<a download>` fallback, which is unreliable on a stock WebView with
+     no native download handling wired up.
+
+**10. Built a proper installable PWA + sidebar "📲 โหลดแอป" button as the
+APK's replacement**, per explicit owner reasoning: "เพิ่มปุ่มโหลดแอปที่
+ติดตั้งเป็นไอคอนหน้าจอโฮม (PWA) ดีกว่าครับ แทน APK เพราะบางทีแก้งานแล้ว
+ต้องแก้ APK ยุ่งยากครับ" — a real, valid tradeoff: every web fix today
+deploys instantly via Render, but the APK route means rebuilding +
+redistributing a native binary any time (like the file-chooser bug in #9)
+it needs a fix. New `manifest.json` (name/icons/start_url/
+`display: standalone`/`theme_color #C1622D`) + 2 generated PNG icons
+(`images/pwa-icon-192.png`/`-512.png`, rendered via the `sharp` package
+already in `server/package.json`, from an SVG matching `login.html`'s
+existing orange rounded-square "ช" badge — not a new design, same brand
+asset reused). `server/index.js` now serves `/manifest.json` and the
+`images/` folder statically (previously `images/` only held Rich-Menu
+source files, never served to the web at all).
+`Rental Management.dc.html`'s `componentDidMount` captures the
+`beforeinstallprompt` event (Chrome/Android only, `preventDefault()`s
+Chrome's own auto mini-infobar so the new button is the sole trigger)
+into `this._deferredInstallPrompt`; the sidebar button (next to
+"เลือกโครงการ"/"ออกจากระบบ") calls `.prompt()` on it when available. iOS
+Safari has **no** `beforeinstallprompt` API at all (Apple doesn't
+support it) — the button falls back to a toast with manual instructions
+("แตะปุ่มแชร์...เพิ่มไปยังหน้าจอโฮม"); any other browser/situation gets a
+generic "เปิดเมนู ⋮ ของเบราว์เซอร์" hint. Button hides itself entirely
+once already running in standalone mode (`isStandaloneApp()`) — no point
+offering to reinstall. **The old android-app/ APK project and its
+`.github/workflows/build-android.yml` auto-build pipeline were left in
+place, untouched, not deleted** — this was a "prefer PWA going forward"
+decision, not an explicit "rip out the APK" instruction; a future
+session shouldn't assume the APK is dead without the owner saying so
+directly.
+
 ### Full session summary (2026-08-28) — billing/quota/reliability pass: a real overcharge bug found+fixed, cutoff full-payment rule, manual-entry redesign, LINE quota self-tracking
 
 **Note on dates:** every code comment written during this session says
