@@ -331,20 +331,15 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
       // ต่อวันเดิมยังทำงานเหมือนเดิม กันส่งซ้ำหลายรอบในวันเดียวกัน
       const nowTimeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour12: false }).slice(0, 5); // "HH:MM"
       const checkTime = settings.cutoffCheckTime || '09:00';
-      // "กำหนดการส่งไปด้วยครับแค่วันละ 2 ครั้ง ครั้งแรกส่วนที่กำหนด ครั้งที่
-      // 2 บวกไป 6 ชม. แต่ส่งได้ไม่เกิน 18:00 น." (2026-08-05) — checkTime2
-      // ต่อจาก checkTime (addHoursCapped ด้านบนไฟล์) แทนที่จะใช้ boolean
-      // timeReached ตัวเดียว เปลี่ยนเป็น "activeSlot" (0=ยังไม่ถึงเวลาไหน
-      // เลย, 1=ถึงรอบแรกแล้ว, 2=ถึงรอบสองแล้ว) ผูกเข้ากับ key ที่ใช้ dedup
-      // ด้านล่าง (key ต่างกันตาม slot) — เมื่อเวลาข้ามจาก slot 1 ไป slot 2
-      // จะได้ key ใหม่ที่ยังไม่เคยถูก markNotifiedToday มาก่อนในวันนั้น เลย
-      // ส่งได้อีกครั้งโดยอัตโนมัติ ไม่ต้องเปลี่ยนโครงสร้าง if/for ด้านล่างเลย
-      const checkTime2 = addHoursCapped(checkTime, 6, '18:00');
-      // checkTime2 > checkTime (ไม่ใช่แค่ !==) กันเคสตั้งเวลาแรกดึกมาก (เช่น
-      // 20:00) แล้วบวก 6 ชม.โดนเพดาน 18:00 ตัดจนย้อนไปก่อนเวลาแรก — ถ้าเกิด
-      // แบบนั้นถือว่ามีแค่ 1 รอบ ไม่ใช่ 2 รอบสลับลำดับกัน
-      const activeSlot = checkTime2 > checkTime && nowTimeStr >= checkTime2 ? 2 : (nowTimeStr >= checkTime ? 1 : 0);
-      const timeReached = activeSlot > 0;
+      // "ขอให้เหลือแค่1ครั้งตอน9โมง ทั้งฝั่งเจ้าของและลูกบ้านครับ"
+      // (2026-09-04) — เดิมส่งวันละ 2 รอบ (รอบแรกตามเวลาที่ตั้ง, รอบสอง
+      // อีก 6 ชม.ถัดมา ไม่เกิน 18:00, ตามคำขอเดิมเมื่อ 2026-08-05) — คุณต้น
+      // (เจ้าของ) กลับมาขอเปลี่ยนเป็นวันละ 1 ครั้งอีกครั้ง (สังเกตว่าหลังวัน
+      // ที่ตั้งไว้ ระบบเตือนถี่ 9 โมง+15 โมงทุกวัน ทั้งฝั่งเจ้าของและผู้เช่า)
+      // — กลับไปใช้ boolean timeReached ตัวเดียวเหมือนก่อน 2026-08-05, ตัด
+      // กลไก activeSlot/checkTime2 ทิ้ง (เหลือ addHoursCapped ไว้เผื่อใช้
+      // ในอนาคต ไม่ได้ลบฟังก์ชันทิ้ง) — key ด้านล่างไม่มี slot ต่อท้ายแล้ว
+      const timeReached = nowTimeStr >= checkTime;
       // "ให้ส่งข้อความวันละ 1 ครั้ง...จนกว่าจะไปเจอเงื่อนไขใหม่ที่กำหนด"
       // (2026-08-10) — เดิมเช็คแค่ 3 วันที่ตั้งไว้เป๊ะๆ (===), เงียบทุกวัน
       // ระหว่างนั้น ตอนนี้ (เฉพาะตึกที่อัปเดตถึง v7 แล้ว) เช็คแบบ "ถึงหรือ
@@ -391,15 +386,28 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
           const kind = dailyCutoffMode
             ? (todayDom >= cancelWarningDay ? 'cancelWarning' : todayDom >= finalDay ? 'final' : 'reminder')
             : (todayDom === cancelWarningDay ? 'cancelWarning' : todayDom === finalDay ? 'final' : 'reminder');
-          const key = `${sheetId}:${kind}:${inv.room}:${inv.id}:slot${activeSlot}`;
+          const key = `${sheetId}:${kind}:${inv.room}:${inv.id}`;
           const room = rooms.find((r) => r.id === inv.room);
           if (!wasNotifiedToday(key)) {
-            const msg = kind === 'cancelWarning'
-              ? `🚨 ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${cancelWarningDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณายกเลิกสัญญาเช่าได้เลยครับ (ต้องไปกดยกเลิกเองที่หน้าสัญญาเช่า ระบบไม่ยกเลิกให้อัตโนมัติ)`
-              : kind === 'final'
-              ? `⚠️ ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${finalDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณาตัดน้ำ/ไฟ ได้เลยครับ (ตัดจริงต้องทำเองที่หน้า "Set อุปกรณ์" ระบบไม่ตัดให้อัตโนมัติ)`
-              : `🔔 ห้อง ${inv.room} ยังไม่ชำระค่าเช่าครับ (ยอดค้าง ${remaining.toLocaleString()} บาท)`;
-            notifyAdmin('cutoffWarning', msg, cutoffCreds).catch(() => {});
+            // "มันจะมีแจ้งทั้ง popup ให้ยืนยันการปิดไฟ กับข้อความว่าค้าง
+            // ชำระ ซึ่งผมมองว่าซ้ำซ้อน อยากให้ส่งแต่ popup ยืนยันการตัดไฟ
+            // ครับ" (2026-09-04) — ย้าย adminLineId/willSendCutoffButton
+            // มาคำนวณก่อน แล้วข้าม notifyAdmin (ข้อความล้วน) ทิ้งเมื่อปุ่ม
+            // "ยืนยันตัดไฟ/รอภายหลัง" ด้านล่างจะถูกส่งอยู่แล้ว (เงื่อนไข
+            // เดียวกันเป๊ะ) — ห้อง/tier ที่ไม่เข้าเงื่อนไขปุ่ม (เช่น
+            // cancelWarning ซึ่งไม่มีปุ่มให้เลย, หรือห้องที่ยังไม่ผูก Tuya
+            // ไฟ) ยังคงได้ข้อความ notifyAdmin ตามปกติ ไม่งั้นเจ้าของจะไม่ได้
+            // รับรู้อะไรเลยในเคสนั้น
+            const adminLineId = settings.propertyProfile && settings.propertyProfile.adminLineUserId;
+            const willSendCutoffButton = (kind === 'reminder' || kind === 'final') && room && room.tuyaElecDeviceId && adminLineId && lineConfigured(cutoffCreds.line);
+            if (!willSendCutoffButton) {
+              const msg = kind === 'cancelWarning'
+                ? `🚨 ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${cancelWarningDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณายกเลิกสัญญาเช่าได้เลยครับ (ต้องไปกดยกเลิกเองที่หน้าสัญญาเช่า ระบบไม่ยกเลิกให้อัตโนมัติ)`
+                : kind === 'final'
+                ? `⚠️ ห้อง ${inv.room} ยังไม่ชำระถึงวันที่ ${finalDay} แล้วครับ ยอดค้าง ${remaining.toLocaleString()} บาท — พิจารณาตัดน้ำ/ไฟ ได้เลยครับ (ตัดจริงต้องทำเองที่หน้า "Set อุปกรณ์" ระบบไม่ตัดให้อัตโนมัติ)`
+                : `🔔 ห้อง ${inv.room} ยังไม่ชำระค่าเช่าครับ (ยอดค้าง ${remaining.toLocaleString()} บาท)`;
+              notifyAdmin('cutoffWarning', msg, cutoffCreds).catch(() => {});
+            }
             // "ให้ขึ้นปุ่ม ยืนยันที่หน้าไลน์เจ้าของเพื่อให้กดยืนยันเองได้
             // เลย" (2026-07-26) — เฉพาะ tier "final" (วันพิจารณาตัดน้ำ/ไฟ)
             // และเฉพาะห้องที่เชื่อม Tuya ไฟจริงแล้ว (ตัดได้จริงผ่าน
@@ -416,8 +424,7 @@ async function runSchedulerOnce(platformVersion = 0, testRoomId = null) {
             // อย่างเดียว) ให้ทั้ง 2 ระดับ (reminder วันที่ 7 เดิมมีแค่ข้อความ
             // เตือนเฉยๆ, final วันที่ 15 มีปุ่มอยู่แล้ว) — ขยายเงื่อนไขจาก
             // "เฉพาะ final" เป็น "reminder หรือ final" ทั้งคู่
-            const adminLineId = settings.propertyProfile && settings.propertyProfile.adminLineUserId;
-            if ((kind === 'reminder' || kind === 'final') && room && room.tuyaElecDeviceId && adminLineId && lineConfigured(cutoffCreds.line)) {
+            if (willSendCutoffButton) {
               // "เพิ่มเป็น 2 ปุ่มครับ ยืนยันกับ รอภายหลัง" (2026-08-10) —
               // เดิมมีแค่ปุ่มเดียว (ยืนยันตัดไฟ) เพิ่มปุ่มที่ 2 ให้เจ้าของ
               // กดรับทราบได้โดยไม่ต้องตัดไฟตอนนี้ (ไม่ได้ระงับการแจ้งเตือน
