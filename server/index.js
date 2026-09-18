@@ -13,6 +13,15 @@ const app = express();
 app.set('trust proxy', 1); // behind Render's proxy — needed so req.protocol reports https, not http
 app.use(express.json({ limit: '5mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// "เพิ่มปุ่มโหลดแอปที่ติดตั้งเป็นไอคอนหน้าจอโฮม (PWA) ดีกว่าครับ แทน APK
+// เพราะบางทีแก้งานแล้วต้องแก้ APK ยุ่งยากครับ" (2026-09-04) — เสิร์ฟ
+// manifest.json (root, generated icons in images/pwa-icon-*.png — see
+// Rental Management.dc.html's installApp/onBeforeInstallPrompt for the
+// actual "โหลดแอป" button wiring) + images/ ทั้งโฟลเดอร์แบบ static เพื่อ
+// ให้ manifest's icon URLs โหลดได้จริง (เดิม images/ ไม่เคยถูกเสิร์ฟเป็น
+// static เลย มีแค่ Rich Menu source files เก็บไว้เฉยๆ)
+app.use('/images', express.static(path.join(ROOT, 'images')));
+app.get('/manifest.json', (req, res) => res.sendFile(path.join(ROOT, 'manifest.json')));
 // "แอปเช่าสุข" APK (android-app/, 2026-07-23) — build อัตโนมัติจาก
 // .github/workflows/build-android.yml เขียนไฟล์ตรงเข้า server/downloads/
 // ตรงๆ (เก็บใน repo จริง ไม่ใช่ ephemeral uploads/ กันลิงก์ดาวน์โหลดหาย

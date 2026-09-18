@@ -10,6 +10,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- "เพิ่มปุ่มโหลดแอปที่ติดตั้งเป็นไอคอนหน้าจอโฮม (PWA) ดีกว่าครับ แทน APK
+     เพราะบางทีแก้งานแล้วต้องแก้ APK ยุ่งยากครับ" (2026-09-04) — manifest
+     ทำให้ Android/Chrome ยิง beforeinstallprompt ให้จับได้จริง (ดู
+     onBeforeInstallPrompt/installApp ใน <script> ด้านล่าง) — iOS Safari
+     ไม่รองรับ beforeinstallprompt เลย (ไม่มี API นี้จริงๆ) จึงต้องมีปุ่ม
+     fallback โชว์วิธีกดเองแทน (ดู installApp's iOS branch) -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#C1622D">
+<link rel="apple-touch-icon" href="/images/pwa-icon-192.png">
 <style>
 body{margin:0;background:#EDE7DB;font-family:'IBM Plex Sans Thai',sans-serif}
 input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
@@ -379,6 +388,15 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
             <sc-if value="{{ showSelectBuildingBtn }}" hint-placeholder-val="{{ false }}">
               <div onclick="{{ goSelectBuilding }}" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:8px;border:1px solid rgba(241,235,224,0.18);color:rgba(241,235,224,0.75);font-size:12.5px;font-weight:600;cursor:pointer">
                 <span style="font-size:14px">🏢</span> เลือกโครงการ
+              </div>
+            </sc-if>
+            <!-- "เพิ่มปุ่มโหลดแอปที่ติดตั้งเป็นไอคอนหน้าจอโฮม (PWA) ดีกว่า
+                 ครับ แทน APK เพราะบางทีแก้งานแล้วต้องแก้ APK ยุ่งยากครับ"
+                 (2026-09-04) — ซ่อนถ้าเปิดอยู่ในโหมด standalone แล้ว (ดู
+                 isStandaloneApp) ไม่มีประโยชน์จะกดซ้ำ -->
+            <sc-if value="{{ showInstallAppBtn }}" hint-placeholder-val="{{ false }}">
+              <div onclick="{{ installApp }}" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:8px;border:1px solid rgba(241,235,224,0.18);color:rgba(241,235,224,0.75);font-size:12.5px;font-weight:600;cursor:pointer">
+                <span style="font-size:14px">📲</span> โหลดแอป (เพิ่มไอคอนหน้าจอโฮม)
               </div>
             </sc-if>
             <div onclick="{{ logout }}" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:8px;border:1px solid rgba(241,235,224,0.18);color:#E8B4A0;font-size:12.5px;font-weight:600;cursor:pointer">
@@ -4933,6 +4951,9 @@ class Component extends DCLogic {
     // view is a manual, explicit choice from there.
     mobileAiMode: (typeof window !== 'undefined' && window.innerWidth < 760),
     imageLightboxUrl: null,
+    // "เพิ่มปุ่มโหลดแอปที่ติดตั้งเป็นไอคอนหน้าจอโฮม (PWA)" (2026-09-04) —
+    // ดู componentDidMount's beforeinstallprompt listener + installApp
+    canInstallApp: false,
     // "เพิ่ม ไอคอน รูป ตา...กดแล้วให้ขึ้น popup แสดงรายการของยอด ของบิลนั้น
     // เป็นการยืนยัน...ที่มาของยอดรวมในบิลนั้นๆ" (2026-09-04) — สลิปรอตรวจสอบ
     // การ์ด "ยอดในบิล" เดิมโชว์แค่ยอดรวมตัวเดียว ไม่มีทางดูรายละเอียดว่า
@@ -5474,6 +5495,22 @@ class Component extends DCLogic {
   componentDidMount() {
     this._onResize = () => this.setState({ viewportWidth: window.innerWidth });
     window.addEventListener('resize', this._onResize);
+    // "เพิ่มปุ่มโหลดแอปที่ติดตั้งเป็นไอคอนหน้าจอโฮม (PWA) ดีกว่าครับ แทน
+    // APK เพราะบางทีแก้งานแล้วต้องแก้ APK ยุ่งยากครับ" (2026-09-04) —
+    // Android/Chrome fires beforeinstallprompt ONLY when the page meets
+    // installability criteria (manifest.json + icons — see this file's
+    // <helmet> section) — capture it here and stash the event so the
+    // sidebar "📲 โหลดแอป" button (installApp) can trigger it later on a
+    // real user click (browsers require install prompts to originate
+    // from a user gesture, can't fire it automatically on page load).
+    // e.preventDefault() suppresses Chrome's own auto mini-infobar so our
+    // button is the only way to trigger it — avoids 2 competing UIs.
+    this._onBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      this._deferredInstallPrompt = e;
+      this.setState({ canInstallApp: true });
+    };
+    window.addEventListener('beforeinstallprompt', this._onBeforeInstallPrompt);
     // "ให้เจ้าของยืนยันได้เลย โดยไม่ต้องมาเข้าเว็บหลักครับ" (2026-08-02) —
     // ลิงก์แจ้งเตือนสลิปใหม่ทาง LINE (server/routes/line.js's GET
     // /auto-login, role owner) redirect มาที่ "/?openSlip=<invoiceId>" —
@@ -5884,6 +5921,7 @@ class Component extends DCLogic {
   }
   componentWillUnmount() {
     window.removeEventListener('resize', this._onResize);
+    window.removeEventListener('beforeinstallprompt', this._onBeforeInstallPrompt);
     clearTimeout(this._adminToastTimer);
     clearTimeout(this._mobileToastTimer);
     clearTimeout(this._payTimer);
@@ -6867,6 +6905,35 @@ class Component extends DCLogic {
     });
   };
   closeBillBreakdown = () => this.setState({ billBreakdownPopup: null });
+  // "เพิ่มปุ่มโหลดแอปที่ติดตั้งเป็นไอคอนหน้าจอโฮม (PWA) ดีกว่าครับ แทน APK
+  // เพราะบางทีแก้งานแล้วต้องแก้ APK ยุ่งยากครับ" (2026-09-04) —
+  // Android/Chrome: ใช้ _deferredInstallPrompt ที่ดักไว้จาก
+  // beforeinstallprompt (componentDidMount) เรียก .prompt() ตรงๆ ได้เลย
+  // เพราะปุ่มนี้เองก็เป็น user gesture ที่เบราว์เซอร์ต้องการอยู่แล้ว. iOS
+  // Safari ไม่มี beforeinstallprompt API เลย (Apple ไม่รองรับ) เลยไม่มี
+  // ทางเรียกอัตโนมัติได้จริง — โชว์คำแนะนำให้กดเองแทน (ปุ่มแชร์ → เพิ่มไป
+  // ยังหน้าจอโฮม). เบราว์เซอร์/สถานการณ์อื่นที่ไม่รองรับเลย (เช่น เปิดจาก
+  // Android ที่ยังไม่ถึงเงื่อนไข installability, หรือ Desktop) โชว์ข้อความ
+  // อธิบายทั่วไปแทนเช่นกัน — ปุ่มนี้ไม่เคย "พัง" ให้ผู้ใช้เห็นเลย มีแค่ผล
+  // ต่างกันตามเครื่อง.
+  // ตรวจว่าเปิดอยู่ในโหมด standalone (ติดตั้งเป็นไอคอนหน้าจอโฮมแล้ว) อยู่
+  // แล้วหรือยัง — ถ้าใช่ไม่ต้องโชว์ปุ่ม "โหลดแอป" อีก ไม่มีประโยชน์จะกดซ้ำ
+  isStandaloneApp = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+  installApp = async () => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    if (this._deferredInstallPrompt) {
+      this._deferredInstallPrompt.prompt();
+      try { await this._deferredInstallPrompt.userChoice; } catch { /* ignore */ }
+      this._deferredInstallPrompt = null;
+      this.setState({ canInstallApp: false });
+      return;
+    }
+    if (isIOS) {
+      this.showAdminToast('บน iPhone: แตะปุ่มแชร์ (ไอคอนสี่เหลี่ยมมีลูกศรชี้ขึ้น) ด้านล่างเบราว์เซอร์ แล้วเลือก "เพิ่มไปยังหน้าจอโฮม" ครับ');
+      return;
+    }
+    this.showAdminToast('เปิดเมนู ⋮ ของเบราว์เซอร์ แล้วเลือก "ติดตั้งแอป" หรือ "เพิ่มไปยังหน้าจอโฮม" ครับ');
+  };
   exitBrowserAttempt = () => {
     // window.close() only actually works for tabs/windows that were opened
     // by script — browsers block it for a normal tab the user navigated to
@@ -12919,6 +12986,7 @@ class Component extends DCLogic {
       // staff/tenant/demo session straight back to /login.
       showSelectBuildingBtn: !!(s.authSession && s.authSession.role !== 'staff' && s.authSession.role !== 'tenant' && s.authSession.role !== 'demo'),
       goSelectBuilding: this.goSelectBuilding,
+      showInstallAppBtn: !this.isStandaloneApp(), installApp: this.installApp,
       // Per explicit user request: tap-to-explain tooltips, /demo only.
       isDemo: !!(s.authSession && s.authSession.isDemo),
       demoTipVisible: !!s.demoTipId,

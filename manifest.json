@@ -1,0 +1,14 @@
+{
+  "name": "เช่าสุข",
+  "short_name": "เช่าสุข",
+  "description": "ระบบจัดการห้องเช่า เช่าสุข",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F1EBE0",
+  "theme_color": "#C1622D",
+  "icons": [
+    { "src": "/images/pwa-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/images/pwa-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
