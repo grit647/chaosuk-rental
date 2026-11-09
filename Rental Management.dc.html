@@ -7776,32 +7776,46 @@ class Component extends DCLogic {
     if (!m) return ym || '';
     return THAI_MONTHS[Number(m[2]) - 1] + ' ' + (Number(m[1]) + 543);
   };
+  // "ไฟล์ png ยาวเกิน แสดงเป็นเดือนละ 1 แผ่นครับ" (2026-09-18) — ตอนเลือก
+  // "ทั้งหมด" เดิมยัดทุกรายการทุกเดือนลงรูปเดียว ยาวเกินไป — เปลี่ยนเป็น
+  // สร้างแยกรูปต่อเดือน (1 รูป = 1 เดือน, "แผ่น" ตามที่เรียก) แล้วเปิดเป็น
+  // อัลบั้มเลื่อนดูได้ (openImageGallery เดียวกับที่ใช้กับเอกสารสัญญาเช่า
+  // — สไลด์ซ้าย/ขวาดูแต่ละเดือนได้เลย) ถ้าเลือกเดือนเจาะจงไว้แล้ว ก็แค่มี
+  // รูปเดียวในอัลบั้ม พฤติกรรมเหมือนเดิมทุกประการ
+  _buildStatementRows = (list, isIncome) => list
+    .slice()
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    .map(r => isIncome
+      ? { date: r.date, title: `ห้อง ${r.room} · ${this._paymentLogTypeLabel(r.type)}`, sublabel: r.note || '', amount: r.amount }
+      : { date: r.date, title: (r.category || 'รายจ่าย') + (r.desc ? ' · ' + r.desc : ''), sublabel: r.room ? `ห้อง ${r.room}` : '', amount: r.amount }
+    );
   generateStatement = async () => {
     const s = this.state;
     const isIncome = s.statementKind === 'income';
     const month = s.statementMonth;
     const source = isIncome ? (s.paymentLog || []) : (s.expenses || []);
     const filtered = source.filter(r => !month || (r.date || '').slice(0, 7) === month);
-    const rows = filtered
-      .slice()
-      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-      .map(r => isIncome
-        ? { date: r.date, title: `ห้อง ${r.room} · ${this._paymentLogTypeLabel(r.type)}`, sublabel: r.note || '', amount: r.amount }
-        : { date: r.date, title: (r.category || 'รายจ่าย') + (r.desc ? ' · ' + r.desc : ''), sublabel: r.room ? `ห้อง ${r.room}` : '', amount: r.amount }
-      );
-    const total = rows.reduce((a, r) => a + (Number(r.amount) || 0), 0);
-    const periodLabel = month ? this.monthValueToThaiLabel(month) : 'ทั้งหมด (ทุกรายการ)';
+    // แบ่งเป็นกลุ่มตามเดือนของตัวเอง (1 กลุ่ม = 1 แผ่น/1 เดือน) — ถ้าเลือก
+    // เดือนเจาะจงไว้แล้ว filtered มีแค่เดือนเดียวอยู่แล้ว กลุ่มเดียวพอดี
+    const monthsPresent = [...new Set(filtered.map(r => (r.date || '').slice(0, 7)).filter(Boolean))].sort();
+    const periods = monthsPresent.length ? monthsPresent : [''];
     this.setState({ statementGenerating: true });
     try {
-      const res = await fetch('/api/statement-image', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kindLabel: isIncome ? 'รายรับ' : 'รายจ่าย', periodLabel, rows, total, isIncome }),
-      });
-      if (!res.ok) { const r = await res.json().catch(() => ({})); throw new Error(r.error || 'สร้างสเตทเม้นต์ไม่สำเร็จ'); }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const urls = [];
+      for (const ym of periods) {
+        const rowsForMonth = this._buildStatementRows(filtered.filter(r => (r.date || '').slice(0, 7) === ym), isIncome);
+        const total = rowsForMonth.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+        const periodLabel = ym ? this.monthValueToThaiLabel(ym) : 'ไม่ระบุวันที่';
+        const res = await fetch('/api/statement-image', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kindLabel: isIncome ? 'รายรับ' : 'รายจ่าย', periodLabel, rows: rowsForMonth, total, isIncome }),
+        });
+        if (!res.ok) { const r = await res.json().catch(() => ({})); throw new Error(r.error || 'สร้างสเตทเม้นต์ไม่สำเร็จ'); }
+        const blob = await res.blob();
+        urls.push(URL.createObjectURL(blob));
+      }
       this.setState({ showStatementModal: false, statementGenerating: false });
-      this.openImageLightbox(url);
+      this.openImageGallery(urls, 0);
     } catch (err) {
       this.setState({ statementGenerating: false });
       this.showAdminToast(err.message || 'สร้างสเตทเม้นต์ไม่สำเร็จ กรุณาลองใหม่ครับ');
