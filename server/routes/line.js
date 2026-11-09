@@ -14,7 +14,7 @@ const { notifyAdmin } = require('../adminNotify');
 const { sign, verify, setSessionCookie } = require('../auth');
 const { computeTenantUsage } = require('./tenant');
 const { runWithSheetId, getCurrentSheetId, isMainAccountSheetId } = require('../requestContext');
-const { sendCommand, isConfigured: tuyaConfigured } = require('../tuya');
+const { sendCommand, isConfigured: tuyaConfigured, logTuyaCommand } = require('../tuya');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -1176,7 +1176,17 @@ async function handleOwnerRichMenuPostback(event, lineCreds) {
         await reply(`ห้อง ${roomId} ยังไม่ได้เชื่อมต่ออุปกรณ์ไฟฟ้าครับ ตัดไฟไม่ได้`);
         return;
       }
-      await sendCommand(room.tuyaElecDeviceId, 'switch', false, creds.tuya);
+      // "อยากให้เพิ่มประวัติการสั่งตัดไฟไว้ด้วยครับ" (2026-09-18) — source
+      // 'line' แยกจาก 'web' (POST /api/tuya/switch) ให้รู้ว่าคำสั่งนี้มา
+      // จากปุ่ม LINE ซึ่งเป็น webhook ที่เสี่ยงต่อปัญหาเซิร์ฟเวอร์หลับ
+      // (แผนฟรี) มากกว่าทางเว็บโดยตรง
+      try {
+        await sendCommand(room.tuyaElecDeviceId, 'switch', false, creds.tuya);
+        logTuyaCommand({ room: roomId, deviceId: room.tuyaElecDeviceId, command: 'switch', value: false, source: 'line', success: true }).catch(() => {});
+      } catch (cmdErr) {
+        logTuyaCommand({ room: roomId, deviceId: room.tuyaElecDeviceId, command: 'switch', value: false, source: 'line', success: false, errorMessage: cmdErr.message }).catch(() => {});
+        throw cmdErr;
+      }
       await reply(`✅ ตัดไฟห้อง ${roomId} เรียบร้อยแล้วครับ (กดจ่ายไฟคืนได้ที่หน้า "Set อุปกรณ์" เมื่อผู้เช่าชำระแล้ว)`);
       // "ถ้ามีการยืนยันการตัดไฟ...ให้แสดงตรงนี้ด้วย" (2026-08-10) — เหมือน
       // POST /api/tuya/switch's ทำ (ดู comment เต็มที่นั่น) กัน "🔌 ตัดไฟแล้ว"

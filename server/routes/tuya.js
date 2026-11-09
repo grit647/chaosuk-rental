@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { readTab, appendRow, updateRow } = require('../sheets');
-const { isConfigured, listDevices, getElecReading, getWaterReading, getWaterUsageDeltaLiters, sendCommand } = require('../tuya');
+const { isConfigured, listDevices, getElecReading, getWaterReading, getWaterUsageDeltaLiters, sendCommand, logTuyaCommand } = require('../tuya');
 const { readIntegrationCredentials } = require('../coerce');
 const { isMainAccountSheetId, getCurrentSheetId } = require('../requestContext');
 
@@ -529,7 +529,15 @@ router.post('/switch', async (req, res, next) => {
     const rooms = await readTab('Rooms');
     const room = rooms.find((r) => r.id === roomId);
     if (!room || !room.tuyaElecDeviceId) return res.status(400).json({ error: `ห้อง ${roomId} ยังไม่ได้เชื่อมต่ออุปกรณ์ไฟฟ้า` });
-    await sendCommand(room.tuyaElecDeviceId, 'switch', on, creds.tuya);
+    // "อยากให้เพิ่มประวัติการสั่งตัดไฟไว้ด้วยครับ" (2026-09-18) — บันทึกทั้ง
+    // สำเร็จ/ล้มเหลว แล้ว re-throw ต่อให้ catch ด้านนอกจัดการ response เหมือนเดิม
+    try {
+      await sendCommand(room.tuyaElecDeviceId, 'switch', on, creds.tuya);
+      logTuyaCommand({ room: roomId, deviceId: room.tuyaElecDeviceId, command: 'switch', value: on, source: 'web', success: true }).catch(() => {});
+    } catch (cmdErr) {
+      logTuyaCommand({ room: roomId, deviceId: room.tuyaElecDeviceId, command: 'switch', value: on, source: 'web', success: false, errorMessage: cmdErr.message }).catch(() => {});
+      throw cmdErr;
+    }
     const reading = await getElecReading(room.tuyaElecDeviceId, creds.tuya);
     res.json({ ok: true, ...reading });
     // "การจ่ายไฟอาจมี 2 กรณี คือ 1 ชำระบิลทั้งหมด แล้วจ่ายไฟให้ กับ 2 การขอ
@@ -548,6 +556,33 @@ router.post('/switch', async (req, res, next) => {
     // นั้น (submitInvoice/submitBulkInvoice's roomPatch) กันป้ายค้างข้ามรอบบิล
     updateRow('Rooms', roomId, on ? { elecRestoredAt: new Date().toISOString() } : { elecCutoffAt: new Date().toISOString() })
       .catch((err) => console.error('[tuya] elecCutoffAt/elecRestoredAt update failed:', err.message));
+  } catch (err) { next(err); }
+});
+
+// "อยากให้เพิ่มประวัติการสั่งตัดไฟไว้ด้วยครับ" (2026-09-18) — ประวัติการ
+// สั่งคำสั่ง switch (ตัดไฟ/จ่ายไฟ) ล่าสุด (ใหม่สุดก่อน, จำกัด 200 แถว
+// เหมือน LINE send-log) — resolve ชื่อผู้เช่าตรงนี้ครั้งเดียวตอนเปิดดู
+// (เหมือน GET /api/line/send-log's resolveName) แทนที่จะ join ทุกครั้งที่
+// บันทึก log
+router.get('/command-log', async (req, res, next) => {
+  try {
+    const [logRows, rooms] = await Promise.all([readTab('TuyaCommandLog'), readTab('Rooms')]);
+    const rows = logRows
+      .slice()
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 200)
+      .map((r) => {
+        const room = rooms.find((rm) => rm.id === r.room);
+        return {
+          id: r.id, timestamp: r.timestamp,
+          room: r.room, tenant: room ? (room.tenant || '-') : '-',
+          command: r.command, value: r.value,
+          source: r.source === 'line' ? 'LINE' : 'เว็บ',
+          success: r.success === true || r.success === 'TRUE' || r.success === 'true',
+          errorMessage: r.errorMessage || '',
+        };
+      });
+    res.json(rows);
   } catch (err) { next(err); }
 });
 

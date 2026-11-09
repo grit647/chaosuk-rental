@@ -303,6 +303,32 @@ async function sendCommand(deviceId, code, value, creds) {
   }, creds);
 }
 
+// "แผนฟรี กับการสั่งตัดไฟ...อยากให้เพิ่มประวัติการสั่งตัดไฟไว้ด้วยครับ"
+// (2026-09-18) — บันทึกทุกครั้งที่สั่งคำสั่ง "switch" (ตัดไฟ/จ่ายไฟ)
+// ไม่ว่าสำเร็จหรือล้มเหลว ลงแท็บใหม่ TuyaCommandLog (id, timestamp, room,
+// deviceId, command, value, source, success, errorMessage —
+// migrate-add-tuyacommandlog-tab.js) เหตุผลเดียวกับ LineSendLog ที่มี
+// อยู่แล้ว: ก่อนหน้านี้คำสั่งตัดไฟพังแค่ตอบ error กลับตอนนั้นเลย ไม่มีที่
+// เก็บไว้ดูย้อนหลังว่าพังบ่อยแค่ไหน (เป็นคำถามจริงที่เจ้าของถามหลังเปลี่ยน
+// Render ไปแผนฟรี — อยากรู้ว่าความล่าช้า/error จากเซิร์ฟเวอร์หลับกระทบ
+// จริงไหม) best-effort เสมอ (catch เงียบ) ไม่ให้การบันทึก log ไปบล็อก
+// คำสั่งตัดไฟจริงได้ไม่ว่ากรณีใด — called จาก server/routes/tuya.js's
+// POST /switch (source: 'web') และ server/routes/line.js's
+// owner:cutoff_confirm_elec postback (source: 'line')
+async function logTuyaCommand({ room, deviceId, command, value, source, success, errorMessage }) {
+  try {
+    const { appendRow } = require('./sheets');
+    await appendRow('TuyaCommandLog', {
+      id: 'TCL' + Date.now() + Math.random().toString(36).slice(2, 6),
+      timestamp: new Date().toISOString(),
+      room: room || '', deviceId: deviceId || '', command: command || '', value: String(value),
+      source: source || '', success: !!success, errorMessage: errorMessage || '',
+    });
+  } catch (err) {
+    console.error('[tuya] logTuyaCommand failed (ตารางอาจยังไม่มี — รัน migrate-add-tuyacommandlog-tab.js)', err.message);
+  }
+}
+
 // Tuya requires query-string params to be sorted alphabetically by key when
 // building the signature (undocumented in the quick-start guide, found by
 // trial and error 2026-07-23 — every existing caller of tuyaRequest above
@@ -404,4 +430,4 @@ async function getWaterUsageDeltaLiters(deviceId, sinceEventTimeMs, creds) {
   return { deltaLiters: deltaRaw / 10, lastProcessedEventTimeMs };
 }
 
-module.exports = { isConfigured, listDevices, getDeviceStatus, getDeviceSpec, getElecReading, getWaterReading, getWaterUsageDeltaLiters, sendCommand };
+module.exports = { isConfigured, listDevices, getDeviceStatus, getDeviceSpec, getElecReading, getWaterReading, getWaterUsageDeltaLiters, sendCommand, logTuyaCommand };
