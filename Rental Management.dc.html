@@ -2171,7 +2171,10 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                 </div>
                 <div style="font-size:12.5px;color:#7C6E5F;margin-top:2px">{{ currentMonthThaiLabel }}</div>
               </div>
-              <button onclick="{{ openExpenseModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">+ เพิ่มรายจ่าย</button>
+              <div style="display:flex;gap:8px;flex-shrink:0">
+                <div onclick="{{ openStatementModal }}" style="background:#FBF7F0;color:#7C6E5F;border:1px solid #E3D8C8;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">📊 สเตทเม้นต์</div>
+                <button onclick="{{ openExpenseModal }}" style="background:#C1622D;color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">+ เพิ่มรายจ่าย</button>
+              </div>
             </div>
             <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px">
               <div style="background:#FFFFFF;border-top:3px solid #B24336;border-radius:8px;padding:16px;box-sizing:border-box;max-width:260px;flex:1;min-width:200px">
@@ -2896,6 +2899,36 @@ input,select,textarea,button{font-family:'IBM Plex Sans Thai',sans-serif}
                   <button onclick="{{ submitExpense }}" style="flex:1;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">บันทึก</button>
                 </div>
               </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- "เพิ่มอีก 1 ฟังก์ชัน สเตทเม้นท์ รายรับจ่าย มีช่องให้เลือกเดือน
+             พ.ศ....หรือเลือกทั้งหมด สร้างเป็น png สรุป ว่าจะให้เลือก
+             รายงานรายรับหรือรายจ่าย" (2026-09-18) -->
+        <sc-if value="{{ showStatementModal }}">
+          <div onclick="{{ closeStatementModal }}" style="position:absolute;inset:0;background:rgba(36,24,18,0.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;box-sizing:border-box">
+            <div onclick="{{ stop }}" style="background:#FFFFFF;border-radius:12px;padding:22px;width:360px;max-width:100%;box-sizing:border-box">
+              <div style="font-size:16px;font-weight:700;color:#241812;margin-bottom:4px">สร้างสเตทเม้นต์</div>
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:16px">เลือกประเภทและช่วงเวลา แล้วกดสร้างเป็นรูปสรุป</div>
+
+              <div style="display:flex;gap:8px;margin-bottom:16px">
+                <div onclick="{{ setStatementIncome }}" style="flex:1;text-align:center;padding:10px;border-radius:7px;cursor:pointer;font-size:12.5px;font-weight:600;background:{{ statementIncomeBg }};border:1.5px solid #3B7A52;color:#3B7A52">💰 รายรับ</div>
+                <div onclick="{{ setStatementExpense }}" style="flex:1;text-align:center;padding:10px;border-radius:7px;cursor:pointer;font-size:12.5px;font-weight:600;background:{{ statementExpenseBg }};border:1.5px solid #E3B7AC;color:#B24336">🧾 รายจ่าย</div>
+              </div>
+
+              <div style="font-size:11.5px;color:#7C6E5F;margin-bottom:5px">ช่วงเวลา</div>
+              <select value="{{ statementMonthValue }}" onchange="{{ onStatementMonthChange }}" style="width:100%;padding:9px;border-radius:6px;border:1px solid #E3D8C8;font-size:12.5px;box-sizing:border-box;margin-bottom:18px">
+                <option value="">ทั้งหมด (ทุกรายการ)</option>
+                <sc-for list="{{ statementMonthOptions }}" as="mo" hint-placeholder-count="3">
+                  <option value="{{ mo.value }}">{{ mo.label }}</option>
+                </sc-for>
+              </select>
+
+              <div style="display:flex;gap:10px">
+                <button onclick="{{ closeStatementModal }}" style="flex:1;background:none;border:1px solid #E3D8C8;color:#241812;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">ยกเลิก</button>
+                <button onclick="{{ generateStatement }}" style="flex:1.3;background:#C1622D;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">{{ statementGenerateLabel }}</button>
+              </div>
             </div>
           </div>
         </sc-if>
@@ -5502,6 +5535,13 @@ class Component extends DCLogic {
     addingCategory: false,
     newCategoryText: '',
     newExpense: { category: '', desc: '', amount: '', date: '', room: '' },
+    // "เพิ่มอีก 1 ฟังก์ชัน สเตทเม้นท์ รายรับจ่าย" (2026-09-18) — popup
+    // เลือกเดือน (หรือ 'ทั้งหมด' = '') + ประเภทรายรับ/รายจ่าย แล้วกด
+    // สร้างเป็นรูป PNG ดู (ดู openStatementModal/generateStatement)
+    showStatementModal: false,
+    statementKind: 'income', // 'income' | 'expense'
+    statementMonth: '', // '' = ทั้งหมด, otherwise 'YYYY-MM'
+    statementGenerating: false,
     // "ซ่อน"/"เลิกซ่อน" toggle per expense row — off by default, so hidden
     // items stay out of the main list until the owner explicitly reveals
     // them via the "แสดงรายการที่ซ่อนไว้" button.
@@ -7714,6 +7754,59 @@ class Component extends DCLogic {
     newExpense: { category: '', desc: '', amount: '', date: this._todayStr(), room: '' },
   });
   closeExpenseModal = () => this.setState({ showExpenseModal: false });
+  // "เพิ่มอีก 1 ฟังก์ชัน สเตทเม้นท์ รายรับจ่าย มีช่องให้เลือกเดือน พ.ศ.
+  // ที่บันทึกในรายการ หรือเลือกทั้งหมด สร้างเป็น png สรุป ว่าจะให้เลือก
+  // รายงานรายรับหรือรายจ่าย" (2026-09-18) — รายรับ = s.paymentLog
+  // (ยอดเงินที่รับจริง ตามที่ยืนยันผ่าน AskUserQuestion — คนละก้อนกับ
+  // ยอดบิลที่ยังค้าง), รายจ่าย = s.expenses (รายการในตาราง "รายจ่าย
+  // ทั่วไป" หน้านี้เป๊ะๆ) ไม่รวมเงินเดือนพนักงาน (คำนวณแบบ aggregate
+  // รายเดือน ไม่มี record รายวันให้ลงรายการเป็นบรรทัดได้)
+  openStatementModal = () => this.setState({ showStatementModal: true, statementMonth: '' });
+  closeStatementModal = () => this.setState({ showStatementModal: false });
+  setStatementKind = (kind) => this.setState({ statementKind: kind, statementMonth: '' });
+  onStatementMonthChange = (e) => this.setState({ statementMonth: e.target.value });
+  _paymentLogTypeLabel = (type) => ({
+    invoice_full: 'ชำระเต็มจำนวน', invoice_partial: 'ชำระบางส่วน',
+    credit: 'เงินล่วงหน้า', adjustment: 'ปรับปรุงยอด',
+  }[type] || 'รับชำระเงิน');
+  // 'YYYY-MM' -> "เดือนไทย พ.ศ." เช่น '2026-09' -> 'กันยายน 2569'
+  monthValueToThaiLabel = (ym) => {
+    const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    const m = /^(\d{4})-(\d{2})$/.exec(ym || '');
+    if (!m) return ym || '';
+    return THAI_MONTHS[Number(m[2]) - 1] + ' ' + (Number(m[1]) + 543);
+  };
+  generateStatement = async () => {
+    const s = this.state;
+    const isIncome = s.statementKind === 'income';
+    const month = s.statementMonth;
+    const source = isIncome ? (s.paymentLog || []) : (s.expenses || []);
+    const filtered = source.filter(r => !month || (r.date || '').slice(0, 7) === month);
+    const rows = filtered
+      .slice()
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+      .map(r => isIncome
+        ? { date: r.date, title: `ห้อง ${r.room} · ${this._paymentLogTypeLabel(r.type)}`, sublabel: r.note || '', amount: r.amount }
+        : { date: r.date, title: (r.category || 'รายจ่าย') + (r.desc ? ' · ' + r.desc : ''), sublabel: r.room ? `ห้อง ${r.room}` : '', amount: r.amount }
+      );
+    const total = rows.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+    const periodLabel = month ? this.monthValueToThaiLabel(month) : 'ทั้งหมด (ทุกรายการ)';
+    this.setState({ statementGenerating: true });
+    try {
+      const res = await fetch('/api/statement-image', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kindLabel: isIncome ? 'รายรับ' : 'รายจ่าย', periodLabel, rows, total, isIncome }),
+      });
+      if (!res.ok) { const r = await res.json().catch(() => ({})); throw new Error(r.error || 'สร้างสเตทเม้นต์ไม่สำเร็จ'); }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      this.setState({ showStatementModal: false, statementGenerating: false });
+      this.openImageLightbox(url);
+    } catch (err) {
+      this.setState({ statementGenerating: false });
+      this.showAdminToast(err.message || 'สร้างสเตทเม้นต์ไม่สำเร็จ กรุณาลองใหม่ครับ');
+    }
+  };
   pickExpenseCategory = (cat) => this.setState(s => ({ expenseModalStep: 'form', newExpense: { ...s.newExpense, category: cat } }));
   backToExpenseCategoryStep = () => this.setState({ expenseModalStep: 'category' });
   toggleAddCategory = () => this.setState(s => ({ addingCategory: !s.addingCategory, newCategoryText: '' }));
@@ -14370,6 +14463,19 @@ class Component extends DCLogic {
       showExpenseModal: s.showExpenseModal, newExpense: s.newExpense, openExpenseModal: this.openExpenseModal, closeExpenseModal: this.closeExpenseModal,
       onExpenseDescChange: this.onExpenseDescChange, onExpenseAmountChange: this.onExpenseAmountChange, onExpenseDateChange: this.onExpenseDateChange,
       addingCategory: s.addingCategory, newCategoryText: s.newCategoryText, toggleAddCategory: this.toggleAddCategory, onNewCategoryText: this.onNewCategoryText, confirmNewCategory: this.confirmNewCategory, submitExpense: this.submitExpense,
+      // "เพิ่มอีก 1 ฟังก์ชัน สเตทเม้นท์ รายรับจ่าย" (2026-09-18)
+      showStatementModal: s.showStatementModal, openStatementModal: this.openStatementModal, closeStatementModal: this.closeStatementModal,
+      setStatementIncome: () => this.setStatementKind('income'), setStatementExpense: () => this.setStatementKind('expense'),
+      statementIncomeBg: s.statementKind === 'income' ? '#E4EFE7' : '#fff',
+      statementExpenseBg: s.statementKind === 'expense' ? '#FBE7E4' : '#fff',
+      statementGenerateLabel: s.statementGenerating ? 'กำลังสร้าง...' : '📊 สร้าง PNG',
+      statementMonthValue: s.statementMonth, onStatementMonthChange: this.onStatementMonthChange,
+      statementMonthOptions: (() => {
+        const source = s.statementKind === 'income' ? (s.paymentLog || []) : (s.expenses || []);
+        const months = [...new Set(source.map(r => (r.date || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+        return months.map(ym => ({ value: ym, label: this.monthValueToThaiLabel(ym) }));
+      })(),
+      statementGenerating: s.statementGenerating, generateStatement: this.generateStatement,
       contractsView, contractsTotalCount: contractsView.length, contractsNearCount,
       contractFormActive: s.contractFormRoomId != null,
       contractFormInactive: s.contractFormRoomId == null,

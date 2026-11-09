@@ -373,6 +373,7 @@ app.use('/api/demo-reset', require('./routes/demoReset'));
 app.use('/api/payment-card-image', require('./routes/paymentCard'));
 app.use('/api/payment-log', require('./routes/paymentLog'));
 app.use('/api/paid-receipts', require('./routes/paidReceipts'));
+app.use('/api/statement-image', require('./routes/statement'));
 app.use('/api/external', require('./routes/external'));
 
 app.use((err, req, res, next) => {
